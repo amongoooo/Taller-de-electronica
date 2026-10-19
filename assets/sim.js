@@ -237,7 +237,7 @@
   D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '' } = {}) => {
     D.circle(ctx, x, y, 30, C.metal, broken ? C.danger : C.ink, 2.5);
     D.circle(ctx, x, y, 24, C['water-soft']);
-    if (broken) D.rotor(ctx, x, y, 19, 0.5, 0, 4, C.muted);
+    if (broken) D.rotor(ctx, x, y, 7, 0.5, 0, 4, C.muted);   // solo quedan los muñones de las aspas
     else D.rotor(ctx, x, y, 19, angle, omega, 4, C.ink);
     D.circle(ctx, x, y, 4, C.ink);
     D.arrow(ctx, x, y - 42, rev ? Math.PI : 0, 8, rev ? C.danger : C.muted);
