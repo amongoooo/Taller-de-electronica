@@ -358,6 +358,36 @@
       });
     })));
 
+    // Tocar un medidor lo prepara para conectarse: el siguiente toque en el circuito pone el caimán
+    // rojo (+) y el siguiente el negro (−). Tocar el medidor otra vez o Esc cancela.
+    st.placing = null;
+    const setPlacing = v => {
+      st.placing = v;
+      [b.pw, b.pe].forEach(p => p.box.classList.toggle('placing', !!v));
+    };
+    ['V', 'I'].forEach(kind => ['w', 'e'].forEach(side => {
+      const el = document.createElement('button');
+      el.type = 'button'; el.className = 'sim-meter-hit';
+      const name = kind === 'V' ? (side === 'w' ? 'el manómetro' : 'el voltímetro') : (side === 'w' ? 'el medidor de caudal' : 'el amperímetro');
+      el.setAttribute('aria-label', `Conectar ${name}: luego toca el circuito para el caimán rojo (+) y después para el negro (−)`);
+      b.place(side, el, g => { const [x, y] = meterAt(g, kind); return [x, y + 18 * g.MK]; });
+      el.addEventListener('click', () => setPlacing(st.placing && st.placing.kind === kind ? null : { kind, i: 0 }));
+    }));
+    let swallow = false;
+    [b.pw, b.pe].forEach(p => {
+      p.box.addEventListener('pointerdown', e => {
+        if (!st.placing || e.target.closest('.sim-meter-hit')) return;
+        const r = p.box.getBoundingClientRect();
+        const { kind, i } = st.placing;
+        st.pinned[kind] = false;
+        moveClamp(kind, i, (e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale);
+        setPlacing(i ? null : { kind, i: 1 });
+        swallow = true; e.preventDefault(); e.stopPropagation();
+      }, true);
+      p.box.addEventListener('click', e => { if (swallow) { swallow = false; e.preventDefault(); e.stopPropagation(); } }, true);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.placing) setPlacing(null); });
+
     // ---------- dibujo común ----------
     const controllerBox = (ctx, g, title, fill, scale, caption) => {
       if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 30, 28, 18); }   // cuello hacia el circuito
@@ -396,9 +426,21 @@
     const drawProbe = (ctx, g, kind, label, text, unit, color) => {
       const [x, y] = meterAt(g, kind), needle = kind === 'V' ? st.nVm : st.nIm;
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
+      const placing = st.placing && st.placing.kind === kind;
+      if (placing) {   // borde del color del medidor mientras espera dónde conectarse
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
+        ctx.globalAlpha = 0.35 + 0.4 * pulse;
+        D.roundRect(ctx, -66, -46, 132, 126, 14, null, PROBE[kind], 6);
+        ctx.globalAlpha = 1;
+      }
       D.meter(ctx, 0, 0, { r: 30, frac: needle.x, color, lcdW: 108, text, unit });
-      D.text(ctx, label, 0, 92, PROBE[kind], { size: 15 });
-      if (st.probe[kind].value === null) D.text(ctx, 'la región cruza un nodo', 0, 110, C.danger, { size: 12 });
+      if (placing) {
+        D.text(ctx, 'toca el circuito para el', 0, 92, PROBE[kind], { size: 12 });
+        D.text(ctx, st.placing.i ? 'caimán negro (−)' : 'caimán rojo (+)', 0, 108, st.placing.i ? C.ink : RED, { size: 13 });
+      } else {
+        D.text(ctx, label, 0, 92, PROBE[kind], { size: 15 });
+        if (st.probe[kind].value === null) D.text(ctx, 'la región cruza un nodo', 0, 110, C.danger, { size: 12 });
+      }
       ctx.restore();
       [0, 1].forEach(i => {
         const [jx, jy] = jack(g, kind, i), [cx, cy] = st.clamps[kind][i];
