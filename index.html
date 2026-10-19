@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+:root {
+  --bg: #eaf0f3; --card: #ffffff; --ink: #15212a; --muted: #566a78; --line: #cfd9e0;
+  --water: #1874b8; --charge: #c77d00;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e151a; --card: #16212a; --ink: #e4ecf1; --muted: #93a6b3; --line: #2a3945;
+    --water: #62b6f2; --charge: #f3b443; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e151a; --card: #16212a; --ink: #e4ecf1; --muted: #93a6b3; --line: #2a3945;
+  --water: #62b6f2; --charge: #f3b443; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.5; }
+.wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 56px; display: grid; gap: 28px; }
+.eyebrow { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+h1 { font-family: var(--font-display); font-weight: 750; font-size: clamp(34px, 6vw, 56px); line-height: 1.05; margin: 6px 0 8px; }
+.lede { margin: 0; max-width: 62ch; color: var(--muted); }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 22px; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.card { display: grid; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; color: inherit; text-decoration: none; }
+a.card:hover { border-color: var(--water); }
+.card h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.tag { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--water); }
+.card.soon { border-style: dashed; }
+.card.soon .tag { color: var(--muted); }
+footer { color: var(--muted); font-size: 14px; }
+footer a { color: var(--water); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Taller de Electrónica</div>
+    <h1>Simulaciones</h1>
+    <p class="lede">Simulaciones interactivas para acompañar el taller en laboratorio con fuente, generador de funciones y osciloscopio. Funcionan en el navegador, también en el celular.</p>
+  </header>
+
+  <section>
+    <h2>Disponibles</h2>
+    <div class="grid" style="margin-top:12px">
+      <a class="card" href="simulaciones/agua-electricidad/">
+        <span class="tag">4 simulaciones</span>
+        <h3>Circuitos de agua y corriente</h3>
+        <p>Voltaje y presión, resistencia, serie y paralelo, interruptor y LED, con la analogía del agua lado a lado.</p>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Próximamente</h2>
+    <div class="grid" style="margin-top:12px">
+      <div class="card soon"><span class="tag">En preparación</span><h3>Capacitores</h3><p>Carga y descarga, constante de tiempo RC.</p></div>
+      <div class="card soon"><span class="tag">En preparación</span><h3>Osciloscopio</h3><p>Señales del generador: frecuencia, amplitud y base de tiempo.</p></div>
+    </div>
+  </section>
+
+  <footer>Código en <a href="https://github.com/amongoooo/Taller-de-electronica">GitHub</a>.</footer>
+</div>
+</body>
+</html>

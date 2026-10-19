@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Circuitos de agua y corriente · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: banco de laboratorio. Cada simulación muestra el circuito de agua y el eléctrico lado a lado, con los controles debajo. */
+:root {
+  --bg: #eaf0f3;
+  --card: #ffffff;
+  --ink: #15212a;
+  --muted: #566a78;
+  --line: #cfd9e0;
+  --pipe: #8aa0b0;
+  --water-soft: #cde6f6;
+  --water: #1874b8;
+  --charge: #c77d00;
+  --charge-soft: #fbecd0;
+  --danger: #c23b2c;
+  --ok: #217a4b;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e151a; --card: #16212a; --ink: #e4ecf1; --muted: #93a6b3; --line: #2a3945;
+    --pipe: #4e6676; --water-soft: #1c3c55; --water: #62b6f2; --charge: #f3b443; --charge-soft: #3a2d14;
+    --danger: #ff7b6c; --ok: #5fd197; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e151a; --card: #16212a; --ink: #e4ecf1; --muted: #93a6b3; --line: #2a3945;
+  --pipe: #4e6676; --water-soft: #1c3c55; --water: #62b6f2; --charge: #f3b443; --charge-soft: #3a2d14;
+  --danger: #ff7b6c; --ok: #5fd197; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.ctl .check { justify-content: flex-start; }
+.seg { justify-self: start; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.5;
+}
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+  display: grid; gap: 22px;
+}
+header { display: grid; gap: 6px; }
+.eyebrow { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+h1 { font-family: var(--font-display); font-weight: 750; font-size: clamp(32px, 5vw, 50px); line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 .w { color: var(--water); } h1 .e { color: var(--charge); }
+.lede { margin: 4px 0 0; max-width: 64ch; color: var(--muted); }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 26px; margin: 0; text-wrap: balance; }
+h3 { font-size: 15px; margin: 0 0 6px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tab {
+  font: inherit; font-size: 15px; font-weight: 700; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 14px; cursor: pointer;
+}
+.tab .n { font-family: var(--font-mono); color: var(--muted); margin-right: 6px; }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tab[aria-selected="true"] .n { color: var(--bg); opacity: .7; }
+.spacer { flex: 1; }
+.btn {
+  font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 8px; padding: 8px 14px;
+}
+.btn:hover, .tab:hover { border-color: var(--muted); }
+:focus-visible { outline: 3px solid var(--water); outline-offset: 2px; }
+
+.sim { display: grid; gap: 16px; }
+.sim > p { margin: 0; max-width: 70ch; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; min-width: 0; }
+figcaption { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; padding: 2px 4px 8px; }
+.chip { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; border-radius: 6px; padding: 2px 8px; }
+.chip.w { background: var(--water-soft); color: var(--water); }
+.chip.e { background: var(--charge-soft); color: var(--charge); }
+canvas { display: block; width: 100%; aspect-ratio: 480 / 290; max-width: 100%; }
+
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px 20px; align-items: end; }
+.ctl { display: grid; gap: 4px; min-width: 0; }
+.ctl label { font-weight: 700; font-size: 15px; display: flex; justify-content: space-between; gap: 8px; }
+.ctl output { font-family: var(--font-mono); font-size: 14px; color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--water); }
+.check { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 15px; cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--water); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 15px; font-weight: 700; padding: 8px 14px; border: 0; background: var(--card); color: var(--ink); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--water); color: var(--card); }
+
+.readout {
+  font-family: var(--font-mono); font-size: 15px; font-variant-numeric: tabular-nums;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  overflow-x: auto; white-space: nowrap;
+}
+.readout .warn { color: var(--danger); font-family: var(--font-body); font-weight: 700; white-space: normal; display: block; margin-top: 4px; }
+.notes { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.notes ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.notes p { margin: 0; }
+details { margin-top: 8px; }
+summary { cursor: pointer; color: var(--water); font-weight: 700; }
+
+.legend { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+td:first-child { color: var(--water); font-weight: 700; }
+td:nth-child(2) { color: var(--charge); font-weight: 700; }
+.foot { color: var(--muted); font-size: 14px; margin: 0; }
+
+@media (max-width: 760px) {
+  .pair, .notes { grid-template-columns: 1fr; }
+}
+.back { color: var(--water); font-weight: 700; text-decoration: none; font-size: 15px; }
+.back:hover { text-decoration: underline; }
+body { margin: 0; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="../../">← Todas las simulaciones</a>
+    <div class="eyebrow">Taller de Electrónica · Simulaciones</div>
+    <h1>Circuitos de <span class="w">agua</span> y <span class="e">corriente</span></h1>
+    <p class="lede">Cada simulación muestra el mismo circuito dos veces: con tuberías de agua y con cables. Los puntos se mueven a una velocidad proporcional a la corriente, así que lo que cambia en un lado cambia igual en el otro.</p>
+  </header>
+
+  <div class="bar" role="tablist" aria-label="Simulaciones">
+    <button class="tab" role="tab" id="tab-1" aria-selected="true" data-sim="1"><span class="n">1</span>Voltaje y presión</button>
+    <button class="tab" role="tab" id="tab-2" aria-selected="false" data-sim="2"><span class="n">2</span>Resistencia</button>
+    <button class="tab" role="tab" id="tab-3" aria-selected="false" data-sim="3"><span class="n">3</span>Serie y paralelo</button>
+    <button class="tab" role="tab" id="tab-4" aria-selected="false" data-sim="4"><span class="n">4</span>Interruptor y LED</button>
+    <span class="spacer"></span>
+    <button class="btn" id="pause" type="button">Pausar</button>
+  </div>
+
+  <!-- 1 -->
+  <section class="sim" data-sim="1" role="tabpanel" aria-labelledby="tab-1">
+    <h2>El voltaje es la presión que empuja</h2>
+    <p>La bomba empuja el agua igual que la fuente empuja la corriente. Sube el voltaje y mira cómo se mueve todo más rápido, aunque la tubería y la resistencia no cambian.</p>
+    <div class="pair">
+      <figure><figcaption><span class="chip w">Agua</span>Bomba y tubería</figcaption><canvas id="c1w" aria-label="Circuito de agua con bomba, manómetro, un estrechamiento y medidor de caudal"></canvas></figure>
+      <figure><figcaption><span class="chip e">Electricidad</span>Fuente y resistencia</figcaption><canvas id="c1e" aria-label="Circuito eléctrico con fuente, voltímetro, resistencia de 1 kΩ y amperímetro"></canvas></figure>
+    </div>
+    <div class="controls">
+      <div class="ctl"><label for="s1V">Voltaje de la fuente (presión) <output id="o1V"></output></label><input type="range" id="s1V" min="0" max="12" step="0.5" value="6"></div>
+    </div>
+    <div class="readout" id="r1"></div>
+    <div class="notes">
+      <div><h3>Qué observar</h3><ul><li>Con 0 V el agua y las cargas están ahí, pero quietas.</li><li>Al doblar el voltaje, se dobla la velocidad de los puntos y la corriente.</li></ul></div>
+      <div><h3>Pregunta para el grupo</h3><p>Si la corriente está quieta con 0 V, ¿los cables están vacíos?</p><details><summary>Ver respuesta</summary><p>No. Las cargas siempre están en el cable, como el agua en la tubería llena. El voltaje solo las pone en movimiento.</p></details></div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="sim" data-sim="2" role="tabpanel" aria-labelledby="tab-2" hidden>
+    <h2>La resistencia es un estrechamiento</h2>
+    <p>Un tramo angosto de tubería deja pasar menos agua con la misma presión. Cambia la resistencia y comprueba la ley de Ohm con los números de abajo.</p>
+    <div class="pair">
+      <figure><figcaption><span class="chip w">Agua</span>Tubería con tramo angosto</figcaption><canvas id="c2w" aria-label="Circuito de agua con un estrechamiento ajustable"></canvas></figure>
+      <figure><figcaption><span class="chip e">Electricidad</span>Resistencia variable</figcaption><canvas id="c2e" aria-label="Circuito eléctrico con resistencia ajustable"></canvas></figure>
+    </div>
+    <div class="controls">
+      <div class="ctl"><label for="s2V">Voltaje (presión) <output id="o2V"></output></label><input type="range" id="s2V" min="0" max="12" step="0.5" value="9"></div>
+      <div class="ctl"><label for="s2R">Resistencia (estrechamiento) <output id="o2R"></output></label><input type="range" id="s2R" min="0" max="8" step="1" value="2"></div>
+    </div>
+    <div class="readout" id="r2"></div>
+    <div class="notes">
+      <div><h3>Qué observar</h3><ul><li>A más resistencia, el tramo es más angosto y pasa menos corriente.</li><li>Con 1 kΩ y 9 V pasan 9 mA; con 10 kΩ, solo 0,9 mA.</li></ul></div>
+      <div><h3>Pregunta para el grupo</h3><p>Si quiero la misma corriente con una resistencia más grande, ¿qué tengo que cambiar?</p><details><summary>Ver respuesta</summary><p>Subir el voltaje. Más estrechamiento necesita más presión para mover el mismo caudal: V = I × R.</p></details></div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="sim" data-sim="3" role="tabpanel" aria-labelledby="tab-3" hidden>
+    <h2>Serie y paralelo</h2>
+    <p>Los LEDs se representan como ruedas de molino: giran cuando pasa agua y necesitan una presión mínima, unos 2 V, para empezar a moverse. Funde un LED y compara qué pasa en cada conexión.</p>
+    <div class="pair">
+      <figure><figcaption><span class="chip w">Agua</span>Ruedas de molino</figcaption><canvas id="c3w" aria-label="Circuito de agua con dos ruedas en serie o en paralelo"></canvas></figure>
+      <figure><figcaption><span class="chip e">Electricidad</span>Dos LEDs</figcaption><canvas id="c3e" aria-label="Circuito eléctrico con dos LEDs en serie o en paralelo"></canvas></figure>
+    </div>
+    <div class="controls">
+      <div class="ctl"><span style="font-weight:700;font-size:15px">Conexión</span><div class="seg" role="group" aria-label="Conexión"><button type="button" id="m3s" aria-pressed="true">Serie</button><button type="button" id="m3p" aria-pressed="false">Paralelo</button></div></div>
+      <div class="ctl"><label for="s3V">Voltaje <output id="o3V"></output></label><input type="range" id="s3V" min="0" max="12" step="0.5" value="9"></div>
+      <div class="ctl"><label class="check" for="b31"><input type="checkbox" id="b31">LED 1 fundido</label><label class="check" for="b32"><input type="checkbox" id="b32">LED 2 fundido</label></div>
+    </div>
+    <div class="readout" id="r3"></div>
+    <div class="notes">
+      <div><h3>Qué observar</h3><ul><li>En serie, si un LED se funde, el otro se apaga: el único camino se rompe.</li><li>En paralelo, cada rama tiene su propio camino y su propia resistencia.</li><li>En serie, baja el voltaje a 4 V o menos: los LEDs ya no encienden.</li></ul></div>
+      <div><h3>Pregunta para el grupo</h3><p>¿Por qué cuando se funde un foco de tu casa los demás siguen encendidos?</p><details><summary>Ver respuesta</summary><p>Porque la instalación de una casa está en paralelo: cada foco tiene su propio camino desde la fuente.</p></details></div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="sim" data-sim="4" role="tabpanel" aria-labelledby="tab-4" hidden>
+    <h2>Interruptor, polaridad y resistencia del LED</h2>
+    <p>El interruptor es una válvula y el LED es una rueda con una compuerta que solo deja pasar el agua en un sentido. La fuente está fija en 9 V. Prueba abrir el circuito, girar el LED y quitarle la resistencia.</p>
+    <div class="pair">
+      <figure><figcaption><span class="chip w">Agua</span>Válvula y rueda de un solo sentido</figcaption><canvas id="c4w" aria-label="Circuito de agua con válvula, estrechamiento y rueda antirretorno"></canvas></figure>
+      <figure><figcaption><span class="chip e">Electricidad</span>Interruptor, resistencia y LED</figcaption><canvas id="c4e" aria-label="Circuito eléctrico con interruptor, resistencia y LED"></canvas></figure>
+    </div>
+    <div class="controls">
+      <div class="ctl"><label class="check" for="k4"><input type="checkbox" id="k4" checked>Interruptor cerrado (válvula abierta)</label></div>
+      <div class="ctl"><label for="s4R">Resistencia del LED <output id="o4R"></output></label><input type="range" id="s4R" min="0" max="4" step="1" value="3"></div>
+      <div class="ctl" style="grid-auto-flow:column;justify-content:start;gap:8px"><button class="btn" type="button" id="flip4">Girar el LED</button><button class="btn" type="button" id="new4" hidden>Poner un LED nuevo</button></div>
+    </div>
+    <div class="readout" id="r4"></div>
+    <div class="notes">
+      <div><h3>Qué observar</h3><ul><li>Con el interruptor abierto la válvula se cierra y todo se detiene.</li><li>Al revés, la compuerta del LED bloquea el paso: no hay corriente.</li><li>Sin resistencia, o con muy poca, pasan más de 30 mA y el LED se quema.</li></ul></div>
+      <div><h3>Pregunta para el grupo</h3><p>Con 9 V, ¿cuál es la resistencia más pequeña de la lista que no quema el LED?</p><details><summary>Ver respuesta</summary><p>470 Ω: (9 V − 2 V) / 470 Ω ≈ 15 mA. Con 220 Ω pasarían unos 32 mA, demasiado para un LED de 5 mm.</p></details></div>
+    </div>
+  </section>
+
+  <section class="legend" aria-labelledby="lg">
+    <h2 id="lg" style="font-size:20px">La analogía completa</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Agua</th><th>Electricidad</th><th>Unidad</th></tr></thead>
+        <tbody>
+          <tr><td>Bomba</td><td>Fuente o pila</td><td>—</td></tr>
+          <tr><td>Presión (manómetro)</td><td>Voltaje (voltímetro)</td><td>voltio, V</td></tr>
+          <tr><td>Caudal (medidor de caudal)</td><td>Corriente (amperímetro)</td><td>amperio, A · mA</td></tr>
+          <tr><td>Tramo angosto</td><td>Resistencia</td><td>ohmio, Ω</td></tr>
+          <tr><td>Válvula</td><td>Interruptor</td><td>—</td></tr>
+          <tr><td>Rueda con compuerta de un sentido</td><td>LED (diodo)</td><td>caída de unos 2 V</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="foot">La analogía tiene límites: la corriente eléctrica no se "derrama" si se corta un cable, y las cargas se mueven muy despacio aunque la señal viaje casi a la velocidad de la luz.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  const W = 480, H = 290, X0 = 70, X1 = 410, TOP = 80, MID = 160, BOT = 240, SRC = 205;
+  const RLIST = [470, 680, 1000, 1500, 2200, 3300, 4700, 6800, 10000];
+  const R4 = [0, 100, 220, 470, 1000];
+  const VF = 2, IMAX = 0.03;
+  let reduce = false;
+  try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  const S = {
+    1: { V: 6, phase: [0, 0], pump: 0, ang: {} },
+    2: { V: 9, ri: 2, phase: [0, 0], pump: 0, ang: {} },
+    3: { V: 9, mode: 'serie', b1: false, b2: false, phase: [0, 0], pump: 0, ang: {} },
+    4: { closed: true, ri: 3, rev: false, broken: false, burnI: 0, phase: [0, 0], pump: 0, ang: {} }
+  };
+  let active = 1, paused = false;
+
+  const $ = id => document.getElementById(id);
+  const f = (x, d = 1) => x.toLocaleString('es-MX', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const ohm = R => R >= 1000 ? f(R / 1000, R % 1000 ? 1 : 0) + ' kΩ' : R + ' Ω';
+  const mA = I => f(I * 1000, I * 1000 < 10 ? 1 : 0) + ' mA';
+
+  // ---------- modelo de cada simulación ----------
+  function scene(n) {
+    const s = S[n];
+    if (n === 1) {
+      const I = s.V / 1000;
+      return { V: s.V, I, branches: [{ y: TOP, I, items: [{ k: 'res', x: 240, R: 1000 }] }] };
+    }
+    if (n === 2) {
+      const R = RLIST[s.ri], I = s.V / R;
+      return { V: s.V, I, branches: [{ y: TOP, I, items: [{ k: 'res', x: 240, R }] }] };
+    }
+    if (n === 3) {
+      if (s.mode === 'serie') {
+        const I = (s.b1 || s.b2) ? 0 : Math.max(0, s.V - 2 * VF) / 470;
+        return { V: s.V, I, branches: [{ y: TOP, I, items: [
+          { k: 'res', x: 165, R: 470 },
+          { k: 'led', x: 275, id: 'a', I, broken: s.b1, label: 'LED 1' },
+          { k: 'led', x: 360, id: 'b', I, broken: s.b2, label: 'LED 2' }] }] };
+      }
+      const I1 = s.b1 ? 0 : Math.max(0, s.V - VF) / 470;
+      const I2 = s.b2 ? 0 : Math.max(0, s.V - VF) / 470;
+      return { V: s.V, I: I1 + I2, I1, I2, branches: [
+        { y: TOP, I: I1, items: [{ k: 'res', x: 200, R: 470 }, { k: 'led', x: 325, id: 'a', I: I1, broken: s.b1, label: 'LED 1' }] },
+        { y: MID, I: I2, items: [{ k: 'res', x: 200, R: 470 }, { k: 'led', x: 325, id: 'b', I: I2, broken: s.b2, label: 'LED 2' }] }] };
+    }
+    const R = R4[s.ri], V = 9;
+    let I = (s.closed && !s.rev && !s.broken) ? (V - VF) / (R + 5) : 0;
+    if (I > IMAX) { s.broken = true; s.burnI = I; I = 0; text(4); }
+    return { V, I, branches: [{ y: TOP, I, items: [
+      { k: 'sw', x: 150, open: !s.closed },
+      R ? { k: 'res', x: 250, R } : { k: 'wire', x: 250 },
+      { k: 'led', x: 350, id: 'l', I, broken: s.broken, rev: s.rev, label: 'LED' }] }] };
+  }
+
+  // ---------- textos ----------
+  function text(n) {
+    const s = S[n];
+    if (n === 1) {
+      $('o1V').textContent = f(s.V) + ' V';
+      $('r1').textContent = `I = V / R = ${f(s.V)} V / 1 000 Ω = ${f(s.V)} mA`;
+    } else if (n === 2) {
+      const R = RLIST[s.ri];
+      $('o2V').textContent = f(s.V) + ' V';
+      $('o2R').textContent = ohm(R);
+      $('r2').textContent = `I = V / R = ${f(s.V)} V / ${ohm(R)} = ${mA(s.V / R)}`;
+    } else if (n === 3) {
+      $('o3V').textContent = f(s.V) + ' V';
+      const sc = scene(3), r = $('r3');
+      if (s.mode === 'serie') {
+        r.innerHTML = `I = (${f(s.V)} V − 2 V − 2 V) / 470 Ω = ${mA(sc.I)}  ·  la misma en los dos LEDs`;
+        if (s.b1 || s.b2) r.innerHTML += '<span class="warn">Un LED fundido corta el único camino: no pasa corriente por ninguno.</span>';
+        else if (s.V <= 2 * VF) r.innerHTML += '<span class="warn">No alcanza: los dos LEDs juntos necesitan unos 4 V para encender.</span>';
+      } else {
+        r.innerHTML = `Cada rama: I = (${f(s.V)} V − 2 V) / 470 Ω  ·  LED 1: ${mA(sc.I1)}  ·  LED 2: ${mA(sc.I2)}  ·  Total: ${mA(sc.I)}`;
+        if (s.b1 || s.b2) r.innerHTML += '<span class="warn">La rama del LED fundido se corta, pero la otra sigue funcionando.</span>';
+      }
+    } else {
+      const R = R4[s.ri], r = $('r4');
+      $('o4R').textContent = R ? ohm(R) : 'sin resistencia';
+      $('new4').hidden = !s.broken;
+      $('flip4').textContent = s.rev ? 'Girar el LED (ahora está al revés)' : 'Girar el LED';
+      const pot = (9 - VF) / (R + 5);
+      if (s.broken) {
+        r.innerHTML = `I = (9 V − 2 V) / ${R ? ohm(R) : '0 Ω'} = ${s.burnI > 1 ? 'más de 1 A' : mA(s.burnI)}<span class="warn">El LED se quemó: soporta unos 30 mA como máximo. Pon una resistencia más grande y un LED nuevo.</span>`;
+      } else if (!s.closed) {
+        r.innerHTML = 'Interruptor abierto: I = 0 mA<span class="warn">El camino está cortado. Sin un circuito cerrado no hay corriente.</span>';
+      } else if (s.rev) {
+        r.innerHTML = 'LED al revés: I = 0 mA<span class="warn">El LED solo deja pasar corriente de la pata larga (+) a la corta (−).</span>';
+      } else {
+        r.innerHTML = `I = (9 V − 2 V) / ${ohm(R)} = ${mA(pot)}`;
+      }
+    }
+  }
+
+  // ---------- dibujo ----------
+  let C = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    ['card', 'ink', 'muted', 'line', 'pipe', 'water-soft', 'water', 'charge', 'charge-soft', 'danger'].forEach(k => C[k] = cs.getPropertyValue('--' + k).trim());
+  }
+  const FONT = '"Atkinson Hyperlegible", "Segoe UI", sans-serif';
+  const MONO = '"JetBrains Mono", ui-monospace, monospace';
+
+  function loopPts(y) { return [[X0, y], [X1, y], [X1, BOT], [X0, BOT], [X0, y]]; }
+  function polyLen(p) { let L = 0; for (let i = 1; i < p.length; i++) L += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return L; }
+  function pointAt(p, d) {
+    for (let i = 1; i < p.length; i++) {
+      const a = p[i - 1], b = p[i], s = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (d <= s) { const t = d / s; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+      d -= s;
+    }
+    return p[p.length - 1];
+  }
+  function stroke(ctx, p, w, col) {
+    ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
+    for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+    ctx.lineWidth = w; ctx.strokeStyle = col; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+  }
+  function label(ctx, t, x, y, col, align = 'center', size = 13, font = FONT, weight = 700) {
+    ctx.fillStyle = col; ctx.font = `${weight} ${size}px ${font}`; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
+  }
+  function erase(ctx, x, y, w, h) { ctx.fillStyle = C.card; ctx.fillRect(x, y, w, h); }
+  function circle(ctx, x, y, r, fill, line, lw = 2) {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (line) { ctx.lineWidth = lw; ctx.strokeStyle = line; ctx.stroke(); }
+  }
+  function dial(ctx, cx, cy, r, frac, needle, letter) {
+    circle(ctx, cx, cy, r, C.card, C.ink, 2);
+    ctx.lineWidth = 1.5; ctx.strokeStyle = C.muted;
+    for (let i = 0; i <= 6; i++) {
+      const a = Math.PI * 0.75 + i / 6 * Math.PI * 1.5;
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * (r - 3), cy + Math.sin(a) * (r - 3)); ctx.lineTo(cx + Math.cos(a) * (r - 7), cy + Math.sin(a) * (r - 7)); ctx.stroke();
+    }
+    const a = Math.PI * 0.75 + Math.max(0, Math.min(1, frac)) * Math.PI * 1.5;
+    ctx.lineWidth = 2.5; ctx.strokeStyle = needle; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * (r - 6), cy + Math.sin(a) * (r - 6)); ctx.stroke();
+    circle(ctx, cx, cy, 2.5, C.ink);
+    if (letter) label(ctx, letter, cx, cy + r * 0.55, C.muted, 'center', 10, MONO, 500);
+  }
+  function arrow(ctx, x, y, dir, col) {
+    ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(x + 7 * dir, y); ctx.lineTo(x - 5 * dir, y - 6); ctx.lineTo(x - 5 * dir, y + 6); ctx.closePath(); ctx.fill();
+  }
+
+  function narrowWidth(R) { return Math.max(3, Math.min(13, 13 * Math.sqrt(470 / R))); }
+  function taper(ctx, x, y, hf, hn, col) {
+    ctx.beginPath();
+    ctx.moveTo(x - 30, y - hf); ctx.lineTo(x - 16, y - hn); ctx.lineTo(x + 16, y - hn); ctx.lineTo(x + 30, y - hf);
+    ctx.lineTo(x + 30, y + hf); ctx.lineTo(x + 16, y + hn); ctx.lineTo(x - 16, y + hn); ctx.lineTo(x - 30, y + hf);
+    ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+  }
+
+  function draw(canvas, side, n, sc) {
+    const dpr = window.devicePixelRatio || 1;
+    const cw = Math.round(canvas.clientWidth * dpr);
+    if (!cw) return;
+    const ch = Math.round(cw * H / W);
+    if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(cw / W, 0, 0, cw / W, 0, 0);
+    ctx.fillStyle = C.card; ctx.fillRect(0, 0, W, H);
+    const s = S[n], water = side === 'w';
+    const fg = water ? C.water : C.charge;
+
+    // 1. tuberías o cables
+    sc.branches.forEach(b => {
+      const p = loopPts(b.y);
+      if (water) { stroke(ctx, p, 20, C.pipe); stroke(ctx, p, 13, C['water-soft']); }
+      else stroke(ctx, p, 3, C.ink);
+    });
+    // stems de los medidores
+    if (water) { stroke(ctx, [[X0, TOP - 8], [X0, 52]], 4, C.pipe); }
+    else { stroke(ctx, [[X0, TOP], [X0, 52]], 2, C.muted); }
+
+    // 2. estrechamientos (debajo de las partículas)
+    if (water) sc.branches.forEach(b => b.items.forEach(it => {
+      if (it.k !== 'res') return;
+      const nw = narrowWidth(it.R);
+      erase(ctx, it.x - 31, b.y - 11, 62, 22);
+      taper(ctx, it.x, b.y, 10, nw / 2 + 3, C.pipe);
+      taper(ctx, it.x, b.y, 6.5, nw / 2, C['water-soft']);
+    }));
+
+    // 3. partículas
+    sc.branches.forEach((b, i) => {
+      const p = loopPts(b.y), L = polyLen(p), gap = 22;
+      const off = (s.phase[i] + i * gap / 2) % gap;
+      ctx.fillStyle = fg;
+      for (let d = off; d < L; d += gap) {
+        const [x, y] = pointAt(p, d);
+        ctx.beginPath(); ctx.arc(x, y, water ? 3.2 : 3, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+
+    // 4. componentes
+    sc.branches.forEach(b => b.items.forEach(it => {
+      const y = b.y, x = it.x;
+      if (it.k === 'res') {
+        if (!water) {
+          erase(ctx, x - 30, y - 11, 60, 22);
+          ctx.beginPath(); ctx.moveTo(x - 30, y); ctx.lineTo(x - 24, y);
+          for (let k = 0; k < 6; k++) ctx.lineTo(x - 24 + (k + 0.5) * 8, y + (k % 2 ? 8 : -8));
+          ctx.lineTo(x + 24, y); ctx.lineTo(x + 30, y);
+          ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.lineJoin = 'miter'; ctx.stroke();
+        }
+        label(ctx, water ? 'tramo angosto' : ohm(it.R), x, y + 26, C.muted, 'center', 12);
+        if (!water) label(ctx, 'resistencia', x, y - 22, C.muted, 'center', 11, FONT, 400);
+      }
+      if (it.k === 'wire') label(ctx, 'sin resistencia', x, y + 26, C.danger, 'center', 12);
+      if (it.k === 'sw') {
+        if (water) {
+          circle(ctx, x, y, 13, C.card, C.pipe, 3);
+          if (it.open) { ctx.fillStyle = C.danger; ctx.fillRect(x - 3, y - 12, 6, 24); }
+          else { ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 11, y - 5, 22, 10); }
+          stroke(ctx, [[x, y - 13], [x, y - 24]], 3, C.ink);
+          stroke(ctx, it.open ? [[x - 9, y - 24], [x + 9, y - 24]] : [[x, y - 24], [x, y - 32]], 4, C.ink);
+          label(ctx, it.open ? 'válvula cerrada' : 'válvula abierta', x, y + 26, it.open ? C.danger : C.muted, 'center', 12);
+        } else {
+          erase(ctx, x - 22, y - 22, 44, 30);
+          circle(ctx, x - 16, y, 3.5, C.card, C.ink, 2); circle(ctx, x + 16, y, 3.5, C.card, C.ink, 2);
+          stroke(ctx, it.open ? [[x - 13, y - 2], [x + 12, y - 18]] : [[x - 13, y], [x + 13, y]], 2.5, C.ink);
+          label(ctx, it.open ? 'interruptor abierto' : 'interruptor cerrado', x, y + 26, it.open ? C.danger : C.muted, 'center', 12);
+        }
+      }
+      if (it.k === 'led') {
+        const dir = it.rev ? -1 : 1;
+        if (water) {
+          const key = it.id, ang = s.ang[key] || 0;
+          circle(ctx, x, y, 19, C.card, it.broken ? C.danger : C.pipe, 3);
+          circle(ctx, x, y, 16, C['water-soft']);
+          ctx.lineWidth = 3; ctx.strokeStyle = it.broken ? C.muted : C.ink; ctx.lineCap = 'round';
+          for (let k = 0; k < 4; k++) {
+            const a = ang + k * Math.PI / 2;
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 14, y + Math.sin(a) * 14); ctx.stroke();
+          }
+          circle(ctx, x, y, 3, C.ink);
+          arrow(ctx, x, y - 28, dir, it.rev ? C.danger : C.muted);
+          if (it.broken) {
+            stroke(ctx, [[x - 12, y - 12], [x + 12, y + 12]], 3, C.danger);
+            stroke(ctx, [[x + 12, y - 12], [x - 12, y + 12]], 3, C.danger);
+          }
+          label(ctx, it.broken ? 'rueda rota' : (it.rev ? 'compuerta cerrada' : 'rueda ' + it.label.replace('LED', '').trim()), x, y + 30, it.broken || it.rev ? C.danger : C.muted, 'center', 12);
+        } else {
+          erase(ctx, x - 20, y - 20, 40, 40);
+          const glow = it.broken ? 0 : Math.min(1, it.I / 0.015);
+          if (glow > 0) {
+            const g = ctx.createRadialGradient(x, y, 2, x, y, 30);
+            g.addColorStop(0, `rgba(255, 70, 50, ${0.75 * glow})`); g.addColorStop(1, 'rgba(255, 70, 50, 0)');
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 30, 0, Math.PI * 2); ctx.fill();
+          }
+          stroke(ctx, [[x - 20, y], [x - 9, y]], 3, C.ink); stroke(ctx, [[x + 9, y], [x + 20, y]], 3, C.ink);
+          ctx.beginPath(); ctx.moveTo(x - 9 * dir, y - 10); ctx.lineTo(x - 9 * dir, y + 10); ctx.lineTo(x + 8 * dir, y); ctx.closePath();
+          ctx.fillStyle = it.broken ? C.card : (glow > 0 ? '#ff5a3c' : C.card); ctx.fill();
+          ctx.lineWidth = 2; ctx.strokeStyle = it.broken ? C.muted : C.ink; ctx.lineJoin = 'miter'; ctx.stroke();
+          stroke(ctx, [[x + 9 * dir, y - 10], [x + 9 * dir, y + 10]], 2.5, it.broken ? C.muted : C.ink);
+          stroke(ctx, [[x + 2, y - 13], [x + 9, y - 20]], 1.5, C.muted); stroke(ctx, [[x + 8, y - 11], [x + 15, y - 18]], 1.5, C.muted);
+          if (it.broken) { stroke(ctx, [[x - 10, y - 10], [x + 10, y + 10]], 3, C.danger); stroke(ctx, [[x + 10, y - 10], [x - 10, y + 10]], 3, C.danger); }
+          label(ctx, it.broken ? it.label + ' quemado' : (it.rev ? it.label + ' al revés' : it.label), x, y + 30, it.broken || it.rev ? C.danger : C.muted, 'center', 12);
+        }
+      }
+    }));
+
+    // 5. fuente
+    if (water) {
+      circle(ctx, X0, SRC, 22, C.card, C.pipe, 3);
+      circle(ctx, X0, SRC, 18, C['water-soft']);
+      ctx.lineWidth = 3.5; ctx.strokeStyle = C.water; ctx.lineCap = 'round';
+      for (let k = 0; k < 3; k++) {
+        const a = s.pump + k * Math.PI * 2 / 3;
+        ctx.beginPath(); ctx.moveTo(X0, SRC); ctx.lineTo(X0 + Math.cos(a) * 14, SRC + Math.sin(a) * 14); ctx.stroke();
+      }
+      circle(ctx, X0, SRC, 3.5, C.ink);
+      label(ctx, 'bomba', X0 - 28, SRC, C.muted, 'right', 12);
+    } else {
+      erase(ctx, X0 - 20, SRC - 14, 40, 28);
+      stroke(ctx, [[X0 - 16, SRC - 5], [X0 + 16, SRC - 5]], 3, C.ink);
+      stroke(ctx, [[X0 - 8, SRC + 5], [X0 + 8, SRC + 5]], 5, C.ink);
+      label(ctx, '+', X0 + 24, SRC - 10, C.ink, 'center', 15);
+      label(ctx, 'fuente', X0 - 26, SRC, C.muted, 'right', 12);
+    }
+
+    // 6. medidores
+    const vFrac = sc.V / 12, iFrac = sc.I / IMAX;
+    dial(ctx, X0, 34, 19, vFrac, fg, water ? '' : 'V');
+    dial(ctx, 240, BOT, 18, iFrac, fg, water ? '' : 'A');
+    if (water) {
+      label(ctx, 'presión', X0 + 28, 34, C.muted, 'left', 12);
+      label(ctx, 'caudal', 240, BOT + 32, C.muted, 'center', 12);
+    } else {
+      label(ctx, f(sc.V) + ' V', X0 + 28, 34, C.ink, 'left', 14, MONO, 500);
+      label(ctx, mA(sc.I), 240, BOT + 32, C.ink, 'center', 14, MONO, 500);
+    }
+  }
+
+  // ---------- animación ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const sc = scene(active), s = S[active];
+    if (!paused) {
+      const k = reduce ? 0.5 : 1;
+      sc.branches.forEach((b, i) => { s.phase[i] += Math.min(320, b.I * 1000 * 12) * k * dt; });
+      sc.branches.forEach(b => b.items.forEach(it => { if (it.k === 'led' && !it.broken) s.ang[it.id] = (s.ang[it.id] || 0) + it.I * 1000 * 0.35 * k * dt; }));
+      s.pump += sc.I * 1000 * 0.3 * k * dt;
+    }
+    readColors();
+    draw($('c' + active + 'w'), 'w', active, sc);
+    draw($('c' + active + 'e'), 'e', active, sc);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- controles ----------
+  function show(n) {
+    active = n;
+    document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(+t.dataset.sim === n)));
+    document.querySelectorAll('section.sim').forEach(sec => sec.hidden = +sec.dataset.sim !== n);
+    text(n);
+    try { localStorage.setItem('circuitos-tab', String(n)); } catch (e) {}
+  }
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => show(+t.dataset.sim)));
+  $('pause').addEventListener('click', () => { paused = !paused; $('pause').textContent = paused ? 'Reanudar' : 'Pausar'; });
+
+  const bind = (id, fn) => $(id).addEventListener('input', e => fn(e.target));
+  bind('s1V', el => { S[1].V = +el.value; text(1); });
+  bind('s2V', el => { S[2].V = +el.value; text(2); });
+  bind('s2R', el => { S[2].ri = +el.value; text(2); });
+  bind('s3V', el => { S[3].V = +el.value; text(3); });
+  bind('b31', el => { S[3].b1 = el.checked; text(3); });
+  bind('b32', el => { S[3].b2 = el.checked; text(3); });
+  const setMode = m => { S[3].mode = m; $('m3s').setAttribute('aria-pressed', String(m === 'serie')); $('m3p').setAttribute('aria-pressed', String(m === 'paralelo')); S[3].phase = [0, 0]; text(3); };
+  $('m3s').addEventListener('click', () => setMode('serie'));
+  $('m3p').addEventListener('click', () => setMode('paralelo'));
+  bind('k4', el => { S[4].closed = el.checked; text(4); });
+  bind('s4R', el => { S[4].ri = +el.value; text(4); });
+  $('flip4').addEventListener('click', () => { S[4].rev = !S[4].rev; text(4); });
+  $('new4').addEventListener('click', () => { S[4].broken = false; text(4); });
+
+  [1, 2, 3, 4].forEach(text);
+  let start = 1;
+  try { const t = +localStorage.getItem('circuitos-tab'); if (t >= 1 && t <= 4) start = t; } catch (e) {}
+  show(start);
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
