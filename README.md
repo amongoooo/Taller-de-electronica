@@ -29,6 +29,7 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 
 El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, a los lados de la bomba y la fuente. Cada uno tiene un caimán rojo y uno negro que se arrastran (o se mueven con las flechas) a cualquier punto del circuito; los caimanes de los dos paneles se mueven juntos. La región entre los dos caimanes se pinta del color del medidor: morado el voltímetro y verde el amperímetro.
 
+- Tocar un caimán sin arrastrarlo convierte los caimanes de ese medidor en pines pequeños y quita su región de color, para dejar el diagrama limpio; otro toque los vuelve a mostrar. Al arrastrarlos siempre se muestran con su cable.
 - El voltímetro marca voltaje(rojo) − voltaje(negro); puede salir negativo.
 - El amperímetro marca la corriente que pasa por la región, positiva si va del rojo al negro. Si la región cruza un nodo y la corriente no es la misma en toda ella, muestra `----`.
 

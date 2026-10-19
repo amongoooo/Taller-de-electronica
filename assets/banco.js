@@ -26,7 +26,7 @@
     const iFull = o.iFull || 12, flowSpeed = o.flowSpeed || 12;
     const st = { on: false, set: o.v0 ?? 6, v: 0, tau: 1, level: Sim.ramp(), m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nS: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(),
-      segs: [], probe: { V: null, I: null } };
+      segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false } };
     const b = { st, VMAX, KPA_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
     const geometry = (side, W, H) => {
@@ -232,9 +232,12 @@
         const p = project(sg.pts, x, y);
         if (!best || p.dist < best.dist) best = { ...p, sg };
       }
-      if (!best || best.dist > 30 || Math.abs(best.sg.I) > 0.01) return 0;
+      // la vibración aparece poco a poco mientras la corriente se apaga con la inercia
+      if (!best || best.dist > 30) return 0;
+      const still = Math.max(0, 1 - Math.abs(best.sg.I) / 2);
+      if (!still) return 0;
       const v = best.sg.source ? 0 : best.sg.v(best.d);
-      return v > 0.05 ? 0.5 + 1.8 * v / VMAX : 0;
+      return v > 0.05 ? still * (0.5 + 2.2 * v / VMAX) : 0;
     };
 
     st.clamps = o.clamps ? o.clamps(b.gw) : {
@@ -257,19 +260,29 @@
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'sim-clamp';
       const meter = kind === 'V' ? (side === 'w' ? 'del manómetro' : 'del voltímetro') : (side === 'w' ? 'del medidor de caudal' : 'del amperímetro');
-      el.setAttribute('aria-label', `Caimán ${i ? 'negro' : 'rojo'} ${meter}: arrástralo o usa las flechas para moverlo por el circuito`);
+      el.setAttribute('aria-label', `Caimán ${i ? 'negro' : 'rojo'} ${meter}: arrástralo o usa las flechas para moverlo; tócalo para mostrar u ocultar su cable`);
       b.place(side, el, () => st.clamps[kind][i]);
       const p = panel(side);
       const toDrawing = e => {
         const r = p.box.getBoundingClientRect();
         return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale];
       };
-      el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); el.focus(); e.preventDefault(); });
-      el.addEventListener('pointermove', e => { if (el.hasPointerCapture(e.pointerId)) moveClamp(kind, i, ...toDrawing(e)); });
+      // Arrastrar mueve el caimán (y siempre lo muestra con su cable y su región); tocarlo sin
+      // arrastrar lo convierte en un pin pequeño para limpiar el diagrama, o lo vuelve a mostrar.
+      let down = null, dragged = false;
+      el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); el.focus(); down = [e.clientX, e.clientY]; dragged = false; e.preventDefault(); });
+      el.addEventListener('pointermove', e => {
+        if (!el.hasPointerCapture(e.pointerId)) return;
+        if (!dragged && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) return;
+        dragged = true; st.pinned[kind] = false;
+        moveClamp(kind, i, ...toDrawing(e));
+      });
+      el.addEventListener('click', () => { if (!dragged) st.pinned[kind] = !st.pinned[kind]; dragged = false; });
       el.addEventListener('keydown', e => {
         const step = { ArrowUp: [0, -12], ArrowDown: [0, 12], ArrowLeft: [-12, 0], ArrowRight: [12, 0] }[e.key];
         if (!step) return;
         const [x, y] = st.clamps[kind][i];
+        st.pinned[kind] = false;
         moveClamp(kind, i, x + step[0], y + step[1]);
         e.preventDefault();
       });
@@ -293,7 +306,7 @@
     // Región entre los caimanes: una franja translúcida del color del medidor, debajo de los caimanes.
     const drawRegions = (ctx, w) => {
       ctx.globalAlpha = 0.32;
-      for (const kind of ['I', 'V']) for (const pts of st.probe[kind].pieces) D.line(ctx, pts, kind === 'V' ? w + 8 : w, PROBE[kind]);
+      for (const kind of ['I', 'V']) if (!st.pinned[kind]) for (const pts of st.probe[kind].pieces) D.line(ctx, pts, kind === 'V' ? w + 8 : w, PROBE[kind]);
       ctx.globalAlpha = 1;
     };
     // Medidor con sus dos bornes, sus cables y sus caimanes.
@@ -305,13 +318,23 @@
       [0, 1].forEach(i => {
         const [jx, jy] = jack(g, kind, i), [cx, cy] = st.clamps[kind][i];
         const col = i ? C.ink : RED;
+        D.circle(ctx, jx, jy, 6, col, C.ink, 1.5);
+        if (st.pinned[kind]) { pin(ctx, cx, cy, col, kind); return; }
         ctx.beginPath(); ctx.moveTo(jx, jy);
         ctx.bezierCurveTo(jx, jy - 70, cx + (cx < g.PX ? -1 : 1) * 10, cy + 80, cx, cy + 14);
         ctx.lineCap = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
         ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke();
-        D.circle(ctx, jx, jy, 6, col, C.ink, 1.5);
         clamp(ctx, cx, cy, col);
       });
+    };
+    // Pin: gota pequeña clavada en el punto, con la letra del medidor (V o A).
+    const pin = (ctx, x, y, col, kind) => {
+      ctx.save(); ctx.translate(x, y);
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(-3, -6, -9, -10, -9, -17); ctx.arc(0, -17, 9, Math.PI, 0); ctx.bezierCurveTo(9, -10, 3, -6, 0, 0);
+      ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = C.card; ctx.stroke();
+      D.text(ctx, kind === 'V' ? 'V' : 'A', 0, -17, '#fff', { size: 11 });
+      ctx.restore();
     };
     // Caimán: cuerpo con dos mandíbulas que muerden el cable en (x, y).
     const clamp = (ctx, x, y, col) => {
@@ -359,9 +382,38 @@
 
     // ---------- animación ----------
     // La inercia es el tiempo que tarda todo en arrancar o detenerse por completo.
+    // También los cambios bruscos del circuito (abrir una válvula, romper o cambiar una rueda, pasar a
+    // paralelo): la corriente va de su valor anterior al nuevo en el tiempo de la inercia, con curva suave.
+    // Los cambios por la perilla o el encendido ya vienen suaves por el voltaje y pasan sin más.
+    const flat = m => [m.I, ...(m.branch || [])];
+    const smooth = { raw: null, vPrev: 0, off: null, from: null, t: 0 };
+    const inertia = V => {
+      const m = o.model(V), now = flat(m);
+      if (smooth.raw) {
+        const before = flat(o.model(smooth.vPrev));   // el circuito de ahora con el voltaje de antes
+        if (before.length !== smooth.raw.length || before.some((x, k) => Math.abs(x - smooth.raw[k]) > 1e-6)) {
+          // hubo un cambio en el circuito: arranca desde lo que se veía
+          const shown = smooth.raw.map((x, k) => x + (smooth.off ? smooth.off[k] || 0 : 0));
+          smooth.from = now.map((x, k) => (shown[k] ?? shown[0]) - x);
+          smooth.t = 0;
+        }
+      }
+      smooth.raw = now; smooth.vPrev = V;
+      if (smooth.from) {
+        const u = st.tau > 0 ? Math.min(1, smooth.t / st.tau) : 1;
+        const k = 1 - u * u * (3 - 2 * u);
+        smooth.off = smooth.from.map(x => x * k);
+        if (u >= 1) smooth.from = smooth.off = null;
+      }
+      if (!smooth.off) return m;
+      const out = { ...m, I: Math.max(0, m.I + smooth.off[0]) };
+      if (m.branch) out.branch = m.branch.map((x, k) => Math.max(0, x + smooth.off[k + 1]));
+      return out;
+    };
     b.start = () => Sim.run(dt => {
       st.v = st.level.step(st.on ? st.set : 0, st.tau, dt);
-      st.m = o.model(st.v);
+      smooth.t += dt;
+      st.m = inertia(st.v);
       const tn = Math.min(0.15, st.tau * 0.15);                    // las agujas apenas se atrasan
       st.nV.step(st.v / VMAX, tn, dt);
       st.segs = buildSegs(b.gw, st.m, st.v);
