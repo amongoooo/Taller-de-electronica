@@ -22,6 +22,8 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 - `Sim.lag` y `Sim.needle`: inercia de primer orden y agujas con masa y resorte.
 - `Sim.knob`: perilla que se gira arrastrando, con la rueda del ratón o con las flechas del teclado.
 
+**Importante:** cada vez que cambien `assets/sim.css` o `assets/sim.js`, sube el número `?v=` con el que las páginas los cargan, para que el navegador no use una copia vieja guardada.
+
 ## Simulaciones
 
 - **Voltaje y presión** (`simulaciones/voltaje-presion/`): primera en el formato común.
