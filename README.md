@@ -39,7 +39,7 @@ Para eso cada simulación le dice al banco cómo es su circuito con `circuit(g, 
 ## Simulaciones
 
 1. **Voltaje y presión** (`simulaciones/voltaje-presion/`)
-2. **Resistencia** (`simulaciones/resistencia/`): perilla de resistencia; el tramo angosto cambia con ella.
+2. **Resistencia** (`simulaciones/resistencia/`): perilla de resistencia de 0 Ω a 10 kΩ; el tramo angosto cambia con ella. Un puente salta la resistencia para mostrar un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se funde con la inercia; se repone tocándolo.
 3. **Serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
 4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED, girar el LED y quemarlo.
 5. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.
