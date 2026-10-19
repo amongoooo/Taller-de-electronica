@@ -84,6 +84,15 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-btn.small { font-size: max(11px, calc(var(--s, 1) * 15px)); padding: .4em .8em; }
 .sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
 
+.sim-power {
+  width: max(30px, calc(var(--s, 1) * 46px)); aspect-ratio: 1; border-radius: 50%; padding: 0; cursor: pointer;
+  display: grid; place-items: center; color: var(--ink);
+  background: radial-gradient(circle at 35% 30%, var(--card), var(--metal) 75%);
+  border: 2px solid var(--ink); box-shadow: 0 2px 5px rgba(0, 0, 0, .3);
+}
+.sim-power svg { width: 52%; height: 52%; }
+.sim-power[aria-pressed="true"] { box-shadow: inset 0 2px 5px rgba(0, 0, 0, .35); transform: translate(-50%, -50%) scale(.96); }
+
 .knob {
   width: max(34px, calc(var(--s, 1) * 62px)); aspect-ratio: 1; border-radius: 50%;
   cursor: grab; touch-action: none; user-select: none;

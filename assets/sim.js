@@ -176,6 +176,34 @@
     });
   };
 
+  // LED indicador pequeño; on de 0 a 1 (brillo).
+  D.led = (ctx, x, y, on, col = '#3ddc6a', r = 6) => {
+    if (on > 0) {
+      const g = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 3.2);
+      g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalAlpha = 0.55 * on; ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r * 3.2, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    }
+    D.circle(ctx, x, y, r, on > 0 ? col : '#24352a', C.ink, 1.5);
+    if (on > 0) D.circle(ctx, x - r * 0.3, y - r * 0.3, r * 0.3, 'rgba(255,255,255,0.7)');
+  };
+  // Rotor con aspas; omega en rad/s. Las aspas se dibujan con el desenfoque de una foto
+  // tomada con exposición de 1/30 s: a más velocidad, más borrosas, hasta verse como un disco.
+  D.rotor = (ctx, x, y, r, angle, omega, blades, col) => {
+    const sweep = Math.min(Math.abs(omega) / 30, 2 * Math.PI / blades);
+    const n = Math.max(1, Math.min(28, Math.ceil(sweep / 0.04)));
+    ctx.lineWidth = 5; ctx.strokeStyle = col; ctx.lineCap = 'round';
+    ctx.globalAlpha = n === 1 ? 1 : Math.min(1, 2.2 / n);
+    for (let j = 0; j < n; j++) {
+      const a0 = angle - Math.sign(omega) * sweep * j / n;
+      for (let k = 0; k < blades; k++) {
+        const a = a0 + k * 2 * Math.PI / blades;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  };
+
   // ---------- medidores: ruedita con aguja y pantallita de siete segmentos ----------
   const SEG = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc',
     '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', '-': 'g', ' ': '' };
@@ -312,13 +340,14 @@
     el.innerHTML = '<div class="knob-cap"><span class="knob-mark"></span></div>';
     const cap = el.firstChild;
     const k = { value: min };
-    k.set = v => {
+    // quiet = true cambia la perilla sin avisar (para perillas enlazadas).
+    k.set = (v, quiet) => {
       v = Math.min(max, Math.max(min, Math.round((v - min) / step) * step + min));
       k.value = v;
       cap.style.transform = `rotate(${-135 + 270 * (v - min) / (max - min)}deg)`;
       el.setAttribute('aria-valuenow', v);
       el.setAttribute('aria-valuetext', format ? format(v) : String(v));
-      onInput && onInput(v);
+      if (!quiet && onInput) onInput(v);
     };
     const fromPointer = e => {
       const r = el.getBoundingClientRect();
@@ -335,7 +364,7 @@
       else if (e.key === 'Home') { k.set(min); e.preventDefault(); }
       else if (e.key === 'End') { k.set(max); e.preventDefault(); }
     });
-    k.set(value);
+    k.set(value, true);
     return k;
   };
 

@@ -24,9 +24,9 @@
   <main class="sim-stage">
     <div class="sim-panel" id="pw">
       <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Circuito de agua: controlador de la bomba con botón, perilla de presión y medidor de velocidad; manómetro, tramo angosto y medidor de caudal"></canvas>
+      <canvas aria-label="Circuito de agua: controlador de la bomba con botón de encendido, LED, perilla de presión y medidor de velocidad; manómetro, tramo angosto y medidor de caudal"></canvas>
       <div class="sim-layer">
-        <button class="sim-btn small" id="bomba" type="button" aria-pressed="false" aria-label="Bomba">Activar</button>
+        <button class="sim-power" id="bomba" type="button" aria-pressed="false" aria-label="Encender la bomba"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
         <div id="perillaW"></div>
       </div>
     </div>
@@ -34,7 +34,7 @@
       <span class="sim-tag e">Electricidad</span>
       <canvas aria-label="Circuito eléctrico: fuente con botón, perilla de voltaje y medidor; voltímetro, resistencia de 1 kΩ y amperímetro"></canvas>
       <div class="sim-layer">
-        <button class="sim-btn small" id="fuente" type="button" aria-pressed="false" aria-label="Fuente">Encender</button>
+        <button class="sim-power" id="fuente" type="button" aria-pressed="false" aria-label="Encender la fuente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
         <div id="perillaE"></div>
       </div>
     </div>
@@ -49,7 +49,7 @@
   const VMAX = 12;           // V máximos de la fuente
   const KPA_PER_V = 10;      // la presión de la bomba en kPa equivale a 10 × el voltaje
   const MLS_PER_MA = 10;     // el caudal en mL/s equivale a 10 × la corriente en mA
-  const RPM_PER_V = 250;     // velocidad de la bomba: 3000 rpm a presión máxima
+  const RPM_PER_MA = 100;    // velocidad de la bomba: 10 rpm por cada mL/s (60 mL/s = 600 rpm)
   const IFULL = 12;          // mA a escala completa
   const size = Sim.fitHeight(800, 590, 1040);
 
@@ -63,7 +63,7 @@
   }
 
   // Cada lado tiene su propio controlador; los dos usan el mismo modelo con inercia.
-  const side = () => ({ on: false, set: 6, v: 0, i: 0, rotor: 0, phase: 0,
+  const side = () => ({ on: false, set: 6, v: 0, i: 0, rpm: 0, omega: 0, rotor: 0, phase: 0,
     nV: Sim.needle(), nI: Sim.needle(), nS: Sim.needle() });
   const W_ = side(), E_ = side();
   let tau = 1;
@@ -80,23 +80,29 @@
   pw.onLayout(pw.W, pw.H); pe.onLayout(pe.W, pe.H);
 
   // ---------- controles ----------
-  function controller(panel, g, s, btnId, knobId, on, off, knob) {
-    const btn = panel.at(document.getElementById(btnId), () => [g().BX + 72, g().BY + 96]);
-    btn.addEventListener('click', () => {
-      s.on = !s.on;
-      btn.setAttribute('aria-pressed', String(s.on));
-      btn.textContent = s.on ? off : on;
+  // La bomba y la fuente están enlazadas: el botón o la perilla de una mueven también la otra.
+  const btns = ['bomba', 'fuente'].map(id => document.getElementById(id));
+  const setOn = on => {
+    W_.on = E_.on = on;
+    btns.forEach(b => {
+      b.setAttribute('aria-pressed', String(on));
+      b.setAttribute('aria-label', (on ? 'Apagar' : 'Encender') + (b.id === 'bomba' ? ' la bomba' : ' la fuente'));
     });
-    panel.at(document.getElementById(knobId), () => [g().PX, g().BY + 80]);
-    Sim.knob(document.getElementById(knobId), knob);
-  }
-  controller(pw, () => gw, W_, 'bomba', 'perillaW', 'Activar', 'Desactivar', {
+  };
+  btns.forEach(b => b.addEventListener('click', () => setOn(!W_.on)));
+  pw.at(btns[0], () => [gw.BX + 58, gw.BY + 92]);
+  pe.at(btns[1], () => [ge.BX + 58, ge.BY + 92]);
+  pw.at(document.getElementById('perillaW'), () => [gw.PX, gw.BY + 80]);
+  pe.at(document.getElementById('perillaE'), () => [ge.PX, ge.BY + 80]);
+  let kW, kE;
+  const setLevel = v => { W_.set = E_.set = v; };   // en volts
+  kW = Sim.knob(document.getElementById('perillaW'), {
     min: 0, max: VMAX * KPA_PER_V, step: 5, value: W_.set * KPA_PER_V, label: 'Presión de la bomba',
-    format: v => v + ' kPa', onInput: v => W_.set = v / KPA_PER_V
+    format: v => v + ' kPa', onInput: v => { setLevel(v / KPA_PER_V); kE.set(v / KPA_PER_V, true); }
   });
-  controller(pe, () => ge, E_, 'fuente', 'perillaE', 'Encender', 'Apagar', {
+  kE = Sim.knob(document.getElementById('perillaE'), {
     min: 0, max: VMAX, step: 0.5, value: E_.set, label: 'Voltaje de la fuente',
-    format: v => fmt(v) + ' V', onInput: v => E_.set = v
+    format: v => fmt(v) + ' V', onInput: v => { setLevel(v); kW.set(v * KPA_PER_V, true); }
   });
   const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
   const setTau = () => { tau = +inercia.value; oIn.textContent = tau ? fmt(tau) + ' s' : 'sin'; };
@@ -109,8 +115,10 @@
     s.i = Sim.lag(s.i, s.v / R * 1000, tau, dt);               // mA
     s.nV.step(s.v / VMAX, tau * 0.5, dt);
     s.nI.step(s.i / IFULL, tau * 0.5, dt);
-    s.nS.step(s.v / VMAX, tau * 0.5, dt);
-    s.rotor += s.v * 0.9 * dt;
+    s.rpm = s.i * RPM_PER_MA;
+    s.nS.step(s.rpm / (IFULL * RPM_PER_MA), tau * 0.5, dt);
+    s.omega = -s.rpm / 60 * 2 * Math.PI;              // rad/s, a la velocidad real
+    s.rotor += s.omega * dt;
     s.phase += s.i * 12 * dt;
   }
 
@@ -136,15 +144,12 @@
 
     controllerBox(ctx, g, 'BOMBA', C.metal, [['0', 0], ['60', 0.5], ['120', 1]], 'presión (kPa)');
     D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: s.nS.x, color: C.water, lcdW: 104,
-      text: digits(s.v * RPM_PER_V, 4, 0), unit: 'rpm' });
+      text: digits(s.rpm, 4, 0), unit: 'rpm' });
+    D.led(ctx, g.BX + 108, g.BY + 92, Math.min(1, s.v / 0.3));
     // rotor dentro de la tubería
     D.circle(ctx, g.PX, g.BOT, 40, C.metal, C.ink, 2.5);
     D.circle(ctx, g.PX, g.BOT, 33, C['water-soft']);
-    ctx.lineWidth = 5; ctx.strokeStyle = C.water; ctx.lineCap = 'round';
-    for (let k = 0; k < 4; k++) {
-      const a = -s.rotor + k * Math.PI / 2;
-      ctx.beginPath(); ctx.moveTo(g.PX, g.BOT); ctx.lineTo(g.PX + Math.cos(a) * 27, g.BOT + Math.sin(a) * 27); ctx.stroke();
-    }
+    D.rotor(ctx, g.PX, g.BOT, 27, s.rotor, s.omega, 4, C.water);
     D.circle(ctx, g.PX, g.BOT, 6, C.ink);
 
     D.meter(ctx, 70, g.MIDY - 20, { frac: s.nV.x, color: C.water, lcdW: 104, label: 'presión',
@@ -164,8 +169,9 @@
     D.text(ctx, 'resistencia', PX, g.TOP - 30, C.muted, { size: 14, weight: 400 });
 
     controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [['0', 0], ['6', 0.5], ['12', 1]], 'voltaje (V)');
-    D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: s.nS.x, color: C.charge, lcdW: 104,
+    D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: s.nV.x, color: C.charge, lcdW: 104,
       text: digits(s.v, 2, 2), unit: 'V' });
+    D.led(ctx, g.BX + 108, g.BY + 92, Math.min(1, s.v / 0.3));
     // símbolo de la fuente: placa larga (+) a la izquierda, la corriente sale hacia la izquierda
     ctx.fillStyle = C.card; ctx.fillRect(PX - 22, BOT - 26, 44, 52);
     D.line(ctx, [[PX - 22, BOT], [PX - 9, BOT]], 4, C.ink); D.line(ctx, [[PX + 9, BOT], [PX + 22, BOT]], 4, C.ink);
