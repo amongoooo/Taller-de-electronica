@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=202610190644">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261019064536">
 </head>
 <body>
 <div class="sim-page">
@@ -41,7 +41,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=202610190644"></script>
+<script src="../../assets/sim.js?v=20261019064536"></script>
 <script>
 (() => {
   const { C, draw: D, fmt, digits } = Sim;
@@ -146,7 +146,7 @@
     controllerBox(ctx, g, 'BOMBA', C.metal, [['0', 0], ['60', 0.5], ['120', 1]], 'presión (kPa)');
     D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: s.nS.x, color: C.water, lcdW: 104,
       text: digits(s.rpm, 4, 0), unit: 'rpm' });
-    D.led(ctx, g.BX + 108, g.BY + 92, Math.min(1, s.v / 0.3));
+    D.led(ctx, g.BX + 108, g.BY + 92, s.v > 0.05 ? 1 : 0);   // detecta presión desde 0.5 kPa
     // rotor dentro de la tubería
     D.circle(ctx, g.PX, g.BOT, 40, C.metal, C.ink, 2.5);
     D.circle(ctx, g.PX, g.BOT, 33, C['water-soft']);
@@ -172,7 +172,7 @@
     controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [['0', 0], ['6', 0.5], ['12', 1]], 'voltaje (V)');
     D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: s.nV.x, color: C.charge, lcdW: 104,
       text: digits(s.v, 2, 2), unit: 'V' });
-    D.led(ctx, g.BX + 108, g.BY + 92, Math.min(1, s.v / 0.3));
+    D.led(ctx, g.BX + 108, g.BY + 92, s.v > 0.05 ? 1 : 0);   // detecta presión desde 0.5 kPa
     // símbolo de la fuente: placa larga (+) a la izquierda, la corriente sale hacia la izquierda
     ctx.fillStyle = C.card; ctx.fillRect(PX - 22, BOT - 26, 44, 52);
     D.line(ctx, [[PX - 22, BOT], [PX - 9, BOT]], 4, C.ink); D.line(ctx, [[PX + 9, BOT], [PX + 22, BOT]], 4, C.ink);

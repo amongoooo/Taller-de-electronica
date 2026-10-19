@@ -177,15 +177,15 @@
   };
 
   // LED indicador pequeño; on de 0 a 1 (brillo).
-  D.led = (ctx, x, y, on, col = '#3ddc6a', r = 6) => {
+  D.led = (ctx, x, y, on, col = '#22e05a', r = 7) => {
     if (on > 0) {
       const g = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 3.2);
       g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.globalAlpha = 0.55 * on; ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(x, y, r * 3.2, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
     }
-    D.circle(ctx, x, y, r, on > 0 ? col : '#24352a', C.ink, 1.5);
-    if (on > 0) D.circle(ctx, x - r * 0.3, y - r * 0.3, r * 0.3, 'rgba(255,255,255,0.7)');
+    D.circle(ctx, x, y, r, on > 0 ? col : '#8b959c', C.ink, 1.5);   // verde encendido, gris apagado
+    D.circle(ctx, x - r * 0.3, y - r * 0.3, r * 0.3, on > 0 ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)');
   };
   // Rotor con aspas; omega en rad/s. Las aspas se dibujan con el desenfoque de una foto
   // tomada con exposición de 1/30 s: a más velocidad, más borrosas, hasta verse como un disco.
