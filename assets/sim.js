@@ -29,20 +29,24 @@
       it.el.style.top = (p.oy + y * p.scale) + 'px';
     };
     const fit = () => {
-      const w = box.clientWidth, h = box.clientHeight;
+      let w = box.clientWidth, h = box.clientHeight;
+      // un panel oculto se acomoda igual que el otro, para que los dos compartan el mismo dibujo
+      if ((!w || !h) && p.mirror) { w = p.mirror.box.clientWidth; h = p.mirror.box.clientHeight; }
       if (!w || !h) return;
-      const [W, H] = typeof size === 'function' ? size(w, h) : size;
-      const changed = W !== p.W || H !== p.H;
-      p.W = W; p.H = H;
+      // [W, H, x0, modo]: x0 es la x del dibujo que queda en el borde izquierdo
+      const [W, H, x0 = 0, mode = ''] = typeof size === 'function' ? size(w, h) : size;
+      const changed = W !== p.W || H !== p.H || x0 !== p.x0 || mode !== p.mode;
+      p.W = W; p.H = H; p.x0 = x0; p.mode = mode;
       p.scale = Math.min(w / W, h / H);
-      p.ox = (w - W * p.scale) / 2;
+      p.ox = (w - W * p.scale) / 2 - x0 * p.scale;
       p.oy = (h - H * p.scale) / 2;
       p.dpr = window.devicePixelRatio || 1;
       canvas.width = Math.round(w * p.dpr);
       canvas.height = Math.round(h * p.dpr);
       box.style.setProperty('--s', p.scale);
-      if (changed && p.onLayout) p.onLayout(W, H);
+      if (changed && p.onLayout) p.onLayout(W, H, mode);
       p.items.forEach(place);
+      if (p.mirror && !p.mirror.box.clientWidth) p.mirror.refit();
     };
     p.at = (el, pos) => { const it = { el, pos }; p.items.push(it); place(it); return el; };
     p.refit = fit;
@@ -99,7 +103,7 @@
     if (line) { ctx.lineWidth = lw; ctx.strokeStyle = line; ctx.stroke(); }
   };
   D.text = (ctx, t, x, y, col, { align = 'center', size = 16, font = Sim.FONT, weight = 700 } = {}) => {
-    ctx.fillStyle = col; ctx.font = `${weight} ${size}px ${font}`;
+    ctx.fillStyle = col; ctx.font = `${weight} ${Sim.compact ? Math.round(size * 1.15) : size}px ${font}`;   // en el celular, letra un poco más grande
     ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
   };
   D.arrow = (ctx, x, y, angle, size, col) => {
@@ -319,7 +323,7 @@
   // Pantallita: rectángulo oscuro con el número y la unidad. (x, y) es el centro.
   D.lcd = (ctx, x, y, w, h, text, unit) => {
     D.roundRect(ctx, x - w / 2, y - h / 2, w, h, 5, Sim.LCD.bg, C.ink, 1.5);
-    const uw = unit ? unit.length * 7 + 6 : 0;
+    const uw = unit ? unit.length * (Sim.compact ? 8 : 7) + 6 : 0;
     D.segments(ctx, text, x + w / 2 - 8 - uw, y, h * 0.58);
     if (unit) D.text(ctx, unit, x + w / 2 - 6, y + h * 0.12, Sim.LCD.unit, { align: 'right', size: 12, font: Sim.MONO, weight: 500 });
   };
@@ -351,7 +355,11 @@
   // Dentro de la tubería las del centro van más rápido que las de las orillas, como en un tubo real.
   // El color indica la rapidez: azul lento, rojo rápido.
   Sim.speedColor = t => `hsl(${Math.round(215 - 215 * Math.max(0, Math.min(1, t)))} 85% 50%)`;
-  Sim.water = (pts, halfAt = () => Sim.PIPE, { spacing = 14, lanes = [-0.72, -0.36, 0, 0.36, 0.72], vmax = 200 } = {}) => {
+  // Partículas del agua: en pantallas chicas (Sim.compact) van menos y más grandes para que se distingan.
+  Sim.compact = false;
+  Sim.water = (pts, halfAt = () => Sim.PIPE, {
+    spacing = Sim.compact ? 21 : 14, lanes = Sim.compact ? [-0.6, 0, 0.6] : [-0.72, -0.36, 0, 0.36, 0.72],
+    radius = Sim.compact ? 3.8 : 2.8, vmax = 200 } = {}) => {
     const L = D.len(pts), N = Math.ceil(L / 2), ds = L / N;
     const Hs = new Float32Array(N + 1), Vs = new Float32Array(N + 1);
     let VT = 0;
@@ -386,7 +394,7 @@
         rate = flow * Sim.PIPE;
         for (const p of parts) { p.v = (p.v + rate * p.u * dt) % VT; if (p.v < 0) p.v += VT; }
       },
-      draw(ctx, r = 2.8) {
+      draw(ctx, r = radius) {
         parts.forEach((p, i) => {
           const [d, h] = locate(p.v);
           const [x, y, tx, ty] = D.frameAt(pts, d);
