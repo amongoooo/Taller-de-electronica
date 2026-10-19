@@ -105,3 +105,10 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   position: absolute; left: 50%; top: 9%; width: 13%; height: 34%;
   transform: translateX(-50%); border-radius: 99px; background: var(--water);
 }
+
+/* Zona que se puede tocar sobre un componente del dibujo (por ejemplo, para fundir un LED). */
+.sim-hit {
+  width: max(36px, calc(var(--s, 1) * 66px)); aspect-ratio: 1; border-radius: 50%; padding: 0;
+  background: transparent; border: 2px dashed transparent; cursor: pointer;
+}
+.sim-hit:hover, .sim-hit:focus-visible { border-color: var(--muted); }

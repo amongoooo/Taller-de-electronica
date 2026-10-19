@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Resistencia · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261019065454">
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Resistencia</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con bomba, manómetro, tramo angosto ajustable y medidor de caudal"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico con fuente, voltímetro, resistencia ajustable y amperímetro"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261019065454"></script>
+<script src="../../assets/banco.js?v=20261019065454"></script>
+<script>
+(() => {
+  const { C, draw: D } = Sim;
+  const RLIST = [470, 680, 1000, 1500, 2200, 3300, 4700, 6800, 10000];   // ohmios
+  const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
+  let ri = 2;
+  const sides = {};
+  const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), Sim.narrowHalf(RLIST[ri]));
+
+  const b = Sim.bench({
+    iFull: 30,
+    v0: 9,
+    layout(g) {
+      const s = sides[g.side] = { phase: 0, g };
+      if (g.side === 'w') s.water = Sim.water(g.loop, profile(g));
+    },
+    model: V => ({ I: V / RLIST[ri] * 1000 }),
+    step(dt, m) {
+      sides.w.water.step(m.I * 6, dt);
+      sides.e.phase += m.I * 6 * dt;
+    },
+    drawW(ctx, g) {
+      D.pipe(ctx, g.loop);
+      D.narrow(ctx, g.PX, g.TOP, Sim.narrowHalf(RLIST[ri]));
+      sides.w.water.draw(ctx);
+      D.text(ctx, 'tramo angosto', g.PX, g.TOP - 36, C.muted, { size: 15 });
+    },
+    drawE(ctx, g) {
+      D.wire(ctx, g.loop);
+      D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
+      D.resistor(ctx, g.PX, g.TOP);
+      D.text(ctx, ohm(RLIST[ri]), g.PX, g.TOP - 36, C.ink, { size: 16, font: Sim.MONO, weight: 500 });
+    }
+  });
+
+  b.linkedKnob({
+    pos: g => [g.PX, g.TOP + 0.5 * (g.BOT - g.TOP)], min: 0, max: RLIST.length - 1, step: 1, value: ri, ticks: RLIST.length - 1,
+    label: side => side === 'w' ? 'Estrechamiento de la tubería' : 'Resistencia',
+    format: (v, side) => side === 'w' ? 'nivel ' + (v + 1) + ' de ' + RLIST.length : ohm(RLIST[v]),
+    scale: side => side === 'w' ? [['ancho', 0], ['angosto', 1]] : [['470 Ω', 0], ['10 kΩ', 1]],
+    caption: side => side === 'w' ? 'estrechamiento' : 'resistencia',
+    onInput: v => { ri = v; sides.w.water.setProfile(profile(sides.w.g)); }
+  });
+  b.start();
+})();
+</script>
+</body>
+</html>

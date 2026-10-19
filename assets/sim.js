@@ -46,6 +46,7 @@
     };
     p.at = (el, pos) => { const it = { el, pos }; p.items.push(it); place(it); return el; };
     p.refit = fit;
+    p.replace = () => p.items.forEach(place);   // volver a acomodar controles que cambian de lugar
     p.begin = () => {
       const ctx = canvas.getContext('2d');
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -140,6 +141,8 @@
     if (dx >= 46) return Sim.PIPE;
     return hn + (Sim.PIPE - hn) * (dx - 24) / 22;
   };
+  // Junta varios perfiles: en cada punto manda el más angosto.
+  Sim.profile = (...fs) => d => fs.reduce((h, f) => Math.min(h, f(d)), Sim.PIPE);
   D.resistor = (ctx, x, y) => {
     ctx.fillStyle = C.card; ctx.fillRect(x - 46, y - 16, 92, 32);
     ctx.beginPath(); ctx.moveTo(x - 46, y); ctx.lineTo(x - 36, y);
@@ -163,10 +166,10 @@
     if (letter) D.text(ctx, letter, x, y + r * 0.5, C.muted, { size: 14, font: Sim.MONO, weight: 500 });
   };
   // Escala alrededor de una perilla (de −135° a +135°, 0° arriba).
-  D.knobScale = (ctx, x, y, r, labels) => {
+  D.knobScale = (ctx, x, y, r, labels, ticks = 12) => {
     ctx.lineWidth = 2; ctx.strokeStyle = C.muted;
-    for (let i = 0; i <= 12; i++) {
-      const a = (-135 + i * 22.5 - 90) * Math.PI / 180, l = i % 6 ? 5 : 9;
+    for (let i = 0; i <= ticks; i++) {
+      const a = (-135 + i * 270 / ticks - 90) * Math.PI / 180, l = ticks === 12 && i % 6 ? 5 : 9;
       ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
       ctx.lineTo(x + Math.cos(a) * (r + l), y + Math.sin(a) * (r + l)); ctx.stroke();
     }
@@ -202,6 +205,75 @@
       }
     }
     ctx.globalAlpha = 1;
+  };
+
+  // ---------- componentes ----------
+  // Bomba dentro de la tubería: carcasa y rotor (omega en rad/s, a la velocidad real).
+  D.pump = (ctx, x, y, angle, omega) => {
+    D.circle(ctx, x, y, 40, C.metal, C.ink, 2.5);
+    D.circle(ctx, x, y, 33, C['water-soft']);
+    D.rotor(ctx, x, y, 27, angle, omega, 4, C.water);
+    D.circle(ctx, x, y, 6, C.ink);
+  };
+  // Símbolo de fuente en un cable horizontal: placa larga (+) a la izquierda.
+  D.source = (ctx, x, y) => {
+    ctx.fillStyle = C.card; ctx.fillRect(x - 22, y - 26, 44, 52);
+    D.line(ctx, [[x - 22, y], [x - 9, y]], 4, C.ink); D.line(ctx, [[x + 9, y], [x + 22, y]], 4, C.ink);
+    D.line(ctx, [[x - 9, y - 24], [x - 9, y + 24]], 4, C.ink, 'butt');
+    D.line(ctx, [[x + 9, y - 12], [x + 9, y + 12]], 9, C.ink, 'butt');
+    D.text(ctx, '+', x - 26, y - 30, C.ink, { size: 20 });
+  };
+  // Rueda de molino dentro de la tubería (el LED del lado del agua). Gira con la corriente y tiene
+  // una compuerta que solo deja pasar el agua hacia la derecha; rev = al revés, broken = rota.
+  D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '' } = {}) => {
+    D.circle(ctx, x, y, 30, C.metal, broken ? C.danger : C.ink, 2.5);
+    D.circle(ctx, x, y, 24, C['water-soft']);
+    if (broken) D.rotor(ctx, x, y, 19, 0.5, 0, 4, C.muted);
+    else D.rotor(ctx, x, y, 19, angle, omega, 4, C.ink);
+    D.circle(ctx, x, y, 4, C.ink);
+    D.arrow(ctx, x, y - 42, rev ? Math.PI : 0, 8, rev ? C.danger : C.muted);
+    if (broken) {
+      D.line(ctx, [[x - 15, y - 15], [x + 15, y + 15]], 4, C.danger);
+      D.line(ctx, [[x + 15, y - 15], [x - 15, y + 15]], 4, C.danger);
+    }
+    const t = broken ? 'rueda rota' : rev ? 'compuerta cerrada' : label;
+    if (t) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15 });
+  };
+  // LED en un cable horizontal; I en mA decide el brillo. La corriente entra por la izquierda.
+  D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED' } = {}) => {
+    const dir = rev ? -1 : 1;
+    ctx.fillStyle = C.card; ctx.fillRect(x - 26, y - 26, 52, 52);
+    const glow = broken ? 0 : Math.min(1, I / 15);
+    if (glow > 0) {
+      const g = ctx.createRadialGradient(x, y, 3, x, y, 40);
+      g.addColorStop(0, `rgba(255, 70, 50, ${0.75 * glow})`); g.addColorStop(1, 'rgba(255, 70, 50, 0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 40, 0, Math.PI * 2); ctx.fill();
+    }
+    D.line(ctx, [[x - 26, y], [x - 12, y]], 4, C.ink); D.line(ctx, [[x + 12, y], [x + 26, y]], 4, C.ink);
+    ctx.beginPath(); ctx.moveTo(x - 12 * dir, y - 13); ctx.lineTo(x - 12 * dir, y + 13); ctx.lineTo(x + 11 * dir, y); ctx.closePath();
+    ctx.fillStyle = !broken && glow > 0 ? '#ff5a3c' : C.card; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = broken ? C.muted : C.ink; ctx.lineJoin = 'miter'; ctx.stroke();
+    D.line(ctx, [[x + 12 * dir, y - 13], [x + 12 * dir, y + 13]], 3, broken ? C.muted : C.ink);
+    D.line(ctx, [[x + 3, y - 17], [x + 12, y - 26]], 2, C.muted); D.line(ctx, [[x + 11, y - 14], [x + 20, y - 23]], 2, C.muted);
+    if (broken) { D.line(ctx, [[x - 13, y - 13], [x + 13, y + 13]], 4, C.danger); D.line(ctx, [[x + 13, y - 13], [x - 13, y + 13]], 4, C.danger); }
+    const t = broken ? label + ' quemado' : rev ? label + ' al revés' : label;
+    D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15 });
+  };
+  // Válvula en una tubería horizontal.
+  D.valve = (ctx, x, y, open) => {
+    D.circle(ctx, x, y, 19, C.metal, C.ink, 2.5);
+    if (open) { ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 16, y - 7, 32, 14); }
+    else { ctx.fillStyle = C.danger; ctx.fillRect(x - 4, y - 17, 8, 34); }
+    D.line(ctx, [[x, y - 19], [x, y - 32]], 4, C.ink);
+    D.line(ctx, open ? [[x, y - 32], [x, y - 44]] : [[x - 13, y - 32], [x + 13, y - 32]], 6, C.ink);
+    D.text(ctx, open ? 'válvula abierta' : 'válvula cerrada', x, y + 48, open ? C.muted : C.danger, { size: 15 });
+  };
+  // Interruptor de cuchilla en un cable horizontal.
+  D.knifeSwitch = (ctx, x, y, closed) => {
+    ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 30, 56, 40);
+    D.circle(ctx, x - 22, y, 5, C.card, C.ink, 2.5); D.circle(ctx, x + 22, y, 5, C.card, C.ink, 2.5);
+    D.line(ctx, closed ? [[x - 18, y], [x + 18, y]] : [[x - 18, y - 3], [x + 16, y - 26]], 3.5, C.ink);
+    D.text(ctx, closed ? 'interruptor cerrado' : 'interruptor abierto', x, y + 48, closed ? C.muted : C.danger, { size: 15 });
   };
 
   // ---------- medidores: ruedita con aguja y pantallita de siete segmentos ----------
@@ -269,15 +341,22 @@
   Sim.water = (pts, halfAt = () => Sim.PIPE, { spacing = 14, lanes = [-0.72, -0.36, 0, 0.36, 0.72], vmax = 200 } = {}) => {
     const L = D.len(pts), N = Math.ceil(L / 2), ds = L / N;
     const Hs = new Float32Array(N + 1), Vs = new Float32Array(N + 1);
-    for (let i = 0; i <= N; i++) {
-      Hs[i] = halfAt(i * ds);
-      if (i) Vs[i] = Vs[i - 1] + (Hs[i] + Hs[i - 1]) / 2 * ds;
-    }
-    const VT = Vs[N];
+    let VT = 0;
+    // Perfil de la tubería (medio ancho según la distancia); se puede cambiar sin perder las partículas.
+    const setProfile = f => {
+      const old = VT;
+      for (let i = 0; i <= N; i++) {
+        Hs[i] = f(i * ds);
+        if (i) Vs[i] = Vs[i - 1] + (Hs[i] + Hs[i - 1]) / 2 * ds;
+      }
+      VT = Vs[N];
+      if (old) for (const p of parts) p.v = p.v / old * VT;
+    };
     const mean = lanes.reduce((a, f) => a + 1 - f * f, 0) / lanes.length;
     const parts = [];
+    setProfile(halfAt);
     lanes.forEach((f, j) => {
-      const n = Math.floor(VT / (spacing * Sim.PIPE)), u = (1 - f * f) / mean;
+      const n = Math.floor(L / spacing), u = (1 - f * f) / mean;
       for (let k = 0; k < n; k++) parts.push({ f, u, v: (k + (j % 2) * 0.5) * VT / n });
     });
     const locate = v => {
@@ -288,7 +367,7 @@
     };
     let rate = 0;
     return {
-      parts,
+      parts, setProfile,
       // flow: caudal en unidades de "rapidez media en la tubería normal" (unidades de dibujo por segundo).
       step(flow, dt) {
         rate = flow * Sim.PIPE;

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Serie y paralelo · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261019065454">
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Serie y paralelo</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con dos ruedas de molino en serie o en paralelo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico con dos LEDs en serie o en paralelo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261019065454"></script>
+<script src="../../assets/banco.js?v=20261019065454"></script>
+<script>
+(() => {
+  const { C, draw: D } = Sim;
+  const RS = 470;                 // resistencia de cada rama, ohmios
+  const VF = 2;                   // un LED (o una rueda) necesita unos 2 V para empezar a moverse
+  const XR = 260;                 // posición de las resistencias
+  const st = { mode: 'serie', broken: [false, false], ang: [0, 0], om: [0, 0] };
+  const sides = {};
+  const hn = Sim.narrowHalf(RS);
+
+  // Recorridos de cada modo. En paralelo hay un tronco común (abajo) y dos ramas: A arriba y B a media altura.
+  function layout(g) {
+    const YB = g.TOP + 0.5 * (g.BOT - g.TOP);
+    const s = sides[g.side] = { g, YB, phase: { loop: 0, trunk: 0, a: 0, b: 0 } };
+    s.paths = {
+      loop: g.loop,
+      trunk: [[g.X1, YB], [g.X1, g.BOT], [g.X0, g.BOT], [g.X0, YB]],
+      a: [[g.X0, YB], [g.X0, g.TOP], [g.X1, g.TOP], [g.X1, YB]],
+      b: [[g.X0, YB], [g.X1, YB]]
+    };
+    if (g.side === 'w') {
+      const N = (dc) => Sim.narrowProfile(dc, hn);
+      s.water = {
+        loop: Sim.water(s.paths.loop, N((g.BOT - g.TOP) + (XR - g.X0))),
+        trunk: Sim.water(s.paths.trunk),
+        a: Sim.water(s.paths.a, N((YB - g.TOP) + (XR - g.X0))),
+        b: Sim.water(s.paths.b, N(XR - g.X0))
+      };
+    }
+  }
+  // Dónde va cada LED (rueda) en el modo actual.
+  const ledPos = (g, k) => {
+    const s = sides[g.side];
+    if (st.mode === 'serie') return [k ? 545 : 420, g.TOP];
+    return [470, k ? s.YB : g.TOP];
+  };
+
+  const b = Sim.bench({
+    iFull: 30, v0: 9,
+    layout,
+    model(V) {
+      const [b1, b2] = st.broken;
+      if (st.mode === 'serie') {
+        const I = (b1 || b2) ? 0 : Math.max(0, V - 2 * VF) / RS * 1000;
+        return { I, branch: [I, I] };
+      }
+      const I1 = b1 ? 0 : Math.max(0, V - VF) / RS * 1000, I2 = b2 ? 0 : Math.max(0, V - VF) / RS * 1000;
+      return { I: I1 + I2, branch: [I1, I2] };
+    },
+    step(dt, m) {
+      const k = 6, w = sides.w, e = sides.e;
+      if (st.mode === 'serie') {
+        w.water.loop.step(m.I * k, dt); e.phase.loop += m.I * k * dt;
+      } else {
+        w.water.trunk.step(m.I * k, dt); e.phase.trunk += m.I * k * dt;
+        w.water.a.step(m.branch[0] * k, dt); e.phase.a += m.branch[0] * k * dt;
+        w.water.b.step(m.branch[1] * k, dt); e.phase.b += m.branch[1] * k * dt;
+      }
+      for (let i = 0; i < 2; i++) {
+        st.om[i] = st.broken[i] ? 0 : -m.branch[i] * 100 / 60 * 2 * Math.PI;   // 10 rpm por mL/s, como la bomba
+        st.ang[i] += st.om[i] * dt;
+      }
+    },
+    drawW(ctx, g, m) {
+      const s = sides.w, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
+      keys.forEach(k => D.pipe(ctx, s.paths[k]));
+      if (st.mode === 'serie') D.narrow(ctx, XR, g.TOP, hn);
+      else { D.narrow(ctx, XR, g.TOP, hn); D.narrow(ctx, XR, s.YB, hn); }
+      keys.forEach(k => s.water[k].draw(ctx));
+      [0, 1].forEach(i => {
+        const [x, y] = ledPos(g, i);
+        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1) });
+      });
+      D.text(ctx, 'toca una rueda para romperla o repararla', g.PX, 62, C.muted, { size: 14, weight: 400 });
+    },
+    drawE(ctx, g, m) {
+      const s = sides.e, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
+      keys.forEach(k => D.wire(ctx, s.paths[k]));
+      keys.forEach(k => D.flow(ctx, s.paths[k], s.phase[k], C.charge, { gap: 30, r: 4.5 }));
+      const ys = st.mode === 'serie' ? [g.TOP] : [g.TOP, s.YB];
+      ys.forEach(y => { D.resistor(ctx, XR, y); D.text(ctx, '470 Ω', XR, y - 30, C.muted, { size: 14 }); });
+      [0, 1].forEach(i => {
+        const [x, y] = ledPos(g, i);
+        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1) });
+      });
+      D.text(ctx, 'toca un LED para fundirlo o cambiarlo', g.PX, 62, C.muted, { size: 14, weight: 400 });
+    }
+  });
+
+  // Tocar una rueda (o un LED) lo rompe o lo repara.
+  [0, 1].forEach(i => b.linkedButton({
+    cls: 'sim-hit', pos: g => ledPos(g, i),
+    label: side => (st.broken[i] ? 'Reparar ' : 'Romper ') + (side === 'w' ? 'la rueda ' : 'el LED ') + (i + 1),
+    onClick: () => { st.broken[i] = !st.broken[i]; }
+  }));
+  // Botón para cambiar entre serie y paralelo.
+  b.linkedButton({
+    pos: g => [290, g.BOT - 72],
+    text: () => st.mode === 'serie' ? 'Cambiar a paralelo' : 'Cambiar a serie',
+    onClick: () => { st.mode = st.mode === 'serie' ? 'paralelo' : 'serie'; }
+  });
+  b.start();
+})();
+</script>
+</body>
+</html>

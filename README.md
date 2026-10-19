@@ -7,6 +7,7 @@ https://amongoooo.github.io/Taller-de-electronica/
 
 - `index.html`: página de inicio con la lista de simulaciones.
 - `assets/sim.css` y `assets/sim.js`: el formato común que comparten todas las simulaciones.
+- `assets/banco.js`: el banco de agua y electricidad (bomba y fuente enlazadas, medidores laterales e inercia); cada simulación solo dibuja su parte del circuito.
 - `simulaciones/<nombre>/index.html`: cada simulación en su propia carpeta, sin dependencias de compilación.
 
 ## Formato común
@@ -26,8 +27,12 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 
 ## Simulaciones
 
-- **Voltaje y presión** (`simulaciones/voltaje-presion/`): primera en el formato común.
-- **Circuitos de agua y corriente** (`simulaciones/agua-electricidad/`): versión anterior con las 4 simulaciones en pestañas.
+1. **Voltaje y presión** (`simulaciones/voltaje-presion/`)
+2. **Resistencia** (`simulaciones/resistencia/`): perilla de resistencia; el tramo angosto cambia con ella.
+3. **Serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
+4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED, girar el LED y quemarlo.
+
+La versión anterior con las 4 en pestañas sigue en `simulaciones/agua-electricidad/`.
 
 ## Agregar una simulación
 

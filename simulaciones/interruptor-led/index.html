@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Interruptor y LED · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261019065533">
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Interruptor y LED</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con válvula, tramo angosto ajustable y rueda con compuerta de un solo sentido"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico con interruptor, resistencia ajustable y LED"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261019065533"></script>
+<script src="../../assets/banco.js?v=20261019065533"></script>
+<script>
+(() => {
+  const { C, draw: D, fmt } = Sim;
+  const R4 = [0, 100, 220, 470, 1000];   // resistencias del LED, ohmios
+  const VF = 2, IMAX = 30;               // el LED necesita unos 2 V y se quema arriba de 30 mA
+  const XV = 270, XL = 545;              // válvula (interruptor) y LED; la resistencia va al centro
+  const st = { closed: true, ri: 3, rev: false, broken: false, burnI: 0, ang: 0, om: 0 };
+  const sides = {};
+  const ohm = R => R >= 1000 ? (R / 1000) + ' kΩ' : R + ' Ω';
+  // Para resistencias chicas el estrechamiento se nota más que en las otras simulaciones.
+  const half = R => R ? Math.max(3, Math.min(Sim.PIPE, Sim.PIPE * Math.sqrt(47 / R))) : Sim.PIPE;
+  const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), half(R4[st.ri]));
+
+  const b = Sim.bench({
+    iFull: 30, v0: 9,
+    layout(g) {
+      const s = sides[g.side] = { g, phase: 0 };
+      if (g.side === 'w') s.water = Sim.water(g.loop, profile(g));
+    },
+    model(V) {
+      const R = R4[st.ri];
+      let I = (st.closed && !st.rev && !st.broken) ? Math.max(0, V - VF) / (R + 5) * 1000 : 0;
+      if (I > IMAX) { st.broken = true; st.burnI = I; I = 0; b.refresh(); }
+      return { I };
+    },
+    step(dt, m) {
+      sides.w.water.step(m.I * 6, dt);
+      sides.e.phase += m.I * 6 * dt;
+      st.om = st.broken ? 0 : -m.I * 100 / 60 * 2 * Math.PI;   // 10 rpm por mL/s, como la bomba
+      st.ang += st.om * dt;
+    },
+    drawW(ctx, g, m) {
+      D.pipe(ctx, g.loop);
+      if (R4[st.ri]) D.narrow(ctx, g.PX, g.TOP, half(R4[st.ri]));
+      sides.w.water.draw(ctx);
+      D.text(ctx, R4[st.ri] ? 'tramo angosto' : 'sin estrechamiento', g.PX, g.TOP - 36, R4[st.ri] ? C.muted : C.danger, { size: 15 });
+      D.valve(ctx, XV, g.TOP, st.closed);
+      D.wheel(ctx, XL, g.TOP, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, label: 'rueda' });
+      hint(ctx, g, 'toca la válvula para abrirla o cerrarla', 'La rueda se rompió');
+    },
+    drawE(ctx, g, m) {
+      D.wire(ctx, g.loop);
+      D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
+      if (R4[st.ri]) {
+        D.resistor(ctx, g.PX, g.TOP);
+        D.text(ctx, ohm(R4[st.ri]), g.PX, g.TOP - 36, C.ink, { size: 16, font: Sim.MONO, weight: 500 });
+      } else D.text(ctx, 'sin resistencia', g.PX, g.TOP - 36, C.danger, { size: 15 });
+      D.knifeSwitch(ctx, XV, g.TOP, st.closed);
+      D.ledSymbol(ctx, XL, g.TOP, { I: m.I, broken: st.broken, rev: st.rev });
+      hint(ctx, g, 'toca el interruptor para abrirlo o cerrarlo', 'El LED se quemó');
+    }
+  });
+  function hint(ctx, g, normal, burnt) {
+    if (st.broken) {
+      const I = st.burnI > 1000 ? 'más de 1 A' : fmt(st.burnI, 0) + ' mA';
+      D.text(ctx, `${burnt}: pasaron ${I} y aguanta unos 30 mA`, g.PX - 40, 62, C.danger, { size: 14 });
+    } else D.text(ctx, normal, g.PX, 62, C.muted, { size: 14, weight: 400 });
+  }
+
+  b.linkedButton({
+    cls: 'sim-hit', pos: g => [XV, g.TOP],
+    label: side => (st.closed ? (side === 'w' ? 'Cerrar la válvula' : 'Abrir el interruptor') : (side === 'w' ? 'Abrir la válvula' : 'Cerrar el interruptor')),
+    onClick: () => { st.closed = !st.closed; }
+  });
+  b.linkedButton({
+    pos: g => [XL, g.TOP + 88],
+    text: side => side === 'w' ? 'Girar la rueda' : 'Girar el LED',
+    onClick: () => { st.rev = !st.rev; }
+  });
+  b.linkedButton({
+    pos: g => [XL, g.TOP + 128], hidden: () => !st.broken,
+    text: side => side === 'w' ? 'Rueda nueva' : 'LED nuevo',
+    onClick: () => { st.broken = false; }
+  });
+  b.linkedKnob({
+    pos: g => [g.PX, g.TOP + 0.5 * (g.BOT - g.TOP)], min: 0, max: R4.length - 1, step: 1, value: st.ri, ticks: R4.length - 1,
+    label: side => side === 'w' ? 'Estrechamiento de la tubería' : 'Resistencia del LED',
+    format: (v, side) => side === 'w' ? (v ? 'nivel ' + v + ' de 4' : 'sin estrechamiento') : (R4[v] ? ohm(R4[v]) : 'sin resistencia'),
+    scale: side => side === 'w' ? [['sin', 0], ['angosto', 1]] : [['0', 0], ['1 kΩ', 1]],
+    caption: side => side === 'w' ? 'estrechamiento' : 'resistencia',
+    onInput: v => { st.ri = v; sides.w.water.setProfile(profile(sides.w.g)); }
+  });
+  b.start();
+})();
+</script>
+</body>
+</html>
