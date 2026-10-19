@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261019065454">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261019072500">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261019065454"></script>
-<script src="../../assets/banco.js?v=20261019065454"></script>
+<script src="../../assets/sim.js?v=20261019072500"></script>
+<script src="../../assets/banco.js?v=20261019072500"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -85,6 +85,27 @@
       }
       const I1 = b1 ? 0 : Math.max(0, V - VF) / RS * 1000, I2 = b2 ? 0 : Math.max(0, V - VF) / RS * 1000;
       return { I: I1 + I2, branch: [I1, I2] };
+    },
+    // Cómo se reparte el voltaje: un LED roto (o todos, si no alcanza para encenderlos) se queda con él.
+    circuit(g, m, V) {
+      const [b1, b2] = st.broken, R = (x, y, dV) => ({ at: [x, y], half: 46, dV }), L = (x, y, dV) => ({ at: [x, y], half: 30, dV });
+      if (st.mode === 'serie') {
+        const n = b1 + b2, on = m.I > 0;
+        const led = k => n ? (st.broken[k] ? V / n : 0) : on ? VF : V / 2;
+        return [{ pts: b.loopPts(g), I: m.I, v0: V,
+          comps: [R(XR, g.TOP, on ? V - 2 * VF : 0), L(420, g.TOP, led(0)), L(545, g.TOP, led(1))] }];
+      }
+      const YB = sides.e.YB;
+      const branch = (i, pts, y) => {
+        const on = m.branch[i] > 0;
+        return { pts, I: m.branch[i], v0: V, comps: [R(XR, y, on ? V - VF : 0), L(470, y, on ? VF : V)] };
+      };
+      return [
+        { pts: [[g.X1, YB], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]], I: m.I, v0: 0, comps: [] },
+        { pts: [[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, YB]], I: m.I, v0: V, comps: [] },
+        branch(0, sides.e.paths.a, g.TOP),
+        branch(1, sides.e.paths.b, YB)
+      ];
     },
     step(dt, m) {
       const k = 6, w = sides.w, e = sides.e;

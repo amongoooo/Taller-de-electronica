@@ -112,3 +112,11 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   background: transparent; border: 2px dashed transparent; cursor: pointer;
 }
 .sim-hit:hover, .sim-hit:focus-visible { border-color: var(--muted); }
+
+/* Caimán de un medidor: se arrastra a cualquier punto del circuito (el dibujo lo hace el canvas). */
+.sim-clamp {
+  width: max(28px, calc(var(--s, 1) * 40px)); aspect-ratio: 1; border-radius: 50%; padding: 0;
+  background: transparent; border: 2px dashed transparent; cursor: grab; touch-action: none;
+}
+.sim-clamp:active { cursor: grabbing; }
+.sim-clamp:hover, .sim-clamp:focus-visible { border-color: var(--muted); }

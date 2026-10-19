@@ -114,10 +114,19 @@
   D.flow = (ctx, pts, phase, col, { gap = 30, r = 4.5 } = {}) => {
     const L = D.len(pts), off = ((phase % gap) + gap) % gap;
     ctx.fillStyle = col;
-    for (let d = off; d < L; d += gap) {
-      const [x, y] = D.pointAt(pts, d);
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    for (let d = off, i = 0; d < L; d += gap, i++) {
+      const [x, y] = D.pointAt(pts, d), [jx, jy] = Sim.jitter(x, y, i);
+      ctx.beginPath(); ctx.arc(x + jx, y + jy, r, 0, Math.PI * 2); ctx.fill();
     }
+  };
+  // Vibración de las partículas donde hay presión (voltaje) pero no corriente: el banco pone en
+  // Sim.shake(x, y) la amplitud en cada punto; seed hace que cada partícula vibre a su ritmo.
+  Sim.shake = null;
+  Sim.jitter = (x, y, seed) => {
+    const a = Sim.shake ? Sim.shake(x, y) : 0;
+    if (!a) return [0, 0];
+    const t = performance.now() / 1000, ph = seed * 2.399;
+    return [a * Math.sin(t * 31 + ph), a * Math.cos(t * 27 + ph * 1.7)];
   };
   // Tramo angosto de tubería con medio ancho interior hn (la tubería normal mide Sim.PIPE).
   D.narrow = (ctx, x, y, hn) => {
@@ -374,13 +383,13 @@
         for (const p of parts) { p.v = (p.v + rate * p.u * dt) % VT; if (p.v < 0) p.v += VT; }
       },
       draw(ctx, r = 2.8) {
-        for (const p of parts) {
+        parts.forEach((p, i) => {
           const [d, h] = locate(p.v);
           const [x, y, tx, ty] = D.frameAt(pts, d);
-          const off = p.f * h;
+          const off = p.f * h, [jx, jy] = Sim.jitter(x, y, i);
           ctx.fillStyle = Sim.speedColor(Math.abs(rate * p.u / h) / vmax);
-          ctx.beginPath(); ctx.arc(x - ty * off, y + tx * off, r, 0, Math.PI * 2); ctx.fill();
-        }
+          ctx.beginPath(); ctx.arc(x - ty * off + jx, y + tx * off + jy, r, 0, Math.PI * 2); ctx.fill();
+        });
       }
     };
   };
