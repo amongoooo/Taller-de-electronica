@@ -7,7 +7,7 @@ https://amongoooo.github.io/Taller-de-electronica/
 
 - `index.html`: página de inicio con la lista de simulaciones.
 - `assets/sim.css` y `assets/sim.js`: el formato común que comparten todas las simulaciones.
-- `assets/banco.js`: el banco de agua y electricidad (bomba y fuente enlazadas, medidores laterales e inercia); cada simulación solo dibuja su parte del circuito.
+- `assets/banco.js`: el banco de agua y electricidad (bomba y fuente enlazadas, medidores con caimanes e inercia); cada simulación solo dibuja su parte del circuito.
 - `simulaciones/<nombre>/index.html`: cada simulación en su propia carpeta, sin dependencias de compilación.
 
 ## Formato común
@@ -24,6 +24,15 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 - `Sim.knob`: perilla que se gira arrastrando, con la rueda del ratón o con las flechas del teclado.
 
 **Importante:** cada vez que cambien `assets/sim.css` o `assets/sim.js`, sube el número `?v=` con el que las páginas los cargan, para que el navegador no use una copia vieja guardada.
+
+## Medidores con caimanes
+
+El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, a los lados de la bomba y la fuente. Cada uno tiene un caimán rojo y uno negro que se arrastran (o se mueven con las flechas) a cualquier punto del circuito; los caimanes de los dos paneles se mueven juntos. La región entre los dos caimanes se pinta del color del medidor: morado el voltímetro y verde el amperímetro.
+
+- El voltímetro marca voltaje(rojo) − voltaje(negro); puede salir negativo.
+- El amperímetro marca la corriente que pasa por la región, positiva si va del rojo al negro. Si la región cruza un nodo y la corriente no es la misma en toda ella, muestra `----`.
+
+Para eso cada simulación le dice al banco cómo es su circuito con `circuit(g, m, V)`: los tramos de cable, la corriente de cada uno y cuánto voltaje cae en cada componente (ver el comentario en `assets/banco.js`). Si no lo da, el banco supone una sola vuelta con todo el voltaje en el componente de arriba al centro.
 
 ## Simulaciones
 
