@@ -19,7 +19,7 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 - `Sim.draw`: tuberías, cables, tramos angostos, resistencias y escala de perillas.
 - `Sim.draw.meter`: el estilo de todos los medidores, una ruedita con aguja y una pantallita de siete segmentos con la medición.
 - `Sim.water`: el agua como partículas; avanzan según el volumen que pasa (más rápido en los tramos angostos y en el centro del tubo) y su color indica la rapidez.
-- `Sim.lag` y `Sim.needle`: inercia de primer orden y agujas con masa y resorte.
+- `Sim.ramp` y `Sim.needle`: inercia (llega al valor en exactamente el tiempo elegido, con curva suave) y agujas con masa y resorte.
 - `Sim.knob`: perilla que se gira arrastrando, con la rueda del ratón o con las flechas del teclado.
 
 **Importante:** cada vez que cambien `assets/sim.css` o `assets/sim.js`, sube el número `?v=` con el que las páginas los cargan, para que el navegador no use una copia vieja guardada.

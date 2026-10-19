@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=202610190642">
+<link rel="stylesheet" href="../../assets/sim.css?v=202610190644">
 </head>
 <body>
 <div class="sim-page">
@@ -41,7 +41,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=202610190642"></script>
+<script src="../../assets/sim.js?v=202610190644"></script>
 <script>
 (() => {
   const { C, draw: D, fmt, digits } = Sim;
@@ -63,7 +63,7 @@
   }
 
   // Cada lado tiene su propio controlador; los dos usan el mismo modelo con inercia.
-  const side = () => ({ on: false, set: 6, v: 0, i: 0, rpm: 0, omega: 0, rotor: 0, phase: 0,
+  const side = () => ({ level: Sim.ramp(), on: false, set: 6, v: 0, i: 0, rpm: 0, omega: 0, rotor: 0, phase: 0,
     nV: Sim.needle(), nI: Sim.needle(), nS: Sim.needle() });
   const W_ = side(), E_ = side();
   let tau = 1;
@@ -109,14 +109,15 @@
   inercia.addEventListener('input', setTau); setTau();
 
   // ---------- física ----------
-  // La bomba (o fuente) tarda en llegar a su valor, el agua tarda en acelerar y las agujas tienen masa.
   function step(s, dt) {
-    s.v = Sim.lag(s.v, s.on ? s.set : 0, tau, dt);
-    s.i = Sim.lag(s.i, s.v / R * 1000, tau, dt);               // mA
-    s.nV.step(s.v / VMAX, tau * 0.5, dt);
-    s.nI.step(s.i / IFULL, tau * 0.5, dt);
+    // La inercia es el tiempo que tarda todo en arrancar o detenerse por completo.
+    s.v = s.level.step(s.on ? s.set : 0, tau, dt);
+    s.i = s.v / R * 1000;                                       // mA
+    const tn = Math.min(0.15, tau * 0.15);                      // las agujas apenas se atrasan
+    s.nV.step(s.v / VMAX, tn, dt);
+    s.nI.step(s.i / IFULL, tn, dt);
     s.rpm = s.i * RPM_PER_MA;
-    s.nS.step(s.rpm / (IFULL * RPM_PER_MA), tau * 0.5, dt);
+    s.nS.step(s.rpm / (IFULL * RPM_PER_MA), tn, dt);
     s.omega = -s.rpm / 60 * 2 * Math.PI;              // rad/s, a la velocidad real
     s.rotor += s.omega * dt;
     s.phase += s.i * 12 * dt;

@@ -316,6 +316,18 @@
 
   // ---------- inercia ----------
   // Retraso de primer orden: se acerca al objetivo con constante de tiempo tau (s). tau = 0 es instantáneo.
+  // Rampa suave: va del valor actual al objetivo en exactamente T segundos (curva en S).
+  // Si el objetivo cambia a medio camino, arranca de nuevo desde donde va. T = 0 es instantáneo.
+  Sim.ramp = (x = 0) => ({
+    x, from: x, to: x, t: 0,
+    step(target, T, dt) {
+      if (target !== this.to) { this.from = this.x; this.to = target; this.t = 0; }
+      this.t += dt;
+      const u = T <= 0 ? 1 : Math.min(1, this.t / T);
+      this.x = this.from + (this.to - this.from) * u * u * (3 - 2 * u);
+      return this.x;
+    }
+  });
   Sim.lag = (value, target, tau, dt) => tau <= 0 ? target : target + (value - target) * Math.exp(-dt / tau);
   // Aguja con masa y resorte: tarda en llegar y rebota un poco. tau = 0 es instantánea.
   Sim.needle = (x = 0) => ({
