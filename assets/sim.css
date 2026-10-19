@@ -128,3 +128,15 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   border: 2px dashed transparent;
 }
 .sim-pinch:hover, .sim-pinch:focus-visible { border-color: var(--muted); }
+
+/* Selector de tres opciones en la barra: solo agua, ambas o solo electricidad. */
+.sim-seg { display: inline-flex; border: 2px solid var(--line); border-radius: 999px; padding: 2px; background: var(--bg); }
+.sim-seg button {
+  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; border: 0; border-radius: 999px;
+  padding: 4px 12px; background: transparent; color: var(--muted);
+}
+.sim-seg button[data-v="w"][aria-checked="true"] { background: var(--water-soft); color: var(--water); }
+.sim-seg button[data-v="both"][aria-checked="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
+.sim-seg button[data-v="e"][aria-checked="true"] { background: var(--charge-soft); color: var(--charge); }
+.sim-stage[data-view="w"], .sim-stage[data-view="e"] { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.sim-stage[data-view="w"] #pe, .sim-stage[data-view="e"] #pw { display: none; }

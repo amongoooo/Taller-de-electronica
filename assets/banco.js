@@ -37,6 +37,27 @@
       g.loop = D.rect(g.X0, g.TOP, g.X1, g.BOT);   // sube por la izquierda, cruza arriba, baja y regresa por abajo
       return g;
     };
+    // Selector arriba para ver solo el agua, ambas o solo la electricidad (se recuerda en este navegador).
+    const stage = document.querySelector('.sim-stage'), bar = document.querySelector('.sim-bar');
+    const views = [['w', 'Agua'], ['both', 'Ambas'], ['e', 'Electricidad']];
+    const seg = document.createElement('div');
+    seg.className = 'sim-seg'; seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', 'Qué circuito ver');
+    const setView = v => {
+      stage.dataset.view = v;
+      seg.querySelectorAll('button').forEach(el => el.setAttribute('aria-checked', String(el.dataset.v === v)));
+      try { localStorage.setItem('sim-view', v); } catch (e) {}
+    };
+    views.forEach(([v, t]) => {
+      const el = document.createElement('button');
+      el.type = 'button'; el.dataset.v = v; el.textContent = t; el.setAttribute('role', 'radio');
+      el.addEventListener('click', () => setView(v));
+      seg.appendChild(el);
+    });
+    bar.insertBefore(seg, bar.querySelector('.ctl'));
+    let saved = 'both';
+    try { saved = localStorage.getItem('sim-view') || 'both'; } catch (e) {}
+    setView(views.some(([v]) => v === saved) ? saved : 'both');
+
     const size = Sim.fitHeight(800, 610, 1060);
     b.pw = Sim.panel(document.getElementById('pw'), size);
     b.pe = Sim.panel(document.getElementById('pe'), size);
