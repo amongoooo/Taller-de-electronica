@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Resistencias en serie y paralelo · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261019081500">
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Resistencias en serie y paralelo</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con dos tramos angostos ajustables en serie o en paralelo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico con dos resistencias ajustables en serie o en paralelo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261019081500"></script>
+<script src="../../assets/banco.js?v=20261019081500"></script>
+<script>
+(() => {
+  const { C, draw: D, fmt } = Sim;
+  // Dos resistencias que se ajustan agarrando el borde del tramo angosto (o pellizcándolo con dos dedos).
+  // Más angosto = más resistencia. Van de 220 Ω a 4,7 kΩ.
+  const RMIN = 220, RMAX = 4700, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);   // aun la más baja se ve como tramo angosto
+  const half = R => HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN;
+  const fromHalf = h => RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN);
+  const ohm = R => R >= 1000 ? fmt(R / 1000, R >= 10000 ? 0 : 1) + ' kΩ' : Math.round(R) + ' Ω';
+  const st = { mode: 'serie', R: [1000, 2200] };
+  const sides = {};
+
+  function layout(g) {
+    const YB = g.TOP + 0.5 * (g.BOT - g.TOP);
+    const s = sides[g.side] = { g, YB, phase: { loop: 0, trunk: 0, a: 0, b: 0 } };
+    s.paths = {
+      loop: g.loop,
+      trunk: [[g.X1, YB], [g.X1, g.BOT], [g.X0, g.BOT], [g.X0, YB]],
+      a: [[g.X0, YB], [g.X0, g.TOP], [g.X1, g.TOP], [g.X1, YB]],
+      b: [[g.X0, YB], [g.X1, YB]]
+    };
+    if (g.side === 'w') {
+      s.water = { loop: Sim.water(s.paths.loop), trunk: Sim.water(s.paths.trunk), a: Sim.water(s.paths.a), b: Sim.water(s.paths.b) };
+      profiles();
+    }
+  }
+  // Dónde va cada resistencia en el modo actual.
+  const rPos = (g, k) => st.mode === 'serie' ? [k ? 500 : 300, g.TOP] : [g.PX, k ? sides[g.side].YB : g.TOP];
+  // Perfil del agua según el ancho de cada tramo angosto.
+  function profiles() {
+    const s = sides.w, g = s.g, N = (dc, k) => Sim.narrowProfile(dc, half(st.R[k]));
+    s.water.loop.setProfile(Sim.profile(N((g.BOT - g.TOP) + (300 - g.X0), 0), N((g.BOT - g.TOP) + (500 - g.X0), 1)));
+    s.water.a.setProfile(N((s.YB - g.TOP) + (g.PX - g.X0), 0));
+    s.water.b.setProfile(N(g.PX - g.X0, 1));
+  }
+
+  const b = Sim.bench({
+    iFull: 60, v0: 6,
+    layout,
+    model(V) {
+      const [R1, R2] = st.R;
+      if (st.mode === 'serie') { const I = V / (R1 + R2) * 1000; return { I, branch: [I, I] }; }
+      const I1 = V / R1 * 1000, I2 = V / R2 * 1000;
+      return { I: I1 + I2, branch: [I1, I2] };
+    },
+    circuit(g, m, V) {
+      const Rc = (k, dV) => ({ at: rPos(g, k), half: 46, dV });
+      if (st.mode === 'serie') {
+        const d1 = m.I * st.R[0] / 1000;
+        return [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [Rc(0, d1), Rc(1, V - d1)] }];
+      }
+      const YB = sides.e.YB;
+      return [
+        { pts: [[g.X1, YB], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]], I: m.I, v0: 0, comps: [] },
+        { pts: [[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, YB]], I: m.I, v0: V, comps: [] },
+        { pts: sides.e.paths.a, I: m.branch[0], v0: V, comps: [Rc(0, V)] },
+        { pts: sides.e.paths.b, I: m.branch[1], v0: V, comps: [Rc(1, V)] }
+      ];
+    },
+    step(dt, m) {
+      const k = 4, w = sides.w, e = sides.e;
+      if (st.mode === 'serie') { w.water.loop.step(m.I * k, dt); e.phase.loop += m.I * k * dt; }
+      else {
+        w.water.trunk.step(m.I * k, dt); e.phase.trunk += m.I * k * dt;
+        w.water.a.step(m.branch[0] * k, dt); e.phase.a += m.branch[0] * k * dt;
+        w.water.b.step(m.branch[1] * k, dt); e.phase.b += m.branch[1] * k * dt;
+      }
+    },
+    drawW(ctx, g) {
+      const s = sides.w, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
+      keys.forEach(k => D.pipe(ctx, s.paths[k]));
+      [0, 1].forEach(k => { const [x, y] = rPos(g, k); D.narrow(ctx, x, y, half(st.R[k])); });
+      keys.forEach(k => s.water[k].draw(ctx));
+      [0, 1].forEach(k => { const [x, y] = rPos(g, k); grips(ctx, x, y, half(st.R[k]) + 5, k); });
+      D.text(ctx, 'agarra el borde de un tramo (o pellízcalo) para angostarlo o ensancharlo', g.PX - 30, 62, C.muted, { size: 13, weight: 400 });
+    },
+    drawE(ctx, g) {
+      const s = sides.e, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
+      keys.forEach(k => D.wire(ctx, s.paths[k]));
+      keys.forEach(k => D.flow(ctx, s.paths[k], s.phase[k], C.charge, { gap: 30, r: 4.5 }));
+      [0, 1].forEach(k => { const [x, y] = rPos(g, k); D.resistor(ctx, x, y); grips(ctx, x, y, half(st.R[k]) + 5, k); });
+      D.text(ctx, 'arrastra las marcas de una resistencia para cambiar su valor', g.PX - 30, 62, C.muted, { size: 13, weight: 400 });
+    }
+  });
+  // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde, y su valor.
+  function grips(ctx, x, y, h, k) {
+    const col = drag[k] ? C.water : C.muted;
+    for (const sgn of [-1, 1]) {
+      const yy = y + sgn * (h + 9);
+      D.roundRect(ctx, x - 16, yy - 3, 32, 6, 3, col);
+      D.arrow(ctx, x + 24, yy, sgn * Math.PI / 2, 5, col);
+    }
+    D.text(ctx, `R${k + 1} = ${ohm(st.R[k])}`, x, y - h - 30, C.ink, { size: 15, font: Sim.MONO, weight: 500 });
+  }
+
+  // Zona que se agarra sobre cada resistencia: con un dedo (o el ratón) el borde sigue al puntero;
+  // con dos dedos, el ancho es la separación entre ellos.
+  const drag = [false, false];
+  const setR = (k, R) => { st.R[k] = Math.round(Math.max(RMIN, Math.min(RMAX, R))); profiles(); };
+  [0, 1].forEach(k => ['w', 'e'].forEach(side => {
+    const el = document.createElement('div');
+    el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', 'slider');
+    el.setAttribute('aria-label', (side === 'w' ? 'Ancho del tramo angosto ' : 'Resistencia ') + (k + 1));
+    el.setAttribute('aria-valuemin', RMIN); el.setAttribute('aria-valuemax', RMAX);
+    b.place(side, el, g => rPos(g, k));
+    const p = side === 'w' ? b.pw : b.pe, pts = new Map();
+    const center = () => rPos(side === 'w' ? b.gw : b.ge, k)[1];
+    const toY = e => (e.clientY - p.box.getBoundingClientRect().top - p.oy) / p.scale;
+    const update = () => {
+      const ys = [...pts.values()];
+      const h = ys.length > 1 ? Math.abs(ys[0] - ys[1]) / 2 - 9 : Math.abs(ys[0] - center()) - 14;
+      setR(k, fromHalf(h));
+    };
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); pts.set(e.pointerId, toY(e)); drag[k] = true; update(); e.preventDefault(); });
+    el.addEventListener('pointermove', e => { if (pts.has(e.pointerId)) { pts.set(e.pointerId, toY(e)); update(); } });
+    const up = e => { pts.delete(e.pointerId); if (!pts.size) drag[k] = false; };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', e => { e.preventDefault(); setR(k, st.R[k] * (e.deltaY < 0 ? 0.9 : 1.1)); }, { passive: false });
+    el.addEventListener('keydown', e => {
+      const f = { ArrowUp: 0.9, ArrowRight: 0.9, ArrowDown: 1.1, ArrowLeft: 1.1 }[e.key];
+      if (f) { setR(k, st.R[k] * f); e.preventDefault(); }
+    });
+    setInterval(() => { el.setAttribute('aria-valuenow', st.R[k]); el.setAttribute('aria-valuetext', ohm(st.R[k])); }, 500);
+  }));
+  // Botón para cambiar entre serie y paralelo.
+  b.linkedButton({
+    pos: g => [290, g.BOT - 72],
+    text: () => st.mode === 'serie' ? 'Cambiar a paralelo' : 'Cambiar a serie',
+    onClick: () => { st.mode = st.mode === 'serie' ? 'paralelo' : 'serie'; }
+  });
+  b.start();
+})();
+</script>
+</body>
+</html>

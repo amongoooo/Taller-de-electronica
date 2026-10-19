@@ -41,6 +41,7 @@ Para eso cada simulación le dice al banco cómo es su circuito con `circuit(g, 
 2. **Resistencia** (`simulaciones/resistencia/`): perilla de resistencia; el tramo angosto cambia con ella.
 3. **Serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
 4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED, girar el LED y quemarlo.
+5. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.
 
 La versión anterior con las 4 en pestañas sigue en `simulaciones/agua-electricidad/`.
 
