@@ -122,11 +122,12 @@
   // Vibración de las partículas donde hay presión (voltaje) pero no corriente: el banco pone en
   // Sim.shake(x, y) la amplitud en cada punto; seed hace que cada partícula vibre a su ritmo.
   Sim.shake = null;
+  // Devuelve [dx, dy, rapidez]: la rapidez media de la vibración sirve para colorear la partícula.
   Sim.jitter = (x, y, seed) => {
     const a = Sim.shake ? Sim.shake(x, y) : 0;
-    if (!a) return [0, 0];
+    if (!a) return [0, 0, 0];
     const t = performance.now() / 1000, ph = seed * 2.399;
-    return [a * Math.sin(t * 31 + ph), a * Math.cos(t * 27 + ph * 1.7)];
+    return [a * Math.sin(t * 31 + ph), a * Math.cos(t * 27 + ph * 1.7), a * 29];
   };
   // Tramo angosto de tubería con medio ancho interior hn (la tubería normal mide Sim.PIPE).
   D.narrow = (ctx, x, y, hn) => {
@@ -386,8 +387,8 @@
         parts.forEach((p, i) => {
           const [d, h] = locate(p.v);
           const [x, y, tx, ty] = D.frameAt(pts, d);
-          const off = p.f * h, [jx, jy] = Sim.jitter(x, y, i);
-          ctx.fillStyle = Sim.speedColor(Math.abs(rate * p.u / h) / vmax);
+          const off = p.f * h, [jx, jy, js] = Sim.jitter(x, y, i);
+          ctx.fillStyle = Sim.speedColor(Math.max(Math.abs(rate * p.u / h), js) / vmax);
           ctx.beginPath(); ctx.arc(x - ty * off + jx, y + tx * off + jy, r, 0, Math.PI * 2); ctx.fill();
         });
       }
