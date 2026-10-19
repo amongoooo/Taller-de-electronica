@@ -224,6 +224,19 @@
       return res;
     };
 
+    // Donde un tramo tiene voltaje pero no le pasa corriente (un LED que no enciende, un interruptor
+    // abierto), las partículas vibran sin avanzar: la presión empuja pero el agua no se puede mover.
+    Sim.shake = (x, y) => {
+      let best = null;
+      for (const sg of st.segs) {
+        const p = project(sg.pts, x, y);
+        if (!best || p.dist < best.dist) best = { ...p, sg };
+      }
+      if (!best || best.dist > 30 || Math.abs(best.sg.I) > 0.01) return 0;
+      const v = best.sg.source ? 0 : best.sg.v(best.d);
+      return v > 0.05 ? 0.5 + 1.8 * v / VMAX : 0;
+    };
+
     st.clamps = o.clamps ? o.clamps(b.gw) : {
       V: [[b.gw.X0, b.gw.MY], [b.gw.X1, b.gw.MY]],
       I: [[b.gw.X1 - 40, b.gw.BOT], [b.gw.X1 - 110, b.gw.BOT]]
