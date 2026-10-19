@@ -176,6 +176,63 @@
     });
   };
 
+  // ---------- medidores: ruedita con aguja y pantallita de siete segmentos ----------
+  const SEG = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc',
+    '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', '-': 'g', ' ': '' };
+  Sim.LCD = { bg: '#121c16', on: '#8ef7a6', off: 'rgba(142, 247, 166, 0.09)', unit: '#5fb478' };
+  // Dígitos de siete segmentos; (x, y) es la esquina derecha del texto, centrada en alto.
+  D.segments = (ctx, text, x, y, h) => {
+    const cw = h * 0.52, gap = h * 0.32, t = h * 0.12, chars = [];
+    for (const ch of text) { if (ch === '.' && chars.length) chars[chars.length - 1].dot = true; else chars.push({ ch }); }
+    let x0 = x - chars.length * (cw + gap) + gap;
+    const y0 = y - h / 2, ym = y, y1 = y + h / 2, k = t * 0.7;
+    const segs = (cx) => ({
+      a: [[cx + k, y0], [cx + cw - k, y0]], d: [[cx + k, y1], [cx + cw - k, y1]], g: [[cx + k, ym], [cx + cw - k, ym]],
+      f: [[cx, y0 + k], [cx, ym - k]], b: [[cx + cw, y0 + k], [cx + cw, ym - k]],
+      e: [[cx, ym + k], [cx, y1 - k]], c: [[cx + cw, ym + k], [cx + cw, y1 - k]]
+    });
+    ctx.lineCap = 'round';
+    for (const c of chars) {
+      const sg = segs(x0), lit = SEG[c.ch] ?? '';
+      for (const name of 'abcdefg') {
+        ctx.beginPath(); ctx.moveTo(...sg[name][0]); ctx.lineTo(...sg[name][1]);
+        ctx.lineWidth = t; ctx.strokeStyle = lit.includes(name) ? Sim.LCD.on : Sim.LCD.off; ctx.stroke();
+      }
+      ctx.fillStyle = c.dot ? Sim.LCD.on : Sim.LCD.off;
+      ctx.beginPath(); ctx.arc(x0 + cw + gap / 2, y1, t * 0.6, 0, Math.PI * 2); ctx.fill();
+      x0 += cw + gap;
+    }
+  };
+  // Pantallita: rectángulo oscuro con el número y la unidad. (x, y) es el centro.
+  D.lcd = (ctx, x, y, w, h, text, unit) => {
+    D.roundRect(ctx, x - w / 2, y - h / 2, w, h, 5, Sim.LCD.bg, C.ink, 1.5);
+    const uw = unit ? unit.length * 7 + 6 : 0;
+    D.segments(ctx, text, x + w / 2 - 8 - uw, y, h * 0.58);
+    if (unit) D.text(ctx, unit, x + w / 2 - 6, y + h * 0.12, Sim.LCD.unit, { align: 'right', size: 12, font: Sim.MONO, weight: 500 });
+  };
+  // Número con ancho fijo para la pantallita (espacios a la izquierda).
+  Sim.digits = (v, width, d) => {
+    const s = Math.abs(v) < 0.5 * Math.pow(10, -d) ? (0).toFixed(d) : v.toFixed(d);
+    return s.padStart(width + (d ? 1 : 0), ' ');
+  };
+  // Medidor completo: caja, ruedita con aguja y pantallita debajo ('below') o a la derecha ('right').
+  // Devuelve la caja que ocupa, para acomodar la etiqueta.
+  D.meter = (ctx, x, y, { r = 34, frac = 0, text = '', unit = '', label = '', color, lcd = 'below', lcdW = 100 }) => {
+    let box;
+    if (lcd === 'right') {
+      box = [x - r - 10, y - r - 10, 2 * r + 20 + lcdW + 6, 2 * r + 20];
+    } else {
+      const w = Math.max(2 * r + 20, lcdW + 16);
+      box = [x - w / 2, y - r - 10, w, 2 * r + 56];
+    }
+    D.roundRect(ctx, ...box, 10, C.metal, C.ink, 2);
+    D.dial(ctx, x, y, r, frac, color);
+    if (lcd === 'right') D.lcd(ctx, x + r + 10 + lcdW / 2, y, lcdW, 32, text, unit);
+    else D.lcd(ctx, x, y + r + 24, lcdW, 30, text, unit);
+    if (label) D.text(ctx, label, box[0] + box[2] / 2, box[1] + box[3] + 16, C.muted, { size: 15 });
+    return box;
+  };
+
   // ---------- agua como partículas ----------
   // Cada partícula avanza según el volumen que pasa: donde la tubería se angosta, va más rápido.
   // Dentro de la tubería las del centro van más rápido que las de las orillas, como en un tubo real.

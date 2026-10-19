@@ -81,6 +81,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   padding: .45em 1em; border-radius: 999px;
   border: 2px solid var(--ok); background: var(--ok); color: var(--card);
 }
+.sim-btn.small { font-size: max(11px, calc(var(--s, 1) * 15px)); padding: .4em .8em; }
 .sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
 
 .knob {

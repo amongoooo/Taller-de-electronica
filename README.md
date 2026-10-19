@@ -11,12 +11,13 @@ https://amongoooo.github.io/Taller-de-electronica/
 
 ## Formato común
 
-Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, título y ajustes generales como la inercia) y dos paneles, agua y electricidad, lado a lado en pantallas horizontales o uno sobre otro en vertical. Los controles de cada circuito (botones, perillas) van encima del dibujo, junto al aparato que controlan.
+Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, título y ajustes generales como la inercia) y dos paneles, agua y electricidad, lado a lado en pantallas horizontales o uno sobre otro en vertical. Cada fuente de energía (bomba, fuente de voltaje) es un controlador: una caja con su botón de encendido, su perilla y su medidor.
 
 `assets/sim.js` reúne lo que se repite:
 
 - `Sim.panel`: canvas que se escala para llenar su panel y coloca controles HTML en coordenadas del dibujo.
-- `Sim.draw`: tuberías, cables, tramos angostos, resistencias, medidores de aguja y escala de perillas.
+- `Sim.draw`: tuberías, cables, tramos angostos, resistencias y escala de perillas.
+- `Sim.draw.meter`: el estilo de todos los medidores, una ruedita con aguja y una pantallita de siete segmentos con la medición.
 - `Sim.water`: el agua como partículas; avanzan según el volumen que pasa (más rápido en los tramos angostos y en el centro del tubo) y su color indica la rapidez.
 - `Sim.lag` y `Sim.needle`: inercia de primer orden y agujas con masa y resorte.
 - `Sim.knob`: perilla que se gira arrastrando, con la rueda del ratón o con las flechas del teclado.
