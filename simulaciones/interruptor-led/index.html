@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261019074500">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261019075000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261019074500"></script>
-<script src="../../assets/banco.js?v=20261019074500"></script>
+<script src="../../assets/sim.js?v=20261019075000"></script>
+<script src="../../assets/banco.js?v=20261019075000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -87,7 +87,7 @@
       for (const p of st.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; }
       sides.w.water.step(m.I * 6, dt);
       sides.e.phase += m.I * 6 * dt;
-      st.om = st.broken ? 0 : -m.I * 100 / 60 * 2 * Math.PI;   // 10 rpm por mL/s, como la bomba
+      st.om = st.broken ? 0 : -m.I * Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI;
       st.ang += st.om * dt;
     },
     drawW(ctx, g, m) {

@@ -233,6 +233,9 @@
     D.line(ctx, [[x + 9, y - 12], [x + 9, y + 12]], 9, C.ink, 'butt');
     D.text(ctx, '+', x - 26, y - 30, C.ink, { size: 20 });
   };
+  // Las ruedas giran lento (4 rpm por mA, unas 2 vueltas por segundo a 30 mA) para que se vea
+  // cómo cambia su velocidad con la resistencia; la bomba sí gira a 10 rpm por mL/s.
+  Sim.WHEEL_RPM_PER_MA = 4;
   // Rueda de molino dentro de la tubería (el LED del lado del agua). Gira con la corriente y tiene
   // una compuerta que solo deja pasar el agua hacia la derecha; rev = al revés, broken = rota.
   D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '' } = {}) => {
@@ -253,7 +256,7 @@
   D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED' } = {}) => {
     const dir = rev ? -1 : 1;
     ctx.fillStyle = C.card; ctx.fillRect(x - 26, y - 26, 52, 52);
-    const glow = broken ? 0 : Math.min(1, I / 15);
+    const glow = broken ? 0 : Math.min(1, I / 30);   // brilla más con más corriente, hasta los 30 mA que aguanta
     if (glow > 0) {
       const g = ctx.createRadialGradient(x, y, 3, x, y, 40);
       g.addColorStop(0, `rgba(255, 70, 50, ${0.75 * glow})`); g.addColorStop(1, 'rgba(255, 70, 50, 0)');
@@ -261,7 +264,7 @@
     }
     D.line(ctx, [[x - 26, y], [x - 12, y]], 4, C.ink); D.line(ctx, [[x + 12, y], [x + 26, y]], 4, C.ink);
     ctx.beginPath(); ctx.moveTo(x - 12 * dir, y - 13); ctx.lineTo(x - 12 * dir, y + 13); ctx.lineTo(x + 11 * dir, y); ctx.closePath();
-    ctx.fillStyle = !broken && glow > 0 ? '#ff5a3c' : C.card; ctx.fill();
+    ctx.fillStyle = !broken && glow > 0 ? `rgba(255, 90, 60, ${0.3 + 0.7 * glow})` : C.card; ctx.fill();
     ctx.lineWidth = 2.5; ctx.strokeStyle = broken ? C.muted : C.ink; ctx.lineJoin = 'miter'; ctx.stroke();
     D.line(ctx, [[x + 12 * dir, y - 13], [x + 12 * dir, y + 13]], 3, broken ? C.muted : C.ink);
     D.line(ctx, [[x + 3, y - 17], [x + 12, y - 26]], 2, C.muted); D.line(ctx, [[x + 11, y - 14], [x + 20, y - 23]], 2, C.muted);
