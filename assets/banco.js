@@ -29,11 +29,53 @@
       segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false } };
     const b = { st, VMAX, KPA_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
-    const geometry = (side, W, H) => {
-      const g = { side, W, H, X0: 180, X1: 640, PX: 400, TOP: 140, BOT: H - 214 };
+    // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual):
+    //   ancho:   la computadora; medidores a los lados del controlador, abajo del circuito.
+    //   alto:    celular vertical; controlador abajo y los dos medidores, más grandes, en una fila debajo.
+    //   lateral: celular horizontal; medidores y controlador en una columna a la derecha del circuito.
+    // En el celular solo se ve de x0 a x0 + W, sin márgenes de sobra, para que todo salga más grande.
+    const MODES = {
+      ancho: { W: 800, x0: 0, hMin: 610, hMax: 1060 },
+      alto: { W: 540, x0: 130, hMin: 840, hMax: 1300 },
+      lateral: { W: 1040, x0: 110, hMin: 450, hMax: 620 }
+    };
+    const size = (w, h) => {
+      const fit = m => {
+        const H = Math.round(Math.max(m.hMin, Math.min(m.hMax, m.W * h / w)));
+        return { H, s: Math.min(w / m.W, h / H) };
+      };
+      let mode = 'ancho', best = fit(MODES.ancho);
+      // solo si en el acomodo ancho todo se vería chico
+      if (best.s < 0.75) for (const k of ['alto', 'lateral']) {
+        const f = fit(MODES[k]);
+        if (f.s > best.s * 1.08) { mode = k; best = f; }
+      }
+      return [MODES[mode].W, best.H, MODES[mode].x0, mode];
+    };
+    const geometry = (side, W, H, mode = 'ancho') => {
+      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, BW: 430, BH: 152, MK: 1 };
+      if (mode === 'lateral') {
+        g.BOT = H - 64;
+        g.BX = 700; g.MK = 1.25;
+        const my = 40 + 40 * g.MK;
+        g.meters = { V: [g.BX + 105, my], I: [g.BX + g.BW - 105, my] };
+        g.BY = my + 116 * g.MK;
+        g.LEG = [g.BX + 140, Math.min(H - 22, g.BY + g.BH + 28), 150];
+      } else if (mode === 'alto') {
+        g.BOT = H - 444;
+        g.BX = g.PX - 215; g.BY = g.BOT + 46; g.MK = 1.35;
+        const my = g.BY + g.BH + 34 + 40 * g.MK;
+        g.meters = { V: [g.PX - 135, my], I: [g.PX + 135, my] };
+        g.LEG = [505, 24, 150];
+      } else {
+        g.BOT = H - 214;
+        g.BX = g.PX - 215; g.BY = g.BOT + 46;
+        g.meters = { V: [g.BX / 2, g.BY + 40], I: [(g.BX + g.BW + W) / 2, g.BY + 40] };
+        g.LEG = [600, 46, 160];
+      }
+      g.CX = g.BX + g.BW / 2;   // centro del controlador (perilla)
       g.MIDY = (g.TOP + g.BOT) / 2;
       g.MY = g.TOP + 0.62 * (g.BOT - g.TOP);
-      g.BX = g.PX - 215; g.BY = g.BOT + 46; g.BW = 430; g.BH = 152;   // caja del controlador
       g.loop = D.rect(g.X0, g.TOP, g.X1, g.BOT);   // sube por la izquierda, cruza arriba, baja y regresa por abajo
       return g;
     };
@@ -58,12 +100,19 @@
     try { saved = localStorage.getItem('sim-view') || 'both'; } catch (e) {}
     setView(views.some(([v]) => v === saved) ? saved : 'both');
 
-    const size = Sim.fitHeight(800, 610, 1060);
     b.pw = Sim.panel(document.getElementById('pw'), size);
     b.pe = Sim.panel(document.getElementById('pe'), size);
-    b.pw.onLayout = (W, H) => { b.gw = geometry('w', W, H); o.layout && o.layout(b.gw); };
-    b.pe.onLayout = (W, H) => { b.ge = geometry('e', W, H); o.layout && o.layout(b.ge); };
-    b.pw.onLayout(b.pw.W, b.pw.H); b.pe.onLayout(b.pe.W, b.pe.H);
+    b.pw.mirror = b.pe; b.pe.mirror = b.pw;
+    const relayout = (side, W, H, mode) => {
+      const g = geometry(side, W, H, mode);
+      Sim.compact = mode !== 'ancho';
+      if (side === 'w') b.gw = g; else b.ge = g;
+      o.layout && o.layout(g);
+    };
+    b.pw.onLayout = (W, H, mode) => relayout('w', W, H, mode);
+    b.pe.onLayout = (W, H, mode) => relayout('e', W, H, mode);
+    b.pw.refit(); b.pe.refit();
+    b.pw.onLayout(b.pw.W, b.pw.H, b.pw.mode); b.pe.onLayout(b.pe.W, b.pe.H, b.pe.mode);
     const panel = side => side === 'w' ? b.pw : b.pe;
     const geo = side => side === 'w' ? b.gw : b.ge;
 
@@ -118,7 +167,7 @@
     const syncPower = () => power.forEach(el => { el.innerHTML = icon; el.setAttribute('aria-pressed', String(st.on)); });
     power.forEach(el => el.addEventListener('click', syncPower)); syncPower();
     b.linkedKnob({
-      pos: g => [g.PX, g.BY + 80], min: 0, max: VMAX, step: 0.5, value: st.set,
+      pos: g => [g.CX, g.BY + 80], min: 0, max: VMAX, step: 0.5, value: st.set,
       label: side => side === 'w' ? 'Presión de la bomba' : 'Voltaje de la fuente',
       format: (v, side) => side === 'w' ? Math.round(v * KPA_PER_V) + ' kPa' : fmt(v) + ' V',
       scale: side => side === 'w' ? [['0', 0], ['60', 0.5], ['120', 1]] : [['0', 0], ['6', 0.5], ['12', 1]],
@@ -265,9 +314,9 @@
       V: [[b.gw.X0, b.gw.MY], [b.gw.X1, b.gw.MY]],
       I: [[b.gw.X1 - 40, b.gw.BOT], [b.gw.X1 - 110, b.gw.BOT]]
     };
-    // Medidores abajo, a los lados del controlador; las bornes (rojo y negro) arriba de cada uno.
-    const meterAt = (g, kind) => [kind === 'V' ? g.BX / 2 : (g.BX + g.BW + g.W) / 2, g.BY + 40];
-    const jack = (g, kind, i) => { const [x] = meterAt(g, kind); return [x + (i ? 22 : -22), g.BY]; };
+    // Medidores junto al controlador (ver los acomodos); las bornes (rojo y negro) arriba de cada uno.
+    const meterAt = (g, kind) => g.meters[kind];
+    const jack = (g, kind, i) => { const [x, y] = meterAt(g, kind); return [x + (i ? 22 : -22) * g.MK, y - 40 * g.MK]; };
 
     // Cada caimán se arrastra (o se mueve con las flechas por el cable). Los dos paneles comparten
     // los caimanes, igual que la bomba y la fuente.
@@ -311,11 +360,11 @@
 
     // ---------- dibujo común ----------
     const controllerBox = (ctx, g, title, fill, scale, caption) => {
-      ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 30, 28, 18);       // cuello hacia el circuito
+      if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 30, 28, 18); }   // cuello hacia el circuito
       D.roundRect(ctx, g.BX, g.BY, g.BW, g.BH, 14, fill, C.ink, 2.5);
       D.text(ctx, title, g.BX + 18, g.BY + 24, C.ink, { align: 'left', size: 15 });
-      D.knobScale(ctx, g.PX, g.BY + 80, 36, scale);
-      D.text(ctx, caption, g.PX, g.BY + 138, C.muted, { size: 14 });
+      D.knobScale(ctx, g.CX, g.BY + 80, 36, scale);
+      D.text(ctx, caption, g.CX, g.BY + 138, C.muted, { size: 14 });
       D.led(ctx, g.BX + 108, g.BY + 92, st.v > 0.05 ? 1 : 0);   // detecta presión desde 0.5 kPa (0.05 V)
     };
     const knobScales = (ctx, g) => b.knobs.forEach(k => {
@@ -330,22 +379,33 @@
       for (const kind of ['I', 'V']) if (!st.pinned[kind]) for (const pts of st.probe[kind].pieces) D.line(ctx, pts, kind === 'V' ? w + 8 : w, PROBE[kind]);
       ctx.globalAlpha = 1;
     };
-    // Medidor con sus dos bornes, sus cables y sus caimanes.
+    // Cables de un medidor, de cada borne a su caimán. Se dibujan antes que el controlador y los
+    // medidores, así que pasan por detrás de ellos (en el celular cruzan el controlador).
+    const drawCables = (ctx, g, kind) => {
+      if (st.pinned[kind]) return;
+      [0, 1].forEach(i => {
+        const [jx, jy] = jack(g, kind, i), [cx, cy] = st.clamps[kind][i];
+        ctx.beginPath(); ctx.moveTo(jx, jy);
+        if (g.mode === 'lateral') ctx.bezierCurveTo(jx, jy - 50, cx + 120, cy + 40, cx, cy + 14);
+        else ctx.bezierCurveTo(jx, jy - 70, cx + (cx < g.PX ? -1 : 1) * 10, cy + 80, cx, cy + 14);
+        ctx.lineCap = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
+        ctx.lineWidth = 3; ctx.strokeStyle = i ? C.ink : RED; ctx.stroke();
+      });
+    };
+    // Medidor con sus dos bornes y sus caimanes.
     const drawProbe = (ctx, g, kind, label, text, unit, color) => {
       const [x, y] = meterAt(g, kind), needle = kind === 'V' ? st.nVm : st.nIm;
-      D.meter(ctx, x, y, { r: 30, frac: needle.x, color, lcdW: 108, text, unit });
-      D.text(ctx, label, x, y + 92, PROBE[kind], { size: 15 });
-      if (st.probe[kind].value === null) D.text(ctx, 'la región cruza un nodo', x, y + 110, C.danger, { size: 12 });
+      ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
+      D.meter(ctx, 0, 0, { r: 30, frac: needle.x, color, lcdW: 108, text, unit });
+      D.text(ctx, label, 0, 92, PROBE[kind], { size: 15 });
+      if (st.probe[kind].value === null) D.text(ctx, 'la región cruza un nodo', 0, 110, C.danger, { size: 12 });
+      ctx.restore();
       [0, 1].forEach(i => {
         const [jx, jy] = jack(g, kind, i), [cx, cy] = st.clamps[kind][i];
         const col = i ? C.ink : RED;
         D.circle(ctx, jx, jy, 6, col, C.ink, 1.5);
-        if (st.pinned[kind]) { pin(ctx, cx, cy, col, kind); return; }
-        ctx.beginPath(); ctx.moveTo(jx, jy);
-        ctx.bezierCurveTo(jx, jy - 70, cx + (cx < g.PX ? -1 : 1) * 10, cy + 80, cx, cy + 14);
-        ctx.lineCap = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
-        ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke();
-        clamp(ctx, cx, cy, col);
+        if (st.pinned[kind]) pin(ctx, cx, cy, col, kind);
+        else clamp(ctx, cx, cy, col);
       });
     };
     // Pin: gota pequeña clavada en el punto, con la letra del medidor (V o A).
@@ -378,7 +438,8 @@
       o.drawW(ctx, g, m);
       drawRegions(ctx, 2 * Sim.PIPE + 22);
       knobScales(ctx, g);
-      D.speedLegend(ctx, 600, 46, 160);
+      D.speedLegend(ctx, ...g.LEG);
+      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       controllerBox(ctx, g, 'BOMBA', C.metal, [['0', 0], ['60', 0.5], ['120', 1]], 'presión (kPa)');
       D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: st.nS.x, color: C.water, lcdW: 104,
         text: digits(st.rpm, 4, 0), unit: 'rpm' });
@@ -392,6 +453,7 @@
       o.drawE(ctx, g, m);
       drawRegions(ctx, 22);
       knobScales(ctx, g);
+      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [['0', 0], ['6', 0.5], ['12', 1]], 'voltaje (V)');
       D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: st.nV.x, color: C.charge, lcdW: 104,
         text: digits(st.v, 2, 2), unit: 'V' });

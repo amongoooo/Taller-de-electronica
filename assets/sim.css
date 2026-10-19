@@ -140,3 +140,29 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-seg button[data-v="e"][aria-checked="true"] { background: var(--charge-soft); color: var(--charge); }
 .sim-stage[data-view="w"], .sim-stage[data-view="e"] { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 .sim-stage[data-view="w"] #pe, .sim-stage[data-view="e"] #pw { display: none; }
+
+/* Celular: barra más compacta y, con "Ambas", un panel debajo del otro a casi toda la pantalla
+   (se desliza para ver el segundo), para que el dibujo y los medidores se vean grandes. */
+@media (max-width: 600px), (max-height: 500px) {
+  .sim-bar { gap: 6px 10px; padding-top: 6px; padding-bottom: 6px; }
+  .sim-bar .back { font-size: 0; }
+  .sim-bar .back::before { content: "←"; font-size: 22px; line-height: 1; }
+  .sim-bar h1 { font-size: 17px; }
+  .sim-seg button { font-size: 13px; padding: 4px 9px; }
+  .sim-bar .ctl { gap: 6px; font-size: 14px; }
+  .sim-stage { padding: 6px max(6px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); gap: 8px; }
+  .sim-stage[data-view="both"] {
+    overflow-y: auto; grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: 94%;
+    scroll-snap-type: y proximity;
+  }
+  .sim-stage[data-view="both"] .sim-panel { scroll-snap-align: start; }
+}
+@media (max-width: 600px) {
+  .sim-bar .ctl { flex: 1 1 auto; }
+  .sim-bar input[type="range"] { width: auto; flex: 1 1 60px; min-width: 60px; }
+}
+@media (max-height: 500px) {
+  .sim-bar { flex-wrap: nowrap; padding-top: 4px; padding-bottom: 4px; }
+  .sim-bar h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .sim-bar input[type="range"] { width: 110px; }
+}

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261019082000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261019133000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261019082000"></script>
-<script src="../../assets/banco.js?v=20261019082000"></script>
+<script src="../../assets/sim.js?v=20261019133000"></script>
+<script src="../../assets/banco.js?v=20261019133000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -111,7 +111,7 @@
       [0, 1].forEach(k => { const [x, y] = rPos(g, k); D.narrow(ctx, x, y, half(st.R[k])); });
       keys.forEach(k => s.water[k].draw(ctx));
       [0, 1].forEach(k => { const [x, y] = rPos(g, k); grips(ctx, x, y, half(st.R[k]) + 5, k); });
-      D.text(ctx, 'agarra el borde de un tramo (o pellízcalo) para angostarlo o ensancharlo', g.PX - 30, 62, C.muted, { size: 13, weight: 400 });
+      D.text(ctx, 'agarra el borde de un tramo o pellízcalo para cambiar su ancho', g.PX - 30, 62, C.muted, { size: 13, weight: 400 });
     },
     drawE(ctx, g) {
       const s = sides.e, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
