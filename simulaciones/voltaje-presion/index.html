@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Voltaje y presión · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css">
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Voltaje y presión</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua: bomba con perilla de presión, manómetro, tramo angosto y medidor de caudal"></canvas>
+      <div class="sim-layer">
+        <button class="sim-btn" id="bomba" type="button" aria-pressed="false">Activar bomba</button>
+        <div id="perilla"></div>
+      </div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico: fuente, voltímetro, resistencia de 1 kΩ y amperímetro"></canvas>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js"></script>
+<script>
+(() => {
+  const { C, draw: D, fmt } = Sim;
+  const R = 1000;           // ohmios
+  const VMAX = 12;          // voltaje máximo de la perilla
+  const IFULL = 12;         // mA a escala completa en los medidores de corriente y caudal
+  const size = Sim.fitHeight(800, 520, 1000);
+
+  // Geometría de un panel: ancho fijo y alto que se adapta; los dos circuitos usan la misma.
+  function geometry(W, H) {
+    const g = { W, H, X0: 180, X1: 660, PX: 420, TOP: 110, BOT: H - 160 };
+    g.MIDY = (g.TOP + g.BOT) / 2;
+    g.KY = g.BOT + 88;                                   // perilla de la bomba
+    g.loop = D.rect(g.X0, g.TOP, g.X1, g.BOT);           // sube por la izquierda, cruza arriba, baja y regresa por abajo
+    return g;
+  }
+
+  const st = { on: false, set: 6, tau: 1, p: 0, q: 0, rotor: 0, ephase: 0 };
+  const needleP = Sim.needle(), needleQ = Sim.needle();
+  const hn = Sim.narrowHalf(R);
+
+  let gw, ge, water;
+  const pw = Sim.panel(document.getElementById('pw'), size);
+  const pe = Sim.panel(document.getElementById('pe'), size);
+  pw.onLayout = (W, H) => {
+    gw = geometry(W, H);
+    water = Sim.water(gw.loop, Sim.narrowProfile((gw.BOT - gw.TOP) + (gw.PX - gw.X0), hn));
+  };
+  pe.onLayout = (W, H) => { ge = geometry(W, H); };
+  pw.onLayout(pw.W, pw.H); pe.onLayout(pe.W, pe.H);
+
+  // ---------- controles ----------
+  const btn = pw.at(document.getElementById('bomba'), () => [gw.PX, gw.BOT - 72]);
+  btn.addEventListener('click', () => {
+    st.on = !st.on;
+    btn.setAttribute('aria-pressed', String(st.on));
+    btn.textContent = st.on ? 'Desactivar bomba' : 'Activar bomba';
+  });
+  pw.at(document.getElementById('perilla'), () => [gw.PX, gw.KY]);
+  Sim.knob(document.getElementById('perilla'), {
+    min: 0, max: VMAX, step: 0.5, value: st.set, label: 'Presión de la bomba',
+    format: v => fmt(v) + ' V', onInput: v => st.set = v
+  });
+  const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
+  const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
+  inercia.addEventListener('input', setTau); setTau();
+
+  // ---------- física ----------
+  // La bomba tarda en tomar presión, el agua tarda en acelerar y las agujas tienen masa.
+  function step(dt) {
+    const tau = st.tau;
+    st.p = Sim.lag(st.p, st.on ? st.set : 0, tau, dt);
+    st.q = Sim.lag(st.q, st.p / R * 1000, tau, dt);           // mA
+    needleP.step(st.p / VMAX, tau * 0.5, dt);
+    needleQ.step(st.q / IFULL, tau * 0.5, dt);
+    st.rotor += st.p * 0.9 * dt;
+    water.step(st.q * 12, dt);
+    st.ephase += st.q * 12 * dt;
+  }
+
+  // ---------- dibujo del agua ----------
+  function drawWater() {
+    const g = gw, ctx = pw.begin();
+    D.pipe(ctx, g.loop);
+    D.line(ctx, [[g.X0, g.MIDY], [110, g.MIDY]], 14, C.pipe, 'butt');   // toma del manómetro
+    D.line(ctx, [[g.X0, g.MIDY], [110, g.MIDY]], 6, C['water-soft'], 'butt');
+    D.narrow(ctx, g.PX, g.TOP, hn);
+    water.draw(ctx);
+    D.text(ctx, 'tramo angosto', g.PX, g.TOP + 38, C.muted, { size: 15 });
+
+    // bomba: carcasa con la perilla y rotor dentro de la tubería
+    D.roundRect(ctx, g.PX - 76, g.BOT + 32, 152, 112, 14, C.metal, C.ink, 2.5);
+    D.knobScale(ctx, g.PX, g.KY, 36, [['0', 0], ['6', 0.5], ['12', 1]]);
+    D.text(ctx, 'bomba', g.PX - 88, g.KY, C.muted, { align: 'right', size: 15 });
+    D.circle(ctx, g.PX, g.BOT, 40, C.metal, C.ink, 2.5);
+    D.circle(ctx, g.PX, g.BOT, 33, C['water-soft']);
+    ctx.lineWidth = 5; ctx.strokeStyle = C.water; ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      const a = -st.rotor + k * Math.PI / 2;
+      ctx.beginPath(); ctx.moveTo(g.PX, g.BOT); ctx.lineTo(g.PX + Math.cos(a) * 27, g.BOT + Math.sin(a) * 27); ctx.stroke();
+    }
+    D.circle(ctx, g.PX, g.BOT, 6, C.ink);
+
+    D.dial(ctx, 70, g.MIDY, 42, needleP.x, C.water);
+    D.text(ctx, 'presión', 70, g.MIDY + 60, C.muted, { size: 15 });
+    D.dial(ctx, g.X1, g.MIDY, 42, needleQ.x, C.water);
+    D.text(ctx, 'caudal', g.X1 + 52, g.MIDY, C.muted, { align: 'left', size: 15 });
+
+    D.speedLegend(ctx, 560, g.BOT + 110, 160);
+  }
+
+  // ---------- dibujo eléctrico ----------
+  function drawElectric() {
+    const g = ge, ctx = pe.begin(), PX = g.PX, BOT = g.BOT;
+    D.wire(ctx, g.loop);
+    D.line(ctx, [[g.X0, g.MIDY], [110, g.MIDY]], 2.5, C.muted);
+    D.flow(ctx, g.loop, st.ephase, C.charge, { gap: 30, r: 4.5 });
+    D.resistor(ctx, PX, g.TOP);
+    D.text(ctx, '1 kΩ', PX, g.TOP + 34, C.muted, { size: 15 });
+    D.text(ctx, 'resistencia', PX, g.TOP - 30, C.muted, { size: 14, weight: 400 });
+
+    // fuente: placa larga (+) a la izquierda, la corriente sale hacia la izquierda
+    ctx.fillStyle = C.card; ctx.fillRect(PX - 22, BOT - 26, 44, 52);
+    D.line(ctx, [[PX - 22, BOT], [PX - 9, BOT]], 4, C.ink); D.line(ctx, [[PX + 9, BOT], [PX + 22, BOT]], 4, C.ink);
+    D.line(ctx, [[PX - 9, BOT - 24], [PX - 9, BOT + 24]], 4, C.ink, 'butt');
+    D.line(ctx, [[PX + 9, BOT - 12], [PX + 9, BOT + 12]], 9, C.ink, 'butt');
+    D.text(ctx, '+', PX - 26, BOT - 30, C.ink, { size: 20 });
+    D.roundRect(ctx, PX - 76, BOT + 32, 152, 112, 14, C['charge-soft'], C.ink, 2.5);
+    D.text(ctx, 'fuente', PX, BOT + 58, C.muted, { size: 15 });
+    D.text(ctx, fmt(st.p) + ' V', PX, BOT + 92, C.ink, { size: 26, font: Sim.MONO, weight: 500 });
+    D.text(ctx, st.on ? 'encendida' : 'apagada', PX, BOT + 124, st.on ? C.ok : C.danger, { size: 14 });
+
+    D.dial(ctx, 70, g.MIDY, 42, needleP.x, C.charge, 'V');
+    D.text(ctx, fmt(st.p) + ' V', 70, g.MIDY + 60, C.ink, { size: 16, font: Sim.MONO, weight: 500 });
+    D.dial(ctx, g.X1, g.MIDY, 42, needleQ.x, C.charge, 'A');
+    D.text(ctx, fmt(st.q) + ' mA', g.X1 + 52, g.MIDY, C.ink, { align: 'left', size: 16, font: Sim.MONO, weight: 500 });
+  }
+
+  Sim.run(dt => { step(dt); drawWater(); drawElectric(); });
+})();
+</script>
+</body>
+</html>

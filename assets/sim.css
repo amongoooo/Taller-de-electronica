@@ -1,0 +1,97 @@
+/* Formato común de las simulaciones: barra delgada arriba y dos paneles
+   (agua y electricidad) que ocupan el resto de la pantalla. */
+:root {
+  --bg: #eaf0f3;
+  --card: #ffffff;
+  --ink: #15212a;
+  --muted: #566a78;
+  --line: #cfd9e0;
+  --pipe: #8aa0b0;
+  --water-soft: #cde6f6;
+  --water: #1874b8;
+  --charge: #c77d00;
+  --charge-soft: #fbecd0;
+  --danger: #c23b2c;
+  --ok: #217a4b;
+  --metal: #dfe6eb;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e151a; --card: #16212a; --ink: #e4ecf1; --muted: #93a6b3; --line: #2a3945;
+    --pipe: #4e6676; --water-soft: #1c3c55; --water: #62b6f2; --charge: #f3b443; --charge-soft: #3a2d14;
+    --danger: #ff7b6c; --ok: #5fd197; --metal: #24323d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e151a; --card: #16212a; --ink: #e4ecf1; --muted: #93a6b3; --line: #2a3945;
+  --pipe: #4e6676; --water-soft: #1c3c55; --water: #62b6f2; --charge: #f3b443; --charge-soft: #3a2d14;
+  --danger: #ff7b6c; --ok: #5fd197; --metal: #24323d; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; }
+:focus-visible { outline: 3px solid var(--water); outline-offset: 2px; }
+
+.sim-page { height: 100vh; height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
+
+.sim-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--card); border-bottom: 1px solid var(--line);
+}
+.sim-bar .back { color: var(--water); font-weight: 700; text-decoration: none; font-size: 15px; }
+.sim-bar .back:hover { text-decoration: underline; }
+.sim-bar h1 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0; }
+.sim-bar .ctl { display: flex; align-items: center; gap: 10px; margin-left: auto; font-weight: 700; font-size: 15px; }
+.sim-bar input[type="range"] { width: 170px; accent-color: var(--water); }
+.sim-bar output { font-family: var(--font-mono); font-size: 14px; color: var(--muted); min-width: 4.5ch; }
+
+.sim-stage {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0;
+  padding: 10px max(10px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+}
+@media (orientation: portrait) {
+  .sim-stage { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+}
+
+.sim-panel {
+  position: relative; min-width: 0; min-height: 0; overflow: hidden;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+}
+.sim-panel canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sim-tag {
+  position: absolute; top: 10px; left: 12px; z-index: 1;
+  font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  border-radius: 6px; padding: 2px 8px;
+}
+.sim-tag.w { background: var(--water-soft); color: var(--water); }
+.sim-tag.e { background: var(--charge-soft); color: var(--charge); }
+
+/* Controles colocados sobre el dibujo, en coordenadas del circuito (ver Sim.panel). */
+.sim-layer { position: absolute; inset: 0; pointer-events: none; }
+.sim-layer > * { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; }
+
+.sim-btn {
+  font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap;
+  font-size: max(12px, calc(var(--s, 1) * 19px));
+  padding: .45em 1em; border-radius: 999px;
+  border: 2px solid var(--ok); background: var(--ok); color: var(--card);
+}
+.sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
+
+.knob {
+  width: max(34px, calc(var(--s, 1) * 62px)); aspect-ratio: 1; border-radius: 50%;
+  cursor: grab; touch-action: none; user-select: none;
+  background: radial-gradient(circle at 35% 30%, var(--card), var(--metal) 70%);
+  border: 2px solid var(--ink); box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+}
+.knob:active { cursor: grabbing; }
+.knob-cap { position: absolute; inset: 0; border-radius: 50%; }
+.knob-mark {
+  position: absolute; left: 50%; top: 9%; width: 13%; height: 34%;
+  transform: translateX(-50%); border-radius: 99px; background: var(--water);
+}

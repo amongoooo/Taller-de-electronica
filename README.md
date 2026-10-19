@@ -6,11 +6,25 @@ https://amongoooo.github.io/Taller-de-electronica/
 ## Estructura
 
 - `index.html`: página de inicio con la lista de simulaciones.
-- `simulaciones/<nombre>/index.html`: cada simulación en su propia carpeta, en un solo archivo HTML sin dependencias de compilación.
+- `assets/sim.css` y `assets/sim.js`: el formato común que comparten todas las simulaciones.
+- `simulaciones/<nombre>/index.html`: cada simulación en su propia carpeta, sin dependencias de compilación.
+
+## Formato común
+
+Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, título y ajustes generales como la inercia) y dos paneles, agua y electricidad, lado a lado en pantallas horizontales o uno sobre otro en vertical. Los controles de cada circuito (botones, perillas) van encima del dibujo, junto al aparato que controlan.
+
+`assets/sim.js` reúne lo que se repite:
+
+- `Sim.panel`: canvas que se escala para llenar su panel y coloca controles HTML en coordenadas del dibujo.
+- `Sim.draw`: tuberías, cables, tramos angostos, resistencias, medidores de aguja y escala de perillas.
+- `Sim.water`: el agua como partículas; avanzan según el volumen que pasa (más rápido en los tramos angostos y en el centro del tubo) y su color indica la rapidez.
+- `Sim.lag` y `Sim.needle`: inercia de primer orden y agujas con masa y resorte.
+- `Sim.knob`: perilla que se gira arrastrando, con la rueda del ratón o con las flechas del teclado.
 
 ## Simulaciones
 
-- **Circuitos de agua y corriente** (`simulaciones/agua-electricidad/`): voltaje y presión, resistencia, serie y paralelo, interruptor y LED.
+- **Voltaje y presión** (`simulaciones/voltaje-presion/`): primera en el formato común.
+- **Circuitos de agua y corriente** (`simulaciones/agua-electricidad/`): versión anterior con las 4 simulaciones en pestañas.
 
 ## Agregar una simulación
 
