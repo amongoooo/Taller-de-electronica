@@ -166,3 +166,11 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   .sim-bar h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .sim-bar input[type="range"] { width: 110px; }
 }
+
+/* Zona para tocar un medidor y conectarlo: luego se toca el circuito para cada caimán. */
+.sim-meter-hit {
+  width: max(70px, calc(var(--s, 1) * 150px)); height: max(60px, calc(var(--s, 1) * 140px)); padding: 0;
+  border-radius: 14px; background: transparent; border: 2px dashed transparent; cursor: pointer;
+}
+.sim-meter-hit:hover, .sim-meter-hit:focus-visible { border-color: var(--muted); }
+.sim-panel.placing, .sim-panel.placing .sim-layer > * { cursor: crosshair; }
