@@ -120,3 +120,11 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-clamp:active { cursor: grabbing; }
 .sim-clamp:hover, .sim-clamp:focus-visible { border-color: var(--muted); }
+
+/* Zona para ajustar una resistencia: se agarra el borde del tramo o se pellizca con dos dedos. */
+.sim-pinch {
+  width: max(50px, calc(var(--s, 1) * 104px)); height: max(44px, calc(var(--s, 1) * 92px));
+  border-radius: 12px; cursor: ns-resize; touch-action: none; user-select: none;
+  border: 2px dashed transparent;
+}
+.sim-pinch:hover, .sim-pinch:focus-visible { border-color: var(--muted); }
