@@ -374,19 +374,14 @@
     const savePinned = () => { try { localStorage.setItem('sim-pinned', JSON.stringify(st.pinned)); } catch (e) {} };
     const shown = (kind, i) => st.morph[kind][i] < 0.5 && !st.reel[kind][i];
 
-    // Distancia del contacto al lugar de donde se agarra la punta (su botón): la mitad de la punta o
-    // el círculo del indicador.
-    const grabLen = (side, kind, i) => {
-      const m = ease(st.morph[kind][i]);
-      return (kind === 'I' ? 0 : tipLen(side, kind) * 0.55) * (1 - m) + PIN_D * m;
-    };
     // Dónde se dibuja cada punta: contacto (x, y), dirección n hacia su cable y h, qué tan levantada va (0 a 1).
-    // Levantada se sostiene del lugar agarrado (lift.x, lift.y) y gira para que su contacto mire a
-    // la línea más cercana del circuito.
+    // Levantada, el puntero sostiene su contacto (lift.x, lift.y; ox, oy es lo que le falta para
+    // llegar bajo el puntero al empezar a arrastrar) y la punta gira para que su contacto mire a la
+    // línea más cercana del circuito.
     const pose = (g, kind, i) => {
       const lf = st.lift[kind][i], fl = st.floor[kind][i], dr = st.drop[kind][i];
       if (lf) {
-        const L = grabLen(g.side, kind, i), cx = lf.x - lf.n[0] * L, cy = lf.y - lf.n[1] * L;
+        const cx = lf.x + lf.ox, cy = lf.y + lf.oy;
         const p = st.segs.length && snap(st.segs, cx, cy, true);
         const a = p ? ease(Math.max(0, Math.min(1, 1 - (p.dist - 8) / (MAG - 8)))) : 0;
         if (!a) return { x: cx, y: cy, n: lf.n, h: 1 };
@@ -644,12 +639,13 @@
       el.addEventListener('pointermove', e => {
         if (!el.hasPointerCapture(e.pointerId)) return;
         if (!dragged && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) return;
-        if (!dragged) {
-          st.lift[kind][i] = { x: 0, y: 0, n: pose(geo(side), kind, i).n };
+        const [x, y] = toDrawing(e);
+        if (!dragged) {   // el contacto se desliza hasta quedar bajo el puntero
+          const q = pose(geo(side), kind, i);
+          st.lift[kind][i] = { x, y, n: q.n, ox: q.x - x, oy: q.y - y };
           st.floor[kind][i] = st.drop[kind][i] = null;
         }
         dragged = true;
-        const [x, y] = toDrawing(e);
         Object.assign(st.lift[kind][i], { x, y });
         b.pw.replace(); b.pe.replace();
       });
@@ -1000,9 +996,11 @@
           const dr = st.drop[kind][i], lf = st.lift[kind][i];
           st.click[kind][i] += dt;
           // levantada, la punta gira poco a poco para que su contacto mire a la línea más cercana
-          const p = lf && st.segs.length && snap(st.segs, lf.x, lf.y, true);
+          if (lf) { const k = Math.exp(-dt * 18); lf.ox *= k; lf.oy *= k; moved = true; }
+          const cx = lf && lf.x + lf.ox, cy = lf && lf.y + lf.oy;
+          const p = lf && st.segs.length && snap(st.segs, cx, cy, true);
           if (p && p.dist > 1) {
-            const a0 = Math.atan2(lf.n[1], lf.n[0]), a1 = Math.atan2(lf.y - p.y, lf.x - p.x);
+            const a0 = Math.atan2(lf.n[1], lf.n[0]), a1 = Math.atan2(cy - p.y, cx - p.x);
             const d = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)), an = a0 + d * (1 - Math.exp(-dt * 14));
             if (Math.abs(d) > 1e-3) { lf.n = [Math.cos(an), Math.sin(an)]; moved = true; }
           }
