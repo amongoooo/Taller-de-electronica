@@ -467,6 +467,21 @@
       const up = () => { held = null; p.canvas.style.cursor = ''; };
       p.canvas.addEventListener('pointerup', up); p.canvas.addEventListener('pointercancel', up);
     });
+    // El mismo recorrido como lista de puntos (las curvas en pasos cortos), para la raya de la manguera.
+    const ropePoints = r => {
+      const q = [r.A, [r[0].x, r[0].y]];
+      let p0 = q[1];
+      for (let k = 1; k < NR - 1; k++) {
+        const c = [r[k].x, r[k].y], p1 = [(r[k].x + r[k + 1].x) / 2, (r[k].y + r[k + 1].y) / 2];
+        for (let t = 0.25; t <= 1; t += 0.25) {
+          const u = 1 - t;
+          q.push([u * u * p0[0] + 2 * u * t * c[0] + t * t * p1[0], u * u * p0[1] + 2 * u * t * c[1] + t * t * p1[1]]);
+        }
+        p0 = p1;
+      }
+      q.push([r[NR - 1].x, r[NR - 1].y]);
+      return q;
+    };
     const ropePath = (ctx, r) => {
       ctx.beginPath(); ctx.moveTo(r.A[0], r.A[1]); ctx.lineTo(r[0].x, r[0].y);
       for (let k = 1; k < NR - 1; k++) ctx.quadraticCurveTo(r[k].x, r[k].y, (r[k].x + r[k + 1].x) / 2, (r[k].y + r[k + 1].y) / 2);
@@ -579,21 +594,18 @@
       if (k.caption) D.text(ctx, k.caption(g.side), x, y + 58, C.muted, { size: 14 });
     });
 
-    // Cables (o mangueras con agua) de un medidor. Se dibujan antes que el controlador y los
-    // medidores, así que pasan por detrás de ellos.
+    // Cables (o mangueras con agua) de un medidor. Se dibujan antes que el circuito, el controlador
+    // y los medidores, así que siempre pasan por debajo de ellos; solo las puntas van encima.
     const drawCables = (ctx, g, kind) => {
       if (st.pinned[kind]) return;
       const side = g.side;
       for (let i = 0; i < NP[kind]; i++) {
         const r = ropes[side][kind + i];
         if (!r || !st.placed[kind][i]) continue;
+        if (side === 'w' && kind === 'V') { D.hose(ctx, ropePoints(r), jackColor(kind, i)); continue; }   // con la raya de su borne
         ropePath(ctx, r);
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        if (side === 'w' && kind === 'V') {   // manguera translúcida del color de su borne, con agua adentro
-          ctx.lineWidth = 12; ctx.strokeStyle = C.card; ctx.stroke();
-          ctx.globalAlpha = 0.55; ctx.lineWidth = 10; ctx.strokeStyle = jackColor(kind, i); ctx.stroke(); ctx.globalAlpha = 1;
-          ctx.lineWidth = 4.5; ctx.strokeStyle = C.water; ctx.stroke();
-        } else {
+        {
           ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
           ctx.lineWidth = 3; ctx.strokeStyle = jackColor(kind, i); ctx.stroke();
         }
@@ -695,10 +707,10 @@
 
     function drawWater() {
       const g = b.gw, m = st.m, ctx = b.pw.begin();
+      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       o.drawW(ctx, g, m);
       knobScales(ctx, g);
       D.speedLegend(ctx, ...g.LEG);
-      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       controllerBox(ctx, g, 'BOMBA', C.metal, [['0', 0], ['60', 0.5], ['120', 1]], 'presión (kPa)');
       D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: st.nS.x, color: C.water, lcdW: 104,
         text: digits(st.rpm, 4, 0), unit: 'rpm' });
@@ -710,9 +722,9 @@
     }
     function drawElectric() {
       const g = b.ge, m = st.m, ctx = b.pe.begin();
+      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       o.drawE(ctx, g, m);
       knobScales(ctx, g);
-      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [['0', 0], ['6', 0.5], ['12', 1]], 'voltaje (V)');
       D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: st.nV.x, color: C.charge, lcdW: 104,
         text: digits(st.v, 2, 2), unit: 'V' });

@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261020075000"></script>
+<script src="../../assets/sim.js?v=20261020180000"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -432,14 +432,18 @@
   const drawCables = (ctx, g) => [0, 1].forEach(k => {
     const f = frame(k), L = tipLen(g.side), [jx, jy] = g.jacks[k];
     const ax = f.x + f.n[0] * L, ay = f.y + f.n[1] * L;
-    ctx.beginPath(); ctx.moveTo(ax, ay);
-    ctx.bezierCurveTo(ax + f.n[0] * 90, ay + f.n[1] * 90, jx, jy + 110, jx, jy);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    if (g.side === 'w') {
-      ctx.lineWidth = 12; ctx.strokeStyle = C.card; ctx.stroke();
-      ctx.globalAlpha = 0.55; ctx.lineWidth = 10; ctx.strokeStyle = tipColor(k); ctx.stroke(); ctx.globalAlpha = 1;
-      ctx.lineWidth = 4.5; ctx.strokeStyle = C.water; ctx.stroke();
+    const c1 = [ax + f.n[0] * 90, ay + f.n[1] * 90], c2 = [jx, jy + 110];
+    if (g.side === 'w') {   // manguera con la raya de su borne, por la misma curva en pasos cortos
+      const pts = [];
+      for (let s = 0; s <= 24; s++) {
+        const t = s / 24, u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+        pts.push([a * ax + b * c1[0] + c * c2[0] + d * jx, a * ay + b * c1[1] + c * c2[1] + d * jy]);
+      }
+      D.hose(ctx, pts, tipColor(k));
     } else {
+      ctx.beginPath(); ctx.moveTo(ax, ay);
+      ctx.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], jx, jy);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
       ctx.lineWidth = 3; ctx.strokeStyle = tipColor(k); ctx.stroke();
     }
@@ -534,26 +538,26 @@
 
   function drawWater() {
     const g = geos.w, ctx = pw.begin();
+    drawCables(ctx, g);   // las mangueras pasan siempre por debajo del dibujo
     D.pipe(ctx, g.loop);
     D.narrow(ctx, g.XR, g.TOP, HN);
     water.draw(ctx);
     if (st.led) D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, label: 'rueda' });
     D.speedLegend(ctx, g.X0 + 30, g.BOT - 46, 150);
     drawScope(ctx, g);
-    drawCables(ctx, g);
     drawGen(ctx, g);
     D.pump(ctx, g.PX, g.BOT, st.rotor, st.rotorOm);
     drawTips(ctx, g);
   }
   function drawElectric() {
     const g = geos.e, ctx = pe.begin();
+    drawCables(ctx, g);   // los cables pasan siempre por debajo del dibujo
     D.wire(ctx, g.loop);
     D.flow(ctx, g.loop, st.charge, C.charge, { gap: 30, r: 4.5 });
     D.resistor(ctx, g.XR, g.TOP);
     D.text(ctx, '470 Ω', g.XR, g.TOP - 30, C.muted, { size: 14 });
     if (st.led) D.ledSymbol(ctx, g.XL, g.TOP, { I: st.glow, label: 'LED' });
     drawScope(ctx, g);
-    drawCables(ctx, g);
     drawGen(ctx, g);
     genSymbol(ctx, g.PX, g.BOT);
     drawTips(ctx, g);
