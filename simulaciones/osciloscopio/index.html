@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Osciloscopio · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020075000">
+<style>
+/* Botones de forma de onda del generador. */
+.sim-wave {
+  width: max(26px, calc(var(--s, 1) * 40px)); aspect-ratio: 1; border-radius: 10px; padding: 0; cursor: pointer;
+  display: grid; place-items: center; background: var(--card); color: var(--muted); border: 2px solid var(--line);
+}
+.sim-wave svg { width: 72%; height: 72%; }
+#pw .sim-wave[aria-checked="true"] { background: var(--water-soft); color: var(--water); border-color: var(--water); }
+#pe .sim-wave[aria-checked="true"] { background: var(--card); color: var(--charge); border-color: var(--charge); }
+</style>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Osciloscopio</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Bomba de vaivén que empuja el agua hacia adelante y hacia atrás por un tramo angosto y una rueda con compuerta, y un registrador de presión que dibuja la presión en el tiempo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Generador de funciones con una resistencia y un LED, y un osciloscopio que muestra el voltaje en el tiempo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261020075000"></script>
+<script>
+// Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
+// (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
+// No usa banco.js porque aquí la fuente no es fija: la señal cambia más rápido de lo que se dibuja,
+// así que el circuito se calcula en cualquier instante a partir de la fase del generador.
+(() => {
+  const { C, draw: D, fmt } = Sim;
+  const KPA_PER_V = 10, RPM_PER_MA = 100;
+  const R = 0.47, VF = 2;            // resistencia (kΩ) y voltaje que necesita el LED para encender
+  const SRC = 40, DIV = 40;          // medio ancho del generador sobre el cable; tamaño de una división
+  const KW = 20;                     // rapidez del agua (y de las cargas) por cada mA
+  const HN = 8;                      // medio ancho del tramo angosto
+  const RED = '#d6392b', PURPLE = '#8b5cf6';
+  // Frecuencias de 0.1 Hz a 1 kHz, diez pasos por década.
+  const E10 = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8];
+  const freqAt = i => E10[i % 10] * Math.pow(10, Math.floor(i / 10) - 1);
+  const VDIV = [0.5, 1, 2, 5];
+  const TDIV = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];   // ms por división
+  const frac = x => x - Math.floor(x);
+  // Formas de onda en función de la fase (en vueltas); todas empiezan en 0 subiendo.
+  const WAVES = {
+    sine: p => Math.sin(2 * Math.PI * p),
+    square: p => frac(p) < 0.5 ? 1 : -1,
+    tri: p => 4 * Math.abs(frac(p + 0.75) - 0.5) - 1
+  };
+
+  const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, fi: 10, amp: 6, off: 0, wave: 'sine', led: true,
+    ph: 0, T: 0, vi: 2, ti: 8, trig: true, probe: [300, 980], side: [-1, -1],
+    rotor: 0, rotorOm: 0, wheel: 0, wheelOm: 0, glow: 0, charge: 0, shake: 0,
+    recs: [], sweep: { ts: 0, done: [] }, traces: [], beam: null };
+
+  // Circuito: el generador empuja la corriente por la resistencia y el LED (si está puesto).
+  const model = (e, led) => led
+    ? (e > VF ? { I: (e - VF) / R, VR: e - VF, VL: VF } : { I: 0, VR: 0, VL: e })
+    : { I: e / R, VR: e, VL: 0 };
+
+  // ---------- acomodo ----------
+  // El circuito y el generador siempre en el mismo lugar; el osciloscopio abajo (alto) o a la derecha (ancho).
+  const CIRC = { X0: 80, X1: 560, PX: 320, TOP: 80, BOT: 280, XR: 230, XL: 410 };
+  const MODES = { alto: { W: 640, H: 1000 }, ancho: { W: 1250, H: 570 } };
+  const size = (w, h) => {
+    let best = null;
+    for (const k in MODES) { const s = Math.min(w / MODES[k].W, h / MODES[k].H); if (!best || s > best.s) best = { k, s }; }
+    return [MODES[best.k].W, MODES[best.k].H, 0, best.k + (best.s < 0.75 ? '-c' : '')];
+  };
+  const geometry = (side, mode) => {
+    const g = { side, mode, ...CIRC, GX: 40, GY: CIRC.BOT + 46, GW: 560, GH: 200, SW: 580, SH: 420 };
+    if (mode.startsWith('alto')) { g.SX = 30; g.SY = g.GY + g.GH + 30; } else { g.SX = 640; g.SY = 70; }
+    g.MIDY = (g.TOP + g.BOT) / 2;
+    g.loop = D.rect(g.X0, g.TOP, g.X1, g.BOT);
+    g.scr = [g.SX + 20, g.SY + 46, 10 * DIV, 8 * DIV];
+    g.jacks = [[g.SX + 60, g.SY + 396], [g.SX + 110, g.SY + 396]];
+    return g;
+  };
+  // Recorrido donde se pueden poner las puntas: del borne + del generador, por todo el circuito, al otro borne.
+  const { X0, X1, PX, TOP, BOT, XR, XL } = CIRC;
+  const PATH = [[PX - SRC, BOT], [X0, BOT], [X0, TOP], [X1, TOP], [X1, BOT], [PX + SRC, BOT]];
+  const PATH_L = D.len(PATH), D_TOP = (PX - SRC - X0) + (BOT - TOP);
+  const COMP_R = [D_TOP + XR - X0 - 46, D_TOP + XR - X0 + 46], COMP_L = [D_TOP + XL - X0 - 30, D_TOP + XL - X0 + 30];
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+  // Voltaje en el punto d del recorrido: baja en la resistencia y en el LED.
+  const vAt = (d, e, m) => e - m.VR * clamp01((d - COMP_R[0]) / (COMP_R[1] - COMP_R[0])) - m.VL * clamp01((d - COMP_L[0]) / (COMP_L[1] - COMP_L[0]));
+  const project = (pts, x, y) => {
+    let best = null, d0 = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i], s = Math.hypot(bx - ax, by - ay);
+      const t = s ? clamp01(((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (s * s)) : 0;
+      const dist = Math.hypot(x - ax - (bx - ax) * t, y - ay - (by - ay) * t);
+      if (!best || dist < best.dist) best = { d: d0 + t * s, dist };
+      d0 += s;
+    }
+    return best;
+  };
+  // Las puntas no se pueden poner encima de la resistencia, del LED ni del generador.
+  const snapD = d => {
+    for (const [a, b] of st.led ? [COMP_R, COMP_L] : [COMP_R]) if (d > a - 8 && d < b + 8) d = d - a < b - d ? a - 8 : b + 8;
+    return Math.max(10, Math.min(PATH_L - 10, d));
+  };
+
+  // ---------- señal en el tiempo ----------
+  // Cada cuadro guarda los ajustes y la fase del generador; con eso se calcula la señal en cualquier
+  // instante, aunque cambie miles de veces por segundo.
+  const recAt = t => {
+    const r = st.recs;
+    let lo = 0, hi = r.length - 1;
+    if (t <= r[0].t) return r[0];
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (r[m].t <= t) lo = m; else hi = m - 1; }
+    return r[lo];
+  };
+  const sigPh = (r, p) => {
+    const e = r.lvl * (r.amp * WAVES[r.wave](p) + r.off), m = model(e, r.led);
+    return vAt(r.dA, e, m) - vAt(r.dB, e, m);
+  };
+  const sig = (r, t) => sigPh(r, r.ph + r.f * (t - r.t));
+  // Mínimo, máximo y fase de disparo (donde la señal cruza su punto medio subiendo) de un ciclo.
+  const band = r => {
+    if (r.band) return r.band;
+    const N = 96, v = [];
+    for (let j = 0; j < N; j++) v.push(sigPh(r, j / N));
+    const min = Math.min(...v), max = Math.max(...v), mid = (min + max) / 2;
+    let tp = null;
+    if (max - min > 0.05) for (let j = 0; j < N; j++) {
+      const a = v[(j + N - 1) % N], b = v[j];
+      if (a < mid && b >= mid) { tp = (j - 1 + (mid - a) / (b - a)) / N; break; }
+    }
+    return (r.band = { min, max, mid, tp });
+  };
+
+  // Barrido: el haz cruza la pantalla en 10 divisiones. Con disparo, cada barrido empieza en el mismo
+  // punto de la onda y la imagen se queda quieta; sin disparo empieza donde caiga y la imagen brinca.
+  const sweepS = () => 10 * TDIV[st.ti] / 1000;
+  const nextStart = (E, S) => {
+    const r = recAt(E), { tp } = band(r);
+    if (st.trig && tp !== null) return E + frac(tp - (r.ph + r.f * (E - r.t))) / r.f;
+    return E + S * (0.05 + 0.3 * Math.random());
+  };
+  const resetSweep = () => { st.sweep = { ts: st.T, done: [] }; };
+  // Puntos de la traza (x de 0 a 1 en la pantalla, valor en V) de un barrido entre los tiempos tA y tB.
+  const COLS = 200;
+  const build = (ts, S, tA, tB) => {
+    const pts = [], dc = S / COLS;
+    for (let j = 0; j < COLS; j++) {
+      let ta = ts + j * dc, tb = ta + dc;
+      if (tb <= tA) continue;
+      if (ta >= tB) break;
+      ta = Math.max(ta, tA); tb = Math.min(tb, tB);
+      const r = recAt(ta), xa = (ta - ts) / S, xb = (tb - ts) / S;
+      if ((tb - ta) * r.f > 0.34) {   // varios ciclos en una columna: se ve como una banda
+        const b = band(r);
+        if (j % 2) pts.push([xa, b.max], [xb, b.min]); else pts.push([xa, b.min], [xb, b.max]);
+      } else pts.push([xa, sig(r, ta)], [(xa + xb) / 2, sig(r, (ta + tb) / 2)]);
+    }
+    if (tB < ts + S && tB > tA) pts.push([(tB - ts) / S, sig(recAt(tB), tB)]);
+    return pts;
+  };
+  const updateScope = () => {
+    const S = sweepS(), sw = st.sweep;
+    if (st.T - (sw.ts + S) > 8 * S) sw.ts = st.T - 3 * S;   // barridos muy rápidos: solo importan los últimos
+    for (let n = 0; sw.ts + S <= st.T && n < 20; n++) {
+      sw.done.push(sw.ts); if (sw.done.length > 4) sw.done.shift();
+      sw.ts = nextStart(sw.ts + S, S);
+    }
+    st.traces = []; st.beam = null;
+    const last = sw.done[sw.done.length - 1];
+    if (S > 0.3) {   // barrido lento: se ve el haz avanzar; lo que falta del barrido anterior queda tenue
+      if (sw.ts <= st.T) {
+        const u = (st.T - sw.ts) / S;
+        if (last !== undefined) st.traces.push({ pts: build(last, S, last + u * S, last + S), a: 0.3 });
+        const pts = build(sw.ts, S, sw.ts, st.T);
+        st.traces.push({ pts, a: 1 });
+        if (pts.length) st.beam = pts[pts.length - 1];
+      } else if (last !== undefined) st.traces.push({ pts: build(last, S, last, last + S), a: 1 });
+    } else sw.done.forEach((ts, k) => st.traces.push({ pts: build(ts, S, ts, ts + S), a: [0.18, 0.3, 0.5, 1][k + 4 - sw.done.length] }));
+  };
+
+  // ---------- animación del circuito ----------
+  // Se integra la corriente con pasos pequeños: el agua (y las cargas) avanza lo que pasó en el cuadro,
+  // aunque la señal vaya y venga muchas veces entre un cuadro y otro.
+  const advance = dt => {
+    st.level = st.ramp.step(st.on ? 1 : 0, st.tau, dt);
+    const f = freqAt(st.fi), n = Math.max(1, Math.min(4000, Math.ceil(dt * f * 32))), h = dt / n;
+    let q = 0, qa = 0, peak = 0, last = 0;
+    for (let k = 0; k < n; k++) {
+      const e = st.level * (st.amp * WAVES[st.wave](st.ph + f * h * (k + 0.5)) + st.off);
+      const I = model(e, st.led).I;
+      q += I * h; qa += Math.abs(I) * h; peak = Math.max(peak, Math.abs(I)); last = I;
+    }
+    st.ph = frac(st.ph + f * dt);
+    st.T += dt;
+    const sgn = last < 0 ? -1 : 1, rad = RPM_PER_MA / 60 * 2 * Math.PI, wrad = Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI;
+    if (water) water.step(q * KW / dt, dt);
+    st.charge += q * KW;
+    st.rotor -= q * rad; st.rotorOm = -sgn * qa / dt * rad;
+    st.wheel -= q * wrad; st.wheelOm = -qa / dt * wrad;
+    st.glow = qa / dt;   // el ojo ve el promedio: arriba de unos 20 Hz el LED ya no parpadea
+    // Si la señal va y viene muy rápido el agua casi no avanza: solo vibra.
+    const vib = clamp01((f - 3) / 9);
+    st.shake = vib * Math.min(1, peak / 8) * 2.2;
+    st.recs.push({ t: st.T, ph: st.ph, f, wave: st.wave, amp: st.amp, off: st.off, lvl: st.level, led: st.led,
+      dA: st.probe[0], dB: st.probe[1] });
+    while (st.recs.length > 2 && st.recs[1].t < st.T - 25) st.recs.shift();
+  };
+  Sim.shake = () => st.shake;
+
+  // ---------- paneles ----------
+  const panels = {}, geos = {};
+  let water = null;
+  const pw = Sim.panel(document.getElementById('pw'), size), pe = Sim.panel(document.getElementById('pe'), size);
+  pw.mirror = pe; pe.mirror = pw; panels.w = pw; panels.e = pe;
+  const relayout = (side, mode) => {
+    const g = geos[side] = geometry(side, mode);
+    Sim.compact = mode.endsWith('-c');
+    if (side === 'w') water = Sim.water(g.loop, Sim.narrowProfile((g.BOT - g.TOP) + (g.XR - g.X0), HN));
+  };
+  pw.onLayout = (W, H, mode) => relayout('w', mode);
+  pe.onLayout = (W, H, mode) => relayout('e', mode);
+  pw.refit(); pe.refit();
+  relayout('w', pw.mode); relayout('e', pe.mode);
+
+  // Selector arriba para ver solo el agua, ambas o solo la electricidad (se recuerda en este navegador).
+  {
+    const stage = document.querySelector('.sim-stage'), bar = document.querySelector('.sim-bar');
+    const views = [['w', 'Agua'], ['both', 'Ambas'], ['e', 'Electricidad']];
+    const seg = document.createElement('div');
+    seg.className = 'sim-seg'; seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', 'Qué circuito ver');
+    const setView = v => {
+      stage.dataset.view = v;
+      seg.querySelectorAll('button').forEach(el => el.setAttribute('aria-checked', String(el.dataset.v === v)));
+      try { localStorage.setItem('sim-view', v); } catch (e) {}
+    };
+    views.forEach(([v, t]) => {
+      const el = document.createElement('button');
+      el.type = 'button'; el.dataset.v = v; el.textContent = t; el.setAttribute('role', 'radio');
+      el.addEventListener('click', () => setView(v));
+      seg.appendChild(el);
+    });
+    bar.insertBefore(seg, bar.querySelector('.ctl'));
+    let saved = 'both';
+    try { saved = localStorage.getItem('sim-view') || 'both'; } catch (e) {}
+    setView(views.some(([v]) => v === saved) ? saved : 'both');
+  }
+  const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
+  const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
+  inercia.addEventListener('input', setTau); setTau();
+
+  // ---------- controles (uno en cada panel, enlazados) ----------
+  const place = (side, el, pos) => {
+    panels[side].box.querySelector('.sim-layer').appendChild(el);
+    panels[side].at(el, () => pos(geos[side]));
+    return el;
+  };
+  const buttons = [];
+  const refresh = () => {
+    buttons.forEach(({ pair, text, label, attrs }) => pair.forEach((el, k) => {
+      const side = k ? 'e' : 'w';
+      if (text) el.textContent = text(side);
+      if (label) el.setAttribute('aria-label', label(side));
+      if (attrs) for (const [a, v] of Object.entries(attrs())) el.setAttribute(a, v);
+    }));
+    pw.replace(); pe.replace();
+  };
+  const linkedButton = ({ pos, text, label, attrs, onClick, cls = 'sim-btn small', html }) => {
+    const pair = ['w', 'e'].map(side => {
+      const el = document.createElement('button');
+      el.type = 'button'; el.className = cls;
+      if (html) el.innerHTML = html;
+      el.addEventListener('click', () => { onClick(); refresh(); });
+      return place(side, el, pos);
+    });
+    buttons.push({ pair, text, label, attrs });
+    return pair;
+  };
+  const linkedKnob = ({ pos, min, max, step, value, label, format, onInput }) => {
+    const ks = {};
+    ['w', 'e'].forEach(side => {
+      const el = place(side, document.createElement('div'), pos);
+      ks[side] = Sim.knob(el, { min, max, step, value, label: label(side), format: v => format(v, side),
+        onInput: v => { onInput(v); ks[side === 'w' ? 'e' : 'w'].set(v, true); } });
+    });
+    return ks;
+  };
+  const unitV = side => side === 'w' ? 'kPa' : 'V';
+  const val = (v, side, d = 1) => side === 'w' ? Math.round(v * KPA_PER_V) + ' kPa' : fmt(v, d) + ' V';
+  const fText = f => f >= 1000 ? fmt(f / 1000, 0) + ' kHz' : fmt(f, f < 1 ? 1 : f < 10 && f % 1 ? 1 : 0) + ' Hz';
+  const tText = ms => ms >= 1000 ? fmt(ms / 1000, 0) + ' s' : fmt(ms, ms < 1 ? 1 : 0) + ' ms';
+
+  // Generador
+  linkedButton({
+    pos: g => [g.GX + 48, g.GY + 110], cls: 'sim-power',
+    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>',
+    label: side => (st.on ? 'Apagar ' : 'Encender ') + (side === 'w' ? 'la bomba' : 'el generador'),
+    attrs: () => ({ 'aria-pressed': String(st.on) }),
+    onClick: () => { st.on = !st.on; }
+  });
+  const ICON = {
+    sine: 'M2 12C5 1 9 1 12 12S19 23 22 12',
+    square: 'M2 17V7h5v10h5V7h5v10h5',
+    tri: 'M2 12l5-7 10 14 5-7'
+  };
+  [['sine', 'Senoidal'], ['square', 'Cuadrada'], ['tri', 'Triangular']].forEach(([w, name], k) => linkedButton({
+    pos: g => [g.GX + 125, g.GY + 66 + 44 * k], cls: 'sim-wave',
+    html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="${ICON[w]}"/></svg>`,
+    label: () => 'Onda ' + name.toLowerCase(),
+    attrs: () => ({ role: 'radio', 'aria-checked': String(st.wave === w) }),
+    onClick: () => { st.wave = w; }
+  }));
+  linkedKnob({
+    pos: g => [g.GX + 245, g.GY + 112], min: 0, max: 40, step: 1, value: st.fi,
+    label: () => 'Frecuencia', format: v => fText(freqAt(v)),
+    onInput: v => { st.fi = v; }
+  });
+  linkedKnob({
+    pos: g => [g.GX + 365, g.GY + 112], min: 0, max: 10, step: 0.5, value: st.amp,
+    label: () => 'Amplitud', format: val, onInput: v => { st.amp = v; }
+  });
+  linkedKnob({
+    pos: g => [g.GX + 485, g.GY + 112], min: -5, max: 5, step: 0.5, value: st.off,
+    label: side => side === 'w' ? 'Presión base (offset)' : 'Offset', format: val, onInput: v => { st.off = v; }
+  });
+  // LED (rueda) que se quita o se pone
+  linkedButton({
+    pos: g => [g.PX, g.MIDY + 10],
+    text: side => (st.led ? 'Quitar ' : 'Poner ') + (side === 'w' ? 'rueda' : 'LED'),
+    onClick: () => { st.led = !st.led; st.probe = st.probe.map(snapD); }
+  });
+  // Osciloscopio
+  linkedKnob({
+    pos: g => [g.SX + 500, g.SY + 110], min: 0, max: VDIV.length - 1, step: 1, value: st.vi,
+    label: side => side === 'w' ? 'Presión por división' : 'Volts por división',
+    format: (v, side) => val(VDIV[v], side) + ' por división', onInput: v => { st.vi = v; }
+  });
+  linkedKnob({
+    pos: g => [g.SX + 500, g.SY + 250], min: 0, max: TDIV.length - 1, step: 1, value: st.ti,
+    label: () => 'Tiempo por división', format: v => tText(TDIV[v]) + ' por división',
+    onInput: v => { st.ti = v; resetSweep(); }
+  });
+  linkedButton({
+    pos: g => [g.SX + 500, g.SY + 360],
+    text: () => st.trig ? 'Disparo: sí' : 'Disparo: no',
+    label: () => st.trig ? 'Quitar el disparo: la imagen deja de quedarse quieta' : 'Poner el disparo para que la imagen se quede quieta',
+    onClick: () => { st.trig = !st.trig; }
+  });
+  refresh();
+
+  // ---------- puntas: la roja (señal) y la negra (tierra) se arrastran al circuito ----------
+  const frame = k => {
+    const [x, y, tx, ty] = D.frameAt(PATH, st.probe[k]), s = st.side[k];
+    return { x, y, n: [-ty * s, tx * s] };
+  };
+  const tipLen = side => side === 'w' ? Sim.PIPE + 12 : 46;
+  const tipName = (k, side) => side === 'w'
+    ? `Manguera ${k ? 'negra' : 'roja'} del registrador`
+    : k ? 'Caimán de tierra del osciloscopio' : 'Punta del osciloscopio';
+  [0, 1].forEach(k => ['w', 'e'].forEach(side => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'sim-clamp';
+    el.setAttribute('aria-label', `${tipName(k, side)}: arrástrala o usa las flechas para moverla por el circuito`);
+    place(side, el, () => { const f = frame(k), L = tipLen(side) * 0.55; return [f.x + f.n[0] * L, f.y + f.n[1] * L]; });
+    const p = panels[side];
+    const toDrawing = e => {
+      const r = p.box.getBoundingClientRect();
+      return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale];
+    };
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); el.focus(); e.preventDefault(); });
+    el.addEventListener('pointermove', e => {
+      if (!el.hasPointerCapture(e.pointerId)) return;
+      const [x, y] = toDrawing(e);
+      st.probe[k] = snapD(project(PATH, x, y).d);
+      // la punta queda del lado del cable donde está el puntero (adentro o afuera del circuito)
+      const [px, py, tx, ty] = D.frameAt(PATH, st.probe[k]), dot = (x - px) * -ty + (y - py) * tx;
+      if (Math.hypot(x - px, y - py) > 3) st.side[k] = dot < 0 ? -1 : 1;
+      pw.replace(); pe.replace();
+    });
+    el.addEventListener('keydown', e => {
+      const d = { ArrowUp: 12, ArrowRight: 12, ArrowDown: -12, ArrowLeft: -12 }[e.key];
+      if (!d) return;
+      st.probe[k] = snapD(st.probe[k] + d); pw.replace(); pe.replace();
+      e.preventDefault();
+    });
+  }));
+
+  // ---------- dibujo ----------
+  const pen = (ctx, col) => {
+    ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(12, -2.5); ctx.lineTo(12, 2.5); ctx.closePath();
+    ctx.fillStyle = '#9aa6af'; ctx.fill();
+    D.roundRect(ctx, 12, -4, 6, 8, 1.5, C.ink);
+    D.roundRect(ctx, 17, -7, 8, 14, 2, col, C.ink, 1.5);
+    D.roundRect(ctx, 24, -5.5, 18, 11, 3, col, C.ink, 1.5);
+    D.roundRect(ctx, 41, -3.5, 6, 7, 1.5, C.ink);
+  };
+  // Caimán de tierra: dos quijadas que muerden el cable.
+  const gator = ctx => {
+    ctx.fillStyle = C.ink;
+    ctx.beginPath(); ctx.moveTo(1, -1.5); ctx.lineTo(20, -9); ctx.lineTo(20, -2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(1, 1.5); ctx.lineTo(20, 9); ctx.lineTo(20, 2); ctx.closePath(); ctx.fill();
+    D.roundRect(ctx, 18, -8, 28, 16, 4, C.ink);
+  };
+  const hoseTip = (ctx, col) => {
+    const P = Sim.PIPE;
+    D.roundRect(ctx, P + 2, -7, 10, 14, 2.5, '#9aa6af', col, 2.5);
+    D.line(ctx, [[P + 2, 0], [P + 12, 0]], 4, C.water);
+  };
+  const tipColor = k => k ? C.ink : RED;
+  const drawCables = (ctx, g) => [0, 1].forEach(k => {
+    const f = frame(k), L = tipLen(g.side), [jx, jy] = g.jacks[k];
+    const ax = f.x + f.n[0] * L, ay = f.y + f.n[1] * L;
+    ctx.beginPath(); ctx.moveTo(ax, ay);
+    ctx.bezierCurveTo(ax + f.n[0] * 90, ay + f.n[1] * 90, jx, jy + 110, jx, jy);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (g.side === 'w') {
+      ctx.lineWidth = 12; ctx.strokeStyle = C.card; ctx.stroke();
+      ctx.globalAlpha = 0.55; ctx.lineWidth = 10; ctx.strokeStyle = tipColor(k); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.lineWidth = 4.5; ctx.strokeStyle = C.water; ctx.stroke();
+    } else {
+      ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
+      ctx.lineWidth = 3; ctx.strokeStyle = tipColor(k); ctx.stroke();
+    }
+  });
+  const drawTips = (ctx, g) => [0, 1].forEach(k => {
+    const f = frame(k);
+    ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(Math.atan2(f.n[1], f.n[0]));
+    if (g.side === 'w') hoseTip(ctx, tipColor(k)); else if (k) gator(ctx); else pen(ctx, RED);
+    ctx.restore();
+  });
+  // Símbolo del generador en el cable de abajo: círculo con una onda.
+  const genSymbol = (ctx, x, y) => {
+    ctx.fillStyle = C.card; ctx.fillRect(x - SRC, y - 30, 2 * SRC, 60);
+    D.line(ctx, [[x - SRC, y], [x - 26, y]], 4, C.ink); D.line(ctx, [[x + 26, y], [x + SRC, y]], 4, C.ink);
+    D.circle(ctx, x, y, 26, C.card, C.ink, 3);
+    ctx.beginPath();
+    for (let i = 0; i <= 24; i++) { const u = i / 24; ctx.lineTo(x - 15 + 30 * u, y - 9 * Math.sin(2 * Math.PI * u)); }
+    ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.lineCap = 'round'; ctx.stroke();
+    D.text(ctx, '+', x - 34, y - 30, C.ink, { size: 18 });
+  };
+  const drawGen = (ctx, g) => {
+    const w = g.side === 'w', x = g.GX, y = g.GY;
+    ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 26, 28, 22);   // cuello hacia el circuito
+    D.roundRect(ctx, x, y, g.GW, g.GH, 14, w ? C.metal : C['charge-soft'], C.ink, 2.5);
+    D.text(ctx, w ? 'BOMBA DE VAIVÉN' : 'GENERADOR DE FUNCIONES', x + 18, y + 24, C.ink, { align: 'left', size: 15 });
+    D.led(ctx, x + 48, y + 62, st.level > 0.02 ? 1 : 0);
+    const f = freqAt(st.fi), txt = f < 10 ? f.toFixed(2) : f < 100 ? f.toFixed(1) : f.toFixed(0);
+    D.lcd(ctx, x + 470, y + 28, 150, 30, txt.padStart(5, ' '), 'Hz');
+    const k = w ? KPA_PER_V : 1;
+    const knobs = [
+      [245, [['0.1', 0], ['1', 0.25], ['10', 0.5], ['100', 0.75], ['1k', 1]], 'frecuencia (Hz)', 8],
+      [365, [['0', 0], [String(5 * k), 0.5], [String(10 * k), 1]], `amplitud (${unitV(g.side)})`, 12],
+      [485, [[String(-5 * k), 0], ['0', 0.5], [String(5 * k), 1]], `offset (${unitV(g.side)})`, 12]
+    ];
+    knobs.forEach(([dx, labels, cap, ticks]) => {
+      D.knobScale(ctx, x + dx, y + 112, 36, labels, ticks);
+      D.text(ctx, cap, x + dx, y + 176, C.muted, { size: 14 });
+    });
+  };
+  const drawScope = (ctx, g) => {
+    const w = g.side === 'w', [sx, sy, sw, sh] = g.scr, cy = sy + sh / 2, vdiv = VDIV[st.vi];
+    D.roundRect(ctx, g.SX, g.SY, g.SW, g.SH, 14, C.metal, C.ink, 2.5);
+    D.text(ctx, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO', g.SX + 20, g.SY + 24, C.ink, { align: 'left', size: 15 });
+    // Pantalla (en el agua, papel cuadriculado)
+    const ink = w ? PURPLE : '#c4b0ff', txt = w ? C.muted : Sim.LCD.on;
+    D.roundRect(ctx, sx - 4, sy - 4, sw + 8, sh + 8, 6, w ? '#fffdf5' : Sim.LCD.bg, C.ink, 2);
+    ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 10; i++) D.line(ctx, [[sx + i * DIV, sy], [sx + i * DIV, sy + sh]], i === 5 ? 1.6 : 1, w ? (i === 5 ? '#d6c7a6' : '#ece2cc') : `rgba(142, 247, 166, ${i === 5 ? 0.35 : 0.14})`, 'butt');
+    for (let i = 0; i <= 8; i++) D.line(ctx, [[sx, sy + i * DIV], [sx + sw, sy + i * DIV]], i === 4 ? 1.6 : 1, w ? (i === 4 ? '#d6c7a6' : '#ece2cc') : `rgba(142, 247, 166, ${i === 4 ? 0.35 : 0.14})`, 'butt');
+    const Y = v => cy - v / vdiv * DIV;
+    for (const tr of st.traces) {
+      if (tr.pts.length < 2) continue;
+      ctx.beginPath();
+      tr.pts.forEach(([u, v], i) => { const X = sx + u * sw, yy = Math.max(sy - 10, Math.min(sy + sh + 10, Y(v))); i ? ctx.lineTo(X, yy) : ctx.moveTo(X, yy); });
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      if (!w) { ctx.globalAlpha = 0.25 * tr.a; ctx.lineWidth = 6; ctx.strokeStyle = ink; ctx.stroke(); }
+      ctx.globalAlpha = tr.a; ctx.lineWidth = w ? 2.2 : 2.4; ctx.strokeStyle = ink; ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if (st.beam) {
+      const X = sx + st.beam[0] * sw, yy = Y(st.beam[1]);
+      if (w) {   // la plumilla del registrador
+        D.line(ctx, [[X, yy], [X + 14, yy - 22]], 4, C.ink);
+        D.circle(ctx, X, yy, 3, PURPLE);
+      } else { D.circle(ctx, X, yy, 7, 'rgba(196, 176, 255, 0.35)'); D.circle(ctx, X, yy, 3.5, '#efe9ff'); }
+    }
+    ctx.restore();
+    // Marca del cero (tierra) a la izquierda y del nivel de disparo a la derecha.
+    const y0 = Math.max(sy, Math.min(sy + sh, cy));
+    D.arrow(ctx, sx - 2, y0, 0, 6, w ? C.muted : Sim.LCD.on);
+    const r = st.recs.length && st.recs[st.recs.length - 1], b = r && band(r);
+    if (st.trig && b && b.tp !== null) {
+      const yt = Math.max(sy, Math.min(sy + sh, Y(b.mid)));
+      D.arrow(ctx, sx + sw + 2, yt, Math.PI, 6, w ? PURPLE : '#c4b0ff');
+    }
+    // Lecturas: escalas arriba y mediciones abajo.
+    const k = w ? KPA_PER_V : 1, u = unitV(g.side), opt = { size: 13, font: Sim.MONO, weight: 500 };
+    D.text(ctx, `${fmt(vdiv * k, vdiv * k < 1 ? 1 : 0)} ${u}/div`, sx + 8, sy + 14, txt, { ...opt, align: 'left' });
+    D.text(ctx, `${tText(TDIV[st.ti])}/div`, sx + sw - 8, sy + 14, txt, { ...opt, align: 'right' });
+    const pp = b ? b.max - b.min : 0;
+    D.text(ctx, pp > 0.05 ? `f ${fText(r.f)}` : 'f --', sx + 8, sy + sh - 14, txt, { ...opt, align: 'left' });
+    D.text(ctx, `pp ${fmt(pp * k, w ? 0 : 1)} ${u}`, sx + sw - 8, sy + sh - 14, txt, { ...opt, align: 'right' });
+    // Perillas y bornes
+    D.knobScale(ctx, g.SX + 500, g.SY + 110, 36, VDIV.map((v, i) => [String(fmt(v * k, v * k < 1 ? 1 : 0)), i / (VDIV.length - 1)]), VDIV.length - 1);
+    D.text(ctx, `${u}/div`, g.SX + 500, g.SY + 168, C.muted, { size: 14 });
+    D.knobScale(ctx, g.SX + 500, g.SY + 250, 36, [['1 ms', 0.1], ['10 ms', 0.4], ['1 s', 1]], TDIV.length - 1);
+    D.text(ctx, 'tiempo/div', g.SX + 500, g.SY + 308, C.muted, { size: 14 });
+    g.jacks.forEach(([jx, jy], k2) => D.circle(ctx, jx, jy, 8, tipColor(k2), C.ink, 1.5));
+    if (!w) D.text(ctx, 'CH1', g.SX + 44, g.SY + 396, C.muted, { size: 13, align: 'right' });
+  };
+
+  function drawWater() {
+    const g = geos.w, ctx = pw.begin();
+    D.pipe(ctx, g.loop);
+    D.narrow(ctx, g.XR, g.TOP, HN);
+    water.draw(ctx);
+    if (st.led) D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, label: 'rueda' });
+    D.speedLegend(ctx, g.X0 + 30, g.BOT - 46, 150);
+    drawScope(ctx, g);
+    drawCables(ctx, g);
+    drawGen(ctx, g);
+    D.pump(ctx, g.PX, g.BOT, st.rotor, st.rotorOm);
+    drawTips(ctx, g);
+  }
+  function drawElectric() {
+    const g = geos.e, ctx = pe.begin();
+    D.wire(ctx, g.loop);
+    D.flow(ctx, g.loop, st.charge, C.charge, { gap: 30, r: 4.5 });
+    D.resistor(ctx, g.XR, g.TOP);
+    D.text(ctx, '470 Ω', g.XR, g.TOP - 30, C.muted, { size: 14 });
+    if (st.led) D.ledSymbol(ctx, g.XL, g.TOP, { I: st.glow, label: 'LED' });
+    drawScope(ctx, g);
+    drawCables(ctx, g);
+    drawGen(ctx, g);
+    genSymbol(ctx, g.PX, g.BOT);
+    drawTips(ctx, g);
+  }
+
+  Sim.run(dt => {
+    advance(dt);
+    updateScope();
+    drawWater(); drawElectric();
+  });
+})();
+</script>
+</body>
+</html>
