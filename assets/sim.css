@@ -163,3 +163,20 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-meter-hit:hover, .sim-meter-hit:focus-visible { border-color: var(--muted); }
 .sim-panel.placing, .sim-panel.placing .sim-layer > * { cursor: crosshair; }
+
+/* Botón "Cables" de la barra: abre un panelito con la rigidez y la inercia de cables y mangueras. */
+.sim-cable { position: relative; }
+.sim-cable-btn {
+  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 4px 12px; border-radius: 999px;
+  border: 2px solid var(--line); background: var(--bg); color: var(--ink);
+}
+.sim-cable-btn[aria-expanded="true"] { border-color: var(--water); color: var(--water); }
+.sim-cable-pop {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; display: grid; gap: 10px;
+  padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(21, 33, 42, 0.16); width: max-content; max-width: calc(100vw - 32px);
+}
+.sim-cable-pop label { display: grid; grid-template-columns: auto auto minmax(90px, 140px) auto; align-items: center; gap: 4px 8px; font-size: 14px; }
+.sim-cable-pop .name { font-weight: 700; min-width: 4.5em; }
+.sim-cable-pop .lo, .sim-cable-pop .hi { font-weight: 400; color: var(--muted); font-size: 13px; }
+.sim-bar .sim-cable-pop input[type="range"] { width: 100%; }

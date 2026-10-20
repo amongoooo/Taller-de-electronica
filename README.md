@@ -27,7 +27,7 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 
 ## Medidores
 
-El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junto a la bomba y la fuente. Sus puntas se arrastran (o se mueven con las flechas) a cualquier punto del circuito y las de los dos paneles se mueven juntas. Cada punta toca el circuito de forma perpendicular y su cable (o manguera) sale recto y se arrastra como sobre una mesa: el roce lo frena y solo se mueve donde lo jala la punta. También se puede agarrar del cuerpo para acomodar el cableado; si hace falta sale más cable del medidor, y se queda donde se deja.
+El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junto a la bomba y la fuente. Sus puntas se arrastran (o se mueven con las flechas) a cualquier punto del circuito y las de los dos paneles se mueven juntas. Cada punta toca el circuito de forma perpendicular y su cable (o manguera) sale recto y se arrastra como sobre una mesa: el roce lo frena y solo se mueve donde lo jala la punta. También se puede agarrar del cuerpo para acomodar el cableado; si hace falta sale más cable del medidor, y se queda donde se deja. El botón **Cables** de la barra ajusta su rigidez (flojo o rígido) y su inercia (se frena o se desliza al soltarlo); se recuerda en el navegador.
 
 - **Voltímetro:** dos puntas de multímetro, roja (+) y negra (−). Marca voltaje(rojo) − voltaje(negro); puede salir negativo.
 - **Manómetro:** dos mangueritas con agua, roja y negra, conectadas a la pared del tubo. Cada una llena su columna en el medidor según la presión en su punto; la diferencia de alturas es lo que marca.
