@@ -2,11 +2,75 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Ley de Ohm · Taller de Electrónica</title>
-<meta http-equiv="refresh" content="0; url=../resistencia/">
-<link rel="canonical" href="../resistencia/">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Voltaje y corriente · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020075000">
 </head>
 <body>
-<p>Esta simulación ahora es parte de <a href="../resistencia/">Ley de Ohm</a>.</p>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Voltaje y corriente</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua: controlador de la bomba con botón de encendido, LED, perilla de presión y medidor de velocidad; manómetro, tramo angosto y medidor de caudal"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico: fuente con botón, LED, perilla de voltaje y medidor; voltímetro, resistencia de 1 kΩ y amperímetro"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261020180000"></script>
+<script src="../../assets/banco.js?v=20261020180000"></script>
+<script>
+(() => {
+  const { C, draw: D } = Sim;
+  const R = 1000;                 // ohmios; el tramo angosto equivale a esta resistencia
+  const hn = Sim.narrowHalf(R);
+  const sides = {};
+
+  const b = Sim.bench({
+    iFull: 12,
+    layout(g) {
+      const s = sides[g.side] = { phase: 0 };
+      if (g.side === 'w') s.water = Sim.water(g.loop, Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), hn));
+    },
+    model: V => ({ I: V / R * 1000 }),
+    step(dt, m) {
+      sides.w.water.step(m.I * 12, dt);
+      sides.e.phase += m.I * 12 * dt;
+    },
+    drawW(ctx, g) {
+      D.pipe(ctx, g.loop);
+      D.narrow(ctx, g.PX, g.TOP, hn);
+      sides.w.water.draw(ctx);
+      D.text(ctx, 'tramo angosto', g.PX, g.TOP + 38, C.muted, { size: 15 });
+    },
+    drawE(ctx, g) {
+      D.wire(ctx, g.loop);
+      D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
+      D.resistor(ctx, g.PX, g.TOP);
+      D.text(ctx, '1 kΩ', g.PX, g.TOP + 34, C.muted, { size: 15 });
+      D.text(ctx, 'resistencia', g.PX, g.TOP - 30, C.muted, { size: 14, weight: 400 });
+    }
+  });
+  b.start();
+})();
+</script>
 </body>
 </html>
