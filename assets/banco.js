@@ -1,6 +1,7 @@
 // Banco común de las simulaciones de agua y electricidad: dos paneles con el mismo circuito,
 // bomba y fuente enlazadas (botón, LED, perilla y medidor), manómetro/voltímetro y caudal/amperímetro
-// abajo junto al controlador, cada uno con dos caimanes que se arrastran a dos puntos del circuito,
+// abajo junto al controlador: el voltímetro con dos puntas (mangueras en el agua) entre dos puntos del
+// circuito y el amperímetro con una pinza (turbinita en el agua) en un punto, con cables que cuelgan,
 // e inercia. Cada página solo agrega su parte del circuito.
 //
 // Sim.bench({
@@ -9,9 +10,8 @@
 //   v0,               voltaje inicial de la perilla
 //   layout(g),        se llama cuando cambia el tamaño de un panel (g.side es 'w' o 'e')
 //   model(V),         devuelve { I } (mA totales) y lo que la página necesite para dibujar
-//   circuit(g, m, V), tramos del circuito sin contar la fuente, para los caimanes (ver más abajo);
+//   circuit(g, m, V), tramos del circuito sin contar la fuente, para las puntas (ver más abajo);
 //                     si falta, es una sola vuelta con todo el voltaje en el centro de arriba
-//   clamps(g),        dónde empiezan los caimanes: { V: [rojo, negro], I: [rojo, negro] }
 //   step(dt, m),      avanza lo que se mueve (partículas, ruedas)
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
 // })
@@ -25,7 +25,7 @@
   Sim.bench = o => {
     const iFull = o.iFull || 12, flowSpeed = o.flowSpeed || 12;
     const st = { on: false, set: o.v0 ?? 6, v: 0, tau: 1, level: Sim.ramp(), m: { I: 0 },
-      rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nS: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(),
+      rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nS: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(), nPa: Sim.needle(), nPb: Sim.needle(), turb: 0,
       segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false } };
     const b = { st, VMAX, KPA_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
@@ -180,11 +180,11 @@
     const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
     inercia.addEventListener('input', setTau); setTau();
 
-    // ---------- caimanes: los medidores se conectan entre dos puntos del circuito ----------
+    // ---------- puntas: los medidores se conectan al circuito ----------
     // El circuito son tramos de cable (o tubería) que se unen en sus puntas. Cada tramo lleva
     // { pts, I (mA en el sentido del recorrido), v0 (voltaje al inicio), comps: [{ at: [x, y], half, dV }] }:
     // en cada componente el voltaje baja dV a lo largo de su ancho; en el cable no cambia.
-    // Los caimanes no se pueden poner encima de un componente ni de la fuente.
+    // Las puntas no se pueden poner encima de un componente ni de la fuente.
     b.loopPts = g => [[g.PX - SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [g.X1, g.TOP], [g.X1, g.BOT], [g.PX + SRC, g.BOT]];
     const project = (pts, x, y) => {
       let best = null, d0 = 0;
@@ -218,7 +218,7 @@
         return { ...sg, L: D.len(sg.pts), comps, v };
       });
     };
-    // Lleva un punto al lugar más cercano del circuito donde se puede poner un caimán.
+    // Lleva un punto al lugar más cercano del circuito donde se puede poner una punta.
     const snap = (segs, x, y) => {
       let best = null;
       segs.forEach((sg, k) => {
@@ -231,7 +231,7 @@
       });
       return best;
     };
-    // Camino más corto por el circuito entre dos caimanes, sin pasar por la fuente.
+    // Camino más corto por el circuito entre las dos puntas, sin pasar por la fuente.
     // Devuelve los pedazos [{ k, d0, d1 }] que forman la región entre ellos.
     const route = (segs, A, B) => {
       const key = p => Math.round(p[0]) + ',' + Math.round(p[1]);
@@ -273,25 +273,17 @@
       });
       return best ? best.pieces.filter(p => Math.abs(p.d1 - p.d0) > 0.5) : [];
     };
-    // Lectura de cada medidor. El voltímetro marca voltaje(rojo) − voltaje(negro).
-    // El amperímetro marca la corriente que pasa por la región del rojo al negro; si en la región
-    // la corriente no es la misma en todos lados (cruza un nodo), no hay una sola lectura.
+    // Lectura de cada medidor. El voltímetro (o manómetro) marca voltaje(rojo) − voltaje(negro) y
+    // guarda el voltaje de cada punta para las columnas de agua. El amperímetro es una pinza (o una
+    // turbinita en la tubería) en un solo punto: marca la corriente que pasa por ahí.
     const measure = segs => {
-      const res = {};
-      for (const kind of ['V', 'I']) {
-        const [A, B] = st.clamps[kind].map(([x, y]) => snap(segs, x, y));
-        st.clamps[kind] = [[A.x, A.y], [B.x, B.y]];
-        const pieces = route(segs, A, B);
-        let value;
-        if (kind === 'V') value = segs[A.k].v(A.d) - segs[B.k].v(B.d);
-        else {
-          const Is = pieces.map(p => segs[p.k].I * Math.sign(p.d1 - p.d0));
-          value = Is.length ? Is[0] : 0;
-          if (Is.some(I => Math.abs(I - value) > Math.max(0.02, 0.01 * Math.abs(value)))) value = null;
-        }
-        res[kind] = { value, pieces: pieces.map(p => subPath(segs[p.k].pts, p.d0, p.d1)) };
-      }
-      return res;
+      const [A, B] = st.clamps.V.map(([x, y]) => snap(segs, x, y)), [P] = st.clamps.I.map(([x, y]) => snap(segs, x, y));
+      st.clamps.V = [[A.x, A.y], [B.x, B.y]]; st.clamps.I = [[P.x, P.y]];
+      const va = segs[A.k].v(A.d), vb = segs[B.k].v(B.d);
+      return {
+        V: { value: va - vb, va, vb, pieces: route(segs, A, B).map(p => subPath(segs[p.k].pts, p.d0, p.d1)) },
+        I: { value: Math.abs(segs[P.k].I) }
+      };
     };
 
     // Donde un tramo tiene voltaje pero no le pasa corriente (un LED que no enciende, un interruptor
@@ -310,42 +302,124 @@
       return v > 0.05 ? still * (0.5 + 2.2 * v / VMAX) : 0;
     };
 
-    st.clamps = o.clamps ? o.clamps(b.gw) : {
+    st.clamps = {
       V: [[b.gw.X0, b.gw.MY], [b.gw.X1, b.gw.MY]],
-      I: [[b.gw.X1 - 40, b.gw.BOT], [b.gw.X1 - 110, b.gw.BOT]]
+      I: [[b.gw.X1 - 60, b.gw.BOT]]
     };
-    // Medidores junto al controlador (ver los acomodos); las bornes (rojo y negro) arriba de cada uno.
+    const syncs = [];   // muestran u ocultan los botones de las puntas
+    // Cuántas puntas lleva cada medidor: el voltímetro dos (roja y negra), el amperímetro una pinza.
+    const NP = { V: 2, I: 1 };
+    // placed: qué puntas están puestas en el circuito (al tocar el medidor se quitan hasta ponerlas de nuevo).
+    st.placed = { V: [true, true], I: [true] };
+    const ready = kind => st.placed[kind].every(Boolean);
+    // Medidores junto al controlador (ver los acomodos); los bornes arriba de cada uno.
     const meterAt = (g, kind) => g.meters[kind];
-    const jack = (g, kind, i) => { const [x, y] = meterAt(g, kind); return [x + (i ? 22 : -22) * g.MK, y - 40 * g.MK]; };
+    const jack = (g, kind, i) => {
+      const [x, y] = meterAt(g, kind);
+      return [x + (NP[kind] === 1 ? 0 : i ? 22 : -22) * g.MK, y - 40 * g.MK];
+    };
+    const jackColor = (kind, i) => kind === 'I' ? PROBE.I : i ? C.ink : RED;
 
-    // Cada caimán se arrastra (o se mueve con las flechas por el cable). Los dos paneles comparten
-    // los caimanes, igual que la bomba y la fuente.
+    // Cada punta toca el circuito de forma perpendicular, del lado que mira hacia su medidor.
+    // Devuelve el punto de contacto y la dirección n hacia afuera del cable.
+    const frame = (g, kind, i) => {
+      const [x, y] = st.clamps[kind][i];
+      let n = [0, 1];
+      const p = st.segs.length && snap(st.segs, x, y);
+      if (p) {
+        const pts = st.segs[p.k].pts, L = st.segs[p.k].L;
+        const a = D.pointAt(pts, Math.max(0, p.d - 3)), c = D.pointAt(pts, Math.min(L, p.d + 3));
+        const tx = c[0] - a[0], ty = c[1] - a[1], s = Math.hypot(tx, ty) || 1;
+        n = [-ty / s, tx / s];
+        const [jx, jy] = jack(g, kind, i);
+        if (n[0] * (jx - x) + n[1] * (jy - y) < 0) n = [-n[0], -n[1]];
+      }
+      return { x, y, n };
+    };
+    // Largo de cada punta, del contacto a donde sale su cable o manguera.
+    const tipLen = (side, kind) => kind === 'I' ? (side === 'w' ? Sim.PIPE + 12 : 30) : (side === 'w' ? Sim.PIPE + 10 : 46);
+
+    // Cables y mangueras con inercia: una cadena de puntos con gravedad que cuelga del final de la
+    // punta (sale recto) hasta el borne del medidor, y se mece cuando la punta se mueve.
+    const NR = 18, ropes = { w: {}, e: {} };
+    const ropeStep = (side, g, kind, i, dt) => {
+      const key = kind + i;
+      if (!st.placed[kind][i]) { delete ropes[side][key]; return; }
+      const f = frame(g, kind, i), L = tipLen(side, kind);
+      const A = [f.x + f.n[0] * L, f.y + f.n[1] * L], A2 = [A[0] + f.n[0] * 16, A[1] + f.n[1] * 16];
+      const B = jack(g, kind, i);
+      let r = ropes[side][key];
+      if (!r) {   // recién puesta: el cable sale del borne en línea recta y luego cae
+        r = ropes[side][key] = [];
+        for (let k = 0; k < NR; k++) {
+          const u = k / (NR - 1), x = A2[0] + (B[0] - A2[0]) * u, y = A2[1] + (B[1] - A2[1]) * u;
+          r.push({ x, y, px: x, py: y });
+        }
+      }
+      const rest = (Math.hypot(B[0] - A2[0], B[1] - A2[1]) * 1.12 + 30) / (NR - 1);
+      const h = Math.min(dt, 1 / 30), G = 1400;
+      for (const q of r) {
+        const vx = (q.x - q.px) * 0.985, vy = (q.y - q.py) * 0.985;
+        q.px = q.x; q.py = q.y; q.x += vx; q.y += vy + G * h * h;
+      }
+      for (let it = 0; it < 24; it++) {
+        r[0].x = A2[0]; r[0].y = A2[1]; r[NR - 1].x = B[0]; r[NR - 1].y = B[1];
+        for (let k = 1; k < NR; k++) {
+          const a = r[k - 1], c = r[k], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
+          if (d <= rest) continue;   // un cable se dobla pero no se estira
+          const e = (d - rest) / d / 2;
+          const wa = k - 1 === 0 ? 0 : 1, wc = k === NR - 1 ? 0 : 1;
+          if (!wa && !wc) continue;
+          a.x += dx * e * wa * (2 / (wa + wc)); a.y += dy * e * wa * (2 / (wa + wc));
+          c.x -= dx * e * wc * (2 / (wa + wc)); c.y -= dy * e * wc * (2 / (wa + wc));
+        }
+      }
+      r.A = A;
+    };
+    const ropePath = (ctx, r) => {
+      ctx.beginPath(); ctx.moveTo(r.A[0], r.A[1]); ctx.lineTo(r[0].x, r[0].y);
+      for (let k = 1; k < NR - 1; k++) ctx.quadraticCurveTo(r[k].x, r[k].y, (r[k].x + r[k + 1].x) / 2, (r[k].y + r[k + 1].y) / 2);
+      ctx.lineTo(r[NR - 1].x, r[NR - 1].y);
+    };
+
+    // Cada punta se arrastra (o se mueve con las flechas por el cable). Los dos paneles comparten
+    // las puntas, igual que la bomba y la fuente.
     const moveClamp = (kind, i, x, y) => {
       const p = snap(st.segs, x, y);
       if (!p) return;
       st.clamps[kind][i] = [p.x, p.y];
       b.pw.replace(); b.pe.replace();
     };
-    ['V', 'I'].forEach(kind => [0, 1].forEach(i => ['w', 'e'].forEach(side => {
+    const tipName = (kind, i, side) => kind === 'I'
+      ? (side === 'w' ? 'Turbinita del medidor de caudal' : 'Pinza del amperímetro')
+      : `${side === 'w' ? 'Manguera' : 'Punta'} ${i ? 'negra' : 'roja'} ${side === 'w' ? 'del manómetro' : 'del voltímetro'}`;
+    ['V', 'I'].forEach(kind => [0, 1].slice(0, NP[kind]).forEach(i => ['w', 'e'].forEach(side => {
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'sim-clamp';
-      const meter = kind === 'V' ? (side === 'w' ? 'del manómetro' : 'del voltímetro') : (side === 'w' ? 'del medidor de caudal' : 'del amperímetro');
-      el.setAttribute('aria-label', `Caimán ${i ? 'negro' : 'rojo'} ${meter}: arrástralo o usa las flechas para moverlo; tócalo para mostrar u ocultar su cable`);
-      b.place(side, el, () => st.clamps[kind][i]);
+      el.setAttribute('aria-label', `${tipName(kind, i, side)}: arrástrala o usa las flechas para moverla; tócala para mostrar u ocultar su cable`);
+      b.place(side, el, g => {
+        const f = frame(g, kind, i), L = kind === 'I' ? 0 : tipLen(side, kind) * 0.55;
+        return [f.x + f.n[0] * L, f.y + f.n[1] * L];
+      });
       const p = panel(side);
       const toDrawing = e => {
         const r = p.box.getBoundingClientRect();
         return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale];
       };
-      // Arrastrar mueve el caimán (y siempre lo muestra con su cable y su región); tocarlo sin
-      // arrastrar lo convierte en un pin pequeño para limpiar el diagrama, o lo vuelve a mostrar.
-      let down = null, dragged = false;
-      el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); el.focus(); down = [e.clientX, e.clientY]; dragged = false; e.preventDefault(); });
+      // Arrastrar mueve la punta (y siempre la muestra con su cable y su región); tocarla sin
+      // arrastrar la convierte en un pin pequeño para limpiar el diagrama, o la vuelve a mostrar.
+      let down = null, dragged = false, grab = [0, 0];
+      el.addEventListener('pointerdown', e => {
+        el.setPointerCapture(e.pointerId); el.focus(); down = [e.clientX, e.clientY]; dragged = false; e.preventDefault();
+        const [x, y] = toDrawing(e), [cx, cy] = st.clamps[kind][i];
+        grab = [cx - x, cy - y];   // se agarra del cuerpo pero se mueve el contacto
+      });
       el.addEventListener('pointermove', e => {
         if (!el.hasPointerCapture(e.pointerId)) return;
         if (!dragged && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) return;
         dragged = true; st.pinned[kind] = false;
-        moveClamp(kind, i, ...toDrawing(e));
+        const [x, y] = toDrawing(e);
+        moveClamp(kind, i, x + grab[0], y + grab[1]);
       });
       el.addEventListener('click', () => { if (!dragged) st.pinned[kind] = !st.pinned[kind]; dragged = false; });
       el.addEventListener('keydown', e => {
@@ -356,20 +430,28 @@
         moveClamp(kind, i, x + step[0], y + step[1]);
         e.preventDefault();
       });
+      const sync = () => { el.hidden = !st.placed[kind][i]; };
+      syncs.push(sync); sync();
     })));
 
-    // Tocar un medidor lo prepara para conectarse: el siguiente toque en el circuito pone el caimán
-    // rojo (+) y el siguiente el negro (−). Tocar el medidor otra vez o Esc cancela.
+    // Tocar un medidor quita sus puntas del circuito y lo prepara para conectarse: el siguiente toque
+    // pone la punta roja (+) y el siguiente la negra (−); el amperímetro solo necesita un toque para su
+    // pinza. Tocar el medidor otra vez o Esc cancela y las puntas regresan a donde estaban.
     st.placing = null;
     const setPlacing = v => {
+      if (!v && st.placing) st.placed[st.placing.kind] = st.placed[st.placing.kind].map(() => true);
+      if (v && v.i === 0) st.placed[v.kind] = st.placed[v.kind].map(() => false);
       st.placing = v;
       [b.pw, b.pe].forEach(p => p.box.classList.toggle('placing', !!v));
+      syncs.forEach(f => f());
     };
     ['V', 'I'].forEach(kind => ['w', 'e'].forEach(side => {
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'sim-meter-hit';
       const name = kind === 'V' ? (side === 'w' ? 'el manómetro' : 'el voltímetro') : (side === 'w' ? 'el medidor de caudal' : 'el amperímetro');
-      el.setAttribute('aria-label', `Conectar ${name}: luego toca el circuito para el caimán rojo (+) y después para el negro (−)`);
+      el.setAttribute('aria-label', kind === 'V'
+        ? `Conectar ${name}: luego toca el circuito para la ${side === 'w' ? 'manguera' : 'punta'} roja (+) y después para la negra (−)`
+        : `Conectar ${name}: luego toca el circuito para poner ${side === 'w' ? 'la turbinita' : 'la pinza'}`);
       b.place(side, el, g => { const [x, y] = meterAt(g, kind); return [x, y + 18 * g.MK]; });
       el.addEventListener('click', () => setPlacing(st.placing && st.placing.kind === kind ? null : { kind, i: 0 }));
     }));
@@ -381,7 +463,9 @@
         const { kind, i } = st.placing;
         st.pinned[kind] = false;
         moveClamp(kind, i, (e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale);
-        setPlacing(i ? null : { kind, i: 1 });
+        st.placed[kind][i] = true;
+        if (i + 1 < NP[kind]) { st.placing = { kind, i: i + 1 }; syncs.forEach(f => f()); }
+        else setPlacing(null);
         swallow = true; e.preventDefault(); e.stopPropagation();
       }, true);
       p.box.addEventListener('click', e => { if (swallow) { swallow = false; e.preventDefault(); e.stopPropagation(); } }, true);
@@ -403,26 +487,75 @@
       if (k.caption) D.text(ctx, k.caption(g.side), x, y + 58, C.muted, { size: 14 });
     });
 
-    // Región entre los caimanes: una franja translúcida del color del medidor, debajo de los caimanes.
+    // Región entre las dos puntas del voltímetro: una franja translúcida del color del medidor.
     const drawRegions = (ctx, w) => {
+      if (st.pinned.V || !ready('V')) return;
       ctx.globalAlpha = 0.32;
-      for (const kind of ['I', 'V']) if (!st.pinned[kind]) for (const pts of st.probe[kind].pieces) D.line(ctx, pts, kind === 'V' ? w + 8 : w, PROBE[kind]);
+      for (const pts of st.probe.V.pieces) D.line(ctx, pts, w + 8, PROBE.V);
       ctx.globalAlpha = 1;
     };
-    // Cables de un medidor, de cada borne a su caimán. Se dibujan antes que el controlador y los
-    // medidores, así que pasan por detrás de ellos (en el celular cruzan el controlador).
+    // Cables (o mangueras con agua) de un medidor. Se dibujan antes que el controlador y los
+    // medidores, así que pasan por detrás de ellos.
     const drawCables = (ctx, g, kind) => {
       if (st.pinned[kind]) return;
-      [0, 1].forEach(i => {
-        const [jx, jy] = jack(g, kind, i), [cx, cy] = st.clamps[kind][i];
-        ctx.beginPath(); ctx.moveTo(jx, jy);
-        if (g.mode === 'lateral') ctx.bezierCurveTo(jx, jy - 50, cx + 120, cy + 40, cx, cy + 14);
-        else ctx.bezierCurveTo(jx, jy - 70, cx + (cx < g.PX ? -1 : 1) * 10, cy + 80, cx, cy + 14);
-        ctx.lineCap = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
-        ctx.lineWidth = 3; ctx.strokeStyle = i ? C.ink : RED; ctx.stroke();
-      });
+      const side = g.side;
+      for (let i = 0; i < NP[kind]; i++) {
+        const r = ropes[side][kind + i];
+        if (!r || !st.placed[kind][i]) continue;
+        ropePath(ctx, r);
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        if (side === 'w' && kind === 'V') {   // manguera translúcida del color de su borne, con agua adentro
+          ctx.lineWidth = 12; ctx.strokeStyle = C.card; ctx.stroke();
+          ctx.globalAlpha = 0.55; ctx.lineWidth = 10; ctx.strokeStyle = jackColor(kind, i); ctx.stroke(); ctx.globalAlpha = 1;
+          ctx.lineWidth = 4.5; ctx.strokeStyle = C.water; ctx.stroke();
+        } else {
+          ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
+          ctx.lineWidth = 3; ctx.strokeStyle = jackColor(kind, i); ctx.stroke();
+        }
+      }
     };
-    // Medidor con sus dos bornes y sus caimanes.
+    // Las puntas de cada medidor en el circuito (o pins pequeños si se ocultaron).
+    const drawTips = (ctx, g, kind) => {
+      for (let i = 0; i < NP[kind]; i++) {
+        if (!st.placed[kind][i]) continue;
+        const f = frame(g, kind, i), col = jackColor(kind, i);
+        if (st.pinned[kind]) { pin(ctx, f.x, f.y, col, kind); continue; }
+        ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(Math.atan2(f.n[1], f.n[0]));
+        if (kind === 'V') (g.side === 'w' ? hoseTip : pen)(ctx, col);
+        else (g.side === 'w' ? turbine : clampOn)(ctx);
+        ctx.restore();
+      }
+    };
+    // Punta de multímetro a lo largo de +x, con la punta metálica tocando el cable en el origen.
+    const pen = (ctx, col) => {
+      ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(12, -2.5); ctx.lineTo(12, 2.5); ctx.closePath();
+      ctx.fillStyle = '#9aa6af'; ctx.fill();
+      D.roundRect(ctx, 12, -4, 6, 8, 1.5, C.ink);
+      D.roundRect(ctx, 17, -7, 8, 14, 2, col, C.ink, 1.5);                  // guarda para los dedos
+      D.roundRect(ctx, 24, -5.5, 18, 11, 3, col, C.ink, 1.5);
+      D.roundRect(ctx, 41, -3.5, 6, 7, 1.5, C.ink);
+    };
+    // Conector de la manguera en la pared del tubo.
+    const hoseTip = (ctx, col) => {
+      const P = Sim.PIPE;
+      D.roundRect(ctx, P + 2, -7, 10, 14, 2.5, '#9aa6af', col, 2.5);
+      D.line(ctx, [[P + 2, 0], [P + 12, 0]], 4, C.water);
+    };
+    // Pinza del amperímetro: abraza el cable sin cortarlo.
+    const clampOn = ctx => {
+      ctx.lineWidth = 5; ctx.strokeStyle = PROBE.I; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 0, 11, 0.35, 2 * Math.PI - 0.35); ctx.stroke();
+      D.roundRect(ctx, 11, -5, 20, 10, 3, C.ink);
+    };
+    // Turbinita dentro de la tubería; gira con el agua que pasa por ese punto.
+    const turbine = ctx => {
+      const P = Sim.PIPE, w = Math.min(st.probe.I.value, 60) * 0.5;
+      D.circle(ctx, 0, 0, P - 2, null, PROBE.I, 2);
+      D.rotor(ctx, 0, 0, P - 4, st.turb, w, 4, PROBE.I);
+      D.circle(ctx, 0, 0, 3, PROBE.I);
+      D.roundRect(ctx, P, -5, 12, 10, 2.5, C.ink);
+    };
+    // Medidor con sus bornes.
     const drawProbe = (ctx, g, kind, label, text, unit, color) => {
       const [x, y] = meterAt(g, kind), needle = kind === 'V' ? st.nVm : st.nIm;
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
@@ -433,22 +566,36 @@
         D.roundRect(ctx, -66, -46, 132, 126, 14, null, PROBE[kind], 6);
         ctx.globalAlpha = 1;
       }
-      D.meter(ctx, 0, 0, { r: 30, frac: needle.x, color, lcdW: 108, text, unit });
+      if (kind === 'V' && g.side === 'w') columns(ctx, text, unit);
+      else D.meter(ctx, 0, 0, { r: 30, frac: needle.x, color, lcdW: 108, text, unit });
       if (placing) {
-        D.text(ctx, 'toca el circuito para el', 0, 92, PROBE[kind], { size: 12 });
-        D.text(ctx, st.placing.i ? 'caimán negro (−)' : 'caimán rojo (+)', 0, 108, st.placing.i ? C.ink : RED, { size: 13 });
-      } else {
-        D.text(ctx, label, 0, 92, PROBE[kind], { size: 15 });
-        if (st.probe[kind].value === null) D.text(ctx, 'la región cruza un nodo', 0, 110, C.danger, { size: 12 });
-      }
+        const water = g.side === 'w';
+        D.text(ctx, 'toca el circuito para', 0, 92, PROBE[kind], { size: 12 });
+        if (kind === 'I') D.text(ctx, water ? 'poner la turbinita' : 'poner la pinza', 0, 108, PROBE.I, { size: 13 });
+        else D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, 108, st.placing.i ? C.ink : RED, { size: 13 });
+      } else D.text(ctx, label, 0, 92, PROBE[kind], { size: 15 });
       ctx.restore();
-      [0, 1].forEach(i => {
-        const [jx, jy] = jack(g, kind, i), [cx, cy] = st.clamps[kind][i];
-        const col = i ? C.ink : RED;
-        D.circle(ctx, jx, jy, 6, col, C.ink, 1.5);
-        if (st.pinned[kind]) pin(ctx, cx, cy, col, kind);
-        else clamp(ctx, cx, cy, col);
+      for (let i = 0; i < NP[kind]; i++) {
+        const [jx, jy] = jack(g, kind, i);
+        D.circle(ctx, jx, jy, 6, jackColor(kind, i), C.ink, 1.5);
+      }
+    };
+    // Manómetro de dos columnas: cada manguera llena la suya según la presión en su punto; la
+    // diferencia de alturas es lo que marca.
+    const columns = (ctx, text, unit) => {
+      D.roundRect(ctx, -62, -40, 124, 116, 10, C.metal, C.ink, 2);
+      const top = -26, h = 62;
+      [[-22, st.nPa.x, RED], [22, st.nPb.x, C.ink]].forEach(([cx, f, col]) => {
+        D.roundRect(ctx, cx - 10, top, 20, h, 5, C.card, col, 2);
+        const lv = Math.max(0, Math.min(1, f)) * (h - 4);
+        if (lv > 0.5) D.roundRect(ctx, cx - 8, top + h - 2 - lv, 16, lv, 3, C.water);
       });
+      const ya = top + h - 2 - Math.max(0, Math.min(1, st.nPa.x)) * (h - 4), yb = top + h - 2 - Math.max(0, Math.min(1, st.nPb.x)) * (h - 4);
+      if (ready('V') && Math.abs(ya - yb) > 2) {
+        D.line(ctx, [[-12, ya], [12, ya]], 1.5, PROBE.V); D.line(ctx, [[-12, yb], [12, yb]], 1.5, PROBE.V);
+        D.line(ctx, [[0, ya], [0, yb]], 2, PROBE.V);
+      }
+      D.lcd(ctx, 0, 54, 108, 30, text, unit);
     };
     // Pin: gota pequeña clavada en el punto, con la letra del medidor (V o A).
     const pin = (ctx, x, y, col, kind) => {
@@ -459,21 +606,7 @@
       D.text(ctx, kind === 'V' ? 'V' : 'A', 0, -17, '#fff', { size: 11 });
       ctx.restore();
     };
-    // Caimán: cuerpo con dos mandíbulas que muerden el cable en (x, y).
-    const clamp = (ctx, x, y, col) => {
-      ctx.save(); ctx.translate(x, y);
-      ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(-6, -7); ctx.lineTo(6, -7); ctx.lineTo(9, 0);
-      ctx.lineTo(6, 7); ctx.lineTo(-6, 7); ctx.closePath();
-      ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = C.card; ctx.stroke();
-      D.roundRect(ctx, -6, 6, 12, 14, 3, col, C.card, 1.5);
-      ctx.lineWidth = 1.5; ctx.strokeStyle = C.card;
-      for (const dx of [-4, 0, 4]) { ctx.beginPath(); ctx.moveTo(dx, -7); ctx.lineTo(dx, -3); ctx.stroke(); }
-      ctx.restore();
-    };
-    const probeText = (kind, scale, width, d) => {
-      const v = st.probe[kind].value;
-      return v === null ? ' ----' : digits(v * scale, width, d);
-    };
+    const probeText = (kind, scale, width, d) => ready(kind) ? digits(st.probe[kind].value * scale, width, d) : ' ----';
 
     function drawWater() {
       const g = b.gw, m = st.m, ctx = b.pw.begin();
@@ -489,6 +622,7 @@
       drawProbe(ctx, g, 'I', 'caudal',
         probeText('I', MLS_PER_MA, 3, 1), 'mL/s', C.water);
       drawProbe(ctx, g, 'V', 'presión', probeText('V', KPA_PER_V, 3, 1), 'kPa', C.water);
+      drawTips(ctx, g, 'I'); drawTips(ctx, g, 'V');
     }
     function drawElectric() {
       const g = b.ge, m = st.m, ctx = b.pe.begin();
@@ -503,6 +637,7 @@
       drawProbe(ctx, g, 'I', 'amperímetro',
         probeText('I', 1, 2, 2), 'mA', C.charge);
       drawProbe(ctx, g, 'V', 'voltímetro', probeText('V', 1, 2, 2), 'V', C.charge);
+      drawTips(ctx, g, 'I'); drawTips(ctx, g, 'V');
     }
 
     // ---------- animación ----------
@@ -545,8 +680,12 @@
       const before = JSON.stringify(st.clamps);
       st.probe = measure(st.segs);
       if (JSON.stringify(st.clamps) !== before) { b.pw.replace(); b.pe.replace(); }
-      st.nVm.step(st.probe.V.value / VMAX, tn, dt);
-      st.nIm.step((st.probe.I.value || 0) / iFull, tn, dt);
+      st.nVm.step(ready('V') ? st.probe.V.value / VMAX : 0, tn, dt);
+      st.nIm.step(ready('I') ? st.probe.I.value / iFull : 0, tn, dt);
+      st.nPa.step(st.placed.V[0] ? st.probe.V.va / VMAX : 0, tn, dt);
+      st.nPb.step(st.placed.V[1] ? st.probe.V.vb / VMAX : 0, tn, dt);
+      st.turb += Math.min(st.probe.I.value, 60) * 0.5 * dt;
+      for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (const kind of ['V', 'I']) for (let i = 0; i < NP[kind]; i++) ropeStep(side, g, kind, i, dt);
       st.rpm = st.m.I * RPM_PER_MA;                                // 10 rpm por cada mL/s
       st.nS.step(st.rpm / (iFull * RPM_PER_MA), tn, dt);
       st.omega = -st.rpm / 60 * 2 * Math.PI;                       // rad/s, a la velocidad real

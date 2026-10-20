@@ -7,7 +7,7 @@ https://amongoooo.github.io/Taller-de-electronica/
 
 - `index.html`: página de inicio con la lista de simulaciones.
 - `assets/sim.css` y `assets/sim.js`: el formato común que comparten todas las simulaciones.
-- `assets/banco.js`: el banco de agua y electricidad (bomba y fuente enlazadas, medidores con caimanes e inercia); cada simulación solo dibuja su parte del circuito.
+- `assets/banco.js`: el banco de agua y electricidad (bomba y fuente enlazadas, medidores con puntas, mangueras, pinza e inercia); cada simulación solo dibuja su parte del circuito.
 - `simulaciones/<nombre>/index.html`: cada simulación en su propia carpeta, sin dependencias de compilación.
 
 ## Formato común
@@ -25,21 +25,24 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 
 **Importante:** cada vez que cambien `assets/sim.css` o `assets/sim.js`, sube el número `?v=` con el que las páginas los cargan, para que el navegador no use una copia vieja guardada.
 
-## Medidores con caimanes
+## Medidores
 
-El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, a los lados de la bomba y la fuente. Cada uno tiene un caimán rojo y uno negro que se arrastran (o se mueven con las flechas) a cualquier punto del circuito; los caimanes de los dos paneles se mueven juntos. La región entre los dos caimanes se pinta del color del medidor: morado el voltímetro y verde el amperímetro.
+El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junto a la bomba y la fuente. Sus puntas se arrastran (o se mueven con las flechas) a cualquier punto del circuito y las de los dos paneles se mueven juntas. Cada punta toca el circuito de forma perpendicular y su cable (o manguera) sale recto y cuelga con inercia, así que se mece al moverla.
 
-- Tocar un medidor lo prepara para conectarse: el siguiente toque en el circuito pone el caimán rojo (+) y el siguiente el negro (−). Tocar el medidor otra vez o Esc cancela.
-- Tocar un caimán sin arrastrarlo convierte los caimanes de ese medidor en pines pequeños y quita su región de color, para dejar el diagrama limpio; otro toque los vuelve a mostrar. Al arrastrarlos siempre se muestran con su cable.
-- El voltímetro marca voltaje(rojo) − voltaje(negro); puede salir negativo.
-- El amperímetro marca la corriente que pasa por la región, positiva si va del rojo al negro. Si la región cruza un nodo y la corriente no es la misma en toda ella, muestra `----`.
+- **Voltímetro:** dos puntas de multímetro, roja (+) y negra (−). Marca voltaje(rojo) − voltaje(negro); puede salir negativo. La región entre las dos se pinta de morado.
+- **Manómetro:** dos mangueritas con agua, roja y negra, conectadas a la pared del tubo. Cada una llena su columna en el medidor según la presión en su punto; la diferencia de alturas es lo que marca.
+- **Amperímetro y caudal:** una pinza que abraza el cable (en el agua, una turbinita dentro del tubo que gira con el agua). Marca lo que pasa por ese punto.
+- Tocar un medidor quita sus puntas: el siguiente toque en el circuito pone la roja y el siguiente la negra (la pinza o la turbinita con un solo toque). Tocar el medidor otra vez o Esc cancela y regresan a donde estaban.
+- Tocar una punta sin arrastrarla la convierte en un pin pequeño, para dejar el diagrama limpio; otro toque la vuelve a mostrar.
 
-Para eso cada simulación le dice al banco cómo es su circuito con `circuit(g, m, V)`: los tramos de cable, la corriente de cada uno y cuánto voltaje cae en cada componente (ver el comentario en `assets/banco.js`). Si no lo da, el banco supone una sola vuelta con todo el voltaje en el componente de arriba al centro.
+## Colores
+
+Todo va en modo claro, que se lee mejor proyectado. Los colores con significado son los mismos en todas las simulaciones: agua azul, electricidad ámbar, positivo (+) rojo, negativo (−) negro, presión y voltaje morado, caudal y corriente verde, y peligro (corto, quemado) rojo con texto.
 
 ## Simulaciones
 
 1. **Voltaje y presión** (`simulaciones/voltaje-presion/`)
-2. **Resistencia** (`simulaciones/resistencia/`): perilla de resistencia de 0 Ω a 10 kΩ; el tramo angosto cambia con ella. Un puente salta la resistencia para mostrar un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se funde con la inercia; se repone tocándolo.
+2. **Resistencia** (`simulaciones/resistencia/`): perilla de resistencia de 0 Ω a 10 kΩ; el tramo angosto cambia con ella. Un puente salta la resistencia para mostrar un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0; se repone tocándolo.
 3. **Serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
 4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED, girar el LED y quemarlo.
 5. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261019185500">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020063000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,14 +35,14 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261019185500"></script>
-<script src="../../assets/banco.js?v=20261019185500"></script>
+<script src="../../assets/sim.js?v=20261020063000"></script>
+<script src="../../assets/banco.js?v=20261020063000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
   // 0 Ω es un cortocircuito: solo la resistencia interna de la fuente (y de la bomba) limita la corriente.
   const RLIST = [0, 470, 680, 1000, 1500, 2200, 3300, 4700, 6800, 10000];   // ohmios
-  const RINT = 15, IFUSE = 100;          // resistencia interna de la fuente; el fusible aguanta 100 mA
+  const RINT = 15, IFUSE = 100, FUSE_K = 52.5;   // resistencia interna de la fuente; el fusible aguanta 100 mA
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
   const st = { ri: 3, bridge: false, blown: false, heat: 0, peak: 0, breakT: 9, sparks: [] };
   const sides = {};
@@ -74,13 +74,15 @@
       ];
     },
     step(dt, m) {
-      // Arriba de 100 mA el fusible se calienta y se funde cuando pasa el tiempo de la inercia.
-      const T = b.st.tau;
-      if (m.I > IFUSE && !st.blown) {
+      // Arriba de 100 mA el fusible se calienta, aunque la inercia esté en 0: la corriente llega al
+      // instante, pero el hilo tarda en fundirse, y entre más se pasa más rápido (como I²·t).
+      // Con 600 mA tarda 1,5 s; en uno real serían milisegundos, aquí va lento para que se vea.
+      const over = (m.I / IFUSE) ** 2 - 1;
+      if (over > 0 && !st.blown) {
         st.peak = Math.max(st.peak, m.I);
-        st.heat += T > 0 ? dt / T : 1;
+        st.heat += dt * over / FUSE_K;
         if (st.heat >= 1) blow();
-      } else st.heat = Math.max(0, st.heat - dt / Math.max(T, 0.3));
+      } else st.heat = Math.max(0, st.heat - dt / 1.5);
       st.breakT += dt;
       for (const p of st.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; }
       const r = Math.min(m.I, 60) * 6;   // las partículas tienen un tope de rapidez para que se puedan ver

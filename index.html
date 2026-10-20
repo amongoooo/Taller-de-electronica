@@ -11,18 +11,9 @@
 :root {
   --bg: #eaf0f3; --card: #ffffff; --ink: #15212a; --muted: #566a78; --line: #cfd9e0;
   --water: #1874b8; --charge: #c77d00;
+  color-scheme: light;
   --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
   --font-body: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0e151a; --card: #16212a; --ink: #e4ecf1; --muted: #93a6b3; --line: #2a3945;
-    --water: #62b6f2; --charge: #f3b443; color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0e151a; --card: #16212a; --ink: #e4ecf1; --muted: #93a6b3; --line: #2a3945;
-  --water: #62b6f2; --charge: #f3b443; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.5; }
