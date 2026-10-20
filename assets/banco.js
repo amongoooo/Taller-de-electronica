@@ -374,16 +374,25 @@
     const savePinned = () => { try { localStorage.setItem('sim-pinned', JSON.stringify(st.pinned)); } catch (e) {} };
     const shown = kind => st.morph[kind] < 0.5 && !st.stow[kind] && !st.reel[kind];
 
+    // Distancia del contacto al lugar de donde se agarra la punta (su botón): la mitad de la punta o
+    // el círculo del indicador.
+    const grabLen = (side, kind) => {
+      const m = ease(st.morph[kind]);
+      return (kind === 'I' ? 0 : tipLen(side, kind) * 0.55) * (1 - m) + PIN_D * m;
+    };
     // Dónde se dibuja cada punta: contacto (x, y), dirección n hacia su cable y h, qué tan levantada va (0 a 1).
+    // Levantada se sostiene del lugar agarrado (lift.x, lift.y) y gira para que su contacto mire a
+    // la línea más cercana del circuito.
     const pose = (g, kind, i) => {
       const lf = st.lift[kind][i], fl = st.floor[kind][i], dr = st.drop[kind][i];
       if (lf) {
-        const p = st.segs.length && snap(st.segs, lf.x, lf.y, true);
+        const L = grabLen(g.side, kind), cx = lf.x - lf.n[0] * L, cy = lf.y - lf.n[1] * L;
+        const p = st.segs.length && snap(st.segs, cx, cy, true);
         const a = p ? ease(Math.max(0, Math.min(1, 1 - (p.dist - 8) / (MAG - 8)))) : 0;
-        if (!a) return { x: lf.x, y: lf.y, n: lf.n, h: 1 };
-        const f = frameAt(g, kind, i, p.x, p.y, p.dist > 3 ? [lf.x - p.x, lf.y - p.y] : lf.n);
+        if (!a) return { x: cx, y: cy, n: lf.n, h: 1 };
+        const f = frameAt(g, kind, i, p.x, p.y, lf.n);
         const nx = lf.n[0] + (f.n[0] - lf.n[0]) * a, ny = lf.n[1] + (f.n[1] - lf.n[1]) * a, s = Math.hypot(nx, ny) || 1;
-        return { x: lf.x + (p.x - lf.x) * a, y: lf.y + (p.y - lf.y) * a, n: [nx / s, ny / s], h: 1 - 0.6 * a, snap: p };
+        return { x: cx + (p.x - cx) * a, y: cy + (p.y - cy) * a, n: [nx / s, ny / s], h: 1 - 0.6 * a, snap: p };
       }
       if (fl) return { x: fl.x, y: fl.y, n: fl.n, h: 0 };
       const f = frame(g, kind, i);
@@ -399,9 +408,8 @@
       const q = pose(b.gw, kind, i);
       st.lift[kind][i] = null;
       if (q.snap) {
-        const sx = lf.x - q.snap.x, sy = lf.y - q.snap.y;
         st.clamps[kind][i] = [q.snap.x, q.snap.y];
-        st.tipSide[kind][i] = Math.hypot(sx, sy) > 3 ? [sx, sy] : lf.n;
+        st.tipSide[kind][i] = lf.n;
         st.drop[kind][i] = { from: q, t: 0 };
       } else st.floor[kind][i] = { x: q.x, y: q.y, n: q.n };
       b.pw.replace(); b.pe.replace();
@@ -627,11 +635,9 @@
       };
       // Arrastrar levanta la punta (como cable o como indicador, según esté el medidor); tocarla sin
       // arrastrar cambia el medidor entre cables e indicadores, para limpiar el diagrama.
-      let down = null, dragged = false, off = [0, 0];
+      let down = null, dragged = false;
       el.addEventListener('pointerdown', e => {
         el.setPointerCapture(e.pointerId); el.focus(); down = [e.clientX, e.clientY]; dragged = false; e.preventDefault();
-        const [x, y] = toDrawing(e), q = pose(geo(side), kind, i);
-        off = [q.x - x, q.y - y];   // el contacto se mueve con el puntero sin brincar hacia él
       });
       el.addEventListener('pointermove', e => {
         if (!el.hasPointerCapture(e.pointerId)) return;
@@ -642,7 +648,7 @@
         }
         dragged = true;
         const [x, y] = toDrawing(e);
-        Object.assign(st.lift[kind][i], { x: x + off[0], y: y + off[1] });
+        Object.assign(st.lift[kind][i], { x, y });
         b.pw.replace(); b.pe.replace();
       });
       const up = () => release(kind, i);
@@ -985,8 +991,15 @@
         if (r0 && !st.reel[kind]) syncs.forEach(f => f());
         moved = moved || st.morph[kind] !== m0 || st.reel[kind] !== r0;
         for (let i = 0; i < NP[kind]; i++) {
-          const dr = st.drop[kind][i];
+          const dr = st.drop[kind][i], lf = st.lift[kind][i];
           st.click[kind][i] += dt;
+          // levantada, la punta gira poco a poco para que su contacto mire a la línea más cercana
+          const p = lf && st.segs.length && snap(st.segs, lf.x, lf.y, true);
+          if (p && p.dist > 1) {
+            const a0 = Math.atan2(lf.n[1], lf.n[0]), a1 = Math.atan2(lf.y - p.y, lf.x - p.x);
+            const d = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)), an = a0 + d * (1 - Math.exp(-dt * 14));
+            if (Math.abs(d) > 1e-3) { lf.n = [Math.cos(an), Math.sin(an)]; moved = true; }
+          }
           if (dr && (dr.t += dt) >= DROP) { st.drop[kind][i] = null; st.click[kind][i] = 0; }
           if (dr) moved = true;
         }
