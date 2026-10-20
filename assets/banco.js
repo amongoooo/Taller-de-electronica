@@ -324,9 +324,9 @@
     st.lift = per(null); st.floor = per(null); st.drop = per(null); st.click = per(9);
     const MAG = 60, DROP = 0.16, MORPH = 0.35, REEL = 0.9;
     const ease = u => u * u * (3 - 2 * u);
-    // Recoger: stow es si cada medidor tiene sus cables guardados; reel va de 0 (afuera) a 1 (adentro).
-    st.stow = { V: false, I: false }; st.reel = { V: 0, I: 0 };
-    const connected = (kind, i) => st.placed[kind][i] && !st.lift[kind][i] && !st.floor[kind][i] && !st.drop[kind][i] && !st.stow[kind] && !st.reel[kind];
+    // Recoger: reel va de 0 a 1 mientras una punta que quedó en el suelo entra a su medidor.
+    st.reel = per(0);
+    const connected = (kind, i) => st.placed[kind][i] && !st.lift[kind][i] && !st.floor[kind][i] && !st.drop[kind][i] && !st.reel[kind][i];
     const ready = kind => st.placed[kind].every((_, i) => connected(kind, i));
     // Medidores junto al controlador (ver los acomodos); los bornes arriba de cada uno.
     const meterAt = (g, kind) => g.meters[kind];
@@ -370,14 +370,14 @@
     // también mientras se arrastran sus puntas. Se recuerda en este navegador. morph va de 0 (cables)
     // a 1 (indicadores) para pasar de uno a otro poco a poco.
     try { Object.assign(st.pinned, JSON.parse(localStorage.getItem('sim-pinned') || '{}')); } catch (e) {}
-    st.morph = { V: st.pinned.V ? 1 : 0, I: st.pinned.I ? 1 : 0 };
+    st.morph = { V: [+st.pinned.V, +st.pinned.V], I: [+st.pinned.I] };   // de cada punta
     const savePinned = () => { try { localStorage.setItem('sim-pinned', JSON.stringify(st.pinned)); } catch (e) {} };
-    const shown = kind => st.morph[kind] < 0.5 && !st.stow[kind] && !st.reel[kind];
+    const shown = (kind, i) => st.morph[kind][i] < 0.5 && !st.reel[kind][i];
 
     // Distancia del contacto al lugar de donde se agarra la punta (su botón): la mitad de la punta o
     // el círculo del indicador.
-    const grabLen = (side, kind) => {
-      const m = ease(st.morph[kind]);
+    const grabLen = (side, kind, i) => {
+      const m = ease(st.morph[kind][i]);
       return (kind === 'I' ? 0 : tipLen(side, kind) * 0.55) * (1 - m) + PIN_D * m;
     };
     // Dónde se dibuja cada punta: contacto (x, y), dirección n hacia su cable y h, qué tan levantada va (0 a 1).
@@ -386,7 +386,7 @@
     const pose = (g, kind, i) => {
       const lf = st.lift[kind][i], fl = st.floor[kind][i], dr = st.drop[kind][i];
       if (lf) {
-        const L = grabLen(g.side, kind), cx = lf.x - lf.n[0] * L, cy = lf.y - lf.n[1] * L;
+        const L = grabLen(g.side, kind, i), cx = lf.x - lf.n[0] * L, cy = lf.y - lf.n[1] * L;
         const p = st.segs.length && snap(st.segs, cx, cy, true);
         const a = p ? ease(Math.max(0, Math.min(1, 1 - (p.dist - 8) / (MAG - 8)))) : 0;
         if (!a) return { x: cx, y: cy, n: lf.n, h: 1 };
@@ -428,7 +428,7 @@
     const ropeStep = (side, g, kind, i, dt) => {
       const key = kind + i;
       if (!st.placed[kind][i]) { delete ropes[side][key]; return; }
-      if (st.reel[kind] && ropes[side][key]) return;   // mientras se recoge el cable no se mueve solo
+      if (st.reel[kind][i] && ropes[side][key]) return;   // mientras se recoge el cable no se mueve solo
       const f = pose(g, kind, i), L = tipLen(side, kind);
       const A = [f.x + f.n[0] * L, f.y + f.n[1] * L], A2 = [A[0] + f.n[0] * BOOT, A[1] + f.n[1] * BOOT];
       const B = jack(g, kind, i), span = Math.hypot(B[0] - A2[0], B[1] - A2[1]);
@@ -443,7 +443,12 @@
       }
       const hk = held && held.key === key ? held.k : -1;
       if (hk > 0) r.len = Math.max(r.len, (Math.hypot(held.x - A2[0], held.y - A2[1]) + Math.hypot(B[0] - held.x, B[1] - held.y)) * 1.04);
-      r.len = Math.max(r.len, span * 1.04 + 12);
+      // Recoger tensa el cable de una punta conectada: el medidor jala lo que sobra poco a poco
+      // (tenso, ya no deja la holgura de siempre hasta que se vuelva a mover)
+      if (hk > 0 || st.lift[kind][i]) r.taut = false;
+      const slack = r.taut || r.tense > 0 ? span * 1.005 + 2 : span * 1.04 + 12;
+      if (r.tense > 0) { r.tense -= dt; r.taut = true; r.len += (slack - r.len) * (1 - Math.exp(-dt * 7)); }
+      r.len = Math.max(r.len, slack);
       const rest = r.len / (NR - 1);
       // roce: sin inercia casi toda la velocidad se pierde en un instante; con inercia sigue deslizándose.
       // Un cable rígido roza más (pesa más), así no se queda temblando.
@@ -496,7 +501,7 @@
       const still = 0.15 + 0.35 * cable.stiff;
       for (let k = 1; k < NR - 1; k++) {
         const q = r[k];
-        if (k !== hk && Math.hypot(q.x - q.px, q.y - q.py) < still) { q.x = q.px; q.y = q.py; }
+        if (k !== hk && !(r.tense > 0) && Math.hypot(q.x - q.px, q.y - q.py) < still) { q.x = q.px; q.y = q.py; }
       }
       r.A = A;
     };
@@ -526,29 +531,26 @@
       wrap.append(btn, pop);
       bar.querySelector('.ctl').appendChild(wrap);
     }
-    // Botón "Recoger": como una aspiradora, cada medidor jala su cable (o manguera) hasta guardarlo
-    // con su punta; otra vez lo saca y las puntas regresan a donde estaban.
+    // Botón "Recoger": como una aspiradora, los medidores jalan sus cables (o mangueras). Las puntas
+    // conectadas se quedan donde están y su cable se tensa; las que quedaron en el suelo entran al
+    // medidor. Para volver a ponerlas se toca el medidor.
     const reelBtn = document.createElement('button');
     reelBtn.type = 'button'; reelBtn.className = 'sim-cable-btn sim-reel-btn';
-    const reelKinds = () => ['V', 'I'].filter(k => st.show[k] && st.placed[k].some(Boolean));
-    const syncReel = () => {
-      const ks = reelKinds(), stowed = ks.length > 0 && ks.every(k => st.stow[k]);
-      reelBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">' +
-        '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/>' +
-        (stowed ? '<path d="M12 4h8"/>' : '<path d="M20 12a8 8 0 0 0-8-8"/>') + '</svg><span class="lbl">' + (stowed ? 'Sacar' : 'Recoger') + '</span>';
-      reelBtn.setAttribute('aria-label', stowed ? 'Sacar los cables y mangueras de los medidores' : 'Recoger los cables y mangueras en sus medidores');
-      reelBtn.disabled = !ks.length;
-      reelBtn.setAttribute('aria-pressed', String(stowed));
-    };
+    reelBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">' +
+      '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M20 12a8 8 0 0 0-8-8"/></svg><span class="lbl">Recoger</span>';
+    reelBtn.setAttribute('aria-label', 'Recoger los cables y mangueras: tensa los conectados y guarda en su medidor los que están en el suelo');
+    const syncReel = () => { reelBtn.disabled = !['V', 'I'].some(k => st.show[k] && st.placed[k].some(Boolean)); };
     reelBtn.addEventListener('click', () => {
-      const ks = reelKinds(), stow = !(ks.length && ks.every(k => st.stow[k]));
       if (st.placing) setPlacing(null);
-      ks.forEach(k => {
-        st.stow[k] = stow;
-        if (stow) for (let i = 0; i < NP[k]; i++) { release(k, i); st.drop[k][i] = null; }
+      ['V', 'I'].forEach(k => {
+        if (!st.show[k]) return;
+        for (let i = 0; i < NP[k]; i++) {
+          if (!st.placed[k][i] || st.lift[k][i]) continue;
+          if (st.floor[k][i]) { if (!st.reel[k][i]) st.reel[k][i] = 1e-6; }
+          else ['w', 'e'].forEach(side => { const r = ropes[side][k + i]; if (r) r.tense = 0.8; });
+        }
       });
-      held = null;
-      syncs.forEach(f => f()); syncReel();
+      syncs.forEach(f => f());
     });
     bar.querySelector('.ctl').appendChild(reelBtn);
     syncReel();
@@ -556,7 +558,7 @@
     const nearRope = (side, x, y) => {
       let best = null;
       for (const key in ropes[side]) {
-        if (!st.show[key[0]] || !shown(key[0])) continue;
+        if (!st.show[key[0]] || !shown(key[0], +key[1])) continue;
         ropes[side][key].forEach((q, k) => {
           if (k < 2 || k > NR - 2) return;
           const d = Math.hypot(q.x - x, q.y - y);
@@ -624,7 +626,7 @@
       el.type = 'button'; el.className = 'sim-clamp';
       el.setAttribute('aria-label', `${tipName(kind, i, side)}: arrástrala o usa las flechas para moverla; tócala para cambiar entre cable e indicador`);
       b.place(side, el, g => {
-        const f = pose(g, kind, i), m = ease(st.morph[kind]);
+        const f = pose(g, kind, i), m = ease(st.morph[kind][i]);
         const L = (kind === 'I' ? 0 : tipLen(side, kind) * 0.55) * (1 - m) + PIN_D * m;
         return [f.x + f.n[0] * L, f.y + f.n[1] * L];
       });
@@ -665,20 +667,22 @@
         moveClamp(kind, i, x + step[0], y + step[1]);
         e.preventDefault();
       });
-      const sync = () => { el.hidden = !st.placed[kind][i] || !st.show[kind] || st.stow[kind] || st.reel[kind] > 0; };
+      const sync = () => { el.hidden = !st.placed[kind][i] || !st.show[kind] || st.reel[kind][i] > 0; };
       syncs.push(sync); sync();
     })));
 
     // Tocar un medidor quita sus puntas del circuito y lo prepara para conectarse: el siguiente toque
     // pone la punta roja (+) y el siguiente la negra (−); el amperímetro solo necesita un toque para su
-    // pinza. Tocar el medidor otra vez o Esc cancela y las puntas regresan a donde estaban.
+    // pinza. Si una punta está guardada en el medidor, solo se pone esa. Tocar el medidor otra vez o
+    // Esc cancela y las puntas regresan a donde estaban.
     st.placing = null;
     const setPlacing = v => {
-      if (!v && st.placing) st.placed[st.placing.kind] = st.placed[st.placing.kind].map(() => true);
-      if (v && v.i === 0) {
-        st.placed[v.kind] = st.placed[v.kind].map(() => false);
-        st.stow[v.kind] = false; st.reel[v.kind] = 0;
-        ['lift', 'floor', 'drop'].forEach(k => { st[k][v.kind] = st[k][v.kind].map(() => null); });
+      if (st.placing && (!v || !v.prev)) st.placed[st.placing.kind] = st.placing.prev.slice();
+      if (v && !v.prev) {
+        v.prev = st.placed[v.kind].slice();
+        v.todo = v.prev.some(Boolean) && !v.prev.every(Boolean) ? v.prev.map((p, i) => p ? -1 : i).filter(i => i >= 0) : st.placed[v.kind].map((_, i) => i);
+        v.i = v.todo[0];
+        v.todo.forEach(i => { st.placed[v.kind][i] = false; st.reel[v.kind][i] = 0; ['lift', 'floor', 'drop'].forEach(k => { st[k][v.kind][i] = null; }); });
         syncReel();
       }
       st.placing = v;
@@ -713,8 +717,9 @@
         const x = (e.clientX - r.left - p.ox) / p.scale, y = (e.clientY - r.top - p.oy) / p.scale;
         moveClamp(kind, i, x, y, x, y);
         st.placed[kind][i] = true; st.click[kind][i] = 0;
-        if (i + 1 < NP[kind]) { st.placing = { kind, i: i + 1 }; syncs.forEach(f => f()); }
-        else setPlacing(null);
+        const next = st.placing.todo[st.placing.todo.indexOf(i) + 1];
+        if (next !== undefined) { st.placing.i = next; syncs.forEach(f => f()); }
+        else { st.placing.prev = st.placed[kind].slice(); setPlacing(null); }
         swallow = true; e.preventDefault(); e.stopPropagation();
       }, true);
       p.box.addEventListener('click', e => { if (swallow) { swallow = false; e.preventDefault(); e.stopPropagation(); } }, true);
@@ -741,15 +746,15 @@
     // Al cambiar a indicadores el cable se desvanece; al recogerlo solo se dibuja lo que falta por
     // entrar al medidor.
     const drawCables = (ctx, g, kind) => {
-      const m = ease(st.morph[kind]);
-      if (!st.show[kind] || m >= 1 || st.reel[kind] >= 1) return;
+      if (!st.show[kind]) return;
       const side = g.side;
-      ctx.save(); ctx.globalAlpha = 1 - m;
+      ctx.save();
       for (let i = 0; i < NP[kind]; i++) {
-        const r = ropes[side][kind + i];
-        if (!r || !r.A || !st.placed[kind][i]) continue;
-        const rp = st.reel[kind] ? reelPose(side, kind, i) : null;
-        if (st.reel[kind] && !rp) continue;
+        const r = ropes[side][kind + i], m = ease(st.morph[kind][i]);
+        if (!r || !r.A || !st.placed[kind][i] || m >= 1) continue;
+        ctx.globalAlpha = 1 - m;
+        const rp = st.reel[kind][i] ? reelPose(side, kind, i) : null;
+        if (st.reel[kind][i] && !rp) continue;
         const pts = rp ? rp.rest : null;
         if (side === 'w' && kind === 'V') { D.hose(ctx, pts || ropePoints(r), jackColor(kind, i)); continue; }   // con la raya de su borne
         if (pts) { ctx.beginPath(); pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); }
@@ -768,7 +773,7 @@
       const r = ropes[side][kind + i];
       if (!r || !r.A) return null;
       const pts = ropePoints(r);
-      let s = ease(st.reel[kind]) * D.len(pts);
+      let s = ease(st.reel[kind][i]) * D.len(pts);
       for (let k = 1; k < pts.length; k++) {
         const a = pts[k - 1], c = pts[k], l = Math.hypot(c[0] - a[0], c[1] - a[1]);
         if (s > l || !l) { s -= l; continue; }
@@ -781,11 +786,11 @@
     // Las puntas de cada medidor en el circuito, con su refuerzo (o indicadores si se ocultaron los cables).
     // Una punta levantada se ve más grande y con sombra; al conectarse sale un anillo de su color.
     const drawTips = (ctx, g, kind) => {
-      if (!st.show[kind] || st.reel[kind] >= 1) return;
-      const m = ease(st.morph[kind]);
+      if (!st.show[kind]) return;
       for (let i = 0; i < NP[kind]; i++) {
         if (!st.placed[kind][i]) continue;
-        const q = st.reel[kind] ? reelPose(g.side, kind, i) : pose(g, kind, i), col = jackColor(kind, i);
+        const m = ease(st.morph[kind][i]);
+        const q = st.reel[kind][i] ? reelPose(g.side, kind, i) : pose(g, kind, i), col = jackColor(kind, i);
         if (!q) continue;
         const live = connected(kind, i), u = st.click[kind][i] / 0.4;
         if (u < 1) { ctx.globalAlpha = 1 - u; D.circle(ctx, q.x, q.y, 8 + 26 * u, null, col, 3); ctx.globalAlpha = 1; }
@@ -982,15 +987,16 @@
     const animate = dt => {
       let moved = false;
       for (const kind of ['V', 'I']) {
-        const m0 = st.morph[kind], r0 = st.reel[kind];
-        const target = st.pinned[kind] && !st.stow[kind] && !r0 ? 1 : 0;
-        st.morph[kind] = target ? Math.min(1, m0 + dt / MORPH) : Math.max(0, m0 - dt / MORPH);
-        // al recoger primero se vuelve cable y luego entra; al sacarlo, al revés
-        if (st.stow[kind] && !st.morph[kind]) st.reel[kind] = Math.min(1, r0 + dt / REEL);
-        if (!st.stow[kind]) st.reel[kind] = Math.max(0, r0 - dt / REEL);
-        if (r0 && !st.reel[kind]) syncs.forEach(f => f());
-        moved = moved || st.morph[kind] !== m0 || st.reel[kind] !== r0;
         for (let i = 0; i < NP[kind]; i++) {
+          // al recoger una punta del suelo primero se vuelve cable y luego entra al medidor
+          const m0 = st.morph[kind][i], r0 = st.reel[kind][i];
+          st.morph[kind][i] = st.pinned[kind] && !r0 ? Math.min(1, m0 + dt / MORPH) : Math.max(0, m0 - dt / MORPH);
+          if (r0 && !st.morph[kind][i]) st.reel[kind][i] = Math.min(1, r0 + dt / REEL);
+          if (st.reel[kind][i] >= 1) {   // ya entró: queda guardada hasta que se vuelva a poner
+            st.reel[kind][i] = 0; st.placed[kind][i] = false; st.floor[kind][i] = null;
+            syncs.forEach(f => f()); syncReel();
+          }
+          if (st.morph[kind][i] !== m0 || st.reel[kind][i] !== r0) moved = true;
           const dr = st.drop[kind][i], lf = st.lift[kind][i];
           st.click[kind][i] += dt;
           // levantada, la punta gira poco a poco para que su contacto mire a la línea más cercana
