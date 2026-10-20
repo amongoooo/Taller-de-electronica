@@ -209,24 +209,76 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-bar .sim-cable-pop input[type="range"] { width: 100%; }
 .sim-cable-pop[hidden] { display: none; }
 
-/* Pasos: Anterior y Siguiente en la barra, para las páginas que van apareciendo de a poco (Sim.steps). */
-.sim-steps { display: flex; align-items: center; gap: 8px; }
-.sim-steps button {
-  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 4px 12px; border-radius: 999px;
-  border: 2px solid var(--water); background: var(--water); color: var(--card);
+/* Franja de navegación entre la barra y el circuito: botones grandes para cambiar de simulación y,
+   en medio, la barra de progreso de los pasos con sus botones chicos (Sim.steps). */
+.sim-page.has-nav { grid-template-rows: auto auto 1fr; }
+.sim-page.has-nav .sim-bar { border-bottom: 0; padding-bottom: 4px; }
+.sim-nav {
+  display: flex; align-items: center; gap: 12px;
+  padding: 4px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--card); border-bottom: 1px solid var(--line);
 }
-.sim-steps button.prev { background: var(--bg); color: var(--water); }
-.sim-steps button:disabled { cursor: default; opacity: .35; }
-.sim-steps .num { font-family: var(--font-mono); font-size: 14px; color: var(--muted); white-space: nowrap; }
-.sim-steps .short { display: none; }
+.sim-go {
+  flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px;
+  height: 38px; padding: 0 16px 0 12px; border-radius: 999px; text-decoration: none;
+  font-weight: 700; font-size: 15px; border: 2px solid var(--water); color: var(--water); background: var(--bg);
+  transition: background .15s, box-shadow .15s;
+}
+span.sim-go { visibility: hidden; width: 38px; padding: 0; }
+.sim-go.next { flex-direction: row-reverse; padding: 0 12px 0 16px; }
+.sim-go:hover { background: var(--water-soft); }
+.sim-go .arr svg { display: block; width: 20px; height: 20px; }
+.sim-go .n {
+  flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  font-family: var(--font-mono); font-size: 13px; background: var(--water); color: var(--card);
+}
+.sim-go .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22ch; }
+.sim-nav[data-last="true"] .sim-go.next { background: var(--water); color: var(--card); animation: sim-go-pulse 1.8s ease-out 3; }
+.sim-nav[data-last="true"] .sim-go.next .n { background: var(--card); color: var(--water); }
+@keyframes sim-go-pulse { 0% { box-shadow: 0 0 0 0 rgba(24, 116, 184, .45); } 100% { box-shadow: 0 0 0 12px rgba(24, 116, 184, 0); } }
+.sim-track { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; }
+/* Sin pasos queda solo una línea delgada entre los dos botones. */
+.sim-track:empty { height: 2px; border-radius: 2px; background: var(--line); }
+
+.sim-steps { flex: 1 1 auto; max-width: 720px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sim-steps .body { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+.sim-steps .num { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; line-height: 1.2; }
+.sim-steps .num b { font-family: var(--font-mono); font-weight: 500; }
+.sim-steps .num .name { color: var(--ink); font-weight: 700; }
+.sim-steps .segs { display: flex; gap: 4px; }
+.sim-steps .seg {
+  flex: 1 1 0; position: relative; height: 6px; padding: 0; border: 0; border-radius: 3px; cursor: pointer;
+  background: var(--line); transition: background .25s;
+}
+.sim-steps .seg::before { content: ""; position: absolute; inset: -7px 0; }   /* más fácil de tocar */
+.sim-steps .seg[data-on="true"] { background: var(--water); }
+.sim-steps .seg:hover { background: var(--muted); }
+.sim-steps .seg[data-on="true"]:hover { background: #135f97; }
+.sim-steps .step {
+  flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--water); background: var(--card); color: var(--water);
+  display: grid; place-items: center;
+}
+.sim-steps .step svg { width: 16px; height: 16px; }
+.sim-steps .step.next { background: var(--water); color: var(--card); }
+.sim-steps .step:disabled { cursor: default; opacity: .3; }
+/* Si una página sin franja usa pasos, quedan en la barra de arriba. */
+.sim-bar .sim-steps { flex: 0 1 260px; }
+
 @media (max-width: 600px), (max-height: 500px) {
-  .sim-steps { gap: 4px; }
-  .sim-steps button { font-size: 0; padding: 2px 10px; }
-  .sim-steps button.prev::before { content: "‹"; font-size: 20px; line-height: 1; }
-  .sim-steps button.next::before { content: "›"; font-size: 20px; line-height: 1; }
-  .sim-steps .num { font-size: 13px; }
-  .sim-steps .long { display: none; }
-  .sim-steps .short { display: inline; }
+  .sim-nav { gap: 8px; padding-top: 2px; padding-bottom: 6px; }
+  .sim-go { padding: 0 10px 0 6px; gap: 4px; height: 36px; }
+  .sim-go.next { padding: 0 6px 0 10px; }
+  span.sim-go { width: 36px; }
+  .sim-go .name { display: none; }
+  .sim-steps { gap: 6px; }
+}
+@media (max-height: 500px) {
+  .sim-nav { padding-top: 0; padding-bottom: 4px; }
+  .sim-go { height: 30px; }
+  .sim-steps .step { width: 24px; height: 24px; }
+  /* En el celular acostado, el nombre del paso va a un lado de la barra para ocupar una sola línea. */
+  .sim-steps .body { grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
 }
 /* Botón para recoger o sacar los cables de los medidores. */
 .sim-reel-btn { display: inline-flex; align-items: center; gap: 6px; }
