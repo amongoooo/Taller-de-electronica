@@ -547,34 +547,78 @@
     update();
   };
 
-  // ---------- pasos: botones Anterior y Siguiente en la barra de arriba ----------
+  // ---------- navegación: franja entre la barra de arriba y el circuito ----------
+  // A los lados, botones grandes para ir a la simulación anterior o siguiente (en el orden del taller).
+  // En medio, si la página va por pasos (Sim.steps), una barra de progreso delgada con botones chicos.
+  Sim.ORDER = [
+    ['voltaje-presion', 'Voltaje y corriente'],
+    ['resistencia', 'Ley de Ohm'],
+    ['resistencias-serie-paralelo', 'Resistencias en serie y paralelo'],
+    ['interruptor-led', 'Interruptor y LED'],
+    ['serie-paralelo', 'LEDs en serie y paralelo'],
+    ['protoboard', 'Protoboard'],
+    ['capacitores', 'Capacitores'],
+    ['osciloscopio', 'Osciloscopio']
+  ];
+  const chev = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d < 0 ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'}"/></svg>`;
+  const nav = (() => {
+    const bar = document.querySelector('.sim-bar'), m = /\/simulaciones\/([^/]+)\//.exec(location.pathname);
+    const i = m ? Sim.ORDER.findIndex(s => s[0] === m[1]) : -1;
+    if (!bar || i < 0) return null;
+    const el = document.createElement('nav');
+    el.className = 'sim-nav';
+    el.setAttribute('aria-label', 'Simulaciones y pasos');
+    const link = (j, cls) => {
+      const s = Sim.ORDER[j];
+      if (!s) return `<span class="sim-go ${cls}" aria-hidden="true"></span>`;
+      const name = `${j + 1}. ${s[1]}`;
+      return `<a class="sim-go ${cls}" href="../${s[0]}/" title="${cls === 'prev' ? 'Simulación anterior' : 'Siguiente simulación'}: ${name}"` +
+        ` aria-label="${cls === 'prev' ? 'Simulación anterior' : 'Siguiente simulación'}: ${name}">` +
+        `<span class="arr">${chev(cls === 'prev' ? -1 : 1)}</span><span class="n">${j + 1}</span><span class="name">${s[1]}</span></a>`;
+    };
+    el.innerHTML = link(i - 1, 'prev') + '<div class="sim-track"></div>' + link(i + 1, 'next');
+    bar.after(el);
+    document.querySelector('.sim-page').classList.add('has-nav');
+    return el;
+  })();
+
   // Para las páginas que van apareciendo de a poco: steps es una lista de nombres y go(k) se llama
   // con el paso elegido (de 0 a steps.length − 1). El paso queda en la dirección (#paso-2), así que
   // se puede recargar o compartir en ese paso.
   Sim.steps = (steps, go) => {
-    const bar = document.querySelector('.sim-bar'), n = steps.length;
+    const n = steps.length, track = nav && nav.querySelector('.sim-track');
     const wrap = document.createElement('div');
     wrap.className = 'sim-steps';
     wrap.innerHTML =
-      '<button type="button" class="prev" aria-label="Paso anterior">‹ Anterior</button>' +
-      '<span class="num" aria-live="polite"></span>' +
-      '<button type="button" class="next" aria-label="Paso siguiente">Siguiente ›</button>';
+      '<button type="button" class="step prev" aria-label="Paso anterior">' + chev(-1) + '</button>' +
+      '<div class="body"><span class="num" aria-live="polite"></span><div class="segs"></div></div>' +
+      '<button type="button" class="step next" aria-label="Paso siguiente">' + chev(1) + '</button>';
     const prev = wrap.querySelector('.prev'), next = wrap.querySelector('.next'), num = wrap.querySelector('.num');
+    const segs = steps.map((name, j) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'seg'; b.title = `Paso ${j + 1}: ${name}`;
+      b.setAttribute('aria-label', `Ir al paso ${j + 1}: ${name}`);
+      b.addEventListener('click', () => set(j, true));
+      wrap.querySelector('.segs').appendChild(b);
+      return b;
+    });
     const fromHash = () => { const m = /^#paso-(\d+)$/.exec(location.hash); return m ? Math.min(n, Math.max(1, +m[1])) - 1 : 0; };
     let k = -1;
     const set = (j, push) => {
       if (j === k) return;
       k = j;
-      num.innerHTML = `<span class="long">Paso ${k + 1} de ${n}</span><span class="short">${k + 1}/${n}</span>`;
-      num.title = steps[k];
+      num.innerHTML = `<b>${k + 1}/${n}</b> <span class="name">${steps[k]}</span>`;
+      segs.forEach((b, i) => { b.dataset.on = String(i <= k); b.toggleAttribute('aria-current', i === k); });
       prev.disabled = k === 0; next.disabled = k === n - 1;
+      if (nav) nav.dataset.last = String(k === n - 1);
       if (push) history.replaceState(null, '', k ? `#paso-${k + 1}` : location.pathname + location.search);
       go(k);
     };
     prev.addEventListener('click', () => set(Math.max(0, k - 1), true));
     next.addEventListener('click', () => set(Math.min(n - 1, k + 1), true));
     window.addEventListener('hashchange', () => set(fromHash(), false));
-    bar.insertBefore(wrap, bar.querySelector('h1').nextSibling);
+    if (track) track.appendChild(wrap);
+    else { const bar = document.querySelector('.sim-bar'); bar.insertBefore(wrap, bar.querySelector('h1').nextSibling); }
     set(fromHash(), false);
   };
 
