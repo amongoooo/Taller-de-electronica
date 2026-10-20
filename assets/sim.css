@@ -180,3 +180,4 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-cable-pop .name { font-weight: 700; min-width: 4.5em; }
 .sim-cable-pop .lo, .sim-cable-pop .hi { font-weight: 400; color: var(--muted); font-size: 13px; }
 .sim-bar .sim-cable-pop input[type="range"] { width: 100%; }
+.sim-cable-pop[hidden] { display: none; }

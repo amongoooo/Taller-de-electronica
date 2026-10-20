@@ -314,8 +314,10 @@
     };
     const jackColor = (kind, i) => kind === 'I' ? PROBE.I : i ? C.ink : RED;
 
-    // Cada punta toca el circuito de forma perpendicular, del lado que mira hacia su medidor.
+    // Cada punta toca el circuito de forma perpendicular, del lado donde estaba el puntero al ponerla o
+    // arrastrarla (adentro o afuera del circuito); si no hay, del lado que mira hacia su medidor.
     // Devuelve el punto de contacto y la dirección n hacia afuera del cable.
+    st.tipSide = { V: [null, null], I: [null] };
     const frame = (g, kind, i) => {
       const [x, y] = st.clamps[kind][i];
       let n = [0, 1];
@@ -325,8 +327,9 @@
         const a = D.pointAt(pts, Math.max(0, p.d - 3)), c = D.pointAt(pts, Math.min(L, p.d + 3));
         const tx = c[0] - a[0], ty = c[1] - a[1], s = Math.hypot(tx, ty) || 1;
         n = [-ty / s, tx / s];
-        const [jx, jy] = jack(g, kind, i);
-        if (n[0] * (jx - x) + n[1] * (jy - y) < 0) n = [-n[0], -n[1]];
+        const [jx, jy] = jack(g, kind, i), pref = st.tipSide[kind][i];
+        const [sx, sy] = pref || [jx - x, jy - y];
+        if (n[0] * sx + n[1] * sy < 0) n = [-n[0], -n[1]];
       }
       return { x, y, n };
     };
@@ -470,10 +473,12 @@
 
     // Cada punta se arrastra (o se mueve con las flechas por el cable). Los dos paneles comparten
     // las puntas, igual que la bomba y la fuente.
-    const moveClamp = (kind, i, x, y) => {
+    // (cx, cy): dónde está el puntero, para saber de qué lado del cable va la punta.
+    const moveClamp = (kind, i, x, y, cx, cy) => {
       const p = snap(st.segs, x, y);
       if (!p) return;
       st.clamps[kind][i] = [p.x, p.y];
+      if (cx !== undefined && Math.hypot(cx - p.x, cy - p.y) > 3) st.tipSide[kind][i] = [cx - p.x, cy - p.y];
       b.pw.replace(); b.pe.replace();
     };
     const tipName = (kind, i, side) => kind === 'I'
@@ -494,18 +499,16 @@
       };
       // Arrastrar mueve la punta (y siempre la muestra con su cable y su región); tocarla sin
       // arrastrar la convierte en un pin pequeño para limpiar el diagrama, o la vuelve a mostrar.
-      let down = null, dragged = false, grab = [0, 0];
+      let down = null, dragged = false;
       el.addEventListener('pointerdown', e => {
         el.setPointerCapture(e.pointerId); el.focus(); down = [e.clientX, e.clientY]; dragged = false; e.preventDefault();
-        const [x, y] = toDrawing(e), [cx, cy] = st.clamps[kind][i];
-        grab = [cx - x, cy - y];   // se agarra del cuerpo pero se mueve el contacto
       });
       el.addEventListener('pointermove', e => {
         if (!el.hasPointerCapture(e.pointerId)) return;
         if (!dragged && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) return;
         dragged = true; st.pinned[kind] = false;
         const [x, y] = toDrawing(e);
-        moveClamp(kind, i, x + grab[0], y + grab[1]);
+        moveClamp(kind, i, x, y, x, y);   // el contacto va al punto del cable más cercano, del lado del puntero
       });
       el.addEventListener('click', () => { if (!dragged) st.pinned[kind] = !st.pinned[kind]; dragged = false; });
       el.addEventListener('keydown', e => {
@@ -548,7 +551,8 @@
         const r = p.box.getBoundingClientRect();
         const { kind, i } = st.placing;
         st.pinned[kind] = false;
-        moveClamp(kind, i, (e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale);
+        const x = (e.clientX - r.left - p.ox) / p.scale, y = (e.clientY - r.top - p.oy) / p.scale;
+        moveClamp(kind, i, x, y, x, y);
         st.placed[kind][i] = true;
         if (i + 1 < NP[kind]) { st.placing = { kind, i: i + 1 }; syncs.forEach(f => f()); }
         else setPlacing(null);
