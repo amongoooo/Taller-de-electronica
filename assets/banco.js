@@ -338,6 +338,10 @@
     // mueve donde la jalan. Se puede agarrar del cuerpo para acomodarlo; si hace falta, sale más
     // cable del medidor, y se queda donde se dejó.
     const NR = 24, ropes = { w: {}, e: {} };
+    // Ajustes del cable (botón "Cables" de la barra), de 0 a 1: rigidez (qué tanto se resiste a
+    // doblarse) e inercia (qué tanto sigue deslizándose al soltarlo). Se recuerdan en este navegador.
+    const cable = { stiff: 0.3, inertia: 0.4 };
+    try { Object.assign(cable, JSON.parse(localStorage.getItem('sim-cable') || '{}')); } catch (e) {}
     let held = null;   // punto del cable que se está arrastrando: { key, k, x, y }
     const ropeStep = (side, g, kind, i, dt) => {
       const key = kind + i;
@@ -358,7 +362,9 @@
       if (hk > 0) r.len = Math.max(r.len, (Math.hypot(held.x - A2[0], held.y - A2[1]) + Math.hypot(B[0] - held.x, B[1] - held.y)) * 1.04);
       r.len = Math.max(r.len, span * 1.04 + 12);
       const rest = r.len / (NR - 1);
-      const fr = Math.pow(0.02, Math.min(dt, 1 / 30));   // roce: casi toda la velocidad se pierde en un instante
+      // roce: sin inercia casi toda la velocidad se pierde en un instante; con inercia sigue deslizándose
+      const fr = Math.pow(Math.exp(Math.log(1e-4) * (1 - cable.inertia) + Math.log(0.6) * cable.inertia), Math.min(dt, 1 / 30));
+      const bend = 2 * rest * cable.stiff * 0.97;   // distancia mínima entre puntos a dos de distancia
       for (const q of r) {
         const vx = (q.x - q.px) * fr, vy = (q.y - q.py) * fr;
         q.px = q.x; q.py = q.y; q.x += vx; q.y += vy;
@@ -376,9 +382,53 @@
           a.x += dx * e * wa; a.y += dy * e * wa;
           c.x -= dx * e * wc; c.y -= dy * e * wc;
         }
+        // rigidez: dos puntos separados por uno no se pueden acercar demasiado, así no se dobla en seco
+        for (let k = 2; k < NR; k++) {
+          const a = r[k - 2], c = r[k], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
+          if (d >= bend) continue;
+          const wa = fixed(k - 2) ? 0 : 1, wc = fixed(k) ? 0 : 1;
+          if (!wa && !wc) continue;
+          const e = 0.5 * (d - bend) / d / (wa + wc);
+          a.x += dx * e * wa; a.y += dy * e * wa;
+          c.x -= dx * e * wc; c.y -= dy * e * wc;
+        }
+      }
+      // un cable rígido no hace ondas chicas: cada punto se acerca un poco a la línea de sus vecinos,
+      // así lo que sobra se acomoda en una sola curva amplia
+      const sm = 0.25 * cable.stiff;
+      if (sm) for (let k = 1; k < NR - 1; k++) {
+        if (k === hk) continue;
+        const q = r[k];
+        q.x += ((r[k - 1].x + r[k + 1].x) / 2 - q.x) * sm; q.y += ((r[k - 1].y + r[k + 1].y) / 2 - q.y) * sm;
       }
       r.A = A;
     };
+    // Botón "Cables" en la barra con un panelito de dos deslizadores.
+    {
+      const wrap = document.createElement('span'), btn = document.createElement('button'), pop = document.createElement('div');
+      wrap.className = 'sim-cable';
+      btn.type = 'button'; btn.className = 'sim-cable-btn'; btn.textContent = 'Cables';
+      btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-controls', 'simCablePop');
+      pop.className = 'sim-cable-pop'; pop.id = 'simCablePop'; pop.hidden = true;
+      [['stiff', 'Rigidez', 'flojo', 'rígido'], ['inertia', 'Inercia', 'se frena', 'se desliza']].forEach(([k, name, lo, hi]) => {
+        const row = document.createElement('label'), inp = document.createElement('input');
+        inp.type = 'range'; inp.min = 0; inp.max = 1; inp.step = 0.05; inp.value = cable[k];
+        inp.addEventListener('input', () => {
+          cable[k] = +inp.value;
+          try { localStorage.setItem('sim-cable', JSON.stringify(cable)); } catch (e) {}
+        });
+        row.innerHTML = `<span class="name">${name}</span><span class="lo">${lo}</span>`;
+        row.appendChild(inp);
+        row.insertAdjacentHTML('beforeend', `<span class="hi">${hi}</span>`);
+        pop.appendChild(row);
+      });
+      const show = v => { pop.hidden = !v; btn.setAttribute('aria-expanded', String(v)); };
+      btn.addEventListener('click', () => show(pop.hidden));
+      document.addEventListener('pointerdown', e => { if (!wrap.contains(e.target)) show(false); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') show(false); });
+      wrap.append(btn, pop);
+      bar.querySelector('.ctl').appendChild(wrap);
+    }
     // Agarrar un cable del cuerpo: el punto más cercano sigue al puntero (en los dos paneles).
     const nearRope = (side, x, y) => {
       let best = null;
