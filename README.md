@@ -27,7 +27,7 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 
 ## Medidores
 
-El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junto a la bomba y la fuente. Sus puntas se arrastran (o se mueven con las flechas) a cualquier punto del circuito y las de los dos paneles se mueven juntas. Cada punta toca el circuito de forma perpendicular y su cable (o manguera) sale recto y se arrastra como sobre una mesa: el roce lo frena y solo se mueve donde lo jala la punta.
+El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junto a la bomba y la fuente. Sus puntas se arrastran (o se mueven con las flechas) a cualquier punto del circuito y las de los dos paneles se mueven juntas. Cada punta toca el circuito de forma perpendicular y su cable (o manguera) sale recto y se arrastra como sobre una mesa: el roce lo frena y solo se mueve donde lo jala la punta. También se puede agarrar del cuerpo para acomodar el cableado; si hace falta sale más cable del medidor, y se queda donde se deja.
 
 - **Voltímetro:** dos puntas de multímetro, roja (+) y negra (−). Marca voltaje(rojo) − voltaje(negro); puede salir negativo.
 - **Manómetro:** dos mangueritas con agua, roja y negra, conectadas a la pared del tubo. Cada una llena su columna en el medidor según la presión en su punto; la diferencia de alturas es lo que marca.
@@ -48,7 +48,7 @@ Todo va en modo claro, que se lee mejor proyectado. Los colores con significado 
 1. **Voltaje y presión** (`simulaciones/voltaje-presion/`)
 2. **Resistencia** (`simulaciones/resistencia/`): la resistencia (de 0 Ω a 10 kΩ) se cambia pellizcando el tramo angosto. Un puente salta la resistencia para mostrar un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0; se repone tocándolo.
 3. **Serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
-4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED, girar el LED y quemarlo.
+4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED (se pellizca), girar el LED y quemarlo; arriba de 30 mA el LED tarda en quemarse, más rápido entre más se pasa, aunque la inercia esté en 0.
 5. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.
 
 La versión anterior con las 4 en pestañas sigue en `simulaciones/agua-electricidad/`.

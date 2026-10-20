@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261020071500">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020071000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,14 +35,14 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261020071500"></script>
-<script src="../../assets/banco.js?v=20261020071500"></script>
+<script src="../../assets/sim.js?v=20261020071000"></script>
+<script src="../../assets/banco.js?v=20261020071000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
   // La resistencia del LED se cambia pellizcando el tramo angosto: de 100 Ω a 1 kΩ, y abierto del todo es 0 Ω.
   const RMIN = 100, RMAX = 1000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
-  const VF = 2, IMAX = 30;               // el LED necesita unos 2 V y se quema arriba de 30 mA
+  const VF = 2, IMAX = 30, LED_K = 5.8;   // el LED necesita unos 2 V y se quema arriba de 30 mA
   const XV = 270, XL = 545;              // válvula (interruptor) y LED; la resistencia va al centro
   const st = { closed: true, R: 470, rev: false, broken: false, ang: 0, om: 0, heat: 0, breakT: 9, debris: [], sparks: [] };
   const sides = {};
@@ -73,14 +73,15 @@
       return [{ pts: b.loopPts(g), I: m.I, v0: V, comps }];
     },
     step(dt, m) {
-      // Arriba de 30 mA la rueda (el LED) se calienta y se rompe cuando pasa el tiempo de la inercia;
-      // si la corriente baja antes, se enfría igual de rápido.
-      const T = b.st.tau;
-      if (m.I > IMAX && !st.broken) {
-        st.heat += T > 0 ? dt / T : 1;
+      // Arriba de 30 mA la rueda (el LED) se calienta, aunque la inercia esté en 0: tarda en romperse,
+      // y entre más se pasa más rápido (como I²·t). Con 66 mA tarda 1,5 s y nunca menos de 0,4 s,
+      // para que se vea; si la corriente baja antes, se enfría.
+      const over = (m.I / IMAX) ** 2 - 1;
+      if (over > 0 && !st.broken) {
+        st.heat += dt * Math.min(2.5, over / LED_K);
         if (st.heat >= 1) breakIt();
       } else {
-        st.heat = Math.max(0, st.heat - dt / Math.max(T, 0.3));
+        st.heat = Math.max(0, st.heat - dt / 1.5);
       }
       st.breakT += dt;
       for (const d of st.debris) { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 700 * dt; d.a += d.spin * dt; }
