@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261020063000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020071500">
 </head>
 <body>
 <div class="sim-page">
@@ -35,19 +35,23 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261020063000"></script>
-<script src="../../assets/banco.js?v=20261020063000"></script>
+<script src="../../assets/sim.js?v=20261020071500"></script>
+<script src="../../assets/banco.js?v=20261020071500"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
   // 0 Ω es un cortocircuito: solo la resistencia interna de la fuente (y de la bomba) limita la corriente.
-  const RLIST = [0, 470, 680, 1000, 1500, 2200, 3300, 4700, 6800, 10000];   // ohmios
+  // La resistencia se cambia pellizcando el tramo angosto: de 470 Ω a 10 kΩ, y abierto del todo es 0 Ω.
+  const RMIN = 470, RMAX = 10000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
+  const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
+  const nice = R => { const p = 10 ** (Math.floor(Math.log10(R)) - 1); return Math.round(R / p) * p; };   // dos cifras
+  const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : nice(RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
   const RINT = 15, IFUSE = 100, FUSE_K = 52.5;   // resistencia interna de la fuente; el fusible aguanta 100 mA
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
-  const st = { ri: 3, bridge: false, blown: false, heat: 0, peak: 0, breakT: 9, sparks: [] };
+  const st = { R: 1000, bridge: false, blown: false, heat: 0, breakT: 9, sparks: [] };
   const sides = {};
-  const Reff = () => st.bridge ? 0 : RLIST[st.ri];
-  const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), Sim.narrowHalf(RLIST[st.ri]));
+  const Reff = () => st.bridge ? 0 : st.R;
+  const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), half(st.R));
   // Puente: un tramo que sube y salta la resistencia. El fusible va en el cable de abajo, a la izquierda.
   const BX = 64, BH = 54;
   const bridgePath = g => [[g.X0, g.BOT], [g.X0, g.TOP], [g.PX - BX, g.TOP], [g.PX - BX, g.TOP - BH], [g.PX + BX, g.TOP - BH],
@@ -79,7 +83,6 @@
       // Con 600 mA tarda 1,5 s; en uno real serían milisegundos, aquí va lento para que se vea.
       const over = (m.I / IFUSE) ** 2 - 1;
       if (over > 0 && !st.blown) {
-        st.peak = Math.max(st.peak, m.I);
         st.heat += dt * over / FUSE_K;
         if (st.heat >= 1) blow();
       } else st.heat = Math.max(0, st.heat - dt / 1.5);
@@ -92,12 +95,12 @@
     drawW(ctx, g, m) {
       const s = sides.w;
       D.pipe(ctx, g.loop);
-      D.narrow(ctx, g.PX, g.TOP, Sim.narrowHalf(RLIST[st.ri]));
+      D.narrow(ctx, g.PX, g.TOP, half(st.R));
       if (st.bridge) D.pipe(ctx, s.bridge.slice(2, 6));
       (st.bridge ? s.waterB : s.water).draw(ctx);
       fuse(ctx, g, true);
-      label(ctx, g, RLIST[st.ri] ? 'tramo angosto' : 'sin estrechamiento', !RLIST[st.ri]);
-      hint(ctx, g);
+      b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch.drag);
+      label(ctx, g, st.R ? 'tramo angosto' : 'sin estrechamiento', !st.R);
     },
     drawE(ctx, g, m) {
       const s = sides.e, path = st.bridge ? s.bridge : g.loop;
@@ -106,21 +109,14 @@
       hot(ctx, path, m);
       D.flow(ctx, path, s.phase, C.charge, { gap: 30, r: 4.5 });
       D.resistor(ctx, g.PX, g.TOP);
+      b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch.drag);
       fuse(ctx, g, false);
-      label(ctx, g, ohm(RLIST[st.ri]), !RLIST[st.ri], true);
-      hint(ctx, g);
+      label(ctx, g, st.R ? ohm(st.R) : '0 Ω', !st.R, true);
     }
   });
   function label(ctx, g, t, danger, mono) {
-    const y = st.bridge ? g.TOP + 36 : g.TOP - 36;
+    const y = st.bridge ? g.TOP + half(st.R) + 36 : g.TOP - half(st.R) - 35;
     D.text(ctx, t, g.PX, y, danger ? C.danger : mono ? C.ink : C.muted, mono ? { size: 16, font: Sim.MONO, weight: 500 } : { size: 15 });
-  }
-  function hint(ctx, g) {
-    let t, col = C.danger;
-    if (st.blown) t = `Se fundió el fusible: pasaron ${fmt(st.peak, 0)} mA y aguanta ${IFUSE} mA`;
-    else if (st.bridge || !RLIST[st.ri]) t = `¡Cortocircuito! Solo la resistencia interna limita la corriente`;
-    else { t = g.side === 'w' ? 'Puentea el tramo angosto o quita el estrechamiento para ver un corto' : 'Puentea la resistencia o bájala a 0 Ω para ver un cortocircuito'; col = C.muted; }
-    D.text(ctx, t, Sim.compact ? g.PX : g.PX - 60, 62, col, { size: Sim.compact ? 11 : 13, weight: col === C.danger ? 700 : 400 });
   }
   // Cables al rojo: brillan más cuanto más se pasa la corriente de lo que aguanta el fusible.
   function hot(ctx, path, m) {
@@ -164,21 +160,19 @@
     b.refresh();
   }
 
-  b.linkedKnob({
-    pos: g => [g.PX, g.TOP + 0.55 * (g.BOT - g.TOP)], min: 0, max: RLIST.length - 1, step: 1, value: st.ri, ticks: RLIST.length - 1,
-    label: side => side === 'w' ? 'Estrechamiento de la tubería' : 'Resistencia',
-    format: (v, side) => side === 'w' ? (v ? 'nivel ' + v + ' de ' + (RLIST.length - 1) : 'sin estrechamiento') : (v ? ohm(RLIST[v]) : '0 Ω, cortocircuito'),
-    scale: side => side === 'w' ? [['sin', 0], ['angosto', 1]] : [['0 Ω', 0], ['10 kΩ', 1]],
-    caption: side => side === 'w' ? 'estrechamiento' : 'resistencia',
-    onInput: v => { st.ri = v; sides.w.water.setProfile(profile(sides.w.g)); }
+  const pinch = b.pinch({
+    pos: g => [g.PX, g.TOP], get: () => st.R, half, fromHalf,
+    set: R => { st.R = R; sides.w.water.setProfile(profile(sides.w.g)); },
+    label: side => side === 'w' ? 'Ancho del tramo angosto' : 'Resistencia',
+    text: R => R ? ohm(R) : '0 Ω, cortocircuito'
   });
   b.linkedButton({
-    pos: g => [g.PX, g.TOP + 0.24 * (g.BOT - g.TOP)],
+    pos: g => [g.PX, g.TOP + 0.4 * (g.BOT - g.TOP)],
     text: side => st.bridge ? 'Quitar el puente' : (side === 'w' ? 'Puentear el tramo' : 'Puentear la resistencia'),
     onClick: () => { st.bridge = !st.bridge; }
   });
   // Tocar el fusible (o el botón) pone uno nuevo.
-  const repair = () => { st.blown = false; st.peak = 0; st.heat = 0; st.breakT = 9; };
+  const repair = () => { st.blown = false; st.heat = 0; st.breakT = 9; };
   b.linkedButton({
     cls: 'sim-hit', pos: g => fuseAt(g), hidden: () => !st.blown,
     label: () => 'Poner un fusible nuevo', onClick: repair

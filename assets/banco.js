@@ -157,6 +157,52 @@
       return ks;
     };
 
+    // Una resistencia que se ajusta pellizcando: agarrando el borde del tramo angosto (o las marcas de
+    // la resistencia) con un dedo o el ratón el borde sigue al puntero; con dos dedos, el ancho es la
+    // separación entre ellos. Más angosto = más resistencia. half(R) da el medio ancho del tramo y
+    // fromHalf(h) la resistencia para un medio ancho; set(R) la cambia. Devuelve { drag } para
+    // saber si se está agarrando (las marcas se pintan de azul).
+    b.pinch = ({ pos, get, set, half, fromHalf, label, text }) => {
+      const pr = { drag: false };
+      // flechas y rueda: un poco más ancho o angosto (lo que haga falta para que cambie el valor)
+      const nudge = f => {
+        for (let k = 1; k <= 8; k++) { const R = fromHalf(half(get()) + f * k); if (R !== get()) return set(R); }
+      };
+      ['w', 'e'].forEach(side => {
+        const el = document.createElement('div');
+        el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', 'slider');
+        el.setAttribute('aria-label', label(side));
+        b.place(side, el, pos);
+        const p = panel(side), pts = new Map();
+        const toY = e => (e.clientY - p.box.getBoundingClientRect().top - p.oy) / p.scale;
+        const update = () => {
+          const ys = [...pts.values()];
+          const h = ys.length > 1 ? Math.abs(ys[0] - ys[1]) / 2 - 9 : Math.abs(ys[0] - pos(geo(side))[1]) - 14;
+          set(fromHalf(h));
+        };
+        el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); pts.set(e.pointerId, toY(e)); pr.drag = true; update(); e.preventDefault(); });
+        el.addEventListener('pointermove', e => { if (pts.has(e.pointerId)) { pts.set(e.pointerId, toY(e)); update(); } });
+        const up = e => { pts.delete(e.pointerId); if (!pts.size) pr.drag = false; };
+        el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+        el.addEventListener('wheel', e => { e.preventDefault(); nudge(e.deltaY < 0 ? -1 : 1); }, { passive: false });
+        el.addEventListener('keydown', e => {
+          const f = { ArrowUp: -1, ArrowRight: -1, ArrowDown: 1, ArrowLeft: 1 }[e.key];
+          if (f) { nudge(f); e.preventDefault(); }
+        });
+        setInterval(() => el.setAttribute('aria-valuetext', text(get())), 500);
+      });
+      return pr;
+    };
+    // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde h.
+    b.grips = (ctx, x, y, h, active) => {
+      const col = active ? C.water : C.muted;
+      for (const sgn of [-1, 1]) {
+        const yy = y + sgn * (h + 9);
+        D.roundRect(ctx, x - 16, yy - 3, 32, 6, 3, col);
+        D.arrow(ctx, x + 24, yy, sgn * Math.PI / 2, 5, col);
+      }
+    };
+
     // ---------- controlador: bomba y fuente enlazadas ----------
     const power = b.linkedButton({
       pos: g => [g.BX + 58, g.BY + 92], cls: 'sim-power',
@@ -197,16 +243,6 @@
       }
       return best;
     };
-    const subPath = (pts, d0, d1) => {
-      const lo = Math.min(d0, d1), hi = Math.max(d0, d1), out = [D.pointAt(pts, lo)];
-      let d = 0;
-      for (let i = 1; i < pts.length; i++) {
-        d += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-        if (d > lo && d < hi) out.push(pts[i]);
-      }
-      out.push(D.pointAt(pts, hi));
-      return out;
-    };
     const buildSegs = (g, m, V) => {
       const list = o.circuit ? o.circuit(g, m, V)
         : [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [{ at: [g.PX, g.TOP], half: 46, dV: V }] }];
@@ -231,48 +267,6 @@
       });
       return best;
     };
-    // Camino más corto por el circuito entre las dos puntas, sin pasar por la fuente.
-    // Devuelve los pedazos [{ k, d0, d1 }] que forman la región entre ellos.
-    const route = (segs, A, B) => {
-      const key = p => Math.round(p[0]) + ',' + Math.round(p[1]);
-      const ends = sg => [key(sg.pts[0]), key(sg.pts[sg.pts.length - 1])];
-      const cost = sg => sg.L + (sg.source ? 1e6 : 0);
-      const dijkstra = start => {
-        const dist = { [start]: 0 }, prev = {}, done = new Set();
-        for (;;) {
-          let u = null;
-          for (const n in dist) if (!done.has(n) && (u === null || dist[n] < dist[u])) u = n;
-          if (u === null) return { dist, prev };
-          done.add(u);
-          segs.forEach((sg, k) => {
-            const [e0, e1] = ends(sg);
-            [[e0, e1], [e1, e0]].forEach(([from, to]) => {
-              if (from !== u) return;
-              const nd = dist[u] + cost(sg);
-              if (dist[to] === undefined || nd < dist[to]) { dist[to] = nd; prev[to] = { k, from }; }
-            });
-          });
-        }
-      };
-      const sa = segs[A.k], sb = segs[B.k];
-      let best = A.k === B.k ? { c: Math.abs(A.d - B.d), pieces: [{ k: A.k, d0: A.d, d1: B.d }] } : null;
-      [[0, A.d], [1, sa.L - A.d]].forEach(([ia, ca]) => {
-        const start = ends(sa)[ia], { dist, prev } = dijkstra(start);
-        [[0, B.d], [1, sb.L - B.d]].forEach(([ib, cb]) => {
-          const end = ends(sb)[ib];
-          if (dist[end] === undefined) return;
-          const c = ca + dist[end] + cb;
-          if (best && c >= best.c) return;
-          const mid = [];
-          for (let n = end; n !== start; n = prev[n].from) {
-            const { k, from } = prev[n], sg = segs[k];
-            mid.unshift(ends(sg)[0] === from ? { k, d0: 0, d1: sg.L } : { k, d0: sg.L, d1: 0 });
-          }
-          best = { c, pieces: [{ k: A.k, d0: A.d, d1: ia ? sa.L : 0 }, ...mid, { k: B.k, d0: ib ? sb.L : 0, d1: B.d }] };
-        });
-      });
-      return best ? best.pieces.filter(p => Math.abs(p.d1 - p.d0) > 0.5) : [];
-    };
     // Lectura de cada medidor. El voltímetro (o manómetro) marca voltaje(rojo) − voltaje(negro) y
     // guarda el voltaje de cada punta para las columnas de agua. El amperímetro es una pinza (o una
     // turbinita en la tubería) en un solo punto: marca la corriente que pasa por ahí.
@@ -281,7 +275,7 @@
       st.clamps.V = [[A.x, A.y], [B.x, B.y]]; st.clamps.I = [[P.x, P.y]];
       const va = segs[A.k].v(A.d), vb = segs[B.k].v(B.d);
       return {
-        V: { value: va - vb, va, vb, pieces: route(segs, A, B).map(p => subPath(segs[p.k].pts, p.d0, p.d1)) },
+        V: { value: va - vb, va, vb },
         I: { value: Math.abs(segs[P.k].I) }
       };
     };
@@ -339,8 +333,9 @@
     // Largo de cada punta, del contacto a donde sale su cable o manguera.
     const tipLen = (side, kind) => kind === 'I' ? (side === 'w' ? Sim.PIPE + 12 : 30) : (side === 'w' ? Sim.PIPE + 10 : 46);
 
-    // Cables y mangueras con inercia: una cadena de puntos con gravedad que cuelga del final de la
-    // punta (sale recto) hasta el borne del medidor, y se mece cuando la punta se mueve.
+    // Cables y mangueras con inercia: una cadena de puntos que va del final de la punta (sale recto)
+    // al borne del medidor y se arrastra como sobre una mesa: no cuelga, el roce la frena y solo se
+    // mueve donde la jala la punta; la parte floja se va enderezando poco a poco.
     const NR = 18, ropes = { w: {}, e: {} };
     const ropeStep = (side, g, kind, i, dt) => {
       const key = kind + i;
@@ -349,30 +344,37 @@
       const A = [f.x + f.n[0] * L, f.y + f.n[1] * L], A2 = [A[0] + f.n[0] * 16, A[1] + f.n[1] * 16];
       const B = jack(g, kind, i);
       let r = ropes[side][key];
-      if (!r) {   // recién puesta: el cable sale del borne en línea recta y luego cae
+      if (!r) {   // recién puesta: el cable sale del borne en línea recta
         r = ropes[side][key] = [];
         for (let k = 0; k < NR; k++) {
           const u = k / (NR - 1), x = A2[0] + (B[0] - A2[0]) * u, y = A2[1] + (B[1] - A2[1]) * u;
           r.push({ x, y, px: x, py: y });
         }
       }
-      const rest = (Math.hypot(B[0] - A2[0], B[1] - A2[1]) * 1.12 + 30) / (NR - 1);
-      const h = Math.min(dt, 1 / 30), G = 1400;
+      const rest = (Math.hypot(B[0] - A2[0], B[1] - A2[1]) * 1.1 + 24) / (NR - 1);
+      const fr = Math.pow(0.02, Math.min(dt, 1 / 30));   // roce: casi toda la velocidad se pierde en un instante
       for (const q of r) {
-        const vx = (q.x - q.px) * 0.985, vy = (q.y - q.py) * 0.985;
-        q.px = q.x; q.py = q.y; q.x += vx; q.y += vy + G * h * h;
+        const vx = (q.x - q.px) * fr, vy = (q.y - q.py) * fr;
+        q.px = q.x; q.py = q.y; q.x += vx; q.y += vy;
       }
       for (let it = 0; it < 24; it++) {
         r[0].x = A2[0]; r[0].y = A2[1]; r[NR - 1].x = B[0]; r[NR - 1].y = B[1];
         for (let k = 1; k < NR; k++) {
           const a = r[k - 1], c = r[k], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
-          if (d <= rest) continue;   // un cable se dobla pero no se estira
+          if (d <= rest) continue;   // se dobla pero no se estira
           const e = (d - rest) / d / 2;
           const wa = k - 1 === 0 ? 0 : 1, wc = k === NR - 1 ? 0 : 1;
           if (!wa && !wc) continue;
-          a.x += dx * e * wa * (2 / (wa + wc)); a.y += dy * e * wa * (2 / (wa + wc));
-          c.x -= dx * e * wc * (2 / (wa + wc)); c.y -= dy * e * wc * (2 / (wa + wc));
+          const sc = 2 / (wa + wc);
+          a.x += dx * e * wa * sc; a.y += dy * e * wa * sc;
+          c.x -= dx * e * wc * sc; c.y -= dy * e * wc * sc;
         }
+      }
+      // la parte floja se endereza despacio: cada punto se acerca un poco al medio de sus vecinos
+      const sm = Math.min(1, 1.5 * Math.min(dt, 1 / 30));
+      for (let k = 2; k < NR - 1; k++) {
+        const q = r[k], mx = (r[k - 1].x + r[k + 1].x) / 2, my = (r[k - 1].y + r[k + 1].y) / 2;
+        q.x += (mx - q.x) * sm; q.y += (my - q.y) * sm; q.px = q.x; q.py = q.y;
       }
       r.A = A;
     };
@@ -398,7 +400,7 @@
       el.type = 'button'; el.className = 'sim-clamp';
       el.setAttribute('aria-label', `${tipName(kind, i, side)}: arrástrala o usa las flechas para moverla; tócala para mostrar u ocultar su cable`);
       b.place(side, el, g => {
-        const f = frame(g, kind, i), L = kind === 'I' ? 0 : tipLen(side, kind) * 0.55;
+        const f = frame(g, kind, i), L = kind === 'I' || st.pinned[kind] ? 0 : tipLen(side, kind) * 0.55;
         return [f.x + f.n[0] * L, f.y + f.n[1] * L];
       });
       const p = panel(side);
@@ -487,13 +489,6 @@
       if (k.caption) D.text(ctx, k.caption(g.side), x, y + 58, C.muted, { size: 14 });
     });
 
-    // Región entre las dos puntas del voltímetro: una franja translúcida del color del medidor.
-    const drawRegions = (ctx, w) => {
-      if (st.pinned.V || !ready('V')) return;
-      ctx.globalAlpha = 0.32;
-      for (const pts of st.probe.V.pieces) D.line(ctx, pts, w + 8, PROBE.V);
-      ctx.globalAlpha = 1;
-    };
     // Cables (o mangueras con agua) de un medidor. Se dibujan antes que el controlador y los
     // medidores, así que pasan por detrás de ellos.
     const drawCables = (ctx, g, kind) => {
@@ -597,13 +592,13 @@
       }
       D.lcd(ctx, 0, 54, 108, 30, text, unit);
     };
-    // Pin: gota pequeña clavada en el punto, con la letra del medidor (V o A).
+    // Pin: gota pequeña clavada en el punto: + o − en las puntas del voltímetro, A en la pinza.
     const pin = (ctx, x, y, col, kind) => {
       ctx.save(); ctx.translate(x, y);
       ctx.beginPath(); ctx.moveTo(0, 0);
       ctx.bezierCurveTo(-3, -6, -9, -10, -9, -17); ctx.arc(0, -17, 9, Math.PI, 0); ctx.bezierCurveTo(9, -10, 3, -6, 0, 0);
       ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = C.card; ctx.stroke();
-      D.text(ctx, kind === 'V' ? 'V' : 'A', 0, -17, '#fff', { size: 11 });
+      D.text(ctx, kind === 'I' ? 'A' : col === RED ? '+' : '−', 0, -17, '#fff', { size: 13 });
       ctx.restore();
     };
     const probeText = (kind, scale, width, d) => ready(kind) ? digits(st.probe[kind].value * scale, width, d) : ' ----';
@@ -611,7 +606,6 @@
     function drawWater() {
       const g = b.gw, m = st.m, ctx = b.pw.begin();
       o.drawW(ctx, g, m);
-      drawRegions(ctx, 2 * Sim.PIPE + 22);
       knobScales(ctx, g);
       D.speedLegend(ctx, ...g.LEG);
       drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
@@ -627,7 +621,6 @@
     function drawElectric() {
       const g = b.ge, m = st.m, ctx = b.pe.begin();
       o.drawE(ctx, g, m);
-      drawRegions(ctx, 22);
       knobScales(ctx, g);
       drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [['0', 0], ['6', 0.5], ['12', 1]], 'voltaje (V)');

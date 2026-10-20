@@ -27,13 +27,17 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 
 ## Medidores
 
-El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junto a la bomba y la fuente. Sus puntas se arrastran (o se mueven con las flechas) a cualquier punto del circuito y las de los dos paneles se mueven juntas. Cada punta toca el circuito de forma perpendicular y su cable (o manguera) sale recto y cuelga con inercia, así que se mece al moverla.
+El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junto a la bomba y la fuente. Sus puntas se arrastran (o se mueven con las flechas) a cualquier punto del circuito y las de los dos paneles se mueven juntas. Cada punta toca el circuito de forma perpendicular y su cable (o manguera) sale recto y se arrastra como sobre una mesa: el roce lo frena y solo se mueve donde lo jala la punta.
 
-- **Voltímetro:** dos puntas de multímetro, roja (+) y negra (−). Marca voltaje(rojo) − voltaje(negro); puede salir negativo. La región entre las dos se pinta de morado.
+- **Voltímetro:** dos puntas de multímetro, roja (+) y negra (−). Marca voltaje(rojo) − voltaje(negro); puede salir negativo.
 - **Manómetro:** dos mangueritas con agua, roja y negra, conectadas a la pared del tubo. Cada una llena su columna en el medidor según la presión en su punto; la diferencia de alturas es lo que marca.
 - **Amperímetro y caudal:** una pinza que abraza el cable (en el agua, una turbinita dentro del tubo que gira con el agua). Marca lo que pasa por ese punto.
 - Tocar un medidor quita sus puntas: el siguiente toque en el circuito pone la roja y el siguiente la negra (la pinza o la turbinita con un solo toque). Tocar el medidor otra vez o Esc cancela y regresan a donde estaban.
-- Tocar una punta sin arrastrarla la convierte en un pin pequeño, para dejar el diagrama limpio; otro toque la vuelve a mostrar.
+- Tocar una punta sin arrastrarla la convierte en un pin pequeño (con + o − en el voltímetro y A en la pinza), para dejar el diagrama limpio; otro toque la vuelve a mostrar.
+
+## Resistencias
+
+Todas las resistencias se cambian pellizcando: se agarra el borde del tramo angosto (o las marcas de la resistencia) y se mueve, o se pellizca con dos dedos. Más angosto es más resistencia. También funcionan la rueda del ratón y las flechas. `b.pinch` y `b.grips` en `assets/banco.js` lo hacen para cualquier página.
 
 ## Colores
 
@@ -42,7 +46,7 @@ Todo va en modo claro, que se lee mejor proyectado. Los colores con significado 
 ## Simulaciones
 
 1. **Voltaje y presión** (`simulaciones/voltaje-presion/`)
-2. **Resistencia** (`simulaciones/resistencia/`): perilla de resistencia de 0 Ω a 10 kΩ; el tramo angosto cambia con ella. Un puente salta la resistencia para mostrar un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0; se repone tocándolo.
+2. **Resistencia** (`simulaciones/resistencia/`): la resistencia (de 0 Ω a 10 kΩ) se cambia pellizcando el tramo angosto. Un puente salta la resistencia para mostrar un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0; se repone tocándolo.
 3. **Serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
 4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED, girar el LED y quemarlo.
 5. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.

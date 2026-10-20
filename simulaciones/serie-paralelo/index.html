@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261020063000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020071500">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261020063000"></script>
-<script src="../../assets/banco.js?v=20261020063000"></script>
+<script src="../../assets/sim.js?v=20261020071500"></script>
+<script src="../../assets/banco.js?v=20261020071500"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -131,7 +131,6 @@
         const [x, y] = ledPos(g, i);
         D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1) });
       });
-      D.text(ctx, 'toca una rueda para romperla o repararla', g.PX, 62, C.muted, { size: 14, weight: 400 });
     },
     drawE(ctx, g, m) {
       const s = sides.e, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
@@ -143,7 +142,6 @@
         const [x, y] = ledPos(g, i);
         D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1) });
       });
-      D.text(ctx, 'toca un LED para fundirlo o cambiarlo', g.PX, 62, C.muted, { size: 14, weight: 400 });
     }
   });
 

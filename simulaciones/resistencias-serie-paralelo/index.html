@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261020063000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020071500">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261020063000"></script>
-<script src="../../assets/banco.js?v=20261020063000"></script>
+<script src="../../assets/sim.js?v=20261020071500"></script>
+<script src="../../assets/banco.js?v=20261020071500"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -111,55 +111,25 @@
       [0, 1].forEach(k => { const [x, y] = rPos(g, k); D.narrow(ctx, x, y, half(st.R[k])); });
       keys.forEach(k => s.water[k].draw(ctx));
       [0, 1].forEach(k => { const [x, y] = rPos(g, k); grips(ctx, x, y, half(st.R[k]) + 5, k); });
-      D.text(ctx, 'agarra el borde de un tramo o pellízcalo para cambiar su ancho', g.PX - 30, 62, C.muted, { size: 13, weight: 400 });
     },
     drawE(ctx, g) {
       const s = sides.e, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
       keys.forEach(k => D.wire(ctx, s.paths[k]));
       keys.forEach(k => D.flow(ctx, s.paths[k], s.phase[k], C.charge, { gap: 30, r: 4.5 }));
       [0, 1].forEach(k => { const [x, y] = rPos(g, k); D.resistor(ctx, x, y); grips(ctx, x, y, half(st.R[k]) + 5, k); });
-      D.text(ctx, 'arrastra las marcas de una resistencia para cambiar su valor', g.PX - 30, 62, C.muted, { size: 13, weight: 400 });
     }
   });
-  // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde, y su valor.
+  // Marcas arriba y abajo de cada tramo (o resistencia) y su valor.
   function grips(ctx, x, y, h, k) {
-    const col = drag[k] ? C.water : C.muted;
-    for (const sgn of [-1, 1]) {
-      const yy = y + sgn * (h + 9);
-      D.roundRect(ctx, x - 16, yy - 3, 32, 6, 3, col);
-      D.arrow(ctx, x + 24, yy, sgn * Math.PI / 2, 5, col);
-    }
+    b.grips(ctx, x, y, h, pinch[k].drag);
     D.text(ctx, `R${k + 1} = ${ohm(st.R[k])}`, x, y - h - 30, C.ink, { size: 15, font: Sim.MONO, weight: 500 });
   }
-
-  // Zona que se agarra sobre cada resistencia: con un dedo (o el ratón) el borde sigue al puntero;
-  // con dos dedos, el ancho es la separación entre ellos.
-  const drag = [false, false];
-  const setR = (k, R) => { st.R[k] = Math.round(Math.max(RMIN, Math.min(RMAX, R))); profiles(); };
-  [0, 1].forEach(k => ['w', 'e'].forEach(side => {
-    const el = document.createElement('div');
-    el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', 'slider');
-    el.setAttribute('aria-label', (side === 'w' ? 'Ancho del tramo angosto ' : 'Resistencia ') + (k + 1));
-    el.setAttribute('aria-valuemin', RMIN); el.setAttribute('aria-valuemax', RMAX);
-    b.place(side, el, g => rPos(g, k));
-    const p = side === 'w' ? b.pw : b.pe, pts = new Map();
-    const center = () => rPos(side === 'w' ? b.gw : b.ge, k)[1];
-    const toY = e => (e.clientY - p.box.getBoundingClientRect().top - p.oy) / p.scale;
-    const update = () => {
-      const ys = [...pts.values()];
-      const h = ys.length > 1 ? Math.abs(ys[0] - ys[1]) / 2 - 9 : Math.abs(ys[0] - center()) - 14;
-      setR(k, fromHalf(h));
-    };
-    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); pts.set(e.pointerId, toY(e)); drag[k] = true; update(); e.preventDefault(); });
-    el.addEventListener('pointermove', e => { if (pts.has(e.pointerId)) { pts.set(e.pointerId, toY(e)); update(); } });
-    const up = e => { pts.delete(e.pointerId); if (!pts.size) drag[k] = false; };
-    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-    el.addEventListener('wheel', e => { e.preventDefault(); setR(k, st.R[k] * (e.deltaY < 0 ? 0.9 : 1.1)); }, { passive: false });
-    el.addEventListener('keydown', e => {
-      const f = { ArrowUp: 0.9, ArrowRight: 0.9, ArrowDown: 1.1, ArrowLeft: 1.1 }[e.key];
-      if (f) { setR(k, st.R[k] * f); e.preventDefault(); }
-    });
-    setInterval(() => { el.setAttribute('aria-valuenow', st.R[k]); el.setAttribute('aria-valuetext', ohm(st.R[k])); }, 500);
+  // Cada resistencia se ajusta pellizcándola.
+  const pinch = [0, 1].map(k => b.pinch({
+    pos: g => rPos(g, k), get: () => st.R[k], half, fromHalf,
+    set: R => { st.R[k] = Math.round(Math.max(RMIN, Math.min(RMAX, R))); profiles(); },
+    label: side => (side === 'w' ? 'Ancho del tramo angosto ' : 'Resistencia ') + (k + 1),
+    text: ohm
   }));
   // Botón para cambiar entre serie y paralelo.
   b.linkedButton({
