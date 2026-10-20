@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261020071000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020072000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261020071000"></script>
-<script src="../../assets/banco.js?v=20261020071000"></script>
+<script src="../../assets/sim.js?v=20261020072000"></script>
+<script src="../../assets/banco.js?v=20261020072000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -48,34 +48,24 @@
   const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : nice(RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
   const RINT = 15, IFUSE = 100, FUSE_K = 52.5;   // resistencia interna de la fuente; el fusible aguanta 100 mA
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
-  const st = { R: 1000, bridge: false, blown: false, heat: 0, breakT: 9, sparks: [] };
+  const st = { R: 1000, blown: false, heat: 0, breakT: 9, sparks: [] };
   const sides = {};
-  const Reff = () => st.bridge ? 0 : st.R;
   const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), half(st.R));
-  // Puente: un tramo que sube y salta la resistencia. El fusible va en el cable de abajo, a la izquierda.
-  const BX = 64, BH = 54;
-  const bridgePath = g => [[g.X0, g.BOT], [g.X0, g.TOP], [g.PX - BX, g.TOP], [g.PX - BX, g.TOP - BH], [g.PX + BX, g.TOP - BH],
-    [g.PX + BX, g.TOP], [g.X1, g.TOP], [g.X1, g.BOT], [g.X0, g.BOT]];
+  // El fusible (en el agua, una válvula de seguridad) va en el tubo de abajo, a la izquierda.
   const fuseAt = g => [(g.X0 + g.PX - b.SRC) / 2, g.BOT];
 
   const b = Sim.bench({
     iFull: 30,
     v0: 9,
     layout(g) {
-      const s = sides[g.side] = { phase: 0, g, bridge: bridgePath(g) };
-      if (g.side === 'w') { s.water = Sim.water(g.loop, profile(g)); s.waterB = Sim.water(s.bridge); }
+      const s = sides[g.side] = { phase: 0, g };
+      if (g.side === 'w') s.water = Sim.water(g.loop, profile(g));
     },
-    model: V => ({ I: st.blown ? 0 : V / (Reff() + RINT) * 1000 }),
+    model: V => ({ I: st.blown ? 0 : V / (st.R + RINT) * 1000 }),
     // Voltaje en las terminales: la fuente pierde I·RINT por dentro, así que en cortocircuito se cae casi a 0.
     circuit(g, m, V) {
       const Vt = Math.max(0, V - m.I * RINT / 1000), fuse = { at: fuseAt(g), half: 24, dV: st.blown ? Vt : 0 };
-      if (!st.bridge) return [{ pts: b.loopPts(g), I: m.I, v0: Vt, comps: [fuse, { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : Vt }] }];
-      return [
-        { pts: [[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [g.PX - BX, g.TOP]], I: m.I, v0: Vt, comps: [fuse] },
-        { pts: [[g.PX - BX, g.TOP], [g.PX - BX, g.TOP - BH], [g.PX + BX, g.TOP - BH], [g.PX + BX, g.TOP]], I: m.I, v0: st.blown ? 0 : Vt, comps: [] },
-        { pts: [[g.PX - BX, g.TOP], [g.PX + BX, g.TOP]], I: 0, v0: st.blown ? 0 : Vt, comps: [{ at: [g.PX, g.TOP], half: 46, dV: 0 }] },
-        { pts: [[g.PX + BX, g.TOP], [g.X1, g.TOP], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]], I: m.I, v0: 0, comps: [] }
-      ];
+      return [{ pts: b.loopPts(g), I: m.I, v0: Vt, comps: [fuse, { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : Vt }] }];
     },
     step(dt, m) {
       // Arriba de 100 mA el fusible se calienta, aunque la inercia esté en 0: la corriente llega al
@@ -89,34 +79,29 @@
       st.breakT += dt;
       for (const p of st.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; }
       const r = Math.min(m.I, 60) * 6;   // las partículas tienen un tope de rapidez para que se puedan ver
-      (st.bridge ? sides.w.waterB : sides.w.water).step(r, dt);
+      sides.w.water.step(r, dt);
       sides.e.phase += r * dt;
     },
     drawW(ctx, g, m) {
-      const s = sides.w;
       D.pipe(ctx, g.loop);
       D.narrow(ctx, g.PX, g.TOP, half(st.R));
-      if (st.bridge) D.pipe(ctx, s.bridge.slice(2, 6));
-      (st.bridge ? s.waterB : s.water).draw(ctx);
-      fuse(ctx, g, true);
+      sides.w.water.draw(ctx);
+      safetyValve(ctx, g);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch.drag);
       label(ctx, g, st.R ? 'tramo angosto' : 'sin estrechamiento', !st.R);
     },
     drawE(ctx, g, m) {
-      const s = sides.e, path = st.bridge ? s.bridge : g.loop;
       D.wire(ctx, g.loop);
-      if (st.bridge) D.wire(ctx, s.bridge.slice(2, 6));
-      hot(ctx, path, m);
-      D.flow(ctx, path, s.phase, C.charge, { gap: 30, r: 4.5 });
+      hot(ctx, g.loop, m);
+      D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
       D.resistor(ctx, g.PX, g.TOP);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch.drag);
-      fuse(ctx, g, false);
+      fuse(ctx, g);
       label(ctx, g, st.R ? ohm(st.R) : '0 Ω', !st.R, true);
     }
   });
   function label(ctx, g, t, danger, mono) {
-    const y = st.bridge ? g.TOP + half(st.R) + 36 : g.TOP - half(st.R) - 35;
-    D.text(ctx, t, g.PX, y, danger ? C.danger : mono ? C.ink : C.muted, mono ? { size: 16, font: Sim.MONO, weight: 500 } : { size: 15 });
+    D.text(ctx, t, g.PX, g.TOP - half(st.R) - 42, danger ? C.danger : mono ? C.ink : C.muted, mono ? { size: 16, font: Sim.MONO, weight: 500 } : { size: 15 });
   }
   // Cables al rojo: brillan más cuanto más se pasa la corriente de lo que aguanta el fusible.
   function hot(ctx, path, m) {
@@ -126,7 +111,7 @@
     D.line(ctx, path, 4, `rgba(255, ${Math.round(110 - 60 * k)}, 30, ${0.4 + 0.6 * k})`);
   }
   // Fusible: cajita con un hilo; al calentarse brilla y tiembla, y al fundirse el hilo se corta con chispas.
-  function fuse(ctx, g, water) {
+  function fuse(ctx, g) {
     const [x0, y] = fuseAt(g), t = performance.now() / 1000;
     const x = x0 + (st.heat && !st.blown ? 2 * st.heat * Math.sin(t * 50) : 0);
     if (st.heat > 0 && !st.blown) {
@@ -134,7 +119,7 @@
       gr.addColorStop(0, `rgba(255, 120, 40, ${0.8 * st.heat})`); gr.addColorStop(1, 'rgba(255, 120, 40, 0)');
       ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 46, 0, Math.PI * 2); ctx.fill();
     }
-    const h = water ? 15 : 11;
+    const h = 11;
     D.roundRect(ctx, x - 24, y - h, 48, 2 * h, 6, C.card, st.blown ? C.danger : C.ink, 2.5);
     ctx.lineWidth = 2.5; ctx.strokeStyle = st.heat > 0.3 && !st.blown ? '#ff7a1f' : C.ink;
     if (st.blown) { D.line(ctx, [[x - 24, y], [x - 7, y - 3]], 2.5, C.ink); D.line(ctx, [[x + 7, y + 3], [x + 24, y]], 2.5, C.ink); }
@@ -148,6 +133,31 @@
         const u = Math.max(0, st.breakT - k * 0.15);
         D.circle(ctx, x + (k - 1) * 8, y - 10 - 45 * u, 5 + 14 * u, `rgba(120, 120, 120, ${0.4 * Math.max(0, 1 - u / 1.2)})`);
       }
+      ctx.globalAlpha = 1;
+    }
+  }
+  // Válvula de seguridad (de exceso de flujo): una bola sostenida por un resorte dentro de una cámara
+  // transparente. Con demasiado flujo el agua la empuja hacia el asiento; si se pasa el tiempo, la
+  // bola se asienta de golpe y cierra el tubo. El agua va hacia la izquierda, así que el asiento está ahí.
+  function safetyValve(ctx, g) {
+    const [x0, y] = fuseAt(g), t = performance.now() / 1000, P = Sim.PIPE, H = P + 7;
+    const shake = st.heat && !st.blown ? 1.5 * st.heat * Math.sin(t * 60) : 0;
+    const bx = st.blown ? x0 - 15 : x0 + 12 - 24 * st.heat + shake, by = y;
+    ctx.globalAlpha = 0.85; D.roundRect(ctx, x0 - 30, y - H, 60, 2 * H, 8, C['water-soft']); ctx.globalAlpha = 1;
+    D.roundRect(ctx, x0 - 30, y - H, 60, 2 * H, 8, null, st.blown ? C.danger : C.ink, 2.5);
+    // asiento: dos topes que angostan el paso del lado izquierdo
+    ctx.fillStyle = C.ink;
+    for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x0 - 30, y + sg * H); ctx.lineTo(x0 - 22, y + sg * H); ctx.lineTo(x0 - 22, y + sg * 6); ctx.lineTo(x0 - 30, y + sg * 6); ctx.fill(); }
+    // resorte de la pared derecha a la bola
+    const xs = x0 + 28, xe = bx + 8, n = 7;
+    ctx.beginPath(); ctx.moveTo(xs, y);
+    for (let k = 1; k <= n; k++) ctx.lineTo(xs + (xe - xs) * k / n, y + (k === n ? 0 : (k % 2 ? -6 : 6)));
+    ctx.lineWidth = 2; ctx.strokeStyle = C.muted; ctx.stroke();
+    D.circle(ctx, bx, by, 8, st.blown ? C.danger : C.metal, C.ink, 2);
+    D.text(ctx, st.blown ? 'válvula cerrada' : 'válvula de seguridad', x0, y + H + 16, st.blown ? C.danger : C.muted, { size: 14 });
+    if (st.breakT < 1) {   // salpicadura al cerrarse de golpe
+      ctx.globalAlpha = Math.min(1, (1 - st.breakT) / 0.4);
+      for (const p of st.sparks) D.circle(ctx, x0 - 22 + p.x * 0.6, y + p.y * 0.6, 3, C.water);
       ctx.globalAlpha = 1;
     }
   }
@@ -166,20 +176,15 @@
     label: side => side === 'w' ? 'Ancho del tramo angosto' : 'Resistencia',
     text: R => R ? ohm(R) : '0 Ω, cortocircuito'
   });
-  b.linkedButton({
-    pos: g => [g.PX, g.TOP + 0.4 * (g.BOT - g.TOP)],
-    text: side => st.bridge ? 'Quitar el puente' : (side === 'w' ? 'Puentear el tramo' : 'Puentear la resistencia'),
-    onClick: () => { st.bridge = !st.bridge; }
-  });
-  // Tocar el fusible (o el botón) pone uno nuevo.
+  // Tocar el fusible o la válvula (o el botón) lo repone.
   const repair = () => { st.blown = false; st.heat = 0; st.breakT = 9; };
   b.linkedButton({
     cls: 'sim-hit', pos: g => fuseAt(g), hidden: () => !st.blown,
-    label: () => 'Poner un fusible nuevo', onClick: repair
+    label: side => side === 'w' ? 'Abrir la válvula de seguridad' : 'Poner un fusible nuevo', onClick: repair
   });
   b.linkedButton({
     pos: g => [fuseAt(g)[0], g.BOT - 46], hidden: () => !st.blown,
-    text: () => 'Fusible nuevo', onClick: repair
+    text: side => side === 'w' ? 'Abrir la válvula' : 'Fusible nuevo', onClick: repair
   });
   b.start();
 })();

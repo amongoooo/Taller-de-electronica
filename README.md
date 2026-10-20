@@ -46,7 +46,7 @@ Todo va en modo claro, que se lee mejor proyectado. Los colores con significado 
 ## Simulaciones
 
 1. **Voltaje y presión** (`simulaciones/voltaje-presion/`)
-2. **Resistencia** (`simulaciones/resistencia/`): la resistencia (de 0 Ω a 10 kΩ) se cambia pellizcando el tramo angosto. Un puente salta la resistencia para mostrar un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0; se repone tocándolo.
+2. **Resistencia** (`simulaciones/resistencia/`): la resistencia (de 0 Ω a 10 kΩ) se cambia pellizcando el tramo angosto. Abierta del todo (0 Ω) es un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0. En el agua, en lugar del fusible hay una válvula de seguridad: el exceso de flujo empuja una bola contra su resorte hasta que cierra el tubo. Se reponen tocándolos.
 3. **Serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
 4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED (se pellizca), girar el LED y quemarlo; arriba de 30 mA el LED tarda en quemarse, más rápido entre más se pasa, aunque la inercia esté en 0.
 5. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.
