@@ -320,6 +320,19 @@
     };
     // Largo de cada punta, del contacto a donde sale su cable o manguera.
     const tipLen = (side, kind) => kind === 'I' ? (side === 'w' ? Sim.PIPE + 12 : 30) : (side === 'w' ? Sim.PIPE + 10 : 46);
+    // Refuerzo entre la punta y el cable (como el de los cables de verdad): un tramo más rígido que
+    // no deja que el cable se doble justo al salir de la punta.
+    const BOOT = 24;
+    // Indicador: a qué distancia del contacto va el centro de su círculo.
+    const PIN_D = 34;
+
+    // Cada medidor recuerda si muestra sus cables o solo indicadores (tocando una punta se cambia).
+    // Si está en indicadores y se arrastra una punta, el cable se ve solo mientras se arrastra (peek);
+    // al soltarla vuelve a ser indicador. Se recuerda en este navegador.
+    try { Object.assign(st.pinned, JSON.parse(localStorage.getItem('sim-pinned') || '{}')); } catch (e) {}
+    st.peek = { V: false, I: false };
+    const savePinned = () => { try { localStorage.setItem('sim-pinned', JSON.stringify(st.pinned)); } catch (e) {} };
+    const shown = kind => !st.pinned[kind] || st.peek[kind] || !!(st.placing && st.placing.kind === kind);
 
     // Cables y mangueras con inercia: una cadena de puntos que va del final de la punta (sale recto)
     // al borne del medidor y se arrastra como sobre una mesa: no cuelga, el roce la frena y solo se
@@ -335,7 +348,7 @@
       const key = kind + i;
       if (!st.placed[kind][i]) { delete ropes[side][key]; return; }
       const f = frame(g, kind, i), L = tipLen(side, kind);
-      const A = [f.x + f.n[0] * L, f.y + f.n[1] * L], A2 = [A[0] + f.n[0] * 16, A[1] + f.n[1] * 16];
+      const A = [f.x + f.n[0] * L, f.y + f.n[1] * L], A2 = [A[0] + f.n[0] * BOOT, A[1] + f.n[1] * BOOT];
       const B = jack(g, kind, i), span = Math.hypot(B[0] - A2[0], B[1] - A2[1]);
       let r = ropes[side][key];
       if (!r) {   // recién puesta: el cable sale del borne en línea recta
@@ -350,8 +363,9 @@
       if (hk > 0) r.len = Math.max(r.len, (Math.hypot(held.x - A2[0], held.y - A2[1]) + Math.hypot(B[0] - held.x, B[1] - held.y)) * 1.04);
       r.len = Math.max(r.len, span * 1.04 + 12);
       const rest = r.len / (NR - 1);
-      // roce: sin inercia casi toda la velocidad se pierde en un instante; con inercia sigue deslizándose
-      const fr = Math.pow(Math.exp(Math.log(1e-4) * (1 - cable.inertia) + Math.log(0.6) * cable.inertia), Math.min(dt, 1 / 30));
+      // roce: sin inercia casi toda la velocidad se pierde en un instante; con inercia sigue deslizándose.
+      // Un cable rígido roza más (pesa más), así no se queda temblando.
+      const fr = Math.pow(Math.exp(Math.log(1e-4) * (1 - cable.inertia) + Math.log(0.6) * cable.inertia), Math.min(dt, 1 / 30)) * (1 - 0.5 * cable.stiff);
       const bend = 2 * rest * cable.stiff * 0.97;   // distancia mínima entre puntos a dos de distancia
       for (const q of r) {
         const vx = (q.x - q.px) * fr, vy = (q.y - q.py) * fr;
@@ -361,6 +375,12 @@
       for (let it = 0; it < 30; it++) {
         r[0].x = A2[0]; r[0].y = A2[1]; r[NR - 1].x = B[0]; r[NR - 1].y = B[1];
         if (hk > 0) { r[hk].x = held.x; r[hk].y = held.y; }
+        // después del refuerzo el cable sigue saliendo casi derecho y se va aflojando poco a poco
+        for (let k = 1; k <= 3; k++) {
+          if (k === hk) continue;
+          const w = [0.6, 0.3, 0.12][k - 1], q = r[k];
+          q.x += (A2[0] + f.n[0] * rest * k - q.x) * w; q.y += (A2[1] + f.n[1] * rest * k - q.y) * w;
+        }
         for (let k = 1; k < NR; k++) {
           const a = r[k - 1], c = r[k], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
           if (d <= rest) continue;   // se dobla pero no se estira
@@ -388,6 +408,13 @@
         if (k === hk) continue;
         const q = r[k];
         q.x += ((r[k - 1].x + r[k + 1].x) / 2 - q.x) * sm; q.y += ((r[k - 1].y + r[k + 1].y) / 2 - q.y) * sm;
+      }
+      // roce en reposo: un punto que apenas se movería se queda quieto, como un cable pesado sobre la
+      // mesa; solo se mueve si lo jalan con ganas (más rígido, más pesado)
+      const still = 0.15 + 0.35 * cable.stiff;
+      for (let k = 1; k < NR - 1; k++) {
+        const q = r[k];
+        if (k !== hk && Math.hypot(q.x - q.px, q.y - q.py) < still) { q.x = q.px; q.y = q.py; }
       }
       r.A = A;
     };
@@ -421,7 +448,7 @@
     const nearRope = (side, x, y) => {
       let best = null;
       for (const key in ropes[side]) {
-        if (st.pinned[key[0]]) continue;
+        if (!shown(key[0])) continue;
         ropes[side][key].forEach((q, k) => {
           if (k < 2 || k > NR - 2) return;
           const d = Math.hypot(q.x - x, q.y - y);
@@ -487,9 +514,9 @@
     ['V', 'I'].forEach(kind => [0, 1].slice(0, NP[kind]).forEach(i => ['w', 'e'].forEach(side => {
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'sim-clamp';
-      el.setAttribute('aria-label', `${tipName(kind, i, side)}: arrástrala o usa las flechas para moverla; tócala para mostrar u ocultar su cable`);
+      el.setAttribute('aria-label', `${tipName(kind, i, side)}: arrástrala o usa las flechas para moverla; tócala para cambiar entre cable e indicador`);
       b.place(side, el, g => {
-        const f = frame(g, kind, i), L = kind === 'I' || st.pinned[kind] ? 0 : tipLen(side, kind) * 0.55;
+        const f = frame(g, kind, i), L = !shown(kind) ? PIN_D : kind === 'I' ? 0 : tipLen(side, kind) * 0.55;
         return [f.x + f.n[0] * L, f.y + f.n[1] * L];
       });
       const p = panel(side);
@@ -497,8 +524,8 @@
         const r = p.box.getBoundingClientRect();
         return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale];
       };
-      // Arrastrar mueve la punta (y siempre la muestra con su cable y su región); tocarla sin
-      // arrastrar la convierte en un pin pequeño para limpiar el diagrama, o la vuelve a mostrar.
+      // Arrastrar mueve la punta (mostrando su cable mientras se arrastra); tocarla sin arrastrar
+      // cambia el medidor entre cables e indicadores, para limpiar el diagrama.
       let down = null, dragged = false;
       el.addEventListener('pointerdown', e => {
         el.setPointerCapture(e.pointerId); el.focus(); down = [e.clientX, e.clientY]; dragged = false; e.preventDefault();
@@ -506,16 +533,20 @@
       el.addEventListener('pointermove', e => {
         if (!el.hasPointerCapture(e.pointerId)) return;
         if (!dragged && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) return;
-        dragged = true; st.pinned[kind] = false;
+        dragged = true; st.peek[kind] = true;
         const [x, y] = toDrawing(e);
         moveClamp(kind, i, x, y, x, y);   // el contacto va al punto del cable más cercano, del lado del puntero
       });
-      el.addEventListener('click', () => { if (!dragged) st.pinned[kind] = !st.pinned[kind]; dragged = false; });
+      const release = () => { if (st.peek[kind]) { st.peek[kind] = false; b.pw.replace(); b.pe.replace(); } };
+      el.addEventListener('pointerup', release); el.addEventListener('pointercancel', release);
+      el.addEventListener('click', () => {
+        if (!dragged) { st.pinned[kind] = !st.pinned[kind]; savePinned(); b.pw.replace(); b.pe.replace(); }
+        dragged = false;
+      });
       el.addEventListener('keydown', e => {
         const step = { ArrowUp: [0, -12], ArrowDown: [0, 12], ArrowLeft: [-12, 0], ArrowRight: [12, 0] }[e.key];
         if (!step) return;
         const [x, y] = st.clamps[kind][i];
-        st.pinned[kind] = false;
         moveClamp(kind, i, x + step[0], y + step[1]);
         e.preventDefault();
       });
@@ -533,6 +564,7 @@
       st.placing = v;
       [b.pw, b.pe].forEach(p => p.box.classList.toggle('placing', !!v));
       syncs.forEach(f => f());
+      b.pw.replace(); b.pe.replace();
     };
     ['V', 'I'].forEach(kind => ['w', 'e'].forEach(side => {
       const el = document.createElement('button');
@@ -550,7 +582,6 @@
         if (!st.placing || e.target.closest('.sim-meter-hit')) return;
         const r = p.box.getBoundingClientRect();
         const { kind, i } = st.placing;
-        st.pinned[kind] = false;
         const x = (e.clientX - r.left - p.ox) / p.scale, y = (e.clientY - r.top - p.oy) / p.scale;
         moveClamp(kind, i, x, y, x, y);
         st.placed[kind][i] = true;
@@ -580,7 +611,7 @@
     // Cables (o mangueras con agua) de un medidor. Se dibujan antes que el circuito, el controlador
     // y los medidores, así que siempre pasan por debajo de ellos; solo las puntas van encima.
     const drawCables = (ctx, g, kind) => {
-      if (st.pinned[kind]) return;
+      if (!shown(kind)) return;
       const side = g.side;
       for (let i = 0; i < NP[kind]; i++) {
         const r = ropes[side][kind + i];
@@ -594,15 +625,17 @@
         }
       }
     };
-    // Las puntas de cada medidor en el circuito (o pins pequeños si se ocultaron).
+    // Las puntas de cada medidor en el circuito, con su refuerzo (o indicadores si se ocultaron los cables).
     const drawTips = (ctx, g, kind) => {
       for (let i = 0; i < NP[kind]; i++) {
         if (!st.placed[kind][i]) continue;
         const f = frame(g, kind, i), col = jackColor(kind, i);
-        if (st.pinned[kind]) { pin(ctx, f.x, f.y, col, kind); continue; }
+        if (!shown(kind)) { pin(ctx, f, col, kind); continue; }
         ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(Math.atan2(f.n[1], f.n[0]));
         if (kind === 'V') (g.side === 'w' ? hoseTip : pen)(ctx, col);
         else (g.side === 'w' ? turbine : clampOn)(ctx);
+        boot(ctx, tipLen(g.side, kind), g.side === 'w' && kind === 'V' ? [8, 8.5] : [5, 3.2],
+          g.side === 'w' && kind === 'V' ? '#9aa6af' : kind === 'I' ? PROBE.I : col);
         ctx.restore();
       }
     };
@@ -677,14 +710,33 @@
       }
       D.lcd(ctx, 0, 54, 108, 30, text, unit);
     };
-    // Pin: gota pequeña clavada en el punto: + o − en las puntas del voltímetro, A en la pinza.
-    const pin = (ctx, x, y, col, kind) => {
-      ctx.save(); ctx.translate(x, y);
-      ctx.beginPath(); ctx.moveTo(0, 0);
-      ctx.bezierCurveTo(-3, -6, -9, -10, -9, -17); ctx.arc(0, -17, 9, Math.PI, 0); ctx.bezierCurveTo(9, -10, 3, -6, 0, 0);
-      ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = C.card; ctx.stroke();
-      D.text(ctx, kind === 'I' ? 'A' : col === RED ? '+' : '−', 0, -17, '#fff', { size: 13 });
-      ctx.restore();
+    // Refuerzo a lo largo de +x desde x0 (donde termina la punta), del ancho h[0] al h[1]: funda
+    // del color de la punta con anillos, que se angosta hacia el cable.
+    const boot = (ctx, x0, [h0, h1], col) => {
+      const x1 = x0 + BOOT;
+      ctx.beginPath();
+      ctx.moveTo(x0 - 1, -h0); ctx.lineTo(x1 - 3, -h1); ctx.quadraticCurveTo(x1, -h1, x1, 0);
+      ctx.quadraticCurveTo(x1, h1, x1 - 3, h1); ctx.lineTo(x0 - 1, h0); ctx.closePath();
+      ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = C.ink; ctx.stroke();
+      ctx.strokeStyle = col === C.ink ? 'rgba(255,255,255,0.45)' : 'rgba(21,33,42,0.45)'; ctx.lineWidth = 1.5;
+      for (let k = 1; k <= 3; k++) {
+        const x = x0 + BOOT * k / 4, h = h0 + (h1 - h0) * k / 4 - 1;
+        ctx.beginPath(); ctx.moveTo(x, -h); ctx.lineTo(x, h); ctx.stroke();
+      }
+    };
+    // Indicador: anillo que abraza el cable en el punto de contacto y, unido por un palito, un
+    // círculo grande del color de la punta con + o − (A en la pinza), con halo para verse de lejos.
+    const pin = (ctx, f, col, kind) => {
+      const bx = f.x + f.n[0] * PIN_D, by = f.y + f.n[1] * PIN_D, R = 14;
+      D.line(ctx, [[f.x, f.y], [bx, by]], 6, C.card);
+      D.line(ctx, [[f.x, f.y], [bx, by]], 3, col);
+      D.circle(ctx, f.x, f.y, 7, C.card, col, 3.5);
+      ctx.globalAlpha = 0.22; D.circle(ctx, bx, by, R + 7, col); ctx.globalAlpha = 1;
+      ctx.save(); ctx.shadowColor = 'rgba(21,33,42,0.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+      D.circle(ctx, bx, by, R + 2, C.card); ctx.restore();
+      D.circle(ctx, bx, by, R, col);
+      D.circle(ctx, bx, by, R + 2, null, C.ink, 1.5);
+      D.text(ctx, kind === 'I' ? 'A' : col === RED ? '+' : '−', bx, by + 1, '#fff', { size: 20, weight: 800 });
     };
     const probeText = (kind, scale, width, d) => ready(kind) ? digits(st.probe[kind].value * scale, width, d) : ' ----';
 
