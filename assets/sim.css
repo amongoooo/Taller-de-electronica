@@ -118,15 +118,37 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-pinch:hover, .sim-pinch:focus-visible { border-color: var(--muted); }
 
-/* Selector de tres opciones en la barra: solo agua, ambas o solo electricidad. */
-.sim-seg { display: inline-flex; border: 2px solid var(--line); border-radius: 999px; padding: 2px; background: var(--bg); }
-.sim-seg button {
-  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; border: 0; border-radius: 999px;
-  padding: 4px 12px; background: transparent; color: var(--muted);
+/* Switches en la barra: Agua ⇄ Electricidad y, aparte, "Ambos" (que desactiva al primero). */
+.sim-view { display: inline-flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+.sim-mode, .sim-both {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 6px;
+  border: 2px solid var(--line); border-radius: 999px; background: var(--bg);
 }
-.sim-seg button[data-v="w"][aria-checked="true"] { background: var(--water-soft); color: var(--water); }
-.sim-seg button[data-v="both"][aria-checked="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
-.sim-seg button[data-v="e"][aria-checked="true"] { background: var(--charge-soft); color: var(--charge); }
+.sim-view button { font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; border: 0; background: transparent; color: var(--muted); }
+.sim-mode .lbl { padding: 2px 4px; border-radius: 999px; }
+.sim-view[data-side="w"] .sim-mode .lbl[data-v="w"] { color: var(--water); }
+.sim-view[data-side="e"] .sim-mode .lbl[data-v="e"] { color: var(--charge); }
+.sim-switch {
+  position: relative; display: inline-block; flex: none; width: 46px; height: 26px; padding: 0;
+  border-radius: 999px; background: var(--line); transition: background .2s;
+}
+.sim-switch .knob {
+  position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s;
+}
+/* El switch de modo es azul (agua) a la izquierda y ámbar (electricidad) a la derecha. */
+.sim-view button.sim-switch.mode { background: var(--water); }
+.sim-view button.sim-switch.mode[aria-checked="true"] { background: var(--charge); }
+.sim-switch.mode[aria-checked="true"] .knob,
+.sim-both[aria-checked="true"] .knob { transform: translateX(20px); }
+.sim-both { padding-right: 10px; }
+.sim-both[aria-checked="true"] { border-color: var(--ink); color: var(--ink); }
+.sim-both[aria-checked="true"] .sim-switch { background: var(--ink); }
+/* Con "Ambos" encendido, el switch de modo se ve apagado y no responde. */
+.sim-mode[aria-disabled="true"] { opacity: .4; }
+.sim-mode button:disabled { cursor: not-allowed; }
+.sim-view[data-both="true"] .sim-mode .lbl { color: var(--muted); }
+.sim-view[data-both="true"] button.sim-switch.mode { background: var(--muted); }
 .sim-stage[data-view="w"], .sim-stage[data-view="e"] { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 .sim-stage[data-view="w"] #pe, .sim-stage[data-view="e"] #pw { display: none; }
 
@@ -137,7 +159,12 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   .sim-bar .back { font-size: 0; }
   .sim-bar .back::before { content: "←"; font-size: 22px; line-height: 1; }
   .sim-bar h1 { font-size: 17px; }
-  .sim-seg button { font-size: 13px; padding: 4px 9px; }
+  .sim-view { gap: 6px; }
+  .sim-view button { font-size: 13px; }
+  .sim-switch { width: 40px; height: 22px; }
+  .sim-switch .knob { width: 16px; height: 16px; }
+  .sim-switch.mode[aria-checked="true"] .knob,
+  .sim-both[aria-checked="true"] .knob { transform: translateX(18px); }
   .sim-bar .ctl { gap: 6px; font-size: 14px; }
   .sim-stage { padding: 6px max(6px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); gap: 8px; }
   .sim-stage[data-view="both"] {

@@ -509,5 +509,43 @@
     requestAnimationFrame(frame);
   };
 
+  // ---------- vista: switch Agua ⇄ Electricidad y switch "Ambas" en la barra de arriba ----------
+  // Con "Ambas" encendido se ven los dos paneles y el switch de agua/electricidad queda desactivado.
+  // Se recuerda en este navegador (sim-view: 'w', 'e' o 'both'; sim-side: el último lado elegido).
+  Sim.viewSwitch = () => {
+    const stage = document.querySelector('.sim-stage'), bar = document.querySelector('.sim-bar');
+    const read = (k, ok, def) => { try { const v = localStorage.getItem(k); return ok.includes(v) ? v : def; } catch (e) { return def; } };
+    const save = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+    const view = read('sim-view', ['w', 'e', 'both'], 'both');
+    let side = view === 'both' ? read('sim-side', ['w', 'e'], 'w') : view, both = view === 'both';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'sim-view';
+    wrap.innerHTML =
+      '<div class="sim-mode">' +
+        '<button type="button" class="lbl" data-v="w">Agua</button>' +
+        '<button type="button" class="sim-switch mode" role="switch" aria-label="Ver electricidad en vez de agua"><span class="knob"></span></button>' +
+        '<button type="button" class="lbl" data-v="e">Electricidad</button>' +
+      '</div>' +
+      '<button type="button" class="sim-both" role="switch" aria-label="Ver ambos">' +
+        '<span class="sim-switch"><span class="knob"></span></span><span class="lbl">Ambos</span>' +
+      '</button>';
+    const mode = wrap.querySelector('.sim-mode'), sw = mode.querySelector('.sim-switch'), bothBtn = wrap.querySelector('.sim-both');
+    const update = () => {
+      stage.dataset.view = both ? 'both' : side;
+      wrap.dataset.side = side; wrap.dataset.both = String(both);
+      sw.setAttribute('aria-checked', String(side === 'e'));
+      bothBtn.setAttribute('aria-checked', String(both));
+      mode.querySelectorAll('button').forEach(el => { el.disabled = both; });
+      mode.setAttribute('aria-disabled', String(both));
+      save('sim-view', stage.dataset.view); save('sim-side', side);
+    };
+    sw.addEventListener('click', () => { side = side === 'w' ? 'e' : 'w'; update(); });
+    mode.querySelectorAll('.lbl').forEach(el => el.addEventListener('click', () => { side = el.dataset.v; update(); }));
+    bothBtn.addEventListener('click', () => { both = !both; update(); });
+    bar.insertBefore(wrap, bar.querySelector('.ctl'));
+    update();
+  };
+
   window.Sim = Sim;
 })();
