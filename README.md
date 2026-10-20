@@ -21,6 +21,7 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 - `Sim.draw.meter`: el estilo de todos los medidores, una ruedita con aguja y una pantallita de siete segmentos con la medición.
 - `Sim.water`: el agua como partículas; avanzan según el volumen que pasa (más rápido en los tramos angostos y en el centro del tubo) y su color indica la rapidez.
 - `Sim.ramp` y `Sim.needle`: inercia (llega al valor en exactamente el tiempo elegido, con curva suave) y agujas con masa y resorte.
+- `Sim.steps`: botones Anterior y Siguiente en la barra para las páginas que van por pasos; con `b.showMeters({ V, I })` del banco se muestran u ocultan los medidores en cada paso.
 - `Sim.knob`: perilla que se gira arrastrando, con la rueda del ratón o con las flechas del teclado.
 
 **Importante:** cada vez que cambien `assets/sim.css` o `assets/sim.js`, sube el número `?v=` con el que las páginas los cargan, para que el navegador no use una copia vieja guardada.
@@ -47,7 +48,7 @@ Todo va en modo claro, que se lee mejor proyectado. Los colores con significado 
 
 En este orden progresivo: cada una enseña una sola cosa nueva sobre lo que ya se vio en la anterior (así aparecen numeradas en la página de inicio):
 
-1. **Voltaje y corriente** (`simulaciones/voltaje-presion/`): la bomba y la fuente con una resistencia fija de 1 kΩ, para encender, subir el voltaje y aprender a medir voltaje y corriente.
+1. **Voltaje y corriente** (`simulaciones/voltaje-presion/`): la bomba y la fuente con una resistencia fija de 1 kΩ, en tres pasos con los botones **Anterior** y **Siguiente** de la barra: primero solo la fuente (encender, apagar y la perilla), luego aparece el amperímetro (caudal) y al final el voltímetro (manómetro). El paso queda en la dirección (`#paso-2`), para recargar o compartir en ese paso.
 2. **Ley de Ohm** (`simulaciones/resistencia/`): el mismo circuito, pero el tramo angosto (la resistencia) empieza en 1 kΩ y se cambia pellizcando, de 0 Ω a 10 kΩ, de ¼ W; si recibe más de ¼ W (P = I²·R) se calienta y se quema, y en el agua el tramo angosto se revienta. Abierta del todo (0 Ω) es un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0. En el agua, en lugar del fusible hay una válvula de seguridad: el exceso de flujo empuja una bola contra su resorte hasta que cierra el tubo. Se reponen tocándolos.
 3. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.
 4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED (se pellizca), girar el LED y quemarlo; arriba de 30 mA el LED tarda en quemarse, más rápido entre más se pasa, aunque la inercia esté en 0.
