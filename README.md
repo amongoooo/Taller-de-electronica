@@ -45,18 +45,19 @@ Todo va en modo claro, que se lee mejor proyectado. Los colores con significado 
 
 ## Simulaciones
 
-1. **Voltaje y presión** (`simulaciones/voltaje-presion/`)
-2. **Resistencia** (`simulaciones/resistencia/`): la resistencia (de 0 Ω a 10 kΩ, de ¼ W) se cambia pellizcando el tramo angosto; si recibe más de ¼ W (P = I²·R) se calienta y se quema, y en el agua el tramo angosto se revienta. Abierta del todo (0 Ω) es un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0. En el agua, en lugar del fusible hay una válvula de seguridad: el exceso de flujo empuja una bola contra su resorte hasta que cierra el tubo. Se reponen tocándolos.
-3. **Serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
-4. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED (se pellizca), girar el LED y quemarlo; arriba de 30 mA el LED tarda en quemarse, más rápido entre más se pasa, aunque la inercia esté en 0.
-5. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.
+En este orden, de lo más simple a lo más compuesto (así aparecen numeradas en la página de inicio):
 
-La versión anterior con las 4 en pestañas sigue en `simulaciones/agua-electricidad/`.
+1. **Ley de Ohm** (`simulaciones/resistencia/`): la bomba y la fuente con un tramo angosto (una resistencia) que empieza en 1 kΩ y se cambia pellizcando, de 0 Ω a 10 kΩ, de ¼ W; si recibe más de ¼ W (P = I²·R) se calienta y se quema, y en el agua el tramo angosto se revienta. Abierta del todo (0 Ω) es un cortocircuito: la corriente solo la limita la resistencia interna de la fuente, los cables se ponen al rojo y el fusible (100 mA) se calienta y se funde más rápido entre más se pasa, aunque la inercia esté en 0. En el agua, en lugar del fusible hay una válvula de seguridad: el exceso de flujo empuja una bola contra su resorte hasta que cierra el tubo. Se reponen tocándolos.
+2. **Resistencias en serie y paralelo** (`simulaciones/resistencias-serie-paralelo/`): dos resistencias que se ajustan agarrando el borde del tramo angosto o pellizcándolo.
+3. **Interruptor y LED** (`simulaciones/interruptor-led/`): válvula/interruptor, resistencia del LED (se pellizca), girar el LED y quemarlo; arriba de 30 mA el LED tarda en quemarse, más rápido entre más se pasa, aunque la inercia esté en 0.
+4. **LEDs en serie y paralelo** (`simulaciones/serie-paralelo/`): dos LEDs o ruedas; se rompen tocándolos.
+
+`simulaciones/voltaje-presion/` quedó incluida en Ley de Ohm y solo redirige ahí, para que no se rompan los enlaces viejos. La primera versión con las 4 en pestañas (con textos y preguntas para el grupo) sigue en `simulaciones/agua-electricidad/`, aunque ya no aparece en la página de inicio.
 
 ## Agregar una simulación
 
 1. Crear una carpeta nueva en `simulaciones/` con su `index.html`.
-2. Agregar una tarjeta en `index.html` que apunte a esa carpeta.
+2. Agregar una tarjeta numerada en `index.html` que apunte a esa carpeta, en su lugar del orden.
 3. Subir los cambios a `main`; la página se actualiza sola en uno o dos minutos.
 
 Para probar en local basta con abrir el archivo en el navegador o correr `python3 -m http.server` en la raíz.
