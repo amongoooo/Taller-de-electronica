@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261020073000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020075000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,20 +35,21 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261020073000"></script>
-<script src="../../assets/banco.js?v=20261020073000"></script>
+<script src="../../assets/sim.js?v=20261020075000"></script>
+<script src="../../assets/banco.js?v=20261020075000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
   // 0 Ω es un cortocircuito: solo la resistencia interna de la fuente (y de la bomba) limita la corriente.
-  // La resistencia se cambia pellizcando el tramo angosto: de 470 Ω a 10 kΩ, y abierto del todo es 0 Ω.
-  const RMIN = 470, RMAX = 10000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
+  // La resistencia se cambia pellizcando el tramo angosto: de 100 Ω a 10 kΩ, y abierto del todo es 0 Ω.
+  const RMIN = 100, RMAX = 10000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
   const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
   const nice = R => { const p = 10 ** (Math.floor(Math.log10(R)) - 1); return Math.round(R / p) * p; };   // dos cifras
   const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : nice(RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
   const RINT = 15, IFUSE = 100, FUSE_K = 52.5;   // resistencia interna de la fuente; el fusible aguanta 100 mA
+  const PMAX = 0.25, RES_K = 2.9;                 // la resistencia es de ¼ W
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
-  const st = { R: 1000, blown: false, heat: 0, breakT: 9, sparks: [] };
+  const st = { R: 1000, blown: false, heat: 0, breakT: 9, sparks: [], burnt: false, rheat: 0, burnT: 9, drops: [] };
   const sides = {};
   const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), half(st.R));
   // El fusible (en el agua, una válvula de seguridad) va en el tubo de abajo, a la izquierda.
@@ -61,7 +62,7 @@
       const s = sides[g.side] = { phase: 0, g };
       if (g.side === 'w') s.water = Sim.water(g.loop, profile(g));
     },
-    model: V => ({ I: st.blown ? 0 : V / (st.R + RINT) * 1000 }),
+    model: V => ({ I: st.blown || st.burnt ? 0 : V / (st.R + RINT) * 1000 }),
     // Voltaje en las terminales: la fuente pierde I·RINT por dentro, así que en cortocircuito se cae casi a 0.
     circuit(g, m, V) {
       const Vt = Math.max(0, V - m.I * RINT / 1000), fuse = { at: fuseAt(g), half: 24, dV: st.blown ? Vt : 0 };
@@ -76,6 +77,15 @@
         st.heat += dt * over / FUSE_K;
         if (st.heat >= 1) blow();
       } else st.heat = Math.max(0, st.heat - dt / 1.5);
+      // La resistencia se calienta con la potencia P = I²·R; arriba de ¼ W tarda en quemarse, más rápido
+      // entre más se pasa (con 9 V y 100 Ω, unos 2 s). En un corto (0 Ω) no recibe potencia y no se calienta.
+      const P = (m.I / 1000) ** 2 * st.R, rOver = P / PMAX - 1;
+      if (rOver > 0 && !st.burnt) {
+        st.rheat += dt * Math.min(2.5, rOver / RES_K);
+        if (st.rheat >= 1) burn();
+      } else st.rheat = Math.max(0, st.rheat - dt / 1.5);
+      st.burnT += dt;
+      for (const p of st.drops) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; }
       st.breakT += dt;
       for (const p of st.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; }
       const r = Math.min(m.I, 60) * 6;   // las partículas tienen un tope de rapidez para que se puedan ver
@@ -84,8 +94,10 @@
     },
     drawW(ctx, g, m) {
       D.pipe(ctx, g.loop);
-      D.narrow(ctx, g.PX, g.TOP, half(st.R));
+      const [jx, jy] = jitter();
+      D.narrow(ctx, g.PX + jx, g.TOP + jy, half(st.R));
       sides.w.water.draw(ctx);
+      burstPipe(ctx, g);
       safetyValve(ctx, g);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch.drag);
       label(ctx, g, st.R ? 'tramo angosto' : 'sin estrechamiento', !st.R);
@@ -94,7 +106,10 @@
       D.wire(ctx, g.loop);
       hot(ctx, g.loop, m);
       D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
-      D.resistor(ctx, g.PX, g.TOP);
+      const [jx, jy] = jitter();
+      if (st.rheat > 0 && !st.burnt) glowAt(ctx, g.PX, g.TOP, st.rheat);
+      D.resistor(ctx, g.PX + jx, g.TOP + jy);
+      burntResistor(ctx, g);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch.drag);
       fuse(ctx, g);
       label(ctx, g, st.R ? ohm(st.R) : '0 Ω', !st.R, true);
@@ -161,6 +176,57 @@
       ctx.globalAlpha = 1;
     }
   }
+  // Mientras se calienta, la resistencia (o el tramo angosto) tiembla.
+  function jitter() {
+    if (!st.rheat || st.burnt) return [0, 0];
+    const t = performance.now() / 1000, a = 1.6 * st.rheat;
+    return [a * Math.sin(t * 53), a * Math.cos(t * 41)];
+  }
+  function glowAt(ctx, x, y, k) {
+    const gr = ctx.createRadialGradient(x, y, 4, x, y, 52);
+    gr.addColorStop(0, `rgba(255, 110, 30, ${0.75 * k})`); gr.addColorStop(1, 'rgba(255, 110, 30, 0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 52, 0, Math.PI * 2); ctx.fill();
+  }
+  // Resistencia quemada: tiznada, partida a la mitad y echando humo.
+  function burntResistor(ctx, g) {
+    if (!st.burnt) return;
+    const x = g.PX, y = g.TOP;
+    ctx.fillStyle = 'rgba(30, 20, 15, 0.55)'; ctx.beginPath(); ctx.ellipse(x, y, 24, 13, 0, 0, Math.PI * 2); ctx.fill();
+    D.line(ctx, [[x - 3, y - 14], [x + 3, y - 4], [x - 3, y + 4], [x + 3, y + 14]], 6, C.card);
+    D.text(ctx, 'quemada', x, y + 44, C.danger, { size: 14 });
+    smoke(ctx, x, y - 12);
+  }
+  // Tramo angosto reventado: una grieta por donde sale el agua; ya no circula.
+  function burstPipe(ctx, g) {
+    if (st.rheat > 0.5 && !st.burnt) {   // antes de reventar empieza a gotear
+      const t = performance.now() / 1000;
+      for (let k = 0; k < 3; k++) D.circle(ctx, g.PX - 8 + 8 * k, g.TOP - Sim.PIPE - 4 - ((t * 40 + k * 11) % 14), 2, C.water);
+    }
+    if (!st.burnt) return;
+    const x = g.PX, y = g.TOP, h = half(st.R) + 5;
+    D.line(ctx, [[x - 10, y - h], [x - 3, y - h + 5], [x + 3, y - h - 1], [x + 10, y - h + 4]], 3, C.danger);
+    if (st.burnT < 1.2) {
+      ctx.globalAlpha = Math.min(1, (1.2 - st.burnT) / 0.5);
+      for (const p of st.drops) D.circle(ctx, x + p.x, y - h + p.y, 3, C.water);
+      ctx.globalAlpha = 1;
+    }
+    D.text(ctx, 'tubo reventado', x, y + 44, C.danger, { size: 14 });
+  }
+  function smoke(ctx, x, y) {
+    const t = st.burnT;
+    for (let k = 0; k < 4; k++) {
+      const u = ((t * 0.5 + k / 4) % 1);
+      D.circle(ctx, x + 6 * Math.sin(k * 2 + t), y - 50 * u, 4 + 10 * u, `rgba(110, 110, 110, ${0.35 * (1 - u)})`);
+    }
+  }
+  function burn() {
+    st.burnt = true; st.rheat = 0; st.burnT = 0;
+    st.drops = Array.from({ length: 18 }, () => {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6, v = 120 + 160 * Math.random();
+      return { x: (Math.random() - 0.5) * 16, y: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v };
+    });
+    b.refresh();
+  }
   function blow() {
     st.blown = true; st.heat = 0; st.breakT = 0;
     st.sparks = Array.from({ length: 16 }, () => {
@@ -175,6 +241,12 @@
     set: R => { st.R = R; sides.w.water.setProfile(profile(sides.w.g)); },
     label: side => side === 'w' ? 'Ancho del tramo angosto' : 'Resistencia',
     text: R => R ? ohm(R) : '0 Ω, cortocircuito'
+  });
+  // Botón para poner una resistencia (o un tubo) nueva.
+  b.linkedButton({
+    pos: g => [g.PX, g.TOP + 78], hidden: () => !st.burnt,
+    text: side => side === 'w' ? 'Tubo nuevo' : 'Resistencia nueva',
+    onClick: () => { st.burnt = false; st.rheat = 0; st.burnT = 9; }
   });
   // Tocar el fusible o la válvula (o el botón) lo repone.
   const repair = () => { st.blown = false; st.heat = 0; st.breakT = 9; };
