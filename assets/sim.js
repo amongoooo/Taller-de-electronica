@@ -547,5 +547,36 @@
     update();
   };
 
+  // ---------- pasos: botones Anterior y Siguiente en la barra de arriba ----------
+  // Para las páginas que van apareciendo de a poco: steps es una lista de nombres y go(k) se llama
+  // con el paso elegido (de 0 a steps.length − 1). El paso queda en la dirección (#paso-2), así que
+  // se puede recargar o compartir en ese paso.
+  Sim.steps = (steps, go) => {
+    const bar = document.querySelector('.sim-bar'), n = steps.length;
+    const wrap = document.createElement('div');
+    wrap.className = 'sim-steps';
+    wrap.innerHTML =
+      '<button type="button" class="prev" aria-label="Paso anterior">‹ Anterior</button>' +
+      '<span class="num" aria-live="polite"></span>' +
+      '<button type="button" class="next" aria-label="Paso siguiente">Siguiente ›</button>';
+    const prev = wrap.querySelector('.prev'), next = wrap.querySelector('.next'), num = wrap.querySelector('.num');
+    const fromHash = () => { const m = /^#paso-(\d+)$/.exec(location.hash); return m ? Math.min(n, Math.max(1, +m[1])) - 1 : 0; };
+    let k = -1;
+    const set = (j, push) => {
+      if (j === k) return;
+      k = j;
+      num.innerHTML = `<span class="long">Paso ${k + 1} de ${n}</span><span class="short">${k + 1}/${n}</span>`;
+      num.title = steps[k];
+      prev.disabled = k === 0; next.disabled = k === n - 1;
+      if (push) history.replaceState(null, '', k ? `#paso-${k + 1}` : location.pathname + location.search);
+      go(k);
+    };
+    prev.addEventListener('click', () => set(Math.max(0, k - 1), true));
+    next.addEventListener('click', () => set(Math.min(n - 1, k + 1), true));
+    window.addEventListener('hashchange', () => set(fromHash(), false));
+    bar.insertBefore(wrap, bar.querySelector('h1').nextSibling);
+    set(fromHash(), false);
+  };
+
   window.Sim = Sim;
 })();

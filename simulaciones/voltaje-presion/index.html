@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261020075000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020205000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261020180000"></script>
-<script src="../../assets/banco.js?v=20261020180000"></script>
+<script src="../../assets/sim.js?v=20261020205000"></script>
+<script src="../../assets/banco.js?v=20261020205000"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -70,6 +70,15 @@
     }
   });
   b.start();
+
+  // Va por pasos: primero solo la fuente (encender, apagar y la perilla), luego aparece el medidor
+  // de corriente (caudal) y al final el de voltaje (presión).
+  const STEPS = [
+    ['La fuente', { I: false, V: false }],
+    ['La corriente', { I: true, V: false }],
+    ['El voltaje', { I: true, V: true }]
+  ];
+  Sim.steps(STEPS.map(s => s[0]), k => b.showMeters(STEPS[k][1]));
 })();
 </script>
 </body>

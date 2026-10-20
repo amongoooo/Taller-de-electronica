@@ -17,6 +17,7 @@
 //                     esos cambios ya vienen suaves y no se toman como cambios del circuito
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
 // })
+// b.showMeters({ V, I }) muestra u oculta cada medidor con sus puntas (para las páginas que van por pasos).
 (() => {
   const { C, draw: D, fmt, digits } = Sim;
   const VMAX = 12, KPA_PER_V = 10, MLS_PER_MA = 10, RPM_PER_MA = 100;
@@ -28,7 +29,7 @@
     const iFull = o.iFull || 12, flowSpeed = o.flowSpeed || 12;
     const st = { on: false, set: o.v0 ?? 6, v: 0, tau: 1, level: Sim.ramp(), m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nS: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(), nPa: Sim.needle(), nPb: Sim.needle(), turb: 0,
-      segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false } };
+      segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false }, show: { V: true, I: true } };
     const b = { st, VMAX, KPA_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
     // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual):
@@ -550,7 +551,7 @@
         moveClamp(kind, i, x + step[0], y + step[1]);
         e.preventDefault();
       });
-      const sync = () => { el.hidden = !st.placed[kind][i]; };
+      const sync = () => { el.hidden = !st.placed[kind][i] || !st.show[kind]; };
       syncs.push(sync); sync();
     })));
 
@@ -575,7 +576,14 @@
         : `Conectar ${name}: luego toca el circuito para poner ${side === 'w' ? 'la turbinita' : 'la pinza'}`);
       b.place(side, el, g => { const [x, y] = meterAt(g, kind); return [x, y + 18 * g.MK]; });
       el.addEventListener('click', () => setPlacing(st.placing && st.placing.kind === kind ? null : { kind, i: 0 }));
+      syncs.push(() => { el.hidden = !st.show[kind]; });
     }));
+    b.showMeters = show => {
+      Object.assign(st.show, show);
+      if (st.placing && !st.show[st.placing.kind]) setPlacing(null);
+      syncs.forEach(f => f());
+      b.pw.replace(); b.pe.replace();
+    };
     let swallow = false;
     [b.pw, b.pe].forEach(p => {
       p.box.addEventListener('pointerdown', e => {
@@ -611,7 +619,7 @@
     // Cables (o mangueras con agua) de un medidor. Se dibujan antes que el circuito, el controlador
     // y los medidores, así que siempre pasan por debajo de ellos; solo las puntas van encima.
     const drawCables = (ctx, g, kind) => {
-      if (!shown(kind)) return;
+      if (!st.show[kind] || !shown(kind)) return;
       const side = g.side;
       for (let i = 0; i < NP[kind]; i++) {
         const r = ropes[side][kind + i];
@@ -627,6 +635,7 @@
     };
     // Las puntas de cada medidor en el circuito, con su refuerzo (o indicadores si se ocultaron los cables).
     const drawTips = (ctx, g, kind) => {
+      if (!st.show[kind]) return;
       for (let i = 0; i < NP[kind]; i++) {
         if (!st.placed[kind][i]) continue;
         const f = frame(g, kind, i), col = jackColor(kind, i);
@@ -670,6 +679,7 @@
     };
     // Medidor con sus bornes.
     const drawProbe = (ctx, g, kind, label, text, unit, color) => {
+      if (!st.show[kind]) return;
       const [x, y] = meterAt(g, kind), needle = kind === 'V' ? st.nVm : st.nIm;
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
       const placing = st.placing && st.placing.kind === kind;
