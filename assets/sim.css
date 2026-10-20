@@ -37,7 +37,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-bar h1 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0; }
 .sim-bar .ctl { display: flex; align-items: center; gap: 10px; margin-left: auto; font-weight: 700; font-size: 15px; }
 .sim-bar input[type="range"] { width: 170px; accent-color: var(--water); }
-.sim-bar output { font-family: var(--font-mono); font-size: 14px; color: var(--muted); min-width: 4.5ch; }
+.sim-bar output { font-family: var(--font-mono); font-size: 14px; color: var(--muted); min-width: 4.5ch; white-space: nowrap; }
 
 .sim-stage {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0;
@@ -227,4 +227,13 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   .sim-steps .num { font-size: 13px; }
   .sim-steps .long { display: none; }
   .sim-steps .short { display: inline; }
+}
+/* Botón para recoger o sacar los cables de los medidores. */
+.sim-reel-btn { display: inline-flex; align-items: center; gap: 6px; }
+.sim-reel-btn svg { width: 18px; height: 18px; flex: none; }
+.sim-reel-btn[aria-pressed="true"] { border-color: var(--water); color: var(--water); }
+.sim-reel-btn:disabled { opacity: 0.45; cursor: default; }
+@media (max-width: 600px), (max-height: 500px) {
+  .sim-reel-btn { padding: 4px 8px; }
+  .sim-reel-btn .lbl { display: none; }
 }
