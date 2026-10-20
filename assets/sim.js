@@ -114,6 +114,22 @@
   // Tubería: borde gris y agua clara por dentro. Cable: línea delgada.
   D.pipe = (ctx, pts, inner = 2 * Sim.PIPE) => { D.line(ctx, pts, inner + 10, C.pipe); D.line(ctx, pts, inner, C['water-soft']); };
   D.wire = (ctx, pts) => D.line(ctx, pts, 4, C.ink);
+  // Manguera de un medidor por el recorrido pts: tubo claro con agua adentro y una raya del color
+  // de su borne a lo largo (roja la del +, negra la del −).
+  D.hose = (ctx, pts, col) => {
+    const ln = (w, c) => { ctx.lineWidth = w; ctx.strokeStyle = c; ctx.stroke(); };
+    const path = q => { ctx.beginPath(); q.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); };
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    path(pts); ln(14, C.card); ln(12, C.pipe); ln(9, C['water-soft']);
+    // la raya va corrida hacia un lado del centro, siguiendo la normal de cada tramo
+    const side = pts.map((p, k) => {
+      const a = pts[Math.max(0, k - 1)], b = pts[Math.min(pts.length - 1, k + 1)];
+      const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1;
+      return [p[0] - dy / d * 3.2, p[1] + dx / d * 3.2];
+    });
+    ctx.lineCap = 'butt'; path(side); ln(3.2, col);
+    ctx.lineCap = 'round'; path(pts); ln(3.6, C.water);
+  };
   // Puntos que avanzan por el recorrido; phase crece con la corriente.
   D.flow = (ctx, pts, phase, col, { gap = 30, r = 4.5 } = {}) => {
     const L = D.len(pts), off = ((phase % gap) + gap) % gap;
