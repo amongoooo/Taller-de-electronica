@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Capacitores · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261020160000">
+<style>
+/* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
+.sim-pinch.cap { width: max(50px, calc(var(--s, 1) * 112px)); height: max(60px, calc(var(--s, 1) * 136px)); }
+</style>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Capacitores</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="0">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con bomba, válvula de tres vías, tramo angosto ajustable y tanque con membrana elástica"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico con fuente, conmutador de carga y descarga, resistencia ajustable y capacitor"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261020160000"></script>
+<script src="../../assets/banco.js?v=20261020160000"></script>
+<script>
+(() => {
+  const { C, draw: D, fmt } = Sim;
+  // Circuito RC. Arriba, la resistencia (tramo angosto) y el capacitor (tanque con una membrana elástica
+  // que no deja pasar el agua: se estira y empuja de regreso). A la izquierda, un conmutador (válvula de
+  // tres vías): en "cargar" conecta la fuente; en "descargar" un puente que pasa por encima de la fuente
+  // cierra el circuito solo con la resistencia y el capacitor.
+  const RMIN = 470, RMAX = 10000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
+  const CMIN = 220, CMAX = 4700, RCMIN = 18, RCMAX = 48, LNC = Math.log(CMAX / CMIN);   // capacidad en µF
+  const nice = x => { const p = 10 ** (Math.floor(Math.log10(x)) - 1); return Math.round(x / p) * p; };   // dos cifras
+  const half = R => HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN;
+  const fromHalf = h => nice(RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
+  const rcOf = c => RCMIN + (RCMAX - RCMIN) * Math.log(c / CMIN) / LNC;   // radio del tanque
+  const cOf = r => nice(CMIN * Math.exp((Math.max(RCMIN, Math.min(RCMAX, r)) - RCMIN) / (RCMAX - RCMIN) * LNC));
+  const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
+  const uF = c => c + ' µF';
+  const secs = t => fmt(t, t < 1 ? 2 : 1) + ' s';
+  const K = 6;                     // px que avanzan las partículas por cada mC (como I·6 en las demás)
+  const VC = '#8b5cf6', IC = '#0ea371';   // presión/voltaje morado, caudal/corriente verde
+  const XR = 300, XC = 520;        // resistencia y capacitor, en el cable de arriba
+  const st = { R: 1000, C: 2200, charge: true, Vc: 0, t: 0, hist: [], ev: null, target: null,
+    ph: { A: 0, C: 0, B: 0, N: 0 }, I: { A: 0, C: 0, B: 0, N: 0 } };
+  const sides = {};
+  const tau = () => st.R * st.C * 1e-6;
+
+  // Nodos: J es el conmutador en el lado izquierdo; N donde el puente llega al cable de abajo.
+  const nodes = g => {
+    const XN = g.PX + 75, YB = g.BOT - 64;
+    return { XN, YB, J: [g.X0, YB], P: [g.X0, YB - 22], A: [g.X0, YB + 22], B: [g.X0 + 22, YB] };
+  };
+  // Recorridos de cada tramo, en el sentido de la corriente al cargar.
+  //   A: de la fuente (+) al conmutador        C: del conmutador, por la resistencia y el capacitor, hasta N
+  //   B: el puente de descarga, hasta N        N: de N a la fuente (−)
+  const paths = g => {
+    const n = nodes(g), S = 40;   // medio ancho de la bomba y la fuente (b.SRC)
+    return {
+      A: [[g.PX - S, g.BOT], [g.X0, g.BOT], n.A],
+      C: [n.P, [g.X0, g.TOP], [g.X1, g.TOP], [g.X1, g.BOT], [n.XN, g.BOT]],
+      B: [n.B, [n.XN, n.YB], [n.XN, g.BOT]],
+      N: [[n.XN, g.BOT], [g.PX + S, g.BOT]]
+    };
+  };
+  // El tramo C partido en el capacitor: antes (C1) y después (C2) de la membrana (o de las placas).
+  const split = (g, gap) => {
+    const p = paths(g).C;
+    return { C1: [p[0], p[1], [XC - gap, g.TOP]], C2: [[XC + gap, g.TOP], p[2], p[3], p[4]] };
+  };
+
+  // Agua en un tramo abierto: partículas en carriles (las del centro más rápidas), que avanzan según el
+  // volumen que pasa y salen por un extremo mientras entran por el otro. ph es lo que ha avanzado el agua
+  // (en px de tubería normal); como el capacitor no deja pasar el agua, al cargarse todo se detiene.
+  const stream = (pts, halfAt = () => Sim.PIPE) => {
+    const L = D.len(pts), N = Math.max(2, Math.ceil(L / 2)), ds = L / N;
+    const Hs = new Float32Array(N + 1), Vs = new Float32Array(N + 1);
+    for (let i = 0; i <= N; i++) { Hs[i] = halfAt(i * ds); if (i) Vs[i] = Vs[i - 1] + (Hs[i] + Hs[i - 1]) / 2 * ds; }
+    const VT = Vs[N];
+    const locate = v => {
+      let lo = 0, hi = N;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (Vs[m] <= v) lo = m; else hi = m; }
+      const span = Vs[hi] - Vs[lo];
+      return [lo * ds + (span ? (v - Vs[lo]) / span : 0) * ds, Hs[lo]];
+    };
+    return {
+      draw(ctx, ph, flow) {
+        const lanes = Sim.compact ? [-0.6, 0, 0.6] : [-0.72, -0.36, 0, 0.36, 0.72];
+        const sp = (Sim.compact ? 21 : 14) * Sim.PIPE, r = Sim.compact ? 3.8 : 2.8;
+        const mean = lanes.reduce((a, f) => a + 1 - f * f, 0) / lanes.length;
+        const n = Math.max(1, Math.round(VT / sp)), s = VT / n;
+        let i = 0;
+        lanes.forEach((f, j) => {
+          const u = (1 - f * f) / mean, shift = ph * Sim.PIPE * u;
+          for (let k = 0; k < n; k++, i++) {
+            let v = ((k + (j % 2) * 0.5) * s + shift) % VT; if (v < 0) v += VT;
+            const [d, h] = locate(v), [x, y, tx, ty] = D.frameAt(pts, d), off = f * h;
+            const [jx, jy, js] = Sim.jitter(x, y, i);
+            ctx.fillStyle = Sim.speedColor(Math.max(Math.abs(flow * Sim.PIPE * u / h), js) / 200);
+            ctx.beginPath(); ctx.arc(x - ty * off + jx, y + tx * off + jy, r, 0, Math.PI * 2); ctx.fill();
+          }
+        });
+      }
+    };
+  };
+  const build = side => {
+    const s = sides[side];
+    if (!s) return;
+    const g = s.g, p = paths(g);
+    s.p = p;
+    if (side === 'w') {
+      const c = split(g, rcOf(st.C) - 2);
+      const dc = (p.C[0][1] - g.TOP) + (XR - g.X0);
+      s.streams = { A: stream(p.A), C1: stream(c.C1, Sim.narrowProfile(dc, half(st.R))), C2: stream(c.C2), B: stream(p.B), N: stream(p.N) };
+    } else s.wires = { ...split(g, 7), A: p.A, B: p.B, N: p.N };
+  };
+
+  const b = Sim.bench({
+    iFull: 10, v0: 9, stateful: true,
+    layout(g) { sides[g.side] = { g }; build(g.side); },
+    // El capacitor empuja de regreso con su voltaje Vc: la corriente es (Ventrada − Vc) / R.
+    // I es lo que pasa por la fuente (y mueve la bomba); Ic lo que pasa por el capacitor.
+    model(V) {
+      const Vin = st.charge ? V : 0, Ic = (Vin - st.Vc) / st.R * 1000;
+      return { I: st.charge ? Ic : 0, Ic, Vin };
+    },
+    circuit(g, m, V) {
+      const p = paths(g), Ic = m.Ic || 0;
+      return [
+        { pts: p.A, I: st.charge ? Ic : 0, v0: V, comps: [] },
+        { pts: p.C, I: Ic, v0: st.charge ? V : 0, comps: [
+          { at: [XR, g.TOP], half: 46, dV: Ic * st.R / 1000 },
+          { at: [XC, g.TOP], half: rcOf(st.C), dV: st.Vc }] },
+        { pts: p.B, I: st.charge ? 0 : -Ic, v0: 0, comps: [] },
+        { pts: p.N, I: st.charge ? Ic : 0, v0: 0, comps: [] }
+      ];
+    },
+    step(dt, m) {
+      // Carga exacta en cada cuadro: Vc se acerca a Ventrada con constante de tiempo τ = R·C.
+      const Vin = m.Vin ?? 0, v0 = st.Vc;
+      st.Vc = Vin + (v0 - Vin) * Math.exp(-dt / tau());
+      const dq = st.C * 1e-3 * (st.Vc - v0);   // mC que pasaron por la resistencia
+      const dp = dq * K;
+      st.ph.C += dp;
+      if (st.charge) { st.ph.A += dp; st.ph.N += dp; } else st.ph.B -= dp;
+      const I = dt ? dq / dt : 0;              // mA promedio en este cuadro
+      st.I = { C: I, A: st.charge ? I : 0, N: st.charge ? I : 0, B: st.charge ? 0 : -I };
+      // Gráfica: cada cambio de lo que alimenta al capacitor marca desde dónde contar τ.
+      const target = st.charge && b.st.on ? b.st.set : 0;
+      st.t += dt;
+      if (target !== st.target) { st.target = target; st.ev = { t: st.t, v0: st.Vc, v1: target }; }
+      st.hist.push([st.t, st.Vc, Math.abs(I)]);
+      while (st.hist.length && st.hist[0][0] < st.t - 60) st.hist.shift();
+    },
+    drawW(ctx, g, m) {
+      const s = sides.w, n = nodes(g), rc = rcOf(st.C), c = split(g, rc - 2);
+      for (const k of ['A', 'B', 'N']) D.pipe(ctx, s.p[k]);
+      D.pipe(ctx, c.C1); D.pipe(ctx, c.C2);
+      D.narrow(ctx, XR, g.TOP, half(st.R));
+      for (const k of ['A', 'B', 'N']) s.streams[k].draw(ctx, st.ph[k], st.I[k] * K);
+      s.streams.C1.draw(ctx, st.ph.C, st.I.C * K); s.streams.C2.draw(ctx, st.ph.C, st.I.C * K);
+      tank(ctx, g, rc);
+      valve(ctx, n);
+      b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinchR.drag);
+      b.grips(ctx, XC, g.TOP, rc + 4, pinchC.drag);
+      D.text(ctx, 'tramo angosto', XR, g.TOP - half(st.R) - 42, C.muted, { size: 15 });
+      D.text(ctx, 'tanque con membrana', XC, g.TOP - rc - 30, C.muted, { size: 15 });
+      D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15 });
+      graph(ctx, g, 'presión', 'caudal');
+    },
+    drawE(ctx, g, m) {
+      const s = sides.e, n = nodes(g), rc = rcOf(st.C);
+      for (const k of ['A', 'B', 'N', 'C1', 'C2']) D.wire(ctx, s.wires[k]);
+      for (const k of ['A', 'B', 'N']) D.flow(ctx, s.wires[k], st.ph[k], C.charge, { gap: 30, r: 4.5 });
+      D.flow(ctx, s.wires.C1, st.ph.C, C.charge, { gap: 30, r: 4.5 });
+      D.flow(ctx, s.wires.C2, st.ph.C, C.charge, { gap: 30, r: 4.5 });
+      D.circle(ctx, n.XN, g.BOT, 5, C.ink);
+      D.resistor(ctx, XR, g.TOP);
+      capacitor(ctx, g, rc);
+      knife(ctx, n);
+      b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinchR.drag);
+      b.grips(ctx, XC, g.TOP, rc + 4, pinchC.drag);
+      D.text(ctx, ohm(st.R), XR, g.TOP - half(st.R) - 42, C.ink, { size: 16, font: Sim.MONO, weight: 500 });
+      D.text(ctx, uF(st.C), XC, g.TOP - rc - 30, C.ink, { size: 16, font: Sim.MONO, weight: 500 });
+      D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15 });
+      graph(ctx, g, 'voltaje', 'corriente');
+    }
+  });
+
+  // Tanque redondo partido por una membrana elástica. La membrana se estira hacia la derecha
+  // según la presión que aguanta (el voltaje del capacitor) y empuja el agua de regreso.
+  function tank(ctx, g, rc) {
+    const y = g.TOP, bulge = Math.max(0, Math.min(1, st.Vc / b.VMAX)) * 0.8 * rc;
+    D.circle(ctx, XC, y, rc + 5, C.pipe);
+    D.circle(ctx, XC, y, rc, C['water-soft']);
+    ctx.save(); ctx.beginPath(); ctx.arc(XC, y, rc, 0, Math.PI * 2); ctx.clip();
+    // del lado que empuja el agua está más apretada: un poco más oscura según la presión
+    ctx.globalAlpha = 0.25 * bulge / (0.8 * rc || 1);
+    ctx.beginPath(); ctx.moveTo(XC, y - rc); ctx.quadraticCurveTo(XC + 2 * bulge, y, XC, y + rc);
+    ctx.lineTo(XC - rc, y + rc); ctx.lineTo(XC - rc, y - rc); ctx.closePath(); ctx.fillStyle = C.water; ctx.fill();
+    ctx.globalAlpha = 1; ctx.restore();
+    ctx.beginPath(); ctx.moveTo(XC, y - rc); ctx.quadraticCurveTo(XC + 2 * bulge, y, XC, y + rc);
+    ctx.lineWidth = 4; ctx.strokeStyle = C.ink; ctx.lineCap = 'round'; ctx.stroke();
+  }
+  // Capacitor: dos placas (más grandes con más capacidad) y la carga que se junta en cada una.
+  function capacitor(ctx, g, rc) {
+    const y = g.TOP, ph = rc * 0.75 + 4;
+    ctx.fillStyle = C.card; ctx.fillRect(XC - 7, y - ph - 2, 14, 2 * ph + 4);
+    D.line(ctx, [[XC - 7, y - ph], [XC - 7, y + ph]], 4.5, C.ink, 'butt');
+    D.line(ctx, [[XC + 7, y - ph], [XC + 7, y + ph]], 4.5, C.ink, 'butt');
+    const n = Math.round(Math.max(0, Math.min(1, st.Vc / b.VMAX)) * (2 * ph) / 9);
+    for (let k = 0; k < n; k++) {
+      const yy = y - ph + 5 + (2 * ph - 10) * (n > 1 ? k / (n - 1) : 0.5);
+      D.text(ctx, '+', XC - 16, yy, '#d6392b', { size: 13 });
+      D.text(ctx, '−', XC + 16, yy, C.ink, { size: 13 });
+    }
+  }
+  // Válvula de tres vías: arriba va al circuito; abajo, a la bomba (cargar); a la derecha, al puente (descargar).
+  function valve(ctx, n) {
+    const [x, y] = n.J, P = Sim.PIPE - 3;
+    D.circle(ctx, x, y, 23, C.metal, C.ink, 2.5);
+    ctx.fillStyle = C['water-soft'];
+    ctx.fillRect(x - P, y - 23, 2 * P, 23 + P);                  // de arriba al centro
+    if (st.charge) ctx.fillRect(x - P, y, 2 * P, 23);            // al centro y abajo
+    else ctx.fillRect(x, y - P, 23, 2 * P);                      // al centro y a la derecha
+    ctx.fillStyle = C.danger;                                    // la salida cerrada
+    if (st.charge) ctx.fillRect(x + 15, y - P - 1, 6, 2 * P + 2); else ctx.fillRect(x - P - 1, y + 15, 2 * P + 2, 6);
+  }
+  // Conmutador de cuchilla: la cuchilla va de arriba (P) a abajo (A, cargar) o a la derecha (B, descargar).
+  function knife(ctx, n) {
+    const [x, y] = n.J;
+    ctx.fillStyle = C.card; ctx.fillRect(x - 10, y - 24, 36, 48);
+    for (const [cx, cy] of [n.P, n.A, n.B]) D.circle(ctx, cx, cy, 5, C.card, C.ink, 2.5);
+    const to = st.charge ? n.A : n.B;
+    D.line(ctx, [n.P, [to[0] + (st.charge ? 0 : -4), to[1] + (st.charge ? -4 : 0)]], 3.5, C.ink);
+  }
+
+  // Gráfica dentro del circuito: el voltaje del capacitor (morado) y la corriente (verde) en el tiempo,
+  // con una marca en τ desde el último cambio: ahí la carga (o la descarga) lleva el 63 %.
+  function graph(ctx, g, nameV, nameI) {
+    const n = nodes(g), x0 = g.X0 + 40, x1 = g.X1 - 40, y0 = g.TOP + 82, y1 = n.YB - 40;
+    if (y1 - y0 < 50) return;
+    D.roundRect(ctx, x0, y0, x1 - x0, y1 - y0, 8, C.card, C.line, 1.5);
+    const T = Math.max(3, Math.min(40, 6 * tau())), t1 = st.t, ta = t1 - T;
+    const X = t => x0 + 6 + (x1 - x0 - 12) * (t - ta) / T;
+    const pad = 22, Y = f => y1 - 6 - (y1 - y0 - pad - 6) * Math.max(0, Math.min(1.02, f));
+    D.line(ctx, [[x0 + 6, Y(0)], [x1 - 6, Y(0)]], 1, C.line);
+    // τ: línea punteada a la hora del 63 % y un punto donde la curva lo cruza
+    if (st.ev && st.ev.v0 !== st.ev.v1) {
+      const tt = st.ev.t + tau();
+      if (tt >= ta && tt <= t1) {
+        const f = (st.ev.v0 + 0.632 * (st.ev.v1 - st.ev.v0)) / b.VMAX;
+        ctx.setLineDash([4, 4]); D.line(ctx, [[X(tt), y0 + pad], [X(tt), Y(0)]], 1.5, C.muted, 'butt'); ctx.setLineDash([]);
+        D.circle(ctx, X(tt), Y(f), 4.5, VC, C.card, 1.5);
+        D.text(ctx, 'τ', X(tt) + 9, Y(0) - 10, C.muted, { size: 15 });
+      }
+    }
+    const curve = (k, full, col) => {
+      ctx.beginPath(); let started = false;
+      for (const h of st.hist) {
+        if (h[0] < ta) continue;
+        const px = X(h[0]), py = Y(h[k] / full);
+        if (started) ctx.lineTo(px, py); else { ctx.moveTo(px, py); started = true; }
+      }
+      ctx.lineWidth = 2.5; ctx.strokeStyle = col; ctx.lineJoin = 'round'; ctx.stroke();
+    };
+    curve(2, b.iFull, IC);
+    curve(1, b.VMAX, VC);
+    D.text(ctx, nameV, x0 + 10, y0 + 12, VC, { align: 'left', size: 13 });
+    ctx.font = `700 ${Sim.compact ? 15 : 13}px ${Sim.FONT}`;
+    D.text(ctx, nameI, x0 + 20 + ctx.measureText(nameV).width, y0 + 12, IC, { align: 'left', size: 13 });
+    D.text(ctx, 'τ = R·C = ' + secs(tau()), x1 - 10, y0 + 12, C.ink, { align: 'right', size: 13, font: Sim.MONO, weight: 500 });
+  }
+
+  const rebuild = () => { build('w'); build('e'); };
+  const pinchR = b.pinch({
+    pos: g => [XR, g.TOP], get: () => st.R, half, fromHalf,
+    set: R => { st.R = R; rebuild(); },
+    label: side => side === 'w' ? 'Ancho del tramo angosto' : 'Resistencia',
+    text: ohm
+  });
+  const pinchC = b.pinch({
+    pos: g => [XC, g.TOP], get: () => st.C, half: rcOf, fromHalf: cOf,
+    set: c => { st.C = c; rebuild(); },
+    label: side => side === 'w' ? 'Tamaño del tanque' : 'Capacidad del capacitor',
+    text: uF
+  });
+  [...document.querySelectorAll('.sim-pinch')].slice(-2).forEach(el => el.classList.add('cap'));
+  // Tocar el conmutador (o la válvula) lo cambia entre cargar y descargar.
+  b.linkedButton({
+    cls: 'sim-hit', pos: g => nodes(g).J,
+    label: side => (st.charge ? 'Pasar a descargar' : 'Pasar a cargar') + (side === 'w' ? ' (válvula de tres vías)' : ' (conmutador)'),
+    onClick: () => { st.charge = !st.charge; }
+  });
+  // El voltímetro empieza conectado al capacitor: la roja entre la resistencia y el capacitor, la negra a la derecha.
+  b.st.clamps.V = [[(XR + 46 + XC - RCMAX) / 2, b.gw.TOP], [b.gw.X1, b.gw.MY]];
+  b.start();
+})();
+</script>
+</body>
+</html>

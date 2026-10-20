@@ -13,6 +13,8 @@
 //   circuit(g, m, V), tramos del circuito sin contar la fuente, para las puntas (ver más abajo);
 //                     si falta, es una sola vuelta con todo el voltaje en el centro de arriba
 //   step(dt, m),      avanza lo que se mueve (partículas, ruedas)
+//   stateful,         true si la corriente cambia sola con el tiempo (un capacitor que se carga):
+//                     esos cambios ya vienen suaves y no se toman como cambios del circuito
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
 // })
 (() => {
@@ -730,7 +732,7 @@
     const smooth = { raw: null, vPrev: 0, off: null, from: null, t: 0 };
     const inertia = V => {
       const m = o.model(V), now = flat(m);
-      if (smooth.raw) {
+      if (smooth.raw && !o.stateful) {
         const before = flat(o.model(smooth.vPrev));   // el circuito de ahora con el voltaje de antes
         if (before.length !== smooth.raw.length || before.some((x, k) => Math.abs(x - smooth.raw[k]) > 1e-6)) {
           // hubo un cambio en el circuito: arranca desde lo que se veía
