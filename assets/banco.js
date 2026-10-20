@@ -335,14 +335,16 @@
 
     // Cables y mangueras con inercia: una cadena de puntos que va del final de la punta (sale recto)
     // al borne del medidor y se arrastra como sobre una mesa: no cuelga, el roce la frena y solo se
-    // mueve donde la jala la punta; la parte floja se va enderezando poco a poco.
-    const NR = 18, ropes = { w: {}, e: {} };
+    // mueve donde la jalan. Se puede agarrar del cuerpo para acomodarlo; si hace falta, sale más
+    // cable del medidor, y se queda donde se dejó.
+    const NR = 24, ropes = { w: {}, e: {} };
+    let held = null;   // punto del cable que se está arrastrando: { key, k, x, y }
     const ropeStep = (side, g, kind, i, dt) => {
       const key = kind + i;
       if (!st.placed[kind][i]) { delete ropes[side][key]; return; }
       const f = frame(g, kind, i), L = tipLen(side, kind);
       const A = [f.x + f.n[0] * L, f.y + f.n[1] * L], A2 = [A[0] + f.n[0] * 16, A[1] + f.n[1] * 16];
-      const B = jack(g, kind, i);
+      const B = jack(g, kind, i), span = Math.hypot(B[0] - A2[0], B[1] - A2[1]);
       let r = ropes[side][key];
       if (!r) {   // recién puesta: el cable sale del borne en línea recta
         r = ropes[side][key] = [];
@@ -350,34 +352,66 @@
           const u = k / (NR - 1), x = A2[0] + (B[0] - A2[0]) * u, y = A2[1] + (B[1] - A2[1]) * u;
           r.push({ x, y, px: x, py: y });
         }
+        r.len = span * 1.1 + 24;
       }
-      const rest = (Math.hypot(B[0] - A2[0], B[1] - A2[1]) * 1.1 + 24) / (NR - 1);
+      const hk = held && held.key === key ? held.k : -1;
+      if (hk > 0) r.len = Math.max(r.len, (Math.hypot(held.x - A2[0], held.y - A2[1]) + Math.hypot(B[0] - held.x, B[1] - held.y)) * 1.04);
+      r.len = Math.max(r.len, span * 1.04 + 12);
+      const rest = r.len / (NR - 1);
       const fr = Math.pow(0.02, Math.min(dt, 1 / 30));   // roce: casi toda la velocidad se pierde en un instante
       for (const q of r) {
         const vx = (q.x - q.px) * fr, vy = (q.y - q.py) * fr;
         q.px = q.x; q.py = q.y; q.x += vx; q.y += vy;
       }
-      for (let it = 0; it < 24; it++) {
+      const fixed = k => k === 0 || k === NR - 1 || k === hk;
+      for (let it = 0; it < 30; it++) {
         r[0].x = A2[0]; r[0].y = A2[1]; r[NR - 1].x = B[0]; r[NR - 1].y = B[1];
+        if (hk > 0) { r[hk].x = held.x; r[hk].y = held.y; }
         for (let k = 1; k < NR; k++) {
           const a = r[k - 1], c = r[k], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
           if (d <= rest) continue;   // se dobla pero no se estira
-          const e = (d - rest) / d / 2;
-          const wa = k - 1 === 0 ? 0 : 1, wc = k === NR - 1 ? 0 : 1;
+          const wa = fixed(k - 1) ? 0 : 1, wc = fixed(k) ? 0 : 1;
           if (!wa && !wc) continue;
-          const sc = 2 / (wa + wc);
-          a.x += dx * e * wa * sc; a.y += dy * e * wa * sc;
-          c.x -= dx * e * wc * sc; c.y -= dy * e * wc * sc;
+          const e = (d - rest) / d / (wa + wc);
+          a.x += dx * e * wa; a.y += dy * e * wa;
+          c.x -= dx * e * wc; c.y -= dy * e * wc;
         }
-      }
-      // la parte floja se endereza despacio: cada punto se acerca un poco al medio de sus vecinos
-      const sm = Math.min(1, 1.5 * Math.min(dt, 1 / 30));
-      for (let k = 2; k < NR - 1; k++) {
-        const q = r[k], mx = (r[k - 1].x + r[k + 1].x) / 2, my = (r[k - 1].y + r[k + 1].y) / 2;
-        q.x += (mx - q.x) * sm; q.y += (my - q.y) * sm; q.px = q.x; q.py = q.y;
       }
       r.A = A;
     };
+    // Agarrar un cable del cuerpo: el punto más cercano sigue al puntero (en los dos paneles).
+    const nearRope = (side, x, y) => {
+      let best = null;
+      for (const key in ropes[side]) {
+        if (st.pinned[key[0]]) continue;
+        ropes[side][key].forEach((q, k) => {
+          if (k < 2 || k > NR - 2) return;
+          const d = Math.hypot(q.x - x, q.y - y);
+          if (d < 16 && (!best || d < best.d)) best = { key, k, d };
+        });
+      }
+      return best;
+    };
+    [['w', b.pw], ['e', b.pe]].forEach(([side, p]) => {
+      const toDrawing = e => {
+        const r = p.box.getBoundingClientRect();
+        return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale];
+      };
+      p.canvas.addEventListener('pointerdown', e => {
+        if (st.placing) return;
+        const [x, y] = toDrawing(e), n = nearRope(side, x, y);
+        if (!n) return;
+        held = { key: n.key, k: n.k, x, y };
+        p.canvas.setPointerCapture(e.pointerId); p.canvas.style.cursor = 'grabbing'; e.preventDefault();
+      });
+      p.canvas.addEventListener('pointermove', e => {
+        const [x, y] = toDrawing(e);
+        if (held && p.canvas.hasPointerCapture(e.pointerId)) { held.x = x; held.y = y; return; }
+        if (!st.placing) p.canvas.style.cursor = nearRope(side, x, y) ? 'grab' : '';
+      });
+      const up = () => { held = null; p.canvas.style.cursor = ''; };
+      p.canvas.addEventListener('pointerup', up); p.canvas.addEventListener('pointercancel', up);
+    });
     const ropePath = (ctx, r) => {
       ctx.beginPath(); ctx.moveTo(r.A[0], r.A[1]); ctx.lineTo(r[0].x, r[0].y);
       for (let k = 1; k < NR - 1; k++) ctx.quadraticCurveTo(r[k].x, r[k].y, (r[k].x + r[k + 1].x) / 2, (r[k].y + r[k + 1].y) / 2);
