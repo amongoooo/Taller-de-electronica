@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021074500">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021081144">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021074500"></script>
-<script src="../../assets/banco.js?v=20261021074500"></script>
+<script src="../../assets/sim.js?v=20261021081144"></script>
+<script src="../../assets/banco.js?v=20261021081144"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -143,8 +143,8 @@
     ctx.lineWidth = 2.5; ctx.strokeStyle = st.heat > 0.3 && !st.blown ? '#ff7a1f' : C.ink;
     if (st.blown) { D.line(ctx, [[x - 24, y], [x - 7, y - 3]], 2.5, C.ink); D.line(ctx, [[x + 7, y + 3], [x + 24, y]], 2.5, C.ink); }
     else D.line(ctx, [[x - 24, y], [x + 24, y]], 2.5, ctx.strokeStyle);
-    if (st.blown) D.text(ctx, 'fusible fundido', x, y + h + 18, C.danger, { size: 14 });
-    else b.tag(ctx, fusePart, x, y + h + 18, 'fusible', mA(st.fuse));
+    if (st.blown) D.text(ctx, 'fusible fundido', x, y - h - 18, C.danger, { size: 14 });
+    else b.tag(ctx, fusePart, x, y - h - 18, 'fusible', mA(st.fuse));   // arriba, adentro del circuito: abajo está la fuente
     if (st.breakT < 1.2) {
       ctx.globalAlpha = Math.min(1, (1.2 - st.breakT) / 0.4);
       if (st.breakT < 0.15) D.circle(ctx, x, y, 30, `rgba(255, 230, 150, ${1 - st.breakT / 0.15})`);
@@ -174,8 +174,9 @@
     for (let k = 1; k <= n; k++) ctx.lineTo(xs + (xe - xs) * k / n, y + (k === n ? 0 : (k % 2 ? -6 : 6)));
     ctx.lineWidth = 2; ctx.strokeStyle = C.muted; ctx.stroke();
     D.circle(ctx, bx, by, 8, st.blown ? C.danger : C.metal, C.ink, 2);
-    if (st.blown) D.text(ctx, 'válvula cerrada', x0, y + H + 16, C.danger, { size: 14 });
-    else b.tag(ctx, fusePart, x0, y + H + 16, 'válvula de seguridad', mLs(st.fuse));
+    // el nombre va arriba, adentro del circuito y más alto que la bomba (abajo está el controlador)
+    if (st.blown) D.text(ctx, 'válvula cerrada', g.X0 + 24, y - H - 26, C.danger, { size: 14, align: 'left' });
+    else b.tag(ctx, fusePart, g.X0 + 24, y - H - 26, 'válvula de seguridad', mLs(st.fuse), false, true);
     if (st.breakT < 1) {   // salpicadura al cerrarse de golpe
       ctx.globalAlpha = Math.min(1, (1 - st.breakT) / 0.4);
       for (const p of st.sparks) D.circle(ctx, x0 - 22 + p.x * 0.6, y + p.y * 0.6, 3, C.water);
@@ -274,7 +275,7 @@
     })
   });
   b.linkedButton({
-    pos: g => [fuseAt(g)[0], g.BOT - 46], hidden: () => !st.blown,
+    pos: g => [fuseAt(g)[0], g.BOT - 80], hidden: () => !st.blown,
     text: side => side === 'w' ? 'Abrir la válvula' : 'Fusible nuevo', onClick: repair
   });
   b.start();

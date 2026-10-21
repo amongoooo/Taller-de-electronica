@@ -609,47 +609,41 @@
     requestAnimationFrame(frame);
   };
 
-  // ---------- vista: switch Agua ⇄ Electricidad y switch "Ambas" en la barra de arriba ----------
-  // Con "Ambas" encendido se ven los dos paneles y el switch de agua/electricidad queda desactivado.
-  // Se recuerda en este navegador (sim-view: 'w', 'e' o 'both'; sim-side: el último lado elegido).
-  Sim.viewSwitch = () => {
-    const stage = document.querySelector('.sim-stage'), bar = document.querySelector('.sim-bar');
-    const read = (k, ok, def) => { try { const v = localStorage.getItem(k); return ok.includes(v) ? v : def; } catch (e) { return def; } };
-    const save = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
-    const view = read('sim-view', ['w', 'e', 'both'], 'both');
-    let side = view === 'both' ? read('sim-side', ['w', 'e'], 'w') : view, both = view === 'both';
-
-    const wrap = document.createElement('div');
-    wrap.className = 'sim-view';
-    wrap.innerHTML =
-      '<div class="sim-mode">' +
-        '<button type="button" class="lbl" data-v="w">Agua</button>' +
-        '<button type="button" class="sim-switch mode" role="switch" aria-label="Ver electricidad en vez de agua"><span class="knob"></span></button>' +
-        '<button type="button" class="lbl" data-v="e">Electricidad</button>' +
-      '</div>' +
-      '<button type="button" class="sim-both" role="switch" aria-label="Ver ambos">' +
-        '<span class="sim-switch"><span class="knob"></span></span><span class="lbl">Ambos</span>' +
-      '</button>';
-    const mode = wrap.querySelector('.sim-mode'), sw = mode.querySelector('.sim-switch'), bothBtn = wrap.querySelector('.sim-both');
-    const update = () => {
-      stage.dataset.view = both ? 'both' : side;
-      wrap.dataset.side = side; wrap.dataset.both = String(both);
-      sw.setAttribute('aria-checked', String(side === 'e'));
-      bothBtn.setAttribute('aria-checked', String(both));
-      mode.querySelectorAll('button').forEach(el => { el.disabled = both; });
-      mode.setAttribute('aria-disabled', String(both));
-      save('sim-view', stage.dataset.view); save('sim-side', side);
-    };
-    sw.addEventListener('click', () => { side = side === 'w' ? 'e' : 'w'; update(); });
-    mode.querySelectorAll('.lbl').forEach(el => el.addEventListener('click', () => { side = el.dataset.v; update(); }));
-    bothBtn.addEventListener('click', () => { both = !both; update(); });
-    bar.insertBefore(wrap, bar.querySelector('.ctl'));
-    update();
+  // ---------- acciones: la barra de arriba y la columna de controles ----------
+  // Todo lo que se toca pertenece a una acción, con su color y su lugar fijo en todas las páginas:
+  //   com  Cambiar componentes (verde)   med  Medir (morado)          ali  Alimentar (ámbar, solo en el instrumento)
+  //   arm  Armar (protoboard)            ver  Ver (azul)              avanzar: pasos y simulaciones, en la barra.
+  // Componentes, Medir, Armar y Ver van en una columna a la derecha en la computadora (Sim.side) y, en el
+  // celular o una ventana angosta, en una hoja que se abre con el botón de controles de la barra.
+  Sim.ACTS = {
+    com: ['Cambiar componentes', 'Cambiar', '<path d="M2 12h4l2-5 4 10 4-10 2 5h4"/>'],
+    med: ['Medir', 'Medir', '<circle cx="12" cy="13" r="8"/><path d="M12 13l4-4"/>'],
+    arm: ['Armar', 'Armar', '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" stroke-width="3.4"/>'],
+    ver: ['Ver', 'Ver', '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'],
+    ali: ['Alimentar', 'Alimentar', '<path d="M12 3v9"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/>']
   };
+  const svg = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const chev = d => svg(d < 0 ? '<path d="M15 5l-7 7 7 7"/>' : '<path d="M9 5l7 7-7 7"/>');
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+  const store = {
+    get: (k, ok, def) => { try { const v = localStorage.getItem(k); return ok.includes(v) ? v : def; } catch (e) { return def; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  const page = document.querySelector('.sim-page'), bar = document.querySelector('.sim-bar'), stage = document.querySelector('.sim-stage');
+  // Celular: pantalla angosta o acostada (la barra va en un renglón y los controles en una hoja).
+  const phoneQ = matchMedia('(max-width: 600px), (max-height: 500px)');
+  const colQ = matchMedia('(min-width: 1100px) and (min-height: 560px)');
+  Sim.phone = phoneQ.matches;
 
-  // ---------- navegación: franja entre la barra de arriba y el circuito ----------
-  // A los lados, botones grandes para ir a la simulación anterior o siguiente (en el orden del taller).
-  // En medio, si la página va por pasos (Sim.steps), una barra de progreso delgada con botones chicos.
+  // A qué acción pertenece un control del dibujo (data-act manda).
+  Sim.actOf = e => e.dataset.act || (e.matches('.sim-clamp, .sim-meter-hit, .sim-meter-btn') ? 'med'
+    : e.matches('.sim-power, .knob, .sim-wave') ? 'ali' : 'com');
+  // Nombre corto de un control para su globito: lo que dice antes de los dos puntos.
+  const tipName = e => (e.getAttribute('aria-label') || e.textContent || '').split(':')[0].trim();
+
+  // Barra: ← · título · pasos · [vista · simulación anterior y siguiente] · ¿Qué se toca? · Controles.
+  // En el celular vertical, lo de en medio ([…]) baja a una barra pegada abajo, al alcance del pulgar.
+  const foot = bar && el('div', 'sim-foot');
   Sim.ORDER = [
     ['voltaje-presion', 'Voltaje y corriente'],
     ['resistencia', 'Ley de Ohm'],
@@ -660,43 +654,249 @@
     ['capacitores', 'Capacitores'],
     ['osciloscopio', 'Osciloscopio']
   ];
-  const chev = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d < 0 ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'}"/></svg>`;
-  const nav = (() => {
-    const bar = document.querySelector('.sim-bar'), m = /\/simulaciones\/([^/]+)\//.exec(location.pathname);
+  if (foot) {
+    const m = /\/simulaciones\/([^/]+)\//.exec(location.pathname);
     const i = m ? Sim.ORDER.findIndex(s => s[0] === m[1]) : -1;
-    if (!bar || i < 0) return null;
-    const el = document.createElement('nav');
-    el.className = 'sim-nav';
-    el.setAttribute('aria-label', 'Simulaciones y pasos');
     const link = (j, cls) => {
-      const s = Sim.ORDER[j];
+      const s = i >= 0 && Sim.ORDER[j];
       if (!s) return `<span class="sim-go ${cls}" aria-hidden="true"></span>`;
-      const name = `${j + 1}. ${s[1]}`;
-      return `<a class="sim-go ${cls}" href="../${s[0]}/" title="${cls === 'prev' ? 'Simulación anterior' : 'Siguiente simulación'}: ${name}"` +
-        ` aria-label="${cls === 'prev' ? 'Simulación anterior' : 'Siguiente simulación'}: ${name}">` +
+      const what = (cls === 'prev' ? 'Simulación anterior' : 'Siguiente simulación') + `: ${j + 1}. ${s[1]}`;
+      return `<a class="sim-go ${cls}" href="../${s[0]}/" title="${what}" aria-label="${what}">` +
         `<span class="arr">${chev(cls === 'prev' ? -1 : 1)}</span><span class="n">${j + 1}</span><span class="name">${s[1]}</span></a>`;
     };
-    el.innerHTML = link(i - 1, 'prev') + '<div class="sim-track"></div>' + link(i + 1, 'next');
-    bar.after(el);
-    document.querySelector('.sim-page').classList.add('has-nav');
-    return el;
+    foot.innerHTML = link(i - 1, 'prev') + link(i + 1, 'next');
+    foot.setAttribute('role', 'navigation'); foot.setAttribute('aria-label', 'Vista y simulaciones');
+    bar.appendChild(foot);
+  }
+
+  // ---------- columna (u hoja) de controles ----------
+  Sim.side = (() => {
+    if (!page || !bar) return null;
+    const box = el('aside', 'sim-side');
+    box.id = 'simSide'; box.setAttribute('aria-label', 'Controles');
+    box.innerHTML = '<div class="sim-side-hd"><h2>Controles</h2><button type="button" class="x" aria-label="Cerrar los controles">×</button></div>';
+    const secs = {};
+    ['com', 'med', 'arm', 'ver'].forEach(k => {
+      const s = el('section', 'sim-sec', `<h3>${svg(Sim.ACTS[k][2])}<span>${Sim.ACTS[k][0]}</span></h3><div class="body"></div>`);
+      s.dataset.act = k; s.hidden = true;
+      box.appendChild(s); secs[k] = s;
+    });
+    const scrim = el('div', 'sim-scrim');
+    page.append(box, scrim);
+    // Botones de la barra: ¿Qué se toca? y Controles.
+    const help = el('button', 'sim-help-btn', '<span class="q">?</span><span class="t">¿Qué se toca?</span>');
+    help.type = 'button'; help.title = 'Marca por un momento todo lo que se puede tocar, con el color de su acción';
+    help.setAttribute('aria-label', '¿Qué se toca? Marca todo lo que se puede tocar');
+    const btn = el('button', 'sim-ctl-btn', svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>') + '<span class="t">Controles</span>');
+    btn.type = 'button'; btn.setAttribute('aria-controls', 'simSide'); btn.setAttribute('aria-label', 'Controles');
+    bar.append(help, btn);
+
+    // col: columna fija (se puede esconder, y se recuerda); sheet: hoja que se abre y se cierra.
+    let open = store.get('sim-side', ['0', '1'], '1') === '1';
+    const mode = () => colQ.matches ? 'col' : 'sheet';
+    const sync = () => {
+      const m = mode();
+      page.dataset.side = m;
+      const shown = m === 'col' ? open : sheetOpen;
+      page.dataset.open = String(shown);
+      btn.setAttribute('aria-expanded', String(shown));
+      btn.title = shown ? 'Esconder los controles' : 'Mostrar los controles';
+    };
+    let sheetOpen = false;
+    const setSheet = v => { sheetOpen = v; sync(); if (v) box.scrollTop = 0; };
+    btn.addEventListener('click', () => {
+      if (mode() === 'col') { open = !open; store.set('sim-side', open ? '1' : '0'); sync(); }
+      else setSheet(!sheetOpen);
+    });
+    box.querySelector('.x').addEventListener('click', () => { if (mode() === 'col') { open = false; store.set('sim-side', '0'); sync(); } else setSheet(false); });
+    scrim.addEventListener('click', () => setSheet(false));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen) setSheet(false); });
+    colQ.addEventListener('change', sync);
+    sync();
+
+    // ¿Qué se toca?: por unos segundos, todo lo que se toca se marca con el color de su acción.
+    let helpT = 0;
+    help.addEventListener('click', () => {
+      const on = !page.classList.contains('show-acts');
+      clearTimeout(helpT);
+      page.querySelectorAll('.sim-layer > *').forEach(e => { e.dataset.actName = Sim.ACTS[Sim.actOf(e)][1]; });
+      page.classList.toggle('show-acts', on);
+      help.setAttribute('aria-pressed', String(on));
+      if (on) helpT = setTimeout(() => { page.classList.remove('show-acts'); help.setAttribute('aria-pressed', 'false'); }, 4500);
+    });
+
+    const side = {
+      el: box,
+      // El cuerpo de la sección de una acción (aparece en cuanto tiene algo).
+      sec: k => { secs[k].hidden = false; return secs[k].querySelector('.body'); },
+      // ¿Los menús de los componentes van en la columna?
+      docked: () => mode() === 'col' && open,
+      close: () => setSheet(false),
+      isSheet: () => mode() === 'sheet'
+    };
+    // Lista de componentes: un renglón por componente con su nombre y su valor; tocarlo abre su menú
+    // (el mismo que al tocarlo en el dibujo). anchor() es el componente en el panel que se ve.
+    const parts = [];
+    let list = null, cards = null;
+    side.cards = () => { side.sec('com'); return cards; };
+    const comBody = () => {
+      if (!list) {
+        const b = side.sec('com');
+        list = el('div', 'sim-parts'); cards = el('div', 'sim-side-cards');
+        b.prepend(list); b.appendChild(cards);
+      }
+      return list;
+    };
+    side.part = ({ anchor, menu }) => {
+      const row = el('button', 'sim-part', '<span class="nm"></span><span class="vl"></span>');
+      row.type = 'button';
+      comBody().appendChild(row);
+      const p = { row, anchor, menu };
+      row.addEventListener('click', () => {
+        const a = anchor();
+        if (side.isSheet()) setSheet(false);
+        Sim.menu.toggle(a, menu());
+      });
+      parts.push(p);
+      setTimeout(syncParts);   // después de que la página termine de armarse (su menú puede usar lo que sigue)
+      return p;
+    };
+    // Lo que muestra el menú en su primer renglón (el valor del slider o la opción elegida).
+    const shown = o => {
+      const r = o.rows.find(r => r.values || r.options);
+      if (!r) return '';
+      if (r.values) return r.format(r.get());
+      const op = r.options.find(x => x.value === r.get());
+      return op ? op.text : '';
+    };
+    const syncParts = () => parts.forEach(p => { try {
+      const a = p.anchor(), o = p.menu(), pb = a.closest('.sim-panel');
+      const r = a.getBoundingClientRect(), q = pb && pb.getBoundingClientRect();
+      // escondido, o fuera del dibujo (un componente que no está en este acomodo)
+      p.row.hidden = a.hidden || (q && q.width > 0 && (r.right < q.left || r.left > q.right || r.bottom < q.top || r.top > q.bottom));
+      const t = typeof o.title === 'function' ? o.title() : o.title;
+      p.row.querySelector('.nm').textContent = t;
+      p.row.querySelector('.vl').textContent = shown(o);
+      p.row.setAttribute('aria-expanded', String(Sim.menu.isOpen(a)));
+      p.row.setAttribute('aria-label', `${t}: ${shown(o)}. Cambiarlo`);
+    } catch (e) { p.row.hidden = true; } });
+    setInterval(syncParts, 250);
+    // Botón en una sección (texto y si se ve pueden cambiar: b.refresh o quien lo use los actualiza).
+    side.button = (k, text, onClick) => {
+      const b = el('button', 'sim-side-btn', text);
+      b.type = 'button'; b.addEventListener('click', onClick);
+      (k === 'com' ? comBody().parentNode : side.sec(k)).appendChild(b);
+      return b;
+    };
+    // Renglón con un título chico y lo que se le ponga.
+    side.row = (k, label, ...nodes) => {
+      const r = el('div', 'sim-side-row');
+      if (label) r.appendChild(el('div', 'lbl', label));
+      r.append(...nodes);
+      (k === 'com' ? comBody().parentNode : side.sec(k)).appendChild(r);
+      return r;
+    };
+    side.hint = (k, text) => side.sec(k).appendChild(el('p', 'sim-hint', text));
+    return side;
   })();
+
+  // Lo que estaba en la barra va a su sección: la inercia a Ver; los botones con data-act a la suya.
+  if (Sim.side) {
+    const ctl = bar.querySelector('.ctl');
+    const inercia = ctl && ctl.querySelector('#inercia');
+    if (inercia) {
+      const r = Sim.side.row('ver', null, ctl);
+      ctl.className = 'sim-inercia';
+      r.appendChild(el('p', 'sim-hint', 'Cuánto tarda el agua (o la corriente) en arrancar y en detenerse.'));
+    }
+    bar.querySelectorAll('[data-act]').forEach(b => Sim.side.sec(b.dataset.act).appendChild(b));
+    if (ctl && !ctl.children.length) ctl.remove();
+    // Pantalla completa (para proyectar), si el navegador la tiene.
+    if (document.documentElement.requestFullscreen) {
+      const fs = Sim.side.button('ver', 'Pantalla completa', () => {
+        if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {});
+      });
+      document.addEventListener('fullscreenchange', () => { fs.textContent = document.fullscreenElement ? 'Salir de pantalla completa' : 'Pantalla completa'; });
+    }
+  }
+
+  // Globito al pasar el ratón sobre algo del dibujo: su acción y su nombre ("Cambiar · Resistencia").
+  if (page) {
+    const tip = el('div', 'sim-tip');
+    tip.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(tip);
+    let cur = null, t = 0;
+    const hide = () => { clearTimeout(t); cur = null; tip.classList.remove('on'); };
+    document.addEventListener('pointerover', e => {
+      if (e.pointerType !== 'mouse' || e.buttons) return;
+      const c = e.target.closest && e.target.closest('.sim-layer > *');
+      if (c === cur) return;
+      hide();
+      if (!c || c.matches('.ring, .jack, .sim-colors') || !tipName(c)) return;
+      cur = c;
+      t = setTimeout(() => {
+        if (cur !== c) return;
+        const k = Sim.actOf(c), r = c.getBoundingClientRect();
+        tip.innerHTML = `<b>${Sim.ACTS[k][1]}</b> · ${tipName(c)}`;
+        tip.dataset.act = k;
+        tip.classList.add('on');
+        const w = tip.offsetWidth;
+        tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+        tip.style.top = Math.max(8, r.top - tip.offsetHeight - 8) + 'px';
+      }, 450);
+    });
+    document.addEventListener('pointerdown', hide, true);
+    document.addEventListener('scroll', hide, true);
+  }
+
+  // ---------- vista: Agua · Ambos · Electricidad ----------
+  // Un solo selector de tres opciones, en la barra (abajo en el celular) y en la sección Ver. Se recuerda en
+  // este navegador; el celular recuerda aparte (sim-view-cel) y empieza con un solo lado, que se ve grande.
+  Sim.view = 'both';
+  const viewFns = [];
+  Sim.onView = f => { viewFns.push(f); f(Sim.view); };
+  Sim.viewSwitch = () => {
+    const key = Sim.phone ? 'sim-view-cel' : 'sim-view';
+    let view = store.get(key, ['w', 'e', 'both'], Sim.phone ? store.get('sim-side', ['w', 'e'], 'w') : 'both');
+    const OPTS = [['w', 'Agua'], ['both', 'Ambos'], ['e', 'Electricidad']];
+    const make = () => {
+      const g = el('div', 'sim-viewseg');
+      g.setAttribute('role', 'group'); g.setAttribute('aria-label', 'Qué se ve');
+      OPTS.forEach(([v, t]) => {
+        const b = el('button', '', t);
+        b.type = 'button'; b.dataset.v = v;
+        b.addEventListener('click', () => { view = v; update(); });
+        g.appendChild(b);
+      });
+      return g;
+    };
+    const segs = [make()];
+    if (foot) foot.insertBefore(segs[0], foot.querySelector('.next'));
+    if (Sim.side) segs.push(Sim.side.row('ver', 'Qué se ve', make()).lastChild);
+    const update = () => {
+      stage.dataset.view = view; Sim.view = view;
+      segs.forEach(g => { g.dataset.view = view; g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === view))); });
+      store.set(key, view);
+      if (view !== 'both') store.set('sim-side', view);
+      viewFns.forEach(f => f(view));
+    };
+    update();
+  };
 
   // Para las páginas que van apareciendo de a poco: steps es una lista de nombres y go(k) se llama
   // con el paso elegido (de 0 a steps.length − 1). El paso queda en la dirección (#paso-2), así que
-  // se puede recargar o compartir en ese paso.
+  // se puede recargar o compartir en ese paso. Va en la barra, junto al título.
   Sim.steps = (steps, go) => {
-    const n = steps.length, track = nav && nav.querySelector('.sim-track');
-    const wrap = document.createElement('div');
-    wrap.className = 'sim-steps';
+    const n = steps.length;
+    const wrap = el('div', 'sim-steps');
     wrap.innerHTML =
       '<button type="button" class="step prev" aria-label="Paso anterior">' + chev(-1) + '</button>' +
       '<div class="body"><span class="num" aria-live="polite"></span><div class="segs"></div></div>' +
       '<button type="button" class="step next" aria-label="Paso siguiente">' + chev(1) + '</button>';
     const prev = wrap.querySelector('.prev'), next = wrap.querySelector('.next'), num = wrap.querySelector('.num');
     const segs = steps.map((name, j) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'seg'; b.title = `Paso ${j + 1}: ${name}`;
+      const b = el('button', 'seg');
+      b.type = 'button'; b.title = `Paso ${j + 1}: ${name}`;
       b.setAttribute('aria-label', `Ir al paso ${j + 1}: ${name}`);
       b.addEventListener('click', () => set(j, true));
       wrap.querySelector('.segs').appendChild(b);
@@ -710,15 +910,15 @@
       num.innerHTML = `<b>${k + 1}/${n}</b> <span class="name">${steps[k]}</span>`;
       segs.forEach((b, i) => { b.dataset.on = String(i <= k); b.toggleAttribute('aria-current', i === k); });
       prev.disabled = k === 0; next.disabled = k === n - 1;
-      if (nav) nav.dataset.last = String(k === n - 1);
+      if (foot) foot.dataset.last = String(k === n - 1);
       if (push) history.replaceState(null, '', k ? `#paso-${k + 1}` : location.pathname + location.search);
       go(k);
     };
     prev.addEventListener('click', () => set(Math.max(0, k - 1), true));
     next.addEventListener('click', () => set(Math.min(n - 1, k + 1), true));
     window.addEventListener('hashchange', () => set(fromHash(), false));
-    if (track) track.appendChild(wrap);
-    else { const bar = document.querySelector('.sim-bar'); bar.insertBefore(wrap, bar.querySelector('h1').nextSibling); }
+    const h1 = bar.querySelector('h1');
+    bar.insertBefore(wrap, h1.nextSibling);
     set(fromHash(), false);
   };
 
@@ -757,22 +957,25 @@
   //   { actions: [{ text, onClick, hidden, danger }] }   botones (fundir, poner uno nuevo…)
   // Se cierra tocando fuera (menos donde ignore(target) diga), con Esc o con la ×; mientras está abierta se actualiza sola.
   Sim.menu = (() => {
-    // En una pantalla ancha, si a la derecha del dibujo queda lugar, los menús se acomodan en una
-    // columna ahí (uno debajo del otro, el más nuevo arriba) y se quedan abiertos hasta tocar su × o el
-    // componente otra vez. Si no hay lugar (el celular, o los dos paneles a la vez), es una sola tarjeta
-    // flotante junto al componente, que se cierra al tocar fuera.
+    // En la computadora, con la columna de controles abierta, los menús se acomodan en su sección
+    // Cambiar componentes (uno debajo del otro, el más nuevo arriba) y se quedan abiertos hasta tocar su ×
+    // o el componente otra vez. Con la columna escondida, si a la derecha del dibujo queda lugar, se
+    // acomodan ahí. Si no hay lugar, es una sola tarjeta flotante junto al componente, que se cierra al
+    // tocar fuera; en el celular esa tarjeta sube desde abajo, para no tapar el circuito.
     let cards = [], raf = 0, ready = false;
     const DOCK_W = 300;
     const val = (f, ...a) => typeof f === 'function' ? f(...a) : f;
     const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
     // Lugar libre a la derecha del dibujo, en el panel del componente.
     const dockFor = anchor => {
+      if (Sim.side && Sim.side.docked()) return { side: true };
       const p = Sim.panels.find(q => q.box.contains(anchor));
       if (!p || !p.box.clientWidth) return null;
       const free = p.box.clientWidth - (p.ox + (p.x0 + p.W) * p.scale);
       return free >= DOCK_W + 24 ? p : null;
     };
     const dockEl = p => {
+      if (p.side) return Sim.side.cards();
       let d = p.box.querySelector(':scope > .sim-dock');
       if (!d) { d = mk('div', 'sim-dock'); p.box.appendChild(d); }
       return d;
@@ -869,6 +1072,8 @@
     const place = card => {
       const el = card.el, a = card.anchor.getBoundingClientRect(), vw = innerWidth, vh = innerHeight, M = 8;
       if (!a.width && !a.height) return close(card);
+      el.classList.toggle('sheet', phoneQ.matches);
+      if (phoneQ.matches) { el.style.left = el.style.top = ''; return; }
       const w = el.offsetWidth, h = el.offsetHeight, cx = a.left + a.width / 2;
       const left = Math.max(M, Math.min(vw - w - M, cx - w / 2));
       let top = a.bottom + 10, below = true;
@@ -882,6 +1087,7 @@
     };
     // La columna empieza debajo de lo que haya arriba a la derecha del panel (el selector de colores).
     const placeDock = p => {
+      if (p.side) return;
       const d = dockEl(p), box = p.box.getBoundingClientRect();
       let top = 12;
       p.box.querySelectorAll('.sim-layer > .sim-colors').forEach(c => {
@@ -894,7 +1100,8 @@
       raf = 0;
       if (!cards.length) return;
       for (const c of [...cards]) {
-        if (c.docked && !dockFor(c.anchor)) { close(c); continue; }   // ya no hay lugar (cambió la pantalla)
+        const now = c.docked && dockFor(c.anchor);
+        if (c.docked && (!now || !!now.side !== !!c.docked.side)) { close(c); continue; }   // ya no hay lugar (cambió la pantalla)
         c.title.textContent = val(c.o.title);
         c.parts.forEach(p => p.sync());
         if (c.docked) placeDock(c.docked); else place(c);

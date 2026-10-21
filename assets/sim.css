@@ -25,19 +25,29 @@ html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; }
 :focus-visible { outline: 3px solid var(--water); outline-offset: 2px; }
 
-.sim-page { height: 100vh; height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
+/* Colores de cada acción: lo que se toca se marca con el de la suya (Sim.ACTS). */
+:root { --a-com: #217a4b; --a-med: #7c4ddb; --a-ali: #c77d00; --a-ver: #1d6fd1; --a-arm: #1874b8; }
+[data-act="com"] { --act: var(--a-com); } [data-act="med"] { --act: var(--a-med); } [data-act="ali"] { --act: var(--a-ali); }
+[data-act="ver"] { --act: var(--a-ver); } [data-act="arm"] { --act: var(--a-arm); }
+
+/* Página: la barra arriba, el circuito y, a la derecha, la columna de controles (en la computadora). */
+.sim-page {
+  height: 100vh; height: 100dvh; display: grid;
+  grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr);
+}
+.sim-bar { grid-column: 1 / -1; }
+.sim-stage { grid-column: 1; grid-row: 2; }
+.sim-side { grid-column: 2; grid-row: 2; }
 
 .sim-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+  display: flex; align-items: center; gap: 8px 14px; min-width: 0;
   padding: 8px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
   background: var(--card); border-bottom: 1px solid var(--line);
 }
-.sim-bar .back { color: var(--water); font-weight: 700; text-decoration: none; font-size: 15px; }
+.sim-bar .back { flex: none; color: var(--water); font-weight: 700; text-decoration: none; font-size: 15px; white-space: nowrap; }
 .sim-bar .back:hover { text-decoration: underline; }
-.sim-bar h1 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0; }
-.sim-bar .ctl { display: flex; align-items: center; gap: 10px; margin-left: auto; font-weight: 700; font-size: 15px; }
-.sim-bar input[type="range"] { width: 170px; accent-color: var(--water); }
-.sim-bar output { font-family: var(--font-mono); font-size: 14px; color: var(--muted); min-width: 4.5ch; white-space: nowrap; }
+.sim-bar h1 { flex: 0 1 auto; min-width: 0; font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sim-bar .ctl { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
 
 .sim-stage {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0;
@@ -46,6 +56,8 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 @media (orientation: portrait) {
   .sim-stage { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
 }
+.sim-stage[data-view="w"], .sim-stage[data-view="e"] { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.sim-stage[data-view="w"] #pe, .sim-stage[data-view="e"] #pw { display: none; }
 
 .sim-panel {
   position: relative; min-width: 0; min-height: 0; overflow: hidden;
@@ -72,33 +84,10 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-btn.small { font-size: max(11px, calc(var(--s, 1) * 15px)); padding: .4em .8em; }
 .sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
-/* Color de las partículas, arriba a la derecha de cada panel: slider de tres opciones y, debajo, la
-   barra de colores entre lo que marca cada punta. Su esquina de arriba a la derecha va en el punto dado. */
-.sim-layer > .sim-colors { transform: translate(-100%, 0); }
-.sim-colors {
-  width: max(160px, calc(var(--s, 1) * 210px)); touch-action: manipulation;
-  font-size: max(11px, calc(var(--s, 1) * 13px)); color: var(--muted);
-}
-.sim-colors input[type="range"] {
-  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 2em; margin: 0;
-  background: transparent; cursor: pointer;
-}
-.sim-colors input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--line); }
-.sim-colors input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
-.sim-colors input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 1.3em; height: 1.3em; margin-top: calc(2px - .65em); border-radius: 50%;
-  background: var(--water); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
-}
-.sim-colors input[type="range"]::-moz-range-thumb {
-  width: 1.3em; height: 1.3em; border-radius: 50%; background: var(--water); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
-}
-.sim-colors .opts { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: -.15em; }
-.sim-colors .opts button {
-  font: inherit; font-weight: 700; color: var(--muted); background: none; border: 0; padding: .1em 0 .3em; cursor: pointer;
-}
-.sim-colors .opts button:nth-child(1) { text-align: left; }
-.sim-colors .opts button:nth-child(3) { text-align: right; }
-.sim-colors .opts button[aria-pressed="true"] { color: var(--water); }
+/* Barra de colores de las partículas, arriba a la derecha de cada panel, entre lo que marca cada punta
+   (el modo se elige en la sección Ver). Su esquina de arriba a la derecha va en el punto dado. */
+.sim-layer > .sim-colors { transform: translate(-100%, 0); pointer-events: none; }
+.sim-colors { width: max(150px, calc(var(--s, 1) * 190px)); font-size: max(11px, calc(var(--s, 1) * 13px)); color: var(--muted); }
 .sim-colors .scale { display: flex; align-items: center; gap: .4em; margin-top: .1em; font-family: var(--font-mono); white-space: nowrap; }
 .sim-colors .bar {
   flex: 1; height: .75em; border-radius: 2px;
@@ -146,7 +135,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   width: max(36px, calc(var(--s, 1) * 66px)); aspect-ratio: 1; border-radius: 50%; padding: 0;
   background: transparent; border: 2px dashed transparent; cursor: pointer;
 }
-.sim-hit:hover, .sim-hit:focus-visible { border-color: var(--muted); }
+.sim-hit:hover, .sim-hit:focus-visible { border-color: var(--act, var(--muted)); }
 
 /* Punta de un medidor: se arrastra a cualquier punto del circuito (el dibujo lo hace el canvas). */
 .sim-clamp {
@@ -154,7 +143,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   background: transparent; border: 2px dashed transparent; cursor: grab; touch-action: none; z-index: 2;
 }
 .sim-clamp:active { cursor: grabbing; }
-.sim-clamp:hover, .sim-clamp:focus-visible { border-color: var(--muted); }
+.sim-clamp:hover, .sim-clamp:focus-visible { border-color: var(--act, var(--muted)); }
 
 /* Zona para ajustar una resistencia: se agarra el borde del tramo o se pellizca con dos dedos. */
 .sim-pinch {
@@ -164,78 +153,13 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-pinch:focus-visible { border-color: var(--muted); }   /* con el ratón, solo se ven sus marcas (b.grips) */
 
-/* Switches en la barra: Agua ⇄ Electricidad y, aparte, "Ambos" (que desactiva al primero). */
-.sim-view { display: inline-flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
-.sim-mode, .sim-both {
-  display: inline-flex; align-items: center; gap: 6px; padding: 3px 6px;
-  border: 2px solid var(--line); border-radius: 999px; background: var(--bg);
-}
-.sim-view button { font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; border: 0; background: transparent; color: var(--muted); }
-.sim-mode .lbl { padding: 2px 4px; border-radius: 999px; }
-.sim-view[data-side="w"] .sim-mode .lbl[data-v="w"] { color: var(--water); }
-.sim-view[data-side="e"] .sim-mode .lbl[data-v="e"] { color: var(--charge); }
-.sim-switch {
-  position: relative; display: inline-block; flex: none; width: 46px; height: 26px; padding: 0;
-  border-radius: 999px; background: var(--line); transition: background .2s;
-}
-.sim-switch .knob {
-  position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
-  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .2s;
-}
-/* El switch de modo es azul (agua) a la izquierda y ámbar (electricidad) a la derecha. */
-.sim-view button.sim-switch.mode { background: var(--water); }
-.sim-view button.sim-switch.mode[aria-checked="true"] { background: var(--charge); }
-.sim-switch.mode[aria-checked="true"] .knob,
-.sim-both[aria-checked="true"] .knob { transform: translateX(20px); }
-.sim-both { padding-right: 10px; }
-.sim-both[aria-checked="true"] { border-color: var(--ink); color: var(--ink); }
-.sim-both[aria-checked="true"] .sim-switch { background: var(--ink); }
-/* Con "Ambos" encendido, el switch de modo se ve apagado y no responde. */
-.sim-mode[aria-disabled="true"] { opacity: .4; }
-.sim-mode button:disabled { cursor: not-allowed; }
-.sim-view[data-both="true"] .sim-mode .lbl { color: var(--muted); }
-.sim-view[data-both="true"] button.sim-switch.mode { background: var(--muted); }
-.sim-stage[data-view="w"], .sim-stage[data-view="e"] { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-.sim-stage[data-view="w"] #pe, .sim-stage[data-view="e"] #pw { display: none; }
-
-/* Celular: barra más compacta y, con "Ambas", un panel debajo del otro a casi toda la pantalla
-   (se desliza para ver el segundo), para que el dibujo y los medidores se vean grandes. */
-@media (max-width: 600px), (max-height: 500px) {
-  .sim-bar { gap: 6px 10px; padding-top: 6px; padding-bottom: 6px; }
-  .sim-bar .back { font-size: 0; }
-  .sim-bar .back::before { content: "←"; font-size: 22px; line-height: 1; }
-  .sim-bar h1 { font-size: 17px; }
-  .sim-view { gap: 6px; }
-  .sim-view button { font-size: 13px; }
-  .sim-switch { width: 40px; height: 22px; }
-  .sim-switch .knob { width: 16px; height: 16px; }
-  .sim-switch.mode[aria-checked="true"] .knob,
-  .sim-both[aria-checked="true"] .knob { transform: translateX(18px); }
-  .sim-bar .ctl { gap: 6px; font-size: 14px; }
-  .sim-stage { padding: 6px max(6px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); gap: 8px; }
-  .sim-stage[data-view="both"] {
-    overflow-y: auto; grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: 94%;
-    scroll-snap-type: y proximity;
-  }
-  .sim-stage[data-view="both"] .sim-panel { scroll-snap-align: start; }
-}
-@media (max-width: 600px) {
-  .sim-bar .ctl { flex: 1 1 auto; }
-  .sim-bar input[type="range"] { width: auto; flex: 1 1 60px; min-width: 60px; }
-}
-@media (max-height: 500px) {
-  .sim-bar { flex-wrap: nowrap; padding-top: 4px; padding-bottom: 4px; }
-  .sim-bar h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  .sim-bar input[type="range"] { width: 110px; }
-}
-
 /* Zona para tocar un medidor y conectarlo (luego se toca el circuito para cada caimán) o arrastrarlo
    a otro lugar. Su tamaño lo pone banco.js (cambia al compactar el medidor). */
 .sim-meter-hit {
   width: 150px; height: 140px; padding: 0; touch-action: none;
   border-radius: 14px; background: transparent; border: 2px dashed transparent; cursor: pointer;
 }
-.sim-meter-hit:hover, .sim-meter-hit:focus-visible { border-color: var(--muted); }
+.sim-meter-hit:hover, .sim-meter-hit:focus-visible { border-color: var(--act, var(--muted)); }
 .sim-meter-hit.held { cursor: grabbing; }
 /* Botones de cada medidor: recoger sus cables (conector) y compactarlo (solo la pantallita). */
 .sim-meter-btn {
@@ -252,95 +176,6 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-meter-btn:disabled { opacity: .4; cursor: default; border-color: var(--line); color: var(--ink); }
 .sim-panel.placing, .sim-panel.placing .sim-layer > * { cursor: crosshair; }
 
-/* Botón "Cables" de la barra: abre un panelito con la rigidez y la inercia de cables y mangueras. */
-.sim-cable { position: relative; }
-.sim-cable-btn {
-  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 4px 12px; border-radius: 999px;
-  border: 2px solid var(--line); background: var(--bg); color: var(--ink);
-}
-.sim-cable-btn[aria-expanded="true"] { border-color: var(--water); color: var(--water); }
-.sim-cable-pop {
-  position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; display: grid; gap: 10px;
-  padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(21, 33, 42, 0.16); width: max-content; max-width: calc(100vw - 32px);
-}
-.sim-cable-pop label { display: grid; grid-template-columns: auto auto minmax(90px, 140px) auto; align-items: center; gap: 4px 8px; font-size: 14px; }
-.sim-cable-pop .name { font-weight: 700; min-width: 4.5em; }
-.sim-cable-pop .lo, .sim-cable-pop .hi { font-weight: 400; color: var(--muted); font-size: 13px; }
-.sim-bar .sim-cable-pop input[type="range"] { width: 100%; }
-.sim-cable-pop[hidden] { display: none; }
-
-/* Franja de navegación entre la barra y el circuito: botones grandes para cambiar de simulación y,
-   en medio, la barra de progreso de los pasos con sus botones chicos (Sim.steps). */
-.sim-page.has-nav { grid-template-rows: auto auto 1fr; }
-.sim-page.has-nav .sim-bar { border-bottom: 0; padding-bottom: 4px; }
-.sim-nav {
-  display: flex; align-items: center; gap: 12px;
-  padding: 4px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
-  background: var(--card); border-bottom: 1px solid var(--line);
-}
-.sim-go {
-  flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px;
-  height: 38px; padding: 0 16px 0 12px; border-radius: 999px; text-decoration: none;
-  font-weight: 700; font-size: 15px; border: 2px solid var(--water); color: var(--water); background: var(--bg);
-  transition: background .15s, box-shadow .15s;
-}
-span.sim-go { visibility: hidden; width: 38px; padding: 0; }
-.sim-go.next { flex-direction: row-reverse; padding: 0 12px 0 16px; }
-.sim-go:hover { background: var(--water-soft); }
-.sim-go .arr svg { display: block; width: 20px; height: 20px; }
-.sim-go .n {
-  flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
-  font-family: var(--font-mono); font-size: 13px; background: var(--water); color: var(--card);
-}
-.sim-go .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22ch; }
-.sim-nav[data-last="true"] .sim-go.next { background: var(--water); color: var(--card); animation: sim-go-pulse 1.8s ease-out 3; }
-.sim-nav[data-last="true"] .sim-go.next .n { background: var(--card); color: var(--water); }
-@keyframes sim-go-pulse { 0% { box-shadow: 0 0 0 0 rgba(24, 116, 184, .45); } 100% { box-shadow: 0 0 0 12px rgba(24, 116, 184, 0); } }
-.sim-track { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; }
-/* Sin pasos queda solo una línea delgada entre los dos botones. */
-.sim-track:empty { height: 2px; border-radius: 2px; background: var(--line); }
-
-.sim-steps { flex: 1 1 auto; max-width: 720px; display: flex; align-items: center; gap: 8px; min-width: 0; }
-.sim-steps .body { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
-.sim-steps .num { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; line-height: 1.2; }
-.sim-steps .num b { font-family: var(--font-mono); font-weight: 500; }
-.sim-steps .num .name { color: var(--ink); font-weight: 700; }
-.sim-steps .segs { display: flex; gap: 4px; }
-.sim-steps .seg {
-  flex: 1 1 0; position: relative; height: 6px; padding: 0; border: 0; border-radius: 3px; cursor: pointer;
-  background: var(--line); transition: background .25s;
-}
-.sim-steps .seg::before { content: ""; position: absolute; inset: -7px 0; }   /* más fácil de tocar */
-.sim-steps .seg[data-on="true"] { background: var(--water); }
-.sim-steps .seg:hover { background: var(--muted); }
-.sim-steps .seg[data-on="true"]:hover { background: #135f97; }
-.sim-steps .step {
-  flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; cursor: pointer;
-  border: 2px solid var(--water); background: var(--card); color: var(--water);
-  display: grid; place-items: center;
-}
-.sim-steps .step svg { width: 16px; height: 16px; }
-.sim-steps .step.next { background: var(--water); color: var(--card); }
-.sim-steps .step:disabled { cursor: default; opacity: .3; }
-/* Si una página sin franja usa pasos, quedan en la barra de arriba. */
-.sim-bar .sim-steps { flex: 0 1 260px; }
-
-@media (max-width: 600px), (max-height: 500px) {
-  .sim-nav { gap: 8px; padding-top: 2px; padding-bottom: 6px; }
-  .sim-go { padding: 0 10px 0 6px; gap: 4px; height: 36px; }
-  .sim-go.next { padding: 0 6px 0 10px; }
-  span.sim-go { width: 36px; }
-  .sim-go .name { display: none; }
-  .sim-steps { gap: 6px; }
-}
-@media (max-height: 500px) {
-  .sim-nav { padding-top: 0; padding-bottom: 4px; }
-  .sim-go { height: 30px; }
-  .sim-steps .step { width: 24px; height: 24px; }
-  /* En el celular acostado, el nombre del paso va a un lado de la barra para ocupar una sola línea. */
-  .sim-steps .body { grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
-}
 /* Anillo del indicador: de aquí se agarra como un imán y el círculo lo sigue. */
 .sim-clamp.ring { width: max(22px, calc(var(--s, 1) * 24px)); }
 /* Borne de cada medidor: de aquí también se saca su punta. */
@@ -435,3 +270,263 @@ input[type="range"].snap-a::-webkit-slider-thumb { animation: sim-snap-a .2s eas
 input[type="range"].snap-b::-webkit-slider-thumb { animation: sim-snap-b .2s ease-out; }
 input[type="range"].snap-a::-moz-range-thumb { animation: sim-snap-a .2s ease-out; }
 input[type="range"].snap-b::-moz-range-thumb { animation: sim-snap-b .2s ease-out; }
+
+/* ---------- barra de arriba ----------
+   ← · título · pasos · [vista · simulación anterior y siguiente] · ¿Qué se toca? · Controles */
+.sim-foot { flex: none; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.sim-foot .sim-viewseg { margin-right: 10px; }
+.sim-go {
+  flex: none; min-width: 0; display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 12px 0 8px; border-radius: 999px; text-decoration: none;
+  font-weight: 700; font-size: 14px; border: 2px solid var(--water); color: var(--water); background: var(--card);
+  transition: background .15s, box-shadow .15s;
+}
+span.sim-go { display: none; }
+.sim-go.next { flex-direction: row-reverse; padding: 0 8px 0 12px; }
+.sim-go:hover { background: var(--water-soft); }
+.sim-go .arr svg { display: block; width: 18px; height: 18px; }
+.sim-go .n {
+  flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  font-family: var(--font-mono); font-size: 13px; background: var(--water); color: var(--card);
+}
+.sim-go .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 15ch; }
+.sim-foot[data-last="true"] .sim-go.next { background: var(--water); color: var(--card); animation: sim-go-pulse 1.8s ease-out 3; }
+.sim-foot[data-last="true"] .sim-go.next .n { background: var(--card); color: var(--water); }
+@keyframes sim-go-pulse { 0% { box-shadow: 0 0 0 0 rgba(24, 116, 184, .45); } 100% { box-shadow: 0 0 0 12px rgba(24, 116, 184, 0); } }
+
+/* Vista: Agua · Ambos · Electricidad (una sola elección de tres). */
+.sim-viewseg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; border: 2px solid var(--line); background: var(--bg); flex: none; }
+.sim-viewseg button {
+  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; touch-action: manipulation;
+  padding: 4px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted);
+}
+.sim-viewseg button:hover { color: var(--ink); }
+.sim-viewseg button[aria-pressed="true"] { color: #fff; background: var(--ink); }
+.sim-viewseg button[data-v="w"][aria-pressed="true"] { background: var(--water); }
+.sim-viewseg button[data-v="e"][aria-pressed="true"] { background: var(--charge); }
+
+/* Pasos de la página (Sim.steps), junto al título. */
+.sim-steps { flex: 0 1 320px; min-width: 120px; display: flex; align-items: center; gap: 8px; }
+.sim-steps .body { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+.sim-steps .num { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; line-height: 1.2; }
+.sim-steps .num b { font-family: var(--font-mono); font-weight: 500; }
+.sim-steps .num .name { color: var(--ink); font-weight: 700; }
+.sim-steps .segs { display: flex; gap: 4px; }
+.sim-steps .seg {
+  flex: 1 1 0; position: relative; height: 6px; padding: 0; border: 0; border-radius: 3px; cursor: pointer;
+  background: var(--line); transition: background .25s;
+}
+.sim-steps .seg::before { content: ""; position: absolute; inset: -7px 0; }   /* más fácil de tocar */
+.sim-steps .seg[data-on="true"] { background: var(--water); }
+.sim-steps .seg:hover { background: var(--muted); }
+.sim-steps .seg[data-on="true"]:hover { background: #135f97; }
+.sim-steps .step {
+  flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--water); background: var(--card); color: var(--water);
+  display: grid; place-items: center;
+}
+.sim-steps .step svg { width: 16px; height: 16px; }
+.sim-steps .step.next { background: var(--water); color: var(--card); }
+.sim-steps .step:disabled { cursor: default; opacity: .3; }
+
+/* Botones de la barra: ¿Qué se toca? y Controles. */
+.sim-help-btn, .sim-ctl-btn {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 700; border-radius: 999px; border: 2px solid var(--line); background: var(--bg); color: var(--ink);
+  touch-action: manipulation;
+}
+.sim-help-btn .q {
+  display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--muted); color: var(--card); font-size: 13px;
+}
+.sim-help-btn[aria-pressed="true"] { border-color: var(--ink); }
+.sim-ctl-btn svg { width: 20px; height: 20px; }
+.sim-ctl-btn[aria-expanded="true"] { border-color: var(--water); color: var(--water); background: var(--water-soft); }
+@media (max-width: 1500px) { .sim-go .name { display: none; } }
+@media (max-width: 1300px) { .sim-help-btn .t { display: none; } .sim-help-btn { padding: 0 6px; } }
+@media (max-width: 1200px) { .sim-ctl-btn .t, .sim-steps .num .name { display: none; } .sim-ctl-btn { padding: 0 8px; } .sim-steps { min-width: 100px; } }
+
+/* ---------- columna de controles ----------
+   En la computadora es una columna a la derecha; en una ventana angosta, un cajón que sale de la derecha;
+   en el celular, una hoja que sube desde abajo. Una sección por acción, con su color. */
+.sim-side {
+  width: 288px; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; align-content: start; gap: 12px;
+  padding: 10px max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) 12px;
+  background: var(--card); border-left: 1px solid var(--line);
+}
+.sim-page[data-side="col"][data-open="false"] .sim-side { display: none; }
+.sim-side-hd { display: flex; align-items: center; gap: 8px; }
+.sim-side-hd h2 { flex: 1; margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.sim-side-hd .x {
+  width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  background: transparent; color: var(--muted); font-size: 24px; line-height: 1;
+}
+.sim-side-hd .x:hover { background: var(--bg); color: var(--ink); }
+.sim-scrim { display: none; }
+.sim-page[data-side="sheet"] .sim-side {
+  position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: min(340px, 92vw);
+  border-left: 1px solid var(--line); box-shadow: -10px 0 30px rgba(21, 33, 42, .18);
+  transform: translateX(105%); transition: transform .25s ease; visibility: hidden;
+}
+.sim-page[data-side="sheet"][data-open="true"] .sim-side { transform: none; visibility: visible; }
+.sim-page[data-side="sheet"][data-open="true"] .sim-scrim { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(21, 33, 42, .28); }
+
+.sim-sec { display: grid; gap: 10px; padding: 10px 12px 12px; border-radius: 12px; background: var(--bg); border-left: 4px solid var(--act); }
+.sim-sec[hidden] { display: none; }
+.sim-sec h3 {
+  display: flex; align-items: center; gap: 8px; margin: 0; color: var(--act);
+  font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+}
+.sim-sec h3 svg { width: 18px; height: 18px; flex: none; }
+.sim-sec .body { display: grid; gap: 10px; min-width: 0; }
+.sim-side-row { display: grid; gap: 6px; min-width: 0; }
+.sim-side-row > .lbl { font-size: 13px; font-weight: 700; color: var(--muted); }
+.sim-hint { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.sim-side-btn, .sim-sec .pb-btn {
+  justify-self: start; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 6px 14px; border-radius: 999px;
+  border: 2px solid var(--act); background: var(--card); color: var(--act);
+}
+.sim-side-btn:hover, .sim-sec .pb-btn:hover { background: color-mix(in srgb, var(--act) 10%, var(--card)); }
+.sim-side-btn[hidden] { display: none; }
+.sim-sec .pb-btn[aria-pressed="true"] { background: var(--act); color: var(--card); }
+.sim-sec[data-act="arm"] .body { display: flex; flex-wrap: wrap; gap: 8px; }
+.sim-sec[data-act="arm"] .sim-hint { flex-basis: 100%; }
+/* Ver: qué se ve, color, inercia y al final pantalla completa. */
+.sim-sec[data-act="ver"] .body > :has(.sim-inercia) { order: 5; }
+.sim-sec[data-act="ver"] .body > .sim-side-btn { order: 9; }
+.sim-side .sim-seg { justify-self: start; }
+.sim-side .sim-seg button { font-size: 14px; }
+.sim-side .sim-seg.three { display: grid; grid-template-columns: repeat(3, 1fr); justify-self: stretch; border-radius: 14px; }
+.sim-side .sim-seg.three button { font-size: 13px; padding: .35em .3em; white-space: normal; line-height: 1.15; border-radius: 10px; }
+.sim-side .sim-viewseg button { padding: 4px 10px; }
+.sim-page[data-side="col"] .sim-sec .sim-viewseg { display: none; }
+.sim-page[data-side="col"] .sim-side-row:has(> .sim-viewseg) { display: none; }
+
+/* Componentes: un renglón por componente (nombre y valor); su menú se abre debajo de la lista. */
+.sim-parts { display: grid; gap: 6px; }
+.sim-part {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; min-width: 0;
+  padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); cursor: pointer;
+  font: inherit; font-size: 15px; font-weight: 700; color: var(--ink); text-align: left;
+}
+.sim-part[hidden] { display: none; }
+.sim-part .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-part .vl { flex: none; font-family: var(--font-mono); font-weight: 500; font-size: 15px; }
+.sim-part:hover { border-color: var(--act); }
+.sim-part[aria-expanded="true"] { border-color: var(--act); box-shadow: inset 0 0 0 1px var(--act); }
+.sim-part[aria-expanded="true"] .vl { color: var(--water); }
+.sim-side-cards { display: grid; gap: 10px; }
+.sim-side-cards:empty { display: none; }
+.sim-side .sim-menu.docked { box-shadow: 0 4px 14px rgba(21, 33, 42, .12); padding: 10px 12px 12px; }
+
+/* Lecturas de los medidores conectados. */
+.sim-read { display: grid; gap: 4px; }
+.sim-read .r { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--card); }
+.sim-read .r[hidden] { display: none; }
+.sim-read .nm { font-weight: 700; font-size: 14px; }
+.sim-read .r.V .nm { color: #7c4ddb; }
+.sim-read .r.I .nm { color: #0b8a5f; }
+.sim-read .vl { font-family: var(--font-mono); font-size: 16px; white-space: nowrap; }
+.sim-read .r.off .vl { font-family: var(--font-body); font-size: 13px; color: var(--muted); }
+
+/* Inercia y cables. */
+.sim-inercia { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.sim-inercia input[type="range"], .sim-cables input[type="range"] { width: 100%; min-width: 0; accent-color: var(--water); }
+.sim-inercia output { font-family: var(--font-mono); font-size: 13px; color: var(--muted); min-width: 4.5ch; white-space: nowrap; }
+.sim-cables summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--muted); }
+.sim-cables[open] { display: grid; gap: 8px; }
+.sim-cables label { display: grid; grid-template-columns: 4.2em auto minmax(50px, 1fr) auto; align-items: center; gap: 4px 6px; font-size: 13px; }
+.sim-cables .name { font-weight: 700; }
+.sim-cables .lo, .sim-cables .hi { color: var(--muted); font-size: 12px; }
+
+/* ---------- lo que se toca en el dibujo, por acción ---------- */
+.sim-layer > * { --act: var(--a-com); }
+.sim-layer > .sim-clamp, .sim-layer > .sim-meter-hit, .sim-layer > .sim-meter-btn { --act: var(--a-med); }
+.sim-layer > .sim-power, .sim-layer > .knob, .sim-layer > .sim-wave { --act: var(--a-ali); }
+.sim-layer > [data-act="med"] { --act: var(--a-med); } .sim-layer > [data-act="ali"] { --act: var(--a-ali); }
+.sim-layer > [data-act="com"] { --act: var(--a-com); } .sim-layer > [data-act="arm"] { --act: var(--a-arm); }
+/* Botones de cada página que también están en la columna: mientras la columna se ve, salen del dibujo. */
+.sim-page[data-side="col"][data-open="true"] .sim-layer > .side-dup { display: none; }
+
+/* Globito al pasar el ratón: acción y nombre. */
+.sim-tip {
+  position: fixed; z-index: 50; pointer-events: none; opacity: 0; transition: opacity .12s;
+  padding: 4px 10px; border-radius: 8px; background: var(--ink); color: var(--card); font-size: 13px; white-space: nowrap;
+}
+.sim-tip b { color: color-mix(in srgb, var(--act) 45%, #fff); }
+.sim-tip.on { opacity: 1; }
+
+/* ¿Qué se toca?: todo lo que se toca, marcado con el color de su acción y el nombre de la acción. */
+.sim-page.show-acts .sim-layer > :not([hidden]):not(.ring):not(.jack):not(.shy):not(.sim-colors):not(.pb-anchor) {
+  outline: 3px solid var(--act); outline-offset: 3px; border-radius: 12px; animation: sim-acts 1.1s ease-in-out infinite alternate;
+  background-color: color-mix(in srgb, var(--act) 10%, transparent);
+}
+.sim-page.show-acts .sim-layer > .knob, .sim-page.show-acts .sim-layer > .sim-clamp { border-radius: 50% !important; }
+.sim-page.show-acts .sim-layer > [data-act-name]:not([hidden]):not(.ring):not(.jack):not(.shy):not(.sim-colors):not(.pb-anchor)::after {
+  content: attr(data-act-name); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
+  padding: 1px 7px; border-radius: 999px; background: var(--act); color: #fff;
+  font: 700 11px/1.5 var(--font-body); letter-spacing: .02em; white-space: nowrap; pointer-events: none; z-index: 3;
+}
+.sim-page.show-acts .sim-sec { animation: sim-acts-sec 1.1s ease-in-out infinite alternate; }
+@keyframes sim-acts { from { outline-offset: 3px; } to { outline-offset: 7px; } }
+@keyframes sim-acts-sec { to { box-shadow: 0 0 0 3px var(--act); } }
+@media (prefers-reduced-motion: reduce) { .sim-page.show-acts .sim-layer > *, .sim-page.show-acts .sim-sec { animation: none; } }
+
+/* Menú de un componente en el celular: hoja que sube desde abajo, sin tapar el circuito de arriba. */
+.sim-menu.sheet {
+  left: 0; right: 0; bottom: 0; top: auto; width: auto; z-index: 45;
+  border-radius: 16px 16px 0 0; border-bottom: 0;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  box-shadow: 0 -8px 30px rgba(21, 33, 42, .2);
+}
+.sim-menu.sheet::before { display: none; }
+
+/* ---------- celular ---------- */
+@media (max-width: 600px), (max-height: 500px) {
+  .sim-bar { gap: 6px 8px; padding-top: 6px; padding-bottom: 6px; }
+  .sim-bar .back { font-size: 0; }
+  .sim-bar .back::before { content: "←"; font-size: 24px; line-height: 1; }
+  .sim-bar h1 { font-size: 17px; }
+  .sim-steps { flex: 1 1 100px; min-width: 90px; gap: 6px; }
+  .sim-steps .step { width: 28px; height: 28px; }
+  .sim-steps .num .name { display: none; }
+  .sim-help-btn, .sim-ctl-btn { height: 34px; padding: 0 6px; }
+  .sim-ctl-btn .t, .sim-help-btn .t { display: none; }
+  .sim-go { height: 36px; padding: 0 10px 0 6px; }
+  .sim-go.next { padding: 0 6px 0 10px; }
+  .sim-viewseg button { font-size: 13px; padding: 4px 9px; }
+  .sim-foot .sim-viewseg { margin-right: 0; }
+  .sim-stage { padding: 6px max(6px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); gap: 8px; }
+  .sim-stage[data-view="both"] {
+    overflow-y: auto; grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: 94%;
+    scroll-snap-type: y proximity;
+  }
+  .sim-stage[data-view="both"] .sim-panel { scroll-snap-align: start; }
+  /* En el celular, "Ambos" solo está en Controles (salvo que esté elegido). */
+  .sim-foot .sim-viewseg:not([data-view="both"]) button[data-v="both"] { display: none; }
+  /* la hoja de controles sube desde abajo */
+  .sim-page[data-side="sheet"] .sim-side {
+    top: auto; left: 0; width: auto; max-height: 82dvh; border-left: 0; border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(21, 33, 42, .2); transform: translateY(105%);
+  }
+}
+/* Celular vertical: la vista y las flechas de simulación bajan a una barra pegada abajo. */
+@media (max-width: 600px) {
+  .sim-bar { flex-wrap: nowrap; }
+  .sim-foot {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; margin: 0; justify-content: space-between;
+    padding: 8px max(10px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
+    background: var(--card); border-top: 1px solid var(--line);
+  }
+  span.sim-go { display: block; visibility: hidden; width: 36px; }
+  .sim-go .name { display: none; }
+  .sim-stage { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+}
+/* Celular acostado: todo en un renglón arriba. */
+@media (max-height: 500px) {
+  .sim-bar { flex-wrap: nowrap; padding-top: 4px; padding-bottom: 4px; }
+  .sim-go { height: 32px; }
+  .sim-go .name { display: none; }
+  .sim-help-btn, .sim-ctl-btn { height: 32px; }
+}

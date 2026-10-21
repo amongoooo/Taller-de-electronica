@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021074500">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021081144">
 <style>
 /* Botones de forma de onda del generador. */
 .sim-wave {
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021074500"></script>
+<script src="../../assets/sim.js?v=20261021081144"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -258,31 +258,41 @@
     panels[side].at(el, () => pos(geos[side]));
     return el;
   };
+  // act: la acción del control (los del osciloscopio son de Medir). side: también va en la columna de
+  // controles, en la sección de su acción (y mientras la columna se ve, sale del dibujo).
   const buttons = [];
+  const shownSide = () => Sim.view === 'w' ? 'w' : 'e';
   const refresh = () => {
-    buttons.forEach(({ pair, text, label, attrs }) => pair.forEach((el, k) => {
-      const side = k ? 'e' : 'w';
-      if (text) el.textContent = text(side);
-      if (label) el.setAttribute('aria-label', label(side));
-      if (attrs) for (const [a, v] of Object.entries(attrs())) el.setAttribute(a, v);
-    }));
+    buttons.forEach(({ pair, text, label, attrs, extra }) => {
+      pair.forEach((el, k) => {
+        const side = k ? 'e' : 'w';
+        if (text) el.textContent = text(side);
+        if (label) el.setAttribute('aria-label', label(side));
+        if (attrs) for (const [a, v] of Object.entries(attrs())) el.setAttribute(a, v);
+      });
+      if (extra) extra.textContent = text(shownSide());
+    });
     pw.replace(); pe.replace();
   };
-  const linkedButton = ({ pos, text, label, attrs, onClick, cls = 'sim-btn small', html }) => {
+  Sim.onView(() => refresh());
+  const linkedButton = ({ pos, text, label, attrs, onClick, cls = 'sim-btn small', html, act, side: dup }) => {
     const pair = ['w', 'e'].map(side => {
       const el = document.createElement('button');
-      el.type = 'button'; el.className = cls;
+      el.type = 'button'; el.className = cls + (dup ? ' side-dup' : '');
+      if (act) el.dataset.act = act;
       if (html) el.innerHTML = html;
       el.addEventListener('click', () => { onClick(); refresh(); });
       return place(side, el, pos);
     });
-    buttons.push({ pair, text, label, attrs });
+    const extra = dup && Sim.side ? Sim.side.button(act, '', () => { onClick(); refresh(); }) : null;
+    buttons.push({ pair, text, label, attrs, extra });
     return pair;
   };
-  const linkedKnob = ({ pos, min, max, step, magnet, value, label, format, onInput }) => {
+  const linkedKnob = ({ pos, min, max, step, magnet, value, label, format, onInput, act }) => {
     const ks = {};
     ['w', 'e'].forEach(side => {
       const el = place(side, document.createElement('div'), pos);
+      if (act) el.dataset.act = act;
       ks[side] = Sim.knob(el, { min, max, step, magnet, value, label: label(side), format: v => format(v, side),
         onInput: v => { onInput(v); ks[side === 'w' ? 'e' : 'w'].set(v, true); } });
     });
@@ -328,28 +338,29 @@
   });
   // LED (rueda) que se quita o se pone
   linkedButton({
-    pos: g => [g.PX, g.MIDY + 10],
+    pos: g => [g.PX, g.MIDY + 10], act: 'com', side: true,
     text: side => (st.led ? 'Quitar ' : 'Poner ') + (side === 'w' ? 'rueda' : 'LED'),
     onClick: () => { st.led = !st.led; st.probe = st.probe.map(snapD); }
   });
   // Osciloscopio
   linkedKnob({
-    pos: g => [g.SX + 500, g.SY + 110], min: 0, max: VDIV.length - 1, step: 1, value: st.vi,
+    pos: g => [g.SX + 500, g.SY + 110], min: 0, max: VDIV.length - 1, step: 1, value: st.vi, act: 'med',
     label: side => side === 'w' ? 'Presión por división' : 'Volts por división',
     format: (v, side) => val(VDIV[v], side) + ' por división', onInput: v => { st.vi = v; }
   });
   linkedKnob({
-    pos: g => [g.SX + 500, g.SY + 250], min: 0, max: TDIV.length - 1, step: 1, value: st.ti,
+    pos: g => [g.SX + 500, g.SY + 250], min: 0, max: TDIV.length - 1, step: 1, value: st.ti, act: 'med',
     label: () => 'Tiempo por división', format: v => tText(TDIV[v]) + ' por división',
     onInput: v => { st.ti = v; resetSweep(); }
   });
   linkedButton({
-    pos: g => [g.SX + 500, g.SY + 360],
+    pos: g => [g.SX + 500, g.SY + 360], act: 'med',
     text: () => st.trig ? 'Disparo: sí' : 'Disparo: no',
     label: () => st.trig ? 'Quitar el disparo: la imagen deja de quedarse quieta' : 'Poner el disparo para que la imagen se quede quieta',
     onClick: () => { st.trig = !st.trig; }
   });
   refresh();
+  if (Sim.side) Sim.side.hint('med', 'Arrastra la punta roja y el caimán negro a dos puntos del circuito. En el osciloscopio, V/div cambia la altura y tiempo/div el ancho de la onda.');
 
   // ---------- puntas: la roja (señal) y la negra (tierra) se arrastran al circuito ----------
   const frame = k => {

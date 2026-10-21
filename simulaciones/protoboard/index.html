@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021074500">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021081144">
 <style>
 .sim-bar .ctl { gap: 8px; }
 .pb-btn {
@@ -25,9 +25,9 @@
     <a class="back" href="../../">← Simulaciones</a>
     <h1>Protoboard</h1>
     <div class="ctl">
-      <button type="button" class="pb-btn" id="dentro" aria-pressed="true">Por dentro</button>
-      <button type="button" class="pb-btn" id="ejemplo">Ejemplo</button>
-      <button type="button" class="pb-btn" id="vaciar">Vaciar</button>
+      <button type="button" class="pb-btn" id="dentro" aria-pressed="true" data-act="ver">Por dentro</button>
+      <button type="button" class="pb-btn" id="ejemplo" data-act="arm">Ejemplo</button>
+      <button type="button" class="pb-btn" id="vaciar" data-act="arm">Vaciar</button>
     </div>
   </div>
 
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021074500"></script>
+<script src="../../assets/sim.js?v=20261021081144"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -203,6 +203,7 @@
   syncDentro();
   document.getElementById('ejemplo').addEventListener('click', example);
   document.getElementById('vaciar').addEventListener('click', clearAll);
+  if (Sim.side) Sim.side.hint('arm', 'Arrastra cables, resistencias y LEDs de la caja a los agujeros. Toca una pieza puesta para cambiarla o quitarla.');
 
   // Interruptor de encendido de la bomba y de la pila, uno en cada panel.
   const powers = Object.entries(panels).map(([side, p]) => {
