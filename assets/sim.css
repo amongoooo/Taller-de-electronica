@@ -604,3 +604,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 /* Solo para lectores de pantalla (avisos que cambian). */
 .sim-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 :root[data-theme="dark"] .sim-tip b { color: color-mix(in srgb, var(--act) 60%, #000); }
+
+/* Botones físicos del multímetro: se dibujan en el canvas; aquí solo queda la zona para tocarlos. */
+.sim-meter-btn.phys, .sim-meter-btn.phys:hover, .sim-meter-btn.phys:disabled { background: transparent; border: 0; box-shadow: none; border-radius: 6px; opacity: 1; }
+.sim-meter-btn.phys:focus-visible { outline: 2px solid var(--water); outline-offset: 1px; }

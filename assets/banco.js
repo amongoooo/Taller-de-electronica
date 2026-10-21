@@ -65,9 +65,6 @@
   };
   // Íconos de los botones de cada medidor: conector (recoger) y flechas (compactar o mostrar completo).
   const icon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-  const PLUG = icon('<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>');
-  const SHRINK = icon('<path d="M4 14h6v6M20 10h-6V4M10 14l-6 6M14 10l6-6"/>');
-  const EXPAND = icon('<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>');
 
   Sim.bench = o => {
     const iFull = o.iFull || 12, iMax = o.iMax || iFull, flowSpeed = o.flowSpeed || 12;
@@ -902,7 +899,10 @@
     // Compactado, la rueda se achica y va a la derecha de la pantallita y la comparación se esconde.
     const shape = kind => {
       const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c;
-      return { bottom: mix(132, 6), lcd: mix(-8, -14), lh: mix(34, 30), lx: mix(0, -18), lw: mix(112, 104), cmp: 20, kx: mix(0, 54), ky: mix(86, -14), kr: mix(27, 12), label: mix(148, 22), c };
+      return { bottom: mix(132, 6), hw: mix(76, 92), lcd: mix(-8, -14), lh: mix(34, 30), lx: mix(0, -6), lw: mix(112, 104), cmp: 20, kx: mix(0, 66), ky: mix(86, -14), kr: mix(27, 12), label: mix(148, 22), c,
+        // botones físicos: recoger (0) y compactar (1); extendido a los lados de la rueda, compactado uno
+        // sobre otro a la izquierda de la pantallita
+        btn: [[mix(-52, -74), mix(54, -24)], [mix(52, -74), mix(54, -7)]], bw: mix(24, 17), bh: mix(16, 13) };
     };
     const meterAt = (g, kind) => {
       const [x0, y0] = g.meters[kind], o = st.mpos[g.mode + kind], k = g.MK;
@@ -916,14 +916,65 @@
       st.mpos[g.mode + kind] = [x - x0, y - y0];
       b.pw.replace(); b.pe.replace();
     };
-    // Dos bornes arriba: VΩA (el rojo) y COM (el negro). Los cables nunca cambian de borne: solo la perilla.
-    const JX = { V: -26, COM: 26 };
+    // Dos bornes: VΩA (el rojo) y COM (el negro), en una placa que se recorre por la orilla de la funda
+    // hacia donde van los cables (st.jpos: fracción del contorno). Los cables nunca cambian de borne.
+    st.jpos = { a: 0.12, b: 0.12 };
     st.dang = { a: DANG[st.dial.a], b: DANG[st.dial.b] };
     st.dvel = { a: 0, b: 0 }; st.dpull = { a: 0, b: 0 };   // la rueda: su velocidad y su estirón hacia el dedo
-    const leadJack = (g, kind, j) => {
-      const [x, y] = meterAt(g, kind);
-      return [x + (j ? JX.COM : JX.V) * g.MK, y - 40 * g.MK];
+    // Contorno por donde corre la placa: la funda un poco hacia afuera, con esquinas redondas. rim(sh, u)
+    // da el punto, la dirección (en el sentido del reloj) y el largo total; u en [0, 1).
+    const rim = (sh, u) => {
+      const L = -sh.hw - 3, R = sh.hw + 3, T = -51, B = sh.bottom + 3, rc = 17, w = R - L - 2 * rc, h = B - T - 2 * rc, q = Math.PI * rc / 2;
+      const parts = [
+        [w, s => [L + rc + s, T, 1, 0]],
+        [q, s => { const a = -Math.PI / 2 + s / rc; return [R - rc + rc * Math.cos(a), T + rc + rc * Math.sin(a), -Math.sin(a), Math.cos(a)]; }],
+        [h, s => [R, T + rc + s, 0, 1]],
+        [q, s => { const a = s / rc; return [R - rc + rc * Math.cos(a), B - rc + rc * Math.sin(a), -Math.sin(a), Math.cos(a)]; }],
+        [w, s => [R - rc - s, B, -1, 0]],
+        [q, s => { const a = Math.PI / 2 + s / rc; return [L + rc + rc * Math.cos(a), B - rc + rc * Math.sin(a), -Math.sin(a), Math.cos(a)]; }],
+        [h, s => [L, B - rc - s, 0, -1]],
+        [q, s => { const a = Math.PI + s / rc; return [L + rc + rc * Math.cos(a), T + rc + rc * Math.sin(a), -Math.sin(a), Math.cos(a)]; }],
+      ];
+      const total = parts.reduce((t, p) => t + p[0], 0);
+      let s = ((u % 1) + 1) % 1 * total;
+      for (const [len, f] of parts) { if (s <= len) return [...f(s), total, parts]; s -= len; }
+      return [...parts[0][1](0), total, parts];
     };
+    const jackGap = sh => 26 - 6 * sh.c;   // de la placa a cada borne
+    // Borne j en coordenadas del multímetro (sin escalar): VΩA antes y COM después, en el sentido del reloj.
+    const jackLocal = (kind, j) => {
+      const sh = shape(kind), [, , , , total] = rim(sh, 0);
+      return rim(sh, st.jpos[kind] + (j ? 1 : -1) * jackGap(sh) / total);
+    };
+    const leadJack = (g, kind, j) => {
+      const [x, y] = meterAt(g, kind), [px, py] = jackLocal(kind, j);
+      return [x + px * g.MK, y + py * g.MK];
+    };
+    // A dónde debe ir la placa: al lado de la funda que mira hacia las puntas (el promedio de las que
+    // están afuera), recorrida a lo largo de ese lado hasta quedar frente a ellas.
+    const jackTarget = (g, kind) => {
+      const out = [0, 1].filter(i => st.placed[kind][i] || st.lift[kind][i] || st.floor[kind][i]);
+      if (!out.length) return null;
+      const [mx, my] = meterAt(g, kind), sh = shape(kind);
+      const tx = out.reduce((t, i) => t + st.clamps[kind][i][0], 0) / out.length, ty = out.reduce((t, i) => t + st.clamps[kind][i][1], 0) / out.length;
+      const lx = (tx - mx) / g.MK, ly = (ty - my) / g.MK;
+      const L = -sh.hw - 3, R = sh.hw + 3, T = -51, B = sh.bottom + 3, rc = 17, cy = (T + B) / 2;
+      const dx = lx, dy = ly - cy, hw = R, hh = (B - T) / 2;
+      const [, , , , total, parts] = rim(sh, 0), start = i => parts.slice(0, i).reduce((t, p) => t + p[0], 0);
+      const cur = st.jedge[kind];
+      let tX = hw / Math.max(1e-6, Math.abs(dx)), tY = hh / Math.max(1e-6, Math.abs(dy));
+      if (cur === 'L' || cur === 'R') tX *= 0.85; else tY *= 0.85;   // un poco de preferencia por el lado de ahora
+      const edge = tX < tY ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'B' : 'T');
+      st.jedge[kind] = edge;
+      const m = jackGap(sh) + 12, along = (len, v) => len < 2 * m ? len / 2 : Math.max(m, Math.min(len - m, v));
+      const w = parts[0][0], h = parts[2][0];
+      const s = edge === 'T' ? start(0) + along(w, lx - (L + rc))
+        : edge === 'R' ? start(2) + along(h, ly - (T + rc))
+        : edge === 'B' ? start(4) + along(w, (R - rc) - lx)
+        : start(6) + along(h, (B - rc) - ly);
+      return s / total;
+    };
+    st.jedge = { a: 'T', b: 'T' };
     const jack = (g, kind, i) => leadJack(g, kind, i);
     const jackColor = (kind, j) => j ? C.neg : RED;
 
@@ -1526,41 +1577,24 @@
         const names = DIAL_NAMES[side];
         dial.setAttribute('aria-label', `Perilla del ${meterName(kind, side)}: ${names[st.dial[kind]]}. Tócala para girarla`);
       });
-      // Dos botones a los lados de su nombre: recoger (conector) y compactar. Solo se ven con el
-      // puntero encima del multímetro (o de ellos) o cuando se tocó para conectarlo.
-      const shy = [];
-      let peek = false, peekT = null;
-      const syncShy = () => {
-        const on = peek || !!(st.placing && st.placing.kind === kind);
-        shy.forEach(bt => bt.classList.toggle('shy', !on));
-      };
-      const setPeek = v => {
-        clearTimeout(peekT);
-        if (v) { peek = true; syncShy(); } else peekT = setTimeout(() => { peek = false; syncShy(); }, 400);
-      };
-      const hover = t => {
-        t.addEventListener('pointerenter', () => setPeek(true)); t.addEventListener('pointerleave', () => setPeek(false));
-        t.addEventListener('focusin', () => setPeek(true)); t.addEventListener('focusout', () => setPeek(false));
-      };
-      hover(el); hover(dial);
-      syncs.push(syncShy);
+      // Dos botones físicos en el multímetro: recoger (enchufe) y compactar.
       const what = side === 'w' ? 'las mangueras' : 'los cables';
-      const button = (dx, svg, onClick) => {
+      // Son botones físicos dibujados en el multímetro: aquí solo va su zona para tocarlos.
+      const button = (bi, svg, onClick) => {
         const bt = document.createElement('button');
-        bt.type = 'button'; bt.className = 'sim-meter-btn'; bt.innerHTML = svg;
-        bt.addEventListener('click', onClick);
-        shy.push(bt); hover(bt);
+        bt.type = 'button'; bt.className = 'sim-meter-btn phys';
+        bt.addEventListener('click', e => { st.press[kind][bi] = performance.now() + 140; onClick(e); b.pw.replace(); b.pe.replace(); setTimeout(() => { b.pw.replace(); b.pe.replace(); }, 160); });
         b.place(side, bt, g => {
-          const [x, y] = meterAt(g, kind), s = Math.max(30, 28 * panel(side).scale * g.MK);
-          bt.style.width = bt.style.height = s + 'px';
-          return [x + dx * g.MK, y + shape(kind).label * g.MK];
+          const [x, y] = meterAt(g, kind), sh = shape(kind), s = panel(side).scale * g.MK;
+          bt.style.width = Math.max(28, (sh.bw + 6) * s) + 'px'; bt.style.height = Math.max(24, (sh.bh + 6) * s) + 'px';
+          return [x + sh.btn[bi][0] * g.MK, y + sh.btn[bi][1] * g.MK];
         });
         syncs.push(() => { bt.hidden = !st.show[kind]; });
         return bt;
       };
-      const rb = button(-80, PLUG, () => reelIn(kind));
+      const rb = button(0, '', () => reelIn(kind));
       reelBtns.push([rb, kind]);
-      const cb = button(80, '', () => {
+      const cb = button(1, '', () => {
         st.compact[kind] = !st.compact[kind];
         try { localStorage.setItem('sim-compact', JSON.stringify(st.compact)); } catch (e) {}
         syncs.forEach(f => f());
@@ -1569,7 +1603,7 @@
         const label = `Recoger ${what} del ${meterName(kind, side)}: tensa lo conectado y guarda lo que está en el suelo`;
         rb.setAttribute('aria-label', label); rb.title = label;
         const c = st.compact[kind], cl = c ? `Mostrar ${name()} completo` : `Compactar ${name()}: solo la pantallita y la perilla`;
-        cb.innerHTML = c ? EXPAND : SHRINK; cb.setAttribute('aria-pressed', String(c));
+        cb.setAttribute('aria-pressed', String(c));
         cb.setAttribute('aria-label', cl); cb.title = c ? 'Mostrar completo' : 'Compactar';
       });
     }));
@@ -1782,25 +1816,33 @@
       if (placing) {   // borde del color de lo que mide mientras espera dónde conectarse
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
         ctx.globalAlpha = 0.35 + 0.4 * pulse;
-        D.roundRect(ctx, -82, -56, 164, H + 16, 18, null, col, 6);
+        D.roundRect(ctx, -sh.hw - 6, -56, 2 * sh.hw + 12, H + 16, 18, null, col, 6);
         ctx.globalAlpha = 1;
       }
       ctx.save();
       if (st.mheld[kind]) { ctx.shadowColor = 'rgba(21,33,42,0.35)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; }   // levantado mientras se mueve
-      D.roundRect(ctx, -76, -48, 152, H, 14, HOLSTER[g.side], C.ink, 2);
+      D.roundRect(ctx, -sh.hw, -48, 2 * sh.hw, H, 14, HOLSTER[g.side], C.ink, 2);
       ctx.restore();
-      D.roundRect(ctx, -68, -32, 136, H - 22, 8, C.metal, C.ink, 1.5);
+      D.roundRect(ctx, -sh.hw + 8, -32, 2 * sh.hw - 16, H - 22, 8, C.metal, C.ink, 1.5);
       D.lcd(ctx, sh.lx, sh.lcd, sh.lw, sh.lh, ...meterText(kind, g.side));
       compare(ctx, kind, sh, water);
       dialKnob(ctx, kind, sh, water);
+      sh.btn.forEach((p, i) => physButton(ctx, kind, i, p, sh));
       ctx.restore();
-      // bornes en la funda: VΩA (rojo) y COM (negro)
+      // bornes en su placa, sobre la orilla de la funda: VΩA (rojo) y COM (negro); su nombre hacia adentro
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
-      [[JX.V, RED, 'VΩA', 'right'], [JX.COM, C.neg, 'COM', 'left']].forEach(([jx, c, t, al]) => {
-        D.circle(ctx, jx, -40, 6.5, c, C.ink, 1.5);
-        D.text(ctx, t, jx + (al === 'right' ? -10 : 10), -40, '#15212a', { size: 10, weight: 800, align: al });
+      const gap = jackGap(sh), [, , , , total] = rim(sh, 0), plate = [];
+      for (let d = -gap - 11; d <= gap + 11; d += 3) plate.push(rim(sh, st.jpos[kind] + d / total).slice(0, 2));
+      D.line(ctx, plate, 21, C.ink, 'round');
+      D.line(ctx, plate, 17, KNOB.body, 'round');
+      [[0, RED, 'VΩA'], [1, C.neg, 'COM']].forEach(([j, c, t]) => {
+        const [px, py, tx, ty] = jackLocal(kind, j);
+        D.circle(ctx, px, py, 6.5, '#0d1318');
+        D.circle(ctx, px, py, 4.5, c, '#ffffff55', 1);
+        const [lx, ly] = rim(sh, st.jpos[kind] + (j ? 1 : -1) * (gap - 16) / total);   // su nombre, en la placa entre los dos
+        if (sh.c < 0.5) D.text(ctx, t, lx, ly, '#e8eef2', { size: 8, weight: 800 });   // compactado no caben: los distingue el color
       });
-      const ly = sh.label;
+      const [, cny] = rim(sh, st.jpos[kind]), ly = sh.label + Math.max(0, Math.min(1, (cny - sh.bottom) / 3)) * 16;
       if (placing) {
         D.text(ctx, 'toca el circuito para', 0, ly, col, { size: 12 });
         D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 16, st.placing.i ? C.neg : RED, { size: 13 });
@@ -1811,6 +1853,31 @@
         D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 13, weight: 700 });
         D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 16, C.danger, { size: 13 });
       } else D.text(ctx, meterName(kind, g.side), 0, ly, col, { size: 14, font: Sim.WIDE });
+      ctx.restore();
+    };
+    // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
+    st.press = { a: [0, 0], b: [0, 0] };
+    const physButton = (ctx, kind, i, [bx, by], sh) => {
+      const w = sh.bw, h = sh.bh, p = st.press[kind][i] > performance.now() ? 1 : 0, off = i === 0 && !st.placed[kind].some(Boolean);
+      ctx.save();
+      if (off) ctx.globalAlpha *= 0.55;
+      D.roundRect(ctx, bx - w / 2, by - h / 2 + 2, w, h, 4, '#1b242c');   // la base
+      D.roundRect(ctx, bx - w / 2, by - h / 2 + p * 1.5, w, h - 1.5, 4, p ? '#8e9aa4' : '#a9b4bd', '#1b242c', 1.2);
+      ctx.translate(bx, by + p * 1.5 - 0.5);
+      const k = h / 16, ink = '#1b242c';
+      ctx.scale(k, k);
+      if (i === 0) {   // enchufe: recoger
+        D.line(ctx, [[-2.5, -6], [-2.5, -3]], 1.6, ink); D.line(ctx, [[2.5, -6], [2.5, -3]], 1.6, ink);
+        D.line(ctx, [[-5, -3], [5, -3], [5, 0], [0, 4], [-5, 0], [-5, -3]], 1.6, ink);
+        D.line(ctx, [[0, 4], [0, 7]], 1.6, ink);
+      } else {   // compactar (flechas hacia adentro) o mostrar completo (hacia afuera)
+        const o = st.compact[kind] ? 1 : -1;
+        [[-1, -1], [1, 1]].forEach(([sx, sy]) => {
+          const a = [sx * 6, sy * 6], z = [sx * 1.5, sy * 1.5], tip = o > 0 ? a : z, tail = o > 0 ? z : a;
+          D.line(ctx, [tail, tip], 1.6, ink);
+          D.line(ctx, [[tip[0] - sx * o * 3, tip[1]], tip, [tip[0], tip[1] - sy * o * 3]], 1.6, ink);
+        });
+      }
       ctx.restore();
     };
     // Formato extendido: abajo de la pantallita, la comparación de la punta roja (+) con la negra (−): el
@@ -2161,6 +2228,12 @@
         const c0 = st.cmp[kind];
         st.cmp[kind] = st.compact[kind] ? Math.min(1, c0 + dt / 0.3) : Math.max(0, c0 - dt / 0.3);
         if (st.cmp[kind] !== c0) moved = true;
+        // la placa de los bornes se recorre por la orilla hacia donde van los cables
+        const jt = jackTarget(b.ge, kind);
+        if (jt != null) {
+          const du = ((jt - st.jpos[kind]) % 1 + 1.5) % 1 - 0.5;
+          if (Math.abs(du) > 1e-4) { st.jpos[kind] = (st.jpos[kind] + du * (1 - Math.exp(-dt * 7)) + 1) % 1; moved = true; }
+        }
         // la rueda va a su posición (más su estirón hacia el dedo) como jalada por un imán: con un rebote
         const a0 = st.dang[kind], to = DANG[st.dial[kind]] + st.dpull[kind];
         if (Math.abs(to - a0) > 0.05 || Math.abs(st.dvel[kind]) > 0.5) {
