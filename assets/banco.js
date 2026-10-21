@@ -3,8 +3,10 @@
 // pantallitas y medidor) y un multímetro abajo junto al controlador (en el agua, un medidor equivalente):
 // un solo par de cables, rojo (+) y negro (−), y una perilla OFF · V · A · Ω. En V (presión) sus dos
 // puntas van entre dos puntos del circuito; en A (caudal) el circuito se abre en un punto y el
-// multímetro queda en medio, en serie, con el cable rojo en el borne A; en Ω mide la resistencia entre
-// sus puntas como uno de verdad (con lo que esté en paralelo, y una lectura que no sirve si hay voltaje).
+// multímetro queda en medio: el cable se corta entre sus dos puntas y todo pasa por él (si las puntas
+// quedan en dos nodos distintos, el multímetro es un corto y se funde su fusible); en Ω mide la
+// resistencia entre sus puntas como uno de verdad (con lo que esté en paralelo, y una lectura que no
+// sirve si hay voltaje). Los cables nunca cambian de borne (COM y VΩA): solo cambia el modo.
 // La perilla también elige el modo de color de las partículas. En Medir se puede sacar un segundo
 // multímetro para medir dos cosas a la vez. Cables que cuelgan, e inercia. Botones para invertir la
 // polaridad y para llevar la punta negra a la tierra común (el − de la fuente, 0 V). Los multímetros se
@@ -39,7 +41,7 @@
 // b.setNodes(v) y b.nodesOn() la ponen o la quitan; b.where() dice en qué nodos están las puntas.
 // Multímetros 'a' (el de siempre) y 'b' (el segundo): b.showMeters({ a, b }) muestra u oculta cada uno con
 // sus puntas (para las páginas que van por pasos); b.setDial(k, modo, puntas) gira su perilla ('off', 'V',
-// 'A' o 'R') y, si se dan, pone sus puntas ahí ([[x, y], [x, y]], o [[x, y]] en A).
+// 'A' o 'R') y, si se dan, pone sus puntas ahí ([[x, y], [x, y]]).
 // b.ground(g) es el punto de la tierra común en el cable de abajo.
 // b.halt() se llama al romperse algo (se funde el fusible, se quema o revienta una pieza): el siguiente
 // cambio del circuito no espera la inercia, el flujo se frena de golpe en un instante.
@@ -71,8 +73,8 @@
     const iFull = o.iFull || 12, iMax = o.iMax || iFull, flowSpeed = o.flowSpeed || 12;
     const st = { on: false, set: o.v0 ?? 6, lim: Sim.nearest(LIMS, o.lim0 ?? 100), v: 0, vo: 0, cc: false, tau: 1, level: Sim.ramp(), m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, segs: [], probe: { a: null, b: null }, pinned: { a: false, b: false }, show: { a: true, b: false },
-      // la perilla de cada multímetro; nd es su aguja (o su tubo), npa y npb las columnas de la presión
-      dial: { a: 'V', b: 'A' }, nd: { a: Sim.needle(), b: Sim.needle() }, npa: { a: Sim.needle(), b: Sim.needle() }, npb: { a: Sim.needle(), b: Sim.needle() } };
+      // la perilla de cada multímetro y su fusible (se funde al hacer un corto en A)
+      dial: { a: 'V', b: 'A' }, fuse: { a: false, b: false } };
     const b = { st, VMAX, PSI_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
     // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual):
@@ -103,22 +105,22 @@
       if (mode === 'lateral') {
         g.BOT = H - 64;
         g.BX = 700; g.MK = 1.25;
-        const my = 40 + 40 * g.MK;
+        const my = 40 + 48 * g.MK;
         g.meters = { a: [g.BX + 55, my], b: [g.BX + g.BW - 55, my] };
-        g.BY = my + 116 * g.MK;
+        g.BY = my + 142 * g.MK;
         g.COL = [650, 10];   // arriba de la columna de medidores no cabe: va arriba a la derecha del circuito
         g.TOP = 170;         // y el circuito baja un poco para dejarle lugar
       } else if (mode === 'alto') {
-        g.BOT = H - 444;
+        g.BOT = H - 488;
         g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46; g.MK = 1.35;
-        const my = g.BY + g.BH + 34 + 40 * g.MK;
+        const my = g.BY + g.BH + 28 + 48 * g.MK;
         g.meters = { a: [g.PX - 135, my], b: [g.PX + 135, my] };
         g.COL = [660, 10];
         g.TOP = 170;
       } else {
         g.BOT = H - 214;
         g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46;
-        g.meters = { a: [g.BX / 2, g.BY + 40], b: [(g.BX + g.BW + W) / 2, g.BY + 40] };
+        g.meters = { a: [g.BX / 2, g.BY + 18], b: [(g.BX + g.BW + W) / 2, g.BY + 18] };
         g.COL = [W - 12, 10];
       }
       g.CX = g.BX + g.BW / 2;   // centro del controlador (perilla)
@@ -630,8 +632,8 @@
     b.labelTop = { w: 6, e: 6 };
     // Dónde está conectado cada multímetro, para las páginas que revisan cómo se midió:
     // { comps, nodes, meters: { a, b } }; cada multímetro que se ve trae dial (su perilla), value (lo que
-    // marca) y, en V, Ω u OFF, nodes: [nodo de la roja, nodo de la negra]; en A, piece (el pedazo de cable
-    // que abrió) e I. Lo que no está conectado va en null. Los nodos traen v (su voltaje), ground y plus;
+    // marca), nodes: [nodo de la roja, nodo de la negra] y, en A, cut (si cortó el cable entre sus puntas), I
+    // y fuse (fundido). Lo que no está conectado va en null. Los nodos traen v (su voltaje), ground y plus;
     // comps, los componentes con c (lo que dio la página), A y B (sus nodos).
     const netNow = () => { if (net) return net; const n = analyze(circuitList(b.gw, st.m, st.vo)); morph(n, 0); return n; };
     const pieceAt = (n, kind, i) => {
@@ -644,8 +646,8 @@
       for (const k of MS) {
         if (!st.show[k]) { meters[k] = null; continue; }
         const r = st.probe[k], value = r && ready(k) ? r.value : null;
-        if (series(k)) { const p = pieceAt(n, k, 0); meters[k] = { dial: 'A', value, piece: p, I: p ? value : null }; }
-        else meters[k] = { dial: st.dial[k], value, nodes: [0, 1].map(i => { const p = pieceAt(n, k, i); return p ? p.node : null; }) };
+        meters[k] = { dial: st.dial[k], value, nodes: [0, 1].map(i => { const p = pieceAt(n, k, i); return p ? p.node : null; }) };
+        if (series(k)) Object.assign(meters[k], { cut: !!(r && r.cut), I: r && r.cut && ready(k) ? r.value : null, fuse: st.fuse[k] });
       }
       return { comps: n.comps, nodes: n.nodes, meters };
     };
@@ -693,25 +695,26 @@
       return best;
     };
     // Lectura de cada multímetro según su perilla. En V (o en el agua, presión) marca voltaje(rojo) −
-    // voltaje(negro) y guarda el voltaje de cada punta para las columnas de agua. En A va en serie en un
-    // solo punto: marca la corriente que entra por su cable rojo y sale por el negro. Sin invertir, el rojo
-    // queda del lado de donde viene la corriente (el inicio del tramo) y marca positivo; invertido, negativo.
-    // En Ω, la resistencia entre sus puntas (ver ohms).
+    // voltaje(negro). En A el multímetro va en serie: con las dos puntas en el mismo cable (sin un
+    // componente ni un nodo entre ellas) el cable se corta entre las dos (cut) y toda la corriente entra
+    // por la roja y sale por la negra; positiva si la roja está del lado de donde viene. Con las puntas en
+    // dos nodos con voltaje distinto el multímetro, que por dentro es casi un cable, hace un corto y se
+    // funde su fusible. En Ω, la resistencia entre sus puntas (ver ohms).
     const measure = segs => {
       const out = {};
       for (const k of MS) {
-        const cl = st.clamps[k];
-        if (series(k)) {
-          const P = snap(segs, ...cl[0], false, k);
-          cl[0] = [P.x, P.y];
-          out[k] = { value: (st.inv[k] ? -1 : 1) * segs[P.k].I };
-          continue;
-        }
-        const [A, B] = cl.map(([x, y]) => snap(segs, x, y, false, k));
+        const [A, B] = st.clamps[k].map(([x, y]) => snap(segs, x, y, false, k));
         st.clamps[k] = [[A.x, A.y], [B.x, B.y]];
         const va = segs[A.k].v(A.d), vb = segs[B.k].v(B.d);
         out[k] = { value: va - vb, va, vb };
         if (st.dial[k] === 'R') out[k].value = st.show[k] && ready(k) ? ohms(k, va - vb) : NaN;
+        if (st.dial[k] !== 'A') continue;
+        const sg = segs[A.k], d0 = Math.min(A.d, B.d), d1 = Math.max(A.d, B.d);
+        const clear = A.k === B.k && !sg.source && d1 - d0 > 6 && !sg.comps.some(c => c.d1 > d0 && c.d0 < d1) && !(sg.zones || []).some(z => z.d > d0 && z.d < d1);
+        out[k].value = 0;
+        if (clear) { out[k].value = (A.d < B.d ? 1 : -1) * sg.I; out[k].cut = { k: A.k, d0, d1 }; }
+        else if (st.show[k] && ready(k) && Math.abs(va - vb) > 0.05 && !st.fuse[k]) { st.fuse[k] = true; syncs.forEach(f => f()); }
+        if (st.fuse[k]) { out[k].value = 0; out[k].cut = null; }
       }
       return out;
     };
@@ -860,15 +863,14 @@
     // Puntas de cada multímetro: en V, Ω u OFF, [roja, negra]; en A, [la pieza en serie, (donde estaba la negra)].
     st.clamps = {
       a: [[b.gw.X0, b.gw.MY], [b.gw.X1, b.gw.MY]],
-      b: [[b.gw.X1 - 60, b.gw.BOT], [b.gw.X1, b.gw.MY]]
+      b: [[b.gw.X1 - 20, b.gw.BOT], [b.gw.X1 - 100, b.gw.BOT]]
     };
     const syncs = [];   // muestran u ocultan los botones de las puntas
-    // Cuántas puntas lleva cada multímetro: en V, Ω u OFF dos (roja y negra); en A una sola pieza que abre
-    // el circuito en un punto y queda en serie. Siempre tiene dos cables, rojo (+) y negro (−): probeOf da
-    // la punta de cada cable.
+    // Cada multímetro tiene siempre dos puntas, roja (+) y negra (−), cada una con su cable: probeOf da la
+    // punta de cada cable. series: la perilla en A (va en serie).
     const series = kind => st.dial[kind] === 'A';
-    const NP = kind => series(kind) ? 1 : 2;
-    const probeOf = (kind, j) => series(kind) ? 0 : j;
+    const NP = () => 2;
+    const probeOf = (kind, j) => j;
     // placed: qué puntas están puestas en el circuito (al tocar el multímetro se quitan hasta ponerlas de nuevo).
     st.placed = { a: [true, true], b: [true, true] };
     // Al arrastrar una punta se levanta del circuito y deja de medir. Cerca de una línea un imán la
@@ -895,11 +897,12 @@
     st.compact = { a: small, b: small };
     try { const c = JSON.parse(localStorage.getItem('sim-compact') || '{}'); MS.forEach(k => { if (typeof c[k] === 'boolean') st.compact[k] = c[k]; }); } catch (e) {}
     st.cmp = { a: +st.compact.a, b: +st.compact.b };
-    // Forma del multímetro (sin escalar, desde su centro): abajo de la caja, la pantallita (lcd, lx y su
-    // ancho lw), la perilla (kx, ky, kr) y el nombre. Compactado, la perilla va a la derecha de la pantallita.
+    // Forma del multímetro (sin escalar, desde su centro): abajo de la caja, la pantallita (lcd, lx, su
+    // ancho lw y su alto lh), la rueda (kx, ky, kr) y el nombre. Compactado, la rueda se achica y va a la
+    // derecha de la pantallita.
     const shape = kind => {
       const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c;
-      return { bottom: mix(64, 6), lcd: -14, lx: mix(0, -18), lw: mix(132, 104), kx: mix(38, 54), ky: mix(34, -14), kr: mix(15, 12), label: mix(80, 22), c };
+      return { bottom: mix(116, 6), lcd: mix(-8, -14), lh: mix(34, 30), lx: mix(0, -18), lw: mix(112, 104), kx: mix(0, 54), ky: mix(68, -14), kr: mix(30, 12), label: mix(132, 22), c };
     };
     const meterAt = (g, kind) => {
       const [x0, y0] = g.meters[kind], o = st.mpos[g.mode + kind], k = g.MK;
@@ -913,22 +916,14 @@
       st.mpos[g.mode + kind] = [x - x0, y - y0];
       b.pw.replace(); b.pe.replace();
     };
-    // Tres bornes arriba, como en un multímetro de verdad: A (a la izquierda), COM (en medio, el negro) y
-    // VΩ (a la derecha). El cable negro siempre va en COM; el rojo en VΩ, o en A con la perilla en A
-    // (jsw va de 0 a 1 mientras el rojo se cambia de borne).
-    const JX = { A: -50, COM: -2, V: 46 };
-    st.jsw = { a: +series('a'), b: +series('b') };
+    // Dos bornes arriba: VΩA (el rojo) y COM (el negro). Los cables nunca cambian de borne: solo la perilla.
+    const JX = { V: -26, COM: 26 };
     st.dang = { a: DANG[st.dial.a], b: DANG[st.dial.b] };
     const leadJack = (g, kind, j) => {
-      const [x, y] = meterAt(g, kind), u = ease(st.jsw[kind]);
-      return [x + (j ? JX.COM : JX.V + (JX.A - JX.V) * u) * g.MK, y - 40 * g.MK];
-    };
-    // Hacia dónde va el cable de cada punta (la pieza en serie, entre sus dos bornes).
-    const jack = (g, kind, i) => {
-      if (!series(kind)) return leadJack(g, kind, i);
       const [x, y] = meterAt(g, kind);
-      return [x + (JX.A + JX.COM) / 2 * g.MK, y - 40 * g.MK];
+      return [x + (j ? JX.COM : JX.V) * g.MK, y - 40 * g.MK];
     };
+    const jack = (g, kind, i) => leadJack(g, kind, i);
     const jackColor = (kind, j) => j ? C.neg : RED;
 
     // Cada punta toca el circuito de forma perpendicular, del lado donde estaba el puntero al ponerla o
@@ -957,20 +952,7 @@
       return { x, y, n, t };
     };
     // Largo de cada punta, del contacto a donde sale su cable o manguera.
-    const tipLen = (side, kind) => series(kind) ? (side === 'w' ? Sim.PIPE + 12 : 14) : (side === 'w' ? Sim.PIPE + 10 : 46);
-    // En A (en serie): de qué lado del corte va su cable rojo, en la dirección perpendicular a n (+1 o −1).
-    // Sin invertir, del lado de donde viene la corriente (el inicio del tramo); levantado o en el suelo,
-    // del lado de la última vez. Al invertirlo los dos cables se cruzan poco a poco (swap).
-    st.asr = { a: 1, b: 1 }; st.inv = { a: false, b: false }; st.swap = { a: 9, b: 9 };
-    const redSide = (kind, q) => {
-      if (q.t) { const s = q.t[0] * q.n[1] - q.t[1] * q.n[0] >= 0 ? 1 : -1; st.asr[kind] = st.inv[kind] ? -s : s; }
-      return st.asr[kind];
-    };
-    // Separación de cada cable del centro del corte: j = 0 el rojo, 1 el negro.
-    const leadOff = (side, kind, q, j) => {
-      const u = ease(Math.min(1, st.swap[kind] / 0.4));
-      return (j ? -1 : 1) * redSide(kind, q) * (side === 'w' ? 13 : 8) * (2 * u - 1);
-    };
+    const tipLen = side => side === 'w' ? Sim.PIPE + 10 : 46;
     // Refuerzo entre la punta y el cable (como el de los cables de verdad): un tramo más rígido que
     // no deja que el cable se doble justo al salir de la punta.
     const BOOT = 24;
@@ -1056,7 +1038,7 @@
       const key = kind + j, i = probeOf(kind, j);
       if (!st.placed[kind][i]) { delete ropes[side][key]; return; }
       if (st.reel[kind][i] && ropes[side][key]) return;   // mientras se recoge el cable no se mueve solo
-      const f = pose(g, kind, i), L = tipLen(side, kind), off = series(kind) ? leadOff(side, kind, f, j) : 0;
+      const f = pose(g, kind, i), L = tipLen(side, kind), off = 0;
       // el refuerzo sale de la punta y se dobla solo un poquito (bootAng) hacia donde va el cable
       const old = ropes[side][key], ba = Math.atan2(f.n[1], f.n[0]) + (old ? old.bootAng : 0), bd = [Math.cos(ba), Math.sin(ba)];
       const A = [f.x + f.n[0] * L - f.n[1] * off, f.y + f.n[1] * L + f.n[0] * off], A2 = [A[0] + bd[0] * BOOT, A[1] + bd[1] * BOOT];
@@ -1172,7 +1154,7 @@
     // Lo que se ve en cada posición de la perilla, de cada lado (y en los dos a la vez).
     const DIAL_NAMES = { w: { off: 'OFF', V: 'psi', A: 'mL/s', R: 'kΩ' }, e: { off: 'OFF', V: 'V', A: 'A', R: 'Ω' }, both: { off: 'OFF', V: 'V · psi', A: 'A · mL/s', R: 'Ω' } };
     // En Ω con voltaje entre las puntas: la lectura no sirve (hay que apagar la fuente).
-    const live = kind => st.dial[kind] === 'R' && ready(kind) && st.probe[kind] && Math.abs(st.probe[kind].va - st.probe[kind].vb) > 0.05;
+    const live = kind => st.dial[kind] === 'R' && st.probe[kind] && ready(kind) && st.probe[kind] && Math.abs(st.probe[kind].va - st.probe[kind].vb) > 0.05;
     // Lecturas en la sección Medir: lo que marca cada multímetro conectado, de los lados que se ven (los
     // que no están conectados dicen "sin conectar"; así hay que medir para saber), su perilla, invertir
     // sus cables (en V y Ω cambian de lugar sus puntas; en A el rojo y el negro se cruzan) y llevar su
@@ -1204,10 +1186,10 @@
           pol.appendChild(bt);
           return bt;
         };
-        const inv = polBtn(() => b.invert(kind)), gnd = polBtn(() => b.toGround(kind));
+        const inv = polBtn(() => b.invert(kind)), gnd = polBtn(() => b.toGround(kind)), fz = polBtn(() => b.newFuse(kind));
         box.append(tbl, seg, pol);
         wrap.appendChild(box);
-        return { kind, box, rows, seg, inv, gnd };
+        return { kind, box, rows, seg, inv, gnd, fz };
       });
       const add = document.createElement('button');
       add.type = 'button'; add.className = 'sim-side-btn sim-add';
@@ -1225,7 +1207,7 @@
       Sim.side.sec('med').prepend(wrap);
       const syncMed = () => {
         const w = Sim.view === 'w', names = DIAL_NAMES[Sim.view] || DIAL_NAMES.both, vs = w ? 'w' : 'e';
-        blocks.forEach(({ kind, box, rows, seg, inv, gnd }) => {
+        blocks.forEach(({ kind, box, rows, seg, inv, gnd, fz }) => {
           box.hidden = !st.show[kind];
           const name = meterName(kind, vs), md = st.dial[kind];
           box.dataset.dial = md;
@@ -1233,10 +1215,11 @@
           seg.setAttribute('aria-label', 'Perilla del ' + name);
           seg.querySelectorAll('button').forEach(bt => { bt.textContent = names[bt.dataset.v]; bt.setAttribute('aria-pressed', String(bt.dataset.v === md)); });
           inv.textContent = '⇄ Invertir';
-          inv.title = series(kind) ? `Cruza los cables rojo (+) y negro (−) del ${name}: la lectura cambia de signo`
-            : `Cambia de lugar la ${w ? 'manguera' : 'punta'} roja (+) y la negra (−) del ${name}: la lectura cambia de signo`;
+          inv.title = `Cambia de lugar la ${w ? 'manguera' : 'punta'} roja (+) y la negra (−) del ${name}: la lectura cambia de signo`;
           inv.setAttribute('aria-label', 'Invertir el ' + name);
-          inv.setAttribute('aria-pressed', String(series(kind) && st.inv[kind]));
+          fz.hidden = !st.fuse[kind];
+          fz.textContent = w ? '↻ Abrir su válvula' : '↻ Cambiar su fusible';
+          fz.title = `En A el ${name} es casi un ${w ? 'tubo' : 'cable'}: con las puntas en dos nodos distintos hizo un corto y ${w ? 'se cerró su válvula de seguridad' : 'se fundió su fusible'}`;
           gnd.textContent = w ? '⏚ Negra a 0 psi' : '⏚ Negra a tierra';
           gnd.title = `Lleva la ${w ? 'manguera' : 'punta'} negra del ${name} a la tierra común (el − de la ${w ? 'bomba, 0 psi' : 'fuente, 0 V'}): la roja mide ${w ? 'la presión' : 'el voltaje'} de cada punto`;
           gnd.hidden = series(kind);
@@ -1253,8 +1236,8 @@
         o.r.hidden = Sim.view !== 'both' && Sim.view !== o.side;
         if (o.r.hidden) return;
         const md = st.dial[kind], [t, u] = meterText(kind, o.side), off = md !== 'off' && !ready(kind);
-        o.vl.textContent = md === 'off' ? 'apagado' : off ? 'sin conectar' : t.trim() + ' ' + u + (live(kind) ? ' ⚠ hay voltaje' : '');
-        o.r.className = 'r ' + md + (off || md === 'off' ? ' off' : '') + (live(kind) ? ' warn' : '');
+        o.vl.textContent = md === 'off' ? 'apagado' : md === 'A' && st.fuse[kind] ? (o.side === 'w' ? 'válvula cerrada' : 'fusible fundido') : off ? 'sin conectar' : t.trim() + ' ' + u + (live(kind) ? ' ⚠ hay voltaje' : '');
+        o.r.className = 'r ' + md + (off || md === 'off' ? ' off' : '') + (live(kind) || (md === 'A' && st.fuse[kind]) ? ' warn' : '');
       })), 200);
     }
     // Botón de recoger en cada medidor (con un conector): como una aspiradora, el medidor jala sus
@@ -1335,9 +1318,7 @@
       if (cx !== undefined && Math.hypot(cx - p.x, cy - p.y) > 3) st.tipSide[kind][i] = [cx - p.x, cy - p.y];
       b.pw.replace(); b.pe.replace();
     };
-    const tipName = (kind, i, side) => series(kind)
-      ? (side === 'w' ? 'Medidor de caudal en serie con la tubería' : 'Multímetro en serie con el circuito')
-      : `${side === 'w' ? 'Manguera' : 'Punta'} ${i ? 'negra' : 'roja'} del ${meterName(kind, side)}`;
+    const tipName = (kind, i, side) => `${side === 'w' ? 'Manguera' : 'Punta'} ${i ? 'negra' : 'roja'} del ${meterName(kind, side)}`;
     // Arrastrar levanta la punta (como cable o como indicador, según el modo); tocarla sin arrastrar
     // cambia entre cables e indicadores, para limpiar el diagrama. El indicador se agarra del
     // círculo (el botón de la punta) o de su anillo (ring, el imán).
@@ -1393,7 +1374,7 @@
       const label = () => el.setAttribute('aria-label', `${tipName(kind, i, side)}: arrástrala o usa las flechas para moverla; tócala para cambiar entre cable e indicador`);
       b.place(side, el, g => {
         const f = pose(g, kind, i), m = ease(st.morph[kind][i]);
-        const L = (series(kind) ? 0 : tipLen(side, kind) * 0.55) * (1 - m) + PIN_D * m;
+        const L = tipLen(side) * 0.55 * (1 - m) + PIN_D * m;
         return [f.x + f.n[0] * L, f.y + f.n[1] * L];
       });
       grab(side, kind, el, () => ease(st.morph[kind][i]) > 0.5 ? 'handle' : 'tip', () => i);
@@ -1486,9 +1467,7 @@
       });
       syncs.push(() => {
         el.hidden = !st.show[kind];
-        el.setAttribute('aria-label', series(kind)
-          ? `Conectar ${name()}: luego toca el circuito donde se abre para ponerlo en serie`
-          : `Conectar ${name()}: luego toca el circuito para la ${side === 'w' ? 'manguera' : 'punta'} roja (+) y después para la negra (−)`);
+        el.setAttribute('aria-label', `Conectar ${name()}: luego toca el circuito para la ${side === 'w' ? 'manguera' : 'punta'} roja (+) y después para la negra (−)`);
       });
       // La perilla: tocar una de sus posiciones la gira ahí; tocar el centro (o compactado, la perilla) pasa
       // a la siguiente. Con las flechas también gira.
@@ -1572,49 +1551,30 @@
       syncs.forEach(f => f());
       b.pw.replace(); b.pe.replace();
     };
-    // Girar la perilla. Entre V, Ω y OFF las puntas se quedan donde están. Al pasar a A el circuito se abre
-    // donde está la punta roja y el multímetro queda en serie (los dos cables van a la pieza, el rojo en el
-    // borne A); al salir de A la punta roja se queda donde estaba la pieza y la negra hay que ponerla (el
-    // multímetro espera el toque en el circuito). Con pts (de la página) las puntas van ahí.
-    // También elige el modo de color de las partículas.
+    // Girar la perilla: las puntas y los cables se quedan donde están, solo cambia lo que mide. Con pts (de
+    // la página) las puntas van ahí. También elige el modo de color de las partículas.
     b.setDial = (kind, md, pts) => {
-      const was = st.dial[kind];
       if (!DIAL.includes(md)) return;
-      if (was !== md) {
-        if (st.placing && st.placing.kind === kind) setPlacing(null);
-        [0, 1].forEach(i => { if (st.lift[kind][i]) release(kind, i); });
-        const toA = md === 'A', fromA = was === 'A';
-        if (toA !== fromA) {
-          const from = connected(kind, 0) ? pose(b.gw, kind, 0) : null;
-          // la negra: en A no va en el circuito; al salir de A sale guardada
-          st.placed[kind][1] = false;
-          ['lift', 'floor', 'drop'].forEach(k => { st[k][kind][1] = null; });
-          st.reel[kind][1] = 0; st.pend[kind][1] = false;
-          ['w', 'e'].forEach(side => { delete ropes[side][kind + '1']; });
-          st.dial[kind] = md;
-          if (from) st.drop[kind][0] = { from, t: 0, dur: 0.3 };
-          if (toA) { st.inv[kind] = false; st.swap[kind] = 9; }
-        }
+      if (st.dial[kind] !== md) {
         st.dial[kind] = md;
         Sim.setColorMode(DIAL_COLOR[md]); syncColors();
       }
+      if (pts && st.placing && st.placing.kind === kind) { st.placing.prev = [true, true]; setPlacing(null); }
       if (pts) pts.forEach((q, i) => {
         st.clamps[kind][i] = q.slice(); st.placed[kind][i] = true;
         ['lift', 'floor', 'drop'].forEach(k => { st[k][kind][i] = null; });
         st.reel[kind][i] = 0; st.pend[kind][i] = false; st.tipSide[kind][i] = null;
       });
       syncs.forEach(f => f()); syncReel();
-      // al salir de A con la roja puesta, falta poner la negra
-      if (!pts && was === 'A' && md !== 'A' && st.placed[kind][0] && st.show[kind]) setPlacing({ kind, i: 1 });
       b.pw.replace(); b.pe.replace();
     };
-    // Invertir la polaridad de un multímetro, como al cambiar de lugar sus cables. En V y Ω la punta roja
-    // va a donde estaba la negra y la negra a donde estaba la roja (se levantan y caen ahí). En A el cable
-    // rojo pasa al otro lado del corte y la corriente entra por el negro.
+    // Fusible nuevo (en el agua, abrir otra vez su válvula de seguridad).
+    b.newFuse = (kind = 'a') => { st.fuse[kind] = false; syncs.forEach(f => f()); };
+    // Invertir la polaridad de un multímetro, como al cambiar de lugar sus puntas: la roja va a donde
+    // estaba la negra y la negra a donde estaba la roja (se levantan y caen ahí).
     b.invert = (kind = 'a') => {
       if (st.placing) setPlacing(null);
-      if (series(kind)) { st.inv[kind] = !st.inv[kind]; st.swap[kind] = 0; }
-      else {
+      {
         if (st.lift[kind].some(Boolean) || st.reel[kind].some(Boolean)) return;
         const from = [0, 1].map(i => connected(kind, i) ? pose(b.gw, kind, i) : null);
         for (const k of ['clamps', 'tipSide', 'floor', 'placed']) st[k][kind].reverse();
@@ -1740,11 +1700,10 @@
     // Una punta levantada se ve más grande y con sombra; al conectarse sale un anillo de su color.
     const drawTips = (ctx, g, kind) => {
       if (!st.show[kind]) return;
-      const ser = series(kind);
       for (let i = 0; i < NP(kind); i++) {
         if (!st.placed[kind][i]) continue;
         const m = ease(st.morph[kind][i]);
-        const q = st.reel[kind][i] ? reelPose(g.side, kind, i) : pose(g, kind, i), col = dull(ser ? MCOL.A : jackColor(kind, i), st.off[kind][i]);
+        const q = st.reel[kind][i] ? reelPose(g.side, kind, i) : pose(g, kind, i), col = dull(jackColor(kind, i), st.off[kind][i]);
         if (!q) continue;
         const live = connected(kind, i), u = st.click[kind][i] / 0.4;
         if (u < 1) { ctx.globalAlpha = 1 - u; D.circle(ctx, q.x, q.y, 8 + 26 * u, null, col, 3); ctx.globalAlpha = 1; }
@@ -1755,19 +1714,10 @@
         }
         if (m < 1) {
           ctx.save(); ctx.globalAlpha *= 1 - m; ctx.rotate(Math.atan2(q.n[1], q.n[0])); ctx.scale(1 - 0.4 * m, 1 - 0.4 * m);
-          const water = g.side === 'w', tl = tipLen(g.side, kind);
-          // el amperímetro lleva sus dos cables, uno a cada lado del corte (off en la dirección del cable)
-          const offs = ser ? [0, 1].map(j => leadOff(g.side, kind, q, j)) : [0];
-          if (!ser) (water ? hoseTip : pen)(ctx, col);
-          else (water ? seriesPipe : seriesWire)(ctx, offs[0], st.off[kind][i]);
-          offs.forEach((off, k) => {
-            const j = ser ? k : i, rope = !st.reel[kind][i] && ropes[g.side][kind + j];
-            ctx.save(); ctx.translate(0, off);
-            if (rope) { ctx.translate(tl, 0); ctx.rotate(rope.bootAng); ctx.translate(-tl, 0); }
-            boot(ctx, tl, water ? (!ser ? [8, 8.5] : [6, 6.5]) : ser ? [4.5, 3.2] : [5, 3.2],
-              water ? '#9aa6af' : dull(jackColor(kind, j), st.off[kind][i]));
-            ctx.restore();
-          });
+          const water = g.side === 'w', tl = tipLen(g.side), rope = !st.reel[kind][i] && ropes[g.side][kind + i];
+          (water ? hoseTip : pen)(ctx, col);
+          if (rope) { ctx.translate(tl, 0); ctx.rotate(rope.bootAng); ctx.translate(-tl, 0); }
+          boot(ctx, tl, water ? [8, 8.5] : [5, 3.2], water ? '#9aa6af' : col);
           ctx.restore();
         }
         if (m > 0) pin(ctx, q.n, col, kind, m, live, i);
@@ -1789,139 +1739,91 @@
       D.roundRect(ctx, P + 2, -7, 10, 14, 2.5, '#9aa6af', col, 2.5);
       D.line(ctx, [[P + 2, 0], [P + 12, 0]], 4, C.water);
     };
-    // Amperímetro en serie (el cable va a lo largo de y, n a lo largo de +x): el cable se abre en el
-    // contacto y la corriente da la vuelta por el medidor. Un bloque sobre el corte con sus dos bornes:
-    // el rojo (+) en y = yr y el negro (−) del otro lado.
-    const seriesWire = (ctx, yr, o) => {
-      D.roundRect(ctx, -6, -15, 18, 30, 3, C.ink);
-      D.line(ctx, [[-6, 0], [12, 0]], 2.5, C.card, 'butt');            // el corte
-      D.circle(ctx, 5, yr, 3.6, dull(RED, o), C.card, 1.2);
-      D.circle(ctx, 5, -yr, 3.6, C.neg, C.card, 1.2);
-    };
-    // En el agua: un tapón parte la tubería en dos y el agua sale por la manguera roja, pasa por el
-    // medidor y regresa por la negra.
-    const seriesPipe = (ctx, yr, o) => {
-      const P = Sim.PIPE, G = Math.abs(yr);
-      D.roundRect(ctx, -P - 6, -21, 2 * P + 12, 42, 5, C.metal, C.ink, 2);
-      [-1, 1].forEach(s => D.roundRect(ctx, -P + 1, s > 0 ? 3 : -18, 2 * P - 2, 15, 3, C['water-soft']));
-      ctx.fillStyle = C.ink; ctx.fillRect(-P - 6, -2.5, 2 * P + 12, 5);   // el tapón
-      [[yr, dull(RED, o)], [-yr, C.neg]].forEach(([y, col]) => {
-        D.roundRect(ctx, P + 4, y - 5, 9, 10, 2.5, '#9aa6af', col, 2);
-        D.line(ctx, [[P - 2, y], [P + 12, y]], 3.5, C.water);
-      });
-      if (G < 4) D.circle(ctx, P + 8, 0, 4, C.metal);   // mientras se cruzan al invertir
-    };
-    // Multímetro: caja con sus tres bornes arriba, pantallita, perilla y una ventanita abajo a la izquierda:
-    // en la electricidad una aguja; en el agua, en presión las dos columnas y en caudal el tubo con el agua
-    // que pasa. Compactado solo quedan la pantallita y la perilla; lo demás se desvanece.
-    const KNOB = { body: '#2a3540', ring: '#56626d' };
+    // Multímetro: dentro de su funda de hule (ámbar; en el agua, azul), los dos bornes arriba (VΩA y COM),
+    // la pantallita y la rueda grande. Compactado solo quedan la pantallita y una rueda chica.
+    const HOLSTER = { e: '#e8a317', w: '#2f86c9' };
+    const KNOB = { body: '#2a3540', bar: '#3d4b58' };
     const drawMeter = (ctx, g, kind) => {
       if (!st.show[kind]) return;
-      const water = g.side === 'w', [x, y] = meterAt(g, kind), sh = shape(kind), c = sh.c, md = st.dial[kind], col = MCOL[md];
+      const water = g.side === 'w', [x, y] = meterAt(g, kind), sh = shape(kind), md = st.dial[kind], col = MCOL[md];
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
-      const placing = st.placing && st.placing.kind === kind, warn = live(kind);
+      const placing = st.placing && st.placing.kind === kind, warn = live(kind), blown = md === 'A' && st.fuse[kind];
+      const H = sh.bottom + 48;
       if (placing) {   // borde del color de lo que mide mientras espera dónde conectarse
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
         ctx.globalAlpha = 0.35 + 0.4 * pulse;
-        D.roundRect(ctx, -80, -54, 160, sh.bottom + 58, 14, null, col, 6);
+        D.roundRect(ctx, -82, -56, 164, H + 16, 18, null, col, 6);
         ctx.globalAlpha = 1;
       }
       ctx.save();
       if (st.mheld[kind]) { ctx.shadowColor = 'rgba(21,33,42,0.35)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; }   // levantado mientras se mueve
-      D.roundRect(ctx, -76, -48, 152, sh.bottom + 48, 10, C.metal, C.ink, 2);
+      D.roundRect(ctx, -76, -48, 152, H, 14, HOLSTER[g.side], C.ink, 2);
       ctx.restore();
-      if (c < 1) {
-        ctx.save(); ctx.beginPath(); ctx.rect(-74, -46, 148, sh.bottom + 44); ctx.clip(); ctx.globalAlpha = 1 - c;
-        if (water && md === 'V') { ctx.save(); ctx.translate(-36, 36); ctx.scale(0.62, 0.62); ctx.translate(0, -5); columns(ctx, kind); ctx.restore(); }
-        else if (water && md === 'A') { ctx.save(); ctx.translate(-36, 36); ctx.scale(0.62, 0.62); flowTube(ctx, kind, flowFrac(kind)); ctx.restore(); }
-        else if (water) D.roundRect(ctx, -64, 16, 56, 40, 6, C['water-soft'], C.pipe, 3);
-        else D.dial(ctx, -36, 37, 20, md === 'V' || md === 'A' ? st.nd[kind].x : 0, md === 'V' || md === 'A' ? col : C.muted);
-        ctx.restore();
-      }
-      D.lcd(ctx, sh.lx, sh.lcd, sh.lw, 30, ...meterText(kind, g.side));
+      D.roundRect(ctx, -68, -32, 136, H - 22, 8, C.metal, C.ink, 1.5);
+      D.lcd(ctx, sh.lx, sh.lcd, sh.lw, sh.lh, ...meterText(kind, g.side));
       dialKnob(ctx, kind, sh, water);
+      ctx.restore();
+      // bornes en la funda: VΩA (rojo) y COM (negro)
+      ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
+      [[JX.V, RED, 'VΩA', 'right'], [JX.COM, C.neg, 'COM', 'left']].forEach(([jx, c, t, al]) => {
+        D.circle(ctx, jx, -40, 6.5, c, C.ink, 1.5);
+        D.text(ctx, t, jx + (al === 'right' ? -10 : 10), -40, '#15212a', { size: 10, weight: 800, align: al });
+      });
       const ly = sh.label;
       if (placing) {
         D.text(ctx, 'toca el circuito para', 0, ly, col, { size: 12 });
-        if (series(kind)) D.text(ctx, 'ponerlo en serie', 0, ly + 16, MCOL.A, { size: 13 });
-        else D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 16, st.placing.i ? C.neg : RED, { size: 13 });
+        D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 16, st.placing.i ? C.neg : RED, { size: 13 });
+      } else if (blown) {   // en A con las puntas en dos nodos: corto
+        D.text(ctx, water ? '⚠ se cerró su válvula' : '⚠ fusible fundido', 0, ly, C.danger, { size: 13, weight: 700 });
+        D.text(ctx, 'en A va en serie', 0, ly + 16, C.danger, { size: 13 });
       } else if (warn) {   // en Ω con voltaje: la lectura no sirve
         D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 13, weight: 700 });
         D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 16, C.danger, { size: 13 });
       } else D.text(ctx, meterName(kind, g.side), 0, ly, col, { size: 14, font: Sim.WIDE });
-      // bornes: A, COM y VΩ (en el agua, caudal, común y presión); el rojo está en el que usa la perilla
-      const names = water ? ['mL/s', 'COM', 'psi'] : ['A', 'COM', 'VΩ'];
-      [JX.A, JX.COM, JX.V].forEach((jx, k) => {
-        const black = k === 1, used = black || (k === 0) === series(kind);
-        D.circle(ctx, jx, -40, 6, black ? C.neg : RED, C.ink, 1.5);
-        if (!used) D.circle(ctx, jx, -40, 2.6, '#15212a');   // borne libre: se ve el agujero
-        D.text(ctx, names[k], jx + 9, -39.5, used ? C.ink : C.muted, { size: 9, weight: 700, align: 'left' });
-      });
       ctx.restore();
     };
-    // Perilla del multímetro: el cuerpo oscuro con su raya blanca que apunta a la posición elegida, y
-    // alrededor las posiciones (la elegida, del color de lo que mide). dang gira poco a poco.
+    // Rueda del multímetro: grande, oscura, con su barra que apunta a la posición elegida (raya blanca en
+    // la punta) y alrededor las posiciones con su marca (la elegida, del color de lo que mide). dang gira
+    // poco a poco.
     const dialKnob = (ctx, kind, sh, water) => {
       const { kx, ky, kr, c } = sh, a = st.dang[kind] * Math.PI / 180, names = DIAL_NAMES[water ? 'w' : 'e'];
       if (c < 1) {
         ctx.save(); ctx.globalAlpha *= 1 - c;
         DIAL.forEach(d => {
-          const t = DANG[d] * Math.PI / 180, on = d === st.dial[kind], r = kr + 13, sx = Math.sin(t), cy = Math.cos(t);
-          D.line(ctx, [[kx + sx * (kr + 3), ky - cy * (kr + 3)], [kx + sx * (kr + 6), ky - cy * (kr + 6)]], 2, on ? MCOL[d] : C.muted);
-          D.text(ctx, names[d], kx + sx * r + (d === 'off' ? -3 : d === 'R' ? 3 : 0), ky - cy * r, on ? MCOL[d] : C.muted, { size: d === 'off' ? 9 : 11, weight: on ? 800 : 600 });
+          const t = DANG[d] * Math.PI / 180, on = d === st.dial[kind], r = kr + 15, sx = Math.sin(t), cy = Math.cos(t);
+          D.line(ctx, [[kx + sx * (kr + 3), ky - cy * (kr + 3)], [kx + sx * (kr + 7), ky - cy * (kr + 7)]], 2.5, on ? MCOL[d] : C.muted);
+          D.text(ctx, names[d], kx + sx * r + (d === 'off' ? -5 : d === 'R' ? 4 : 0), ky - cy * r, on ? MCOL[d] : C.ink, { size: d === 'off' ? 10 : 13, weight: on ? 800 : 600 });
         });
         ctx.restore();
       }
-      D.circle(ctx, kx, ky, kr + 1.5, C.dark ? '#9aa6af' : KNOB.ring);
+      D.circle(ctx, kx, ky, kr + 2, C.dark ? '#9aa6af' : '#56626d');
       D.circle(ctx, kx, ky, kr, KNOB.body);
-      const sx = Math.sin(a), cy = Math.cos(a);
-      D.line(ctx, [[kx + sx * kr * 0.15, ky - cy * kr * 0.15], [kx + sx * (kr - 3), ky - cy * (kr - 3)]], 3.5, '#fff');
-      D.circle(ctx, kx + sx * (kr - 3), ky - cy * (kr - 3), 2.4, MCOL[st.dial[kind]]);
-    };
-    // Manómetro de dos columnas: cada manguera llena la suya según la presión en su punto; la
-    // diferencia de alturas es lo que marca. El agua de cada columna lleva el color de su presión, con
-    // la misma escala que las partículas en el modo de color por presión (0 a 12 psi).
-    const columns = (ctx, kind) => {
-      const top = -26, h = 62, pa = st.npa[kind].x, pb = st.npb[kind].x;
-      [[-22, pa, RED], [22, pb, C.neg]].forEach(([cx, f, col]) => {
-        D.roundRect(ctx, cx - 10, top, 20, h, 5, C.card, col, 2);
-        const lv = Math.max(0, Math.min(1, f)) * (h - 4);
-        if (lv > 0.5) D.roundRect(ctx, cx - 8, top + h - 2 - lv, 16, lv, 3, Sim.speedColor(f));
-      });
-      const ya = top + h - 2 - Math.max(0, Math.min(1, pa)) * (h - 4), yb = top + h - 2 - Math.max(0, Math.min(1, pb)) * (h - 4);
-      if (ready(kind) && Math.abs(ya - yb) > 2) {
-        D.line(ctx, [[-12, ya], [12, ya]], 1.5, MCOL.V); D.line(ctx, [[-12, yb], [12, yb]], 1.5, MCOL.V);
-        D.line(ctx, [[0, ya], [0, yb]], 2, MCOL.V);
-      }
-    };
-    // Medidor de caudal: un tramo de tubo con el agua que pasa; entre más caudal, más partículas (y
-    // van un poco más rápido). Lleno del todo solo con el mayor caudal posible (iMax); va con la raíz
-    // para que con poco caudal ya se vean algunas. Las partículas tienen su lugar en una cuadrícula
-    // con un poco de desorden (llena se ve pareja, sin franjas) y aparecen en orden revuelto, así con
-    // pocas quedan repartidas. Las del centro van un poco más rápido, como en un tubo real. Su color
-    // es el del caudal medido, con la misma escala que el modo de color por caudal (0 a iFull).
-    const FC = 20, FR = 6, NF = FC * FR, flowDots = [];
-    {
-      let seed = 7;
-      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-      for (let r = 0; r < FR; r++) for (let c = 0; c < FC; c++) flowDots.push([(c + 0.3 + 0.4 * rnd()) / FC, (r + 0.5) / FR + (rnd() - 0.5) * 0.1, rnd()]);
-      flowDots.sort((a, c) => a[2] - c[2]);
-    }
-    const flowFrac = kind => Math.sqrt(Math.max(0, Math.min(1, Math.abs(st.nd[kind].x) * iFull / iMax)));
-    st.fph = { a: 0, b: 0 };
-    const flowTube = (ctx, kind, frac) => {
-      // con el medidor invertido el agua entra por la manguera negra: va al revés
-      const L = 92, hh = 14, y0 = -4, n = frac * NF, q = st.nd[kind].x, col = Sim.speedColor(Math.abs(q)), dir = q < 0 ? -1 : 1;
-      D.roundRect(ctx, -L / 2 - 4, y0 - hh - 5, L + 8, 2 * hh + 10, 7, C.pipe);
-      D.roundRect(ctx, -L / 2, y0 - hh, L, 2 * hh, 4, C['water-soft']);
-      ctx.save(); ctx.beginPath(); ctx.rect(-L / 2, y0 - hh, L, 2 * hh); ctx.clip();
-      for (let k = 0; k < Math.ceil(n); k++) {
-        const [u, v] = flowDots[k], c = 2 * v - 1, x = -L / 2 + ((u * L + dir * st.fph[kind] * (1.15 - 0.3 * c * c)) % L + L) % L;
-        ctx.globalAlpha = Math.min(1, n - k) * Math.min(1, (x + L / 2) / 5, (L / 2 - x) / 5);
-        D.circle(ctx, x, y0 - hh + 2.5 + v * (2 * hh - 5), 2.5, col);
-      }
+      ctx.save(); ctx.translate(kx, ky); ctx.rotate(a);
+      const bw = Math.max(5, kr * 0.42);
+      D.roundRect(ctx, -bw / 2, -kr + 2, bw, 2 * kr - 4, bw / 2, KNOB.bar, '#141c23', 1);
+      D.line(ctx, [[0, -kr + 5], [0, -kr * 0.35]], Math.max(2, kr * 0.12), '#fff');
       ctx.restore();
-      D.arrow(ctx, 0, y0 + hh + 12, dir < 0 ? Math.PI : 0, 6, C.muted);
+      D.circle(ctx, kx + Math.sin(a) * (kr - 5), ky - Math.cos(a) * (kr - 5), Math.max(2, kr * 0.09), MCOL[st.dial[kind]]);
+    };
+    // El corte de cada multímetro en A: entre sus dos puntas el cable (o el tubo) ya no está; la corriente
+    // da la vuelta por el multímetro. Se tapa ese pedazo y se dibujan los extremos que quedan.
+    const drawCuts = (ctx, g) => {
+      const water = g.side === 'w';
+      for (const k of MS) {
+        const r = st.probe[k], ct = r && st.show[k] && series(k) && ready(k) && r.cut, sg = ct && st.segs[ct.k];
+        if (!sg) continue;
+        const a = ct.d0 + 3, z = ct.d1 - 3;
+        if (z <= a) continue;
+        const pts = [];
+        for (let d = a; d < z; d += 4) pts.push(D.pointAt(sg.pts, d));
+        pts.push(D.pointAt(sg.pts, z));
+        D.line(ctx, pts, water ? 2 * Sim.PIPE + 14 : 12, C.card, 'butt');
+        for (const [d, s] of [[a, 1], [z, -1]]) {   // extremos: el cable termina (en el agua, un tapón)
+          const [px, py, tx, ty] = D.frameAt(sg.pts, d);
+          if (water) D.line(ctx, [[px - ty * (Sim.PIPE + 5), py + tx * (Sim.PIPE + 5)], [px + ty * (Sim.PIPE + 5), py - tx * (Sim.PIPE + 5)]], 5, C.pipe, 'butt');
+          else D.circle(ctx, px, py, 3, C.ink);
+        }
+      }
     };
     // Refuerzo a lo largo de +x desde x0 (donde termina la punta), del ancho h[0] al h[1]: funda
     // del color de la punta con anillos, que se angosta hacia el cable.
@@ -1957,7 +1859,7 @@
       D.circle(ctx, 0, 0, 16, C.card); ctx.restore();
       D.circle(ctx, 0, 0, 14, col);
       D.circle(ctx, 0, 0, 16, null, C.ink, 1.5);
-      D.text(ctx, series(kind) ? 'A' : i ? '−' : '+', 0, 1, !series(kind) && i && C.dark ? C.card : '#fff', { size: 20, weight: 800 });
+      D.text(ctx, i ? '−' : '+', 0, 1, i && C.dark ? C.card : '#fff', { size: 20, weight: 800 });
       ctx.restore();
       ctx.globalAlpha = a0;
     };
@@ -1986,13 +1888,14 @@
     // medidores siempre pasan por debajo del circuito.
     const circuitAndCables = (ctx, g, m, drawPage) => {
       const u = net ? st.nodes.u : 0;
-      if (!u) { MS.forEach(k => drawCables(ctx, g, k)); drawPage(ctx, g, m); return; }
+      if (!u) { MS.forEach(k => drawCables(ctx, g, k)); drawPage(ctx, g, m); drawCuts(ctx, g); return; }
       if (u < 1) {
         drawPage(ctx, g, m);
         ctx.save(); ctx.globalAlpha = Math.min(1, u / 0.3); ctx.fillStyle = C.card; ctx.fillRect(-4000, -4000, 8000, 8000); ctx.restore();
       }
       MS.forEach(k => drawCables(ctx, g, k));
       drawNodes(ctx, g, m, u);
+      drawCuts(ctx, g);
     };
     // Color de un nodo: el de su voltaje (presión), con la misma escala que las partículas en ese modo.
     const nodeColor = n => Sim.speedColor(n.v / VMAX);
@@ -2211,12 +2114,10 @@
         const c0 = st.cmp[kind];
         st.cmp[kind] = st.compact[kind] ? Math.min(1, c0 + dt / 0.3) : Math.max(0, c0 - dt / 0.3);
         if (st.cmp[kind] !== c0) moved = true;
-        // la perilla gira a su posición y el cable rojo pasa al borne A (o regresa a VΩ)
+        // la rueda gira a su posición
         const a0 = st.dang[kind], to = DANG[st.dial[kind]];
         st.dang[kind] = Math.abs(to - a0) < 0.5 ? to : to + (a0 - to) * Math.exp(-dt * 16);
-        const j0 = st.jsw[kind];
-        st.jsw[kind] = series(kind) ? Math.min(1, j0 + dt / 0.35) : Math.max(0, j0 - dt / 0.35);
-        if (st.dang[kind] !== a0 || st.jsw[kind] !== j0) moved = true;
+        if (st.dang[kind] !== a0) moved = true;
       }
       if (moved) { b.pw.replace(); b.pe.replace(); }
     };
@@ -2234,20 +2135,11 @@
       [st.vo, st.cc] = regulate(st.v);
       smooth.t += dt;
       st.m = inertia(st.vo);
-      const tn = Math.min(0.15, st.tau * 0.15);                    // las agujas apenas se atrasan
       st.segs = buildSegs(nodeView(circuitList(b.gw, st.m, st.vo), dt));
       if (st.nodes.u) st.segs.forEach((sg, k) => { st.nph[k] = ((st.nph[k] || 0) + Math.sign(sg.I) * Math.min(Math.abs(sg.I), 60) * 6 * dt) % 1e4; });
       const before = JSON.stringify(st.clamps);
       st.probe = measure(st.segs);
       if (JSON.stringify(st.clamps) !== before) { b.pw.replace(); b.pe.replace(); }
-      for (const k of MS) {
-        const md = st.dial[k], r = st.probe[k], on = ready(k);
-        st.nd[k].step(on && md === 'V' ? r.value / VMAX : on && md === 'A' ? r.value / iFull : 0, tn, dt);
-        st.npa[k].step(md === 'V' && connected(k, 0) ? r.va / VMAX : 0, tn, dt);
-        st.npb[k].step(md === 'V' && connected(k, 1) ? r.vb / VMAX : 0, tn, dt);
-        st.swap[k] += dt;
-        st.fph[k] = (st.fph[k] + (14 + 50 * flowFrac(k)) * dt) % 1e4;
-      }
       animate(dt);
       colorWhileDragging();
       for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (const kind of MS) for (let j = 0; j < 2; j++) ropeStep(side, g, kind, j, dt);

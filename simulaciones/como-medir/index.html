@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021172227">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021175044">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -37,8 +37,8 @@
   <p class="sim-sr" id="aviso" aria-live="polite"></p>
 </div>
 
-<script src="../../assets/sim.js?v=20261021172227"></script>
-<script src="../../assets/banco.js?v=20261021172227"></script>
+<script src="../../assets/sim.js?v=20261021175044"></script>
+<script src="../../assets/banco.js?v=20261021175044"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -138,15 +138,17 @@
     if (step === 2) {
       r.push([(w ? 'El caudal' : 'La corriente') + ' se mide abriendo el camino']);
       const m = pick('A');
-      if (!m) { r.push([turn('A') + ' Queda en serie: todo pasa por él.', C.muted]); return r; }
-      if (!m.piece) r.push([`Abre un ${w ? 'tubo' : 'cable'} junto a un componente y mete ${meter} en serie: todo pasa por él.`, C.muted]);
+      if (!m) { r.push([turn('A') + ' Va en serie: todo pasa por él.', C.muted]); return r; }
+      if (m.fuse) r.push([w ? 'Se cerró la válvula del medidor: con las mangueras en dos nodos distintos el agua se fue toda por él. Ábrela en Medir.'
+        : 'Se fundió el fusible: en A el multímetro es casi un cable y con las puntas en dos nodos distintos hizo un corto. Cámbialo en Medir.', C.danger]);
+      else if (!m.cut) r.push([`Pon las dos ${tips} en el mismo ${w ? 'tubo' : 'cable'}, junto a un componente: ${w ? 'el tubo' : 'el cable'} se corta entre ellas y todo pasa por ${meter}.`, C.muted]);
       else r.push([`En serie: pasa${w ? 'n' : ''} ${fmt(Math.abs(m.I), 2)}${w ? ' mL/s' : ' mA'} por ${meter}`, '#0ea371']);
-      if (nodes) r.push(['En un nodo no se puede: no hay camino que abrir.', C.muted]);
+      if (nodes && !m.fuse) r.push(['Las dos en el mismo pedazo entre un nodo y un componente: en el nodo no hay camino que abrir.', C.muted]);
       return r;
     }
     // reto
     r.push(['Reto: mide ' + (w ? 'la presión' : 'el voltaje') + ' de R2 y ' + (w ? 'el caudal' : 'la corriente')]);
-    const mV = ms.find(m => m.dial === 'V' && across(m, R2)), mI = ms.find(m => m.dial === 'A' && m.piece);
+    const mV = ms.find(m => m.dial === 'V' && across(m, R2)), mI = ms.find(m => m.dial === 'A' && m.cut);
     if (mV && mV.value != null) done.V = mV.value;
     if (mI && mI.I != null) done.I = mI.I;
     const mv = pick('V');
@@ -158,7 +160,7 @@
     else msgV = 'Esos dos nodos no son los de R2.';
     r.push([(done.V != null ? '✓ ' : '✗ ') + msgV, done.V != null ? C.ok : C.danger]);
     const okI = done.I != null;
-    r.push([(okI ? '✓ ' : '✗ ') + (okI ? `${w ? 'Caudal' : 'Corriente'}: ${fmt(Math.abs(done.I), 2)}${w ? ' mL/s' : ' mA'}` : pick('A') ? `Mete ${meter} en serie.` : turn('A')), okI ? C.ok : C.danger]);
+    r.push([(okI ? '✓ ' : '✗ ') + (okI ? `${w ? 'Caudal' : 'Corriente'}: ${fmt(Math.abs(done.I), 2)}${w ? ' mL/s' : ' mA'}` : pick('A') ? (pick('A').fuse ? 'Fusible fundido: cámbialo en Medir.' : `Mete ${meter} en serie.`) : turn('A')), okI ? C.ok : C.danger]);
     if (done.V != null && okI) r.push(['¡Muy bien! Así se mide en un circuito de verdad.', C.ink]);
     else r.push([`Puedes girar la perilla y medir una cosa y luego la otra, o sacar un segundo ${w ? 'medidor' : 'multímetro'} en Medir.`, C.muted]);
     return r;
