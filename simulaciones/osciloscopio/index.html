@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021110000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021120000">
 <style>
 /* Botones de forma de onda del generador. */
 .sim-wave {
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021110000"></script>
+<script src="../../assets/sim.js?v=20261021120000"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -53,7 +53,7 @@
 // así que el circuito se calcula en cualquier instante a partir de la fase del generador.
 (() => {
   const { C, draw: D, fmt } = Sim;
-  const KPA_PER_V = 10, RPM_PER_MA = 100;
+  const RPM_PER_MA = 100;
   const R = 0.47, VF = 2;            // resistencia (kΩ) y voltaje que necesita el LED para encender
   const SRC = 40, DIV = 40;          // medio ancho del generador sobre el cable; tamaño de una división
   const KW = 20;                     // rapidez del agua (y de las cargas) por cada mA
@@ -287,8 +287,8 @@
     });
     return ks;
   };
-  const unitV = side => side === 'w' ? 'kPa' : 'V';
-  const val = (v, side, d = 1) => side === 'w' ? Math.round(v * KPA_PER_V) + ' kPa' : fmt(v, d) + ' V';
+  const unitV = side => side === 'w' ? 'psi' : 'V';   // 1 psi por volt: mismos números
+  const val = (v, side, d = 1) => fmt(v, d) + ' ' + unitV(side);
   const fText = f => f >= 1000 ? fmt(f / 1000, 0) + ' kHz' : fmt(f, f < 1 ? 1 : f < 10 && f % 1 ? 1 : 0) + ' Hz';
   const tText = ms => ms >= 1000 ? fmt(ms / 1000, 0) + ' s' : fmt(ms, ms < 1 ? 1 : 0) + ' ms';
 
@@ -452,7 +452,7 @@
     D.led(ctx, x + 84, y + 110, st.level > 0.02 ? 1 : 0);
     const f = freqAt(st.fi), txt = f < 10 ? f.toFixed(2) : f < 100 ? f.toFixed(1) : f.toFixed(0);
     D.lcd(ctx, x + 470, y + 28, 150, 30, txt.padStart(5, ' '), 'Hz');
-    const k = w ? KPA_PER_V : 1;
+    const k = 1;
     const knobs = [
       [245, [['0.1', 0], ['1', 0.25], ['10', 0.5], ['100', 0.75], ['1k', 1]], 'frecuencia (Hz)', 8],
       [365, [['0', 0], [String(5 * k), 0.5], [String(10 * k), 1]], `amplitud (${unitV(g.side)})`, 12],
@@ -501,12 +501,12 @@
       D.arrow(ctx, sx + sw + 2, yt, Math.PI, 6, w ? PURPLE : '#c4b0ff');
     }
     // Lecturas: escalas arriba y mediciones abajo.
-    const k = w ? KPA_PER_V : 1, u = unitV(g.side), opt = { size: 13, font: Sim.MONO, weight: 500 };
+    const k = 1, u = unitV(g.side), opt = { size: 13, font: Sim.MONO, weight: 500 };
     D.text(ctx, `${fmt(vdiv * k, vdiv * k < 1 ? 1 : 0)} ${u}/div`, sx + 8, sy + 14, txt, { ...opt, align: 'left' });
     D.text(ctx, `${tText(TDIV[st.ti])}/div`, sx + sw - 8, sy + 14, txt, { ...opt, align: 'right' });
     const pp = b ? b.max - b.min : 0;
     D.text(ctx, pp > 0.05 ? `f ${fText(r.f)}` : 'f --', sx + 8, sy + sh - 14, txt, { ...opt, align: 'left' });
-    D.text(ctx, `pp ${fmt(pp * k, w ? 0 : 1)} ${u}`, sx + sw - 8, sy + sh - 14, txt, { ...opt, align: 'right' });
+    D.text(ctx, `pp ${fmt(pp * k, 1)} ${u}`, sx + sw - 8, sy + sh - 14, txt, { ...opt, align: 'right' });
     // Perillas y bornes
     D.knobScale(ctx, g.SX + 500, g.SY + 110, 36, VDIV.map((v, i) => [String(fmt(v * k, v * k < 1 ? 1 : 0)), i / (VDIV.length - 1)]), VDIV.length - 1);
     D.text(ctx, `${u}/div`, g.SX + 500, g.SY + 168, C.muted, { size: 14 });

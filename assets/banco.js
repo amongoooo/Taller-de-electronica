@@ -29,15 +29,16 @@
 // cambio del circuito no espera la inercia, el flujo se frena de golpe en un instante.
 (() => {
   const { C, draw: D, fmt, digits } = Sim;
-  const VMAX = 12, KPA_PER_V = 10, MLS_PER_MA = 10, RPM_PER_MA = 100;
+  // Del lado del agua los números son los mismos que los eléctricos: 1 psi por volt y 1 mL/s por mA.
+  const VMAX = 12, PSI_PER_V = 1, MLS_PER_MA = 1, RPM_PER_MA = 100;
   const SRC = 40;   // medio ancho de la bomba (y de la fuente) sobre el cable de abajo
   const PROBE = { V: '#8b5cf6', I: '#0ea371' };   // color de cada medidor y de la región que mide
   const RED = '#d6392b';
   // Pasos de la perilla del límite de corriente (mA), de 1 mA a 1 A: diez por cada década.
   const LIMS = [1, 10, 100].flatMap(d => [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8].map(x => Math.round(x * d * 10) / 10)).concat(1000);
-  // Lo que marca la perilla del límite: en mA (o A) en la fuente, en mL/s (o L/s) en la bomba.
+  // Lo que marca la perilla del límite: en mA (o A) en la fuente, en mL/s en la bomba.
   const limText = (i, side) => {
-    if (side === 'w') { const q = i * MLS_PER_MA; return q >= 1000 ? [digits(q / 1000, 2, 1), 'L/s'] : [digits(q, 3, 0), 'mL/s']; }
+    if (side === 'w') { const q = i * MLS_PER_MA; return [digits(q, 3, q < 10 ? 1 : 0), 'mL/s']; }
     return i >= 1000 ? [digits(i / 1000, 1, 2), 'A'] : [digits(i, 3, i < 10 ? 1 : 0), 'mA'];
   };
   // Íconos de los botones de cada medidor: conector (recoger) y flechas (compactar o mostrar completo).
@@ -49,9 +50,9 @@
   Sim.bench = o => {
     const iFull = o.iFull || 12, iMax = o.iMax || iFull, flowSpeed = o.flowSpeed || 12;
     const st = { on: false, set: o.v0 ?? 6, lim: Sim.nearest(LIMS, o.lim0 ?? 100), v: 0, vo: 0, cc: false, tau: 1, level: Sim.ramp(), m: { I: 0 },
-      rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nS: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(), nPa: Sim.needle(), nPb: Sim.needle(), turb: 0,
+      rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(), nPa: Sim.needle(), nPb: Sim.needle(), turb: 0,
       segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false }, show: { V: true, I: true } };
-    const b = { st, VMAX, KPA_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
+    const b = { st, VMAX, PSI_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
     // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual):
     //   ancho:   la computadora; medidores a los lados del controlador, abajo del circuito.
@@ -267,9 +268,9 @@
     b.linkedKnob({
       pos: g => [g.BX + 148, g.BY + 100], min: 0, max: VMAX, step: 0.5, value: st.set,
       label: side => side === 'w' ? 'Presión de la bomba' : 'Voltaje de la fuente',
-      format: (v, side) => side === 'w' ? Math.round(v * KPA_PER_V) + ' kPa' : fmt(v) + ' V',
-      scale: side => side === 'w' ? [['0', 0], ['60', 0.5], ['120', 1]] : [['0', 0], ['6', 0.5], ['12', 1]],
-      caption: side => side === 'w' ? 'presión (kPa)' : 'voltaje (V)',
+      format: (v, side) => side === 'w' ? fmt(v * PSI_PER_V) + ' psi' : fmt(v) + ' V',
+      scale: () => [['0', 0], ['6', 0.5], ['12', 1]],
+      caption: side => side === 'w' ? 'presión (psi)' : 'voltaje (V)',
       onInput: v => { st.set = v; }
     });
     b.linkedKnob({
@@ -966,7 +967,7 @@
       D.knobScale(ctx, g.BX + 256, g.BY + 100, 36, scales[1], 6);
       D.lcd(ctx, g.BX + 256, g.BY + 34, 88, 32, ...limText(st.lim, g.side));
       // CV (verde): sale el voltaje de la perilla. CC (rojo): llegó al límite y sostiene la corriente.
-      // Encienden con la salida, desde 0.5 kPa (0.05 V) adentro de la fuente.
+      // Encienden con la salida, desde 0.05 psi (0.05 V) adentro de la fuente.
       const out = st.v > 0.05;
       D.led(ctx, g.BX + 86, g.BY + 74, out && !st.cc ? 1 : 0);
       D.text(ctx, leds[0], g.BX + 86, g.BY + 92, C.ink, { size: 10, weight: 700 });
@@ -1207,14 +1208,14 @@
       o.drawW(ctx, g, m);
       knobScales(ctx, g);
       D.speedLegend(ctx, ...g.LEG);
-      controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['120', 1]], [['10', 0], ['10k', 1]]],
-        [digits(st.set * KPA_PER_V, 3, 0), 'kPa'], ['presión', 'caudal']);
-      D.meter(ctx, g.BX + g.BW - 62, g.BY + 52, { r: 30, frac: st.nS.x, color: C.water, lcdW: 92,
-        text: digits(st.rpm, 4, 0), unit: 'rpm' });
+      controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
+        [digits(st.set * PSI_PER_V, 2, 1), 'psi'], ['presión', 'caudal']);
+      D.meter(ctx, g.BX + g.BW - 62, g.BY + 52, { r: 30, frac: st.nV.x, color: C.water, lcdW: 92,
+        text: digits(st.vo * PSI_PER_V, 2, 2), unit: 'psi' });
       D.pump(ctx, g.PX, g.BOT, st.rotor, st.omega);
       drawProbe(ctx, g, 'I', 'caudal',
-        probeText('I', MLS_PER_MA, 3, 1), 'mL/s', C.water);
-      drawProbe(ctx, g, 'V', 'presión', probeText('V', KPA_PER_V, 3, 1), 'kPa', C.water);
+        probeText('I', MLS_PER_MA, 2, 2), 'mL/s', C.water);
+      drawProbe(ctx, g, 'V', 'presión', probeText('V', PSI_PER_V, 2, 2), 'psi', C.water);
       drawTips(ctx, g, 'I'); drawTips(ctx, g, 'V');
     }
     function drawElectric() {
@@ -1334,8 +1335,7 @@
       st.flowPh = ((st.flowPh || 0) + (14 + 50 * flowFrac()) * dt) % 1e4;
       animate(dt);
       for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (const kind of ['V', 'I']) for (let i = 0; i < NP[kind]; i++) ropeStep(side, g, kind, i, dt);
-      st.rpm = st.m.I * RPM_PER_MA;                                // 10 rpm por cada mL/s
-      st.nS.step(st.rpm / (iFull * RPM_PER_MA), tn, dt);
+      st.rpm = st.m.I * RPM_PER_MA;                                // 100 rpm por cada mL/s
       st.omega = -st.rpm / 60 * 2 * Math.PI;                       // rad/s, a la velocidad real
       st.rotor += st.omega * dt;
       o.step && o.step(dt, st.m);
