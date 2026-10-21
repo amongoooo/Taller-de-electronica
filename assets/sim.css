@@ -443,6 +443,10 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-read .r.I .nm { color: #0b8a5f; }
 .sim-read .vl { font-family: var(--font-mono); font-size: 16px; white-space: nowrap; }
 .sim-read .r.off .vl { font-family: var(--font-body); font-size: 13px; color: var(--muted); }
+/* Polaridad y tierra: botones para invertir cada medidor y llevar la punta negra a tierra. */
+.sim-pol { display: flex; flex-wrap: wrap; gap: 6px; }
+.sim-pol .sim-side-btn { padding: 5px 12px; font-size: 13px; }
+.sim-pol .sim-side-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--act) 14%, var(--card)); }
 
 /* Inercia y cables. */
 .sim-inercia { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
