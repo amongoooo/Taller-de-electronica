@@ -143,13 +143,13 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, .4); transition: background .2s;
 }
 .sw-thumb {
-  position: absolute; left: 50%; top: 50%; height: 44%; aspect-ratio: 1; border-radius: 50%;
-  transform: translateX(-50%); border: 2px solid var(--ink);
+  position: absolute; left: 50%; top: 4%; height: 44%; aspect-ratio: 1; border-radius: 50%;
+  transform: translate(-50%, 104.5%); border: 2px solid var(--ink);   /* abajo: OFF (46% del riel = 104.5% de la bolita) */
   background: radial-gradient(circle at 35% 30%, var(--card), var(--metal) 75%);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, .35); transition: top .18s cubic-bezier(.3, 1.4, .6, 1);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, .35); transition: transform .18s cubic-bezier(.3, 1.4, .6, 1);
 }
 .sim-power[aria-pressed="true"] .sw-track { background: var(--ok); }
-.sim-power[aria-pressed="true"] .sw-thumb { top: 4%; }
+.sim-power[aria-pressed="true"] .sw-thumb { transform: translate(-50%, 0); }
 .sim-power[aria-pressed="true"] .sw-on, .sim-power[aria-pressed="false"] .sw-off { color: var(--ink); }
 
 .knob {
@@ -547,6 +547,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 }
 .sim-tip b { color: color-mix(in srgb, var(--act) 45%, #fff); }
 .sim-tip.on { opacity: 1; }
+.sim-tip.warm { transition: none; }
 
 /* ¿Qué se toca?: todo lo que se toca, marcado con el color de su acción y el nombre de la acción. */
 .sim-page.show-acts .sim-layer > :not([hidden]):not(.ring):not(.jack):not(.shy):not(.pb-anchor) {
@@ -656,3 +657,25 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 /* Botones físicos del multímetro: se dibujan en el canvas; aquí solo queda la zona para tocarlos. */
 .sim-meter-btn.phys, .sim-meter-btn.phys:hover, .sim-meter-btn.phys:disabled { background: transparent; border: 0; box-shadow: none; border-radius: 6px; opacity: 1; }
 .sim-meter-btn.phys:focus-visible { outline: 2px solid var(--water); outline-offset: 1px; }
+
+/* ---------- movimiento de la interfaz ----------
+   Al apretarlo, un botón se hunde un poquito (scale, que se suma al transform que ya tenga y no mueve nada
+   alrededor) y al soltarlo regresa. No van aquí los que se arrastran (perillas, puntas, la leyenda de
+   colores) ni los que ya se hunden a su manera (botones físicos del multímetro, la palanca). */
+:root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
+.sim-go, .sim-seg button, .sim-viewseg button, .sim-steps .seg, .sim-btn, .sim-side-btn, .sim-sec .pb-btn, .sim-part,
+.sim-help-btn, .sim-ctl-btn, .sim-side-help, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x {
+  transition: scale .16s var(--ease-out);
+}
+.sim-go { transition: scale .16s var(--ease-out), background .15s, border-color .15s, box-shadow .15s, filter .15s; }
+:is(.sim-go, .sim-seg button, .sim-viewseg button, .sim-steps .seg, .sim-btn, .sim-side-btn, .sim-sec .pb-btn, .sim-part,
+.sim-help-btn, .sim-ctl-btn, .sim-side-help, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x):active:not(:disabled) {
+  scale: .97; transition-duration: .1s;   /* se hunde rápido; regresa con calma */
+}
+/* La perilla y la palanca saltan con rebote, como muescas de verdad; con «reducir movimiento», sin rebote. */
+@media (prefers-reduced-motion: reduce) {
+  .knob-cap { transition-timing-function: var(--ease-out); }
+  .sw-thumb { transition-timing-function: var(--ease-out); }
+  :is(.sim-go, .sim-seg button, .sim-viewseg button, .sim-steps .seg, .sim-btn, .sim-side-btn, .sim-sec .pb-btn, .sim-part,
+  .sim-help-btn, .sim-ctl-btn, .sim-side-help, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x):active { scale: none; }
+}
