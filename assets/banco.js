@@ -1160,13 +1160,14 @@
       }
     };
     // Manómetro de dos columnas: cada manguera llena la suya según la presión en su punto; la
-    // diferencia de alturas es lo que marca.
+    // diferencia de alturas es lo que marca. El agua de cada columna lleva el color de su presión, con
+    // la misma escala que las partículas en el modo de color por presión (0 a 12 psi).
     const columns = ctx => {
       const top = -26, h = 62;
       [[-22, st.nPa.x, RED], [22, st.nPb.x, C.ink]].forEach(([cx, f, col]) => {
         D.roundRect(ctx, cx - 10, top, 20, h, 5, C.card, col, 2);
         const lv = Math.max(0, Math.min(1, f)) * (h - 4);
-        if (lv > 0.5) D.roundRect(ctx, cx - 8, top + h - 2 - lv, 16, lv, 3, C.water);
+        if (lv > 0.5) D.roundRect(ctx, cx - 8, top + h - 2 - lv, 16, lv, 3, Sim.speedColor(f));
       });
       const ya = top + h - 2 - Math.max(0, Math.min(1, st.nPa.x)) * (h - 4), yb = top + h - 2 - Math.max(0, Math.min(1, st.nPb.x)) * (h - 4);
       if (ready('V') && Math.abs(ya - yb) > 2) {
@@ -1178,7 +1179,8 @@
     // van un poco más rápido). Lleno del todo solo con el mayor caudal posible (iMax); va con la raíz
     // para que con poco caudal ya se vean algunas. Las partículas tienen su lugar en una cuadrícula
     // con un poco de desorden (llena se ve pareja, sin franjas) y aparecen en orden revuelto, así con
-    // pocas quedan repartidas. Las del centro van un poco más rápido, como en un tubo real.
+    // pocas quedan repartidas. Las del centro van un poco más rápido, como en un tubo real. Su color
+    // es el del caudal medido, con la misma escala que el modo de color por caudal (0 a iFull).
     const FC = 20, FR = 6, NF = FC * FR, flowDots = [];
     {
       let seed = 7;
@@ -1188,14 +1190,14 @@
     }
     const flowFrac = () => Math.sqrt(Math.max(0, Math.min(1, st.nIm.x * iFull / iMax)));
     const flowTube = (ctx, frac) => {
-      const L = 92, hh = 14, y0 = -4, n = frac * NF;
+      const L = 92, hh = 14, y0 = -4, n = frac * NF, col = Sim.speedColor(st.nIm.x);
       D.roundRect(ctx, -L / 2 - 4, y0 - hh - 5, L + 8, 2 * hh + 10, 7, C.pipe);
       D.roundRect(ctx, -L / 2, y0 - hh, L, 2 * hh, 4, C['water-soft']);
       ctx.save(); ctx.beginPath(); ctx.rect(-L / 2, y0 - hh, L, 2 * hh); ctx.clip();
       for (let k = 0; k < Math.ceil(n); k++) {
         const [u, v] = flowDots[k], c = 2 * v - 1, x = -L / 2 + (u * L + st.flowPh * (1.15 - 0.3 * c * c)) % L;
         ctx.globalAlpha = Math.min(1, n - k) * Math.min(1, (x + L / 2) / 5, (L / 2 - x) / 5);
-        D.circle(ctx, x, y0 - hh + 2.5 + v * (2 * hh - 5), 2.5, C.water);
+        D.circle(ctx, x, y0 - hh + 2.5 + v * (2 * hh - 5), 2.5, col);
       }
       ctx.restore();
       D.arrow(ctx, 0, y0 + hh + 12, 0, 6, C.muted);
