@@ -370,7 +370,7 @@
 
   // ---------- medidores: ruedita con aguja y pantallita de siete segmentos ----------
   const SEG = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc',
-    '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', '-': 'g', ' ': '' };
+    '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', '-': 'g', ' ': '', 'O': 'abcdef', 'L': 'def' };
   Sim.LCD = { bg: '#121c16', on: '#8ef7a6', off: 'rgba(142, 247, 166, 0.09)', unit: '#5fb478' };
   // Dígitos de siete segmentos; (x, y) es la esquina derecha del texto, centrada en alto.
   D.segments = (ctx, text, x, y, h) => {

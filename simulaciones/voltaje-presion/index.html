@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021172227">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -25,19 +25,19 @@
   <main class="sim-stage">
     <div class="sim-panel" id="pw">
       <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Circuito de agua: controlador de la bomba con interruptor ON/OFF, LED, perilla de presión con su pantallita y medidor de presión de salida; manómetro, tramo angosto y medidor de caudal"></canvas>
+      <canvas aria-label="Circuito de agua: controlador de la bomba con interruptor ON/OFF, LED, perilla de presión con su pantallita y medidor de presión de salida; tramo angosto y medidor de agua con perilla (presión, caudal, resistencia)"></canvas>
       <div class="sim-layer"></div>
     </div>
     <div class="sim-panel" id="pe">
       <span class="sim-tag e">Electricidad</span>
-      <canvas aria-label="Circuito eléctrico: fuente con interruptor ON/OFF, LED, perilla de voltaje con su pantallita y medidor; voltímetro, resistencia de 1 kΩ y amperímetro"></canvas>
+      <canvas aria-label="Circuito eléctrico: fuente con interruptor ON/OFF, LED, perilla de voltaje con su pantallita y medidor; resistencia de 1 kΩ y multímetro con perilla (V, A, Ω)"></canvas>
       <div class="sim-layer"></div>
     </div>
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021171039"></script>
-<script src="../../assets/banco.js?v=20261021171039"></script>
+<script src="../../assets/sim.js?v=20261021172227"></script>
+<script src="../../assets/banco.js?v=20261021172227"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -52,7 +52,7 @@
       if (g.side === 'w') s.water = Sim.water(g.loop, Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), hn));
     },
     model: V => ({ I: V / R * 1000 }),
-    circuit: (g, m, V) => [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [{ at: [g.PX, g.TOP], half: 46, dV: V,
+    circuit: (g, m, V) => [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [{ at: [g.PX, g.TOP], half: 46, dV: V, R,
       draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, hn) : D.resistor(ctx, g.PX, g.TOP),
       tag: w => [w ? 'tramo angosto' : 'resistencia', '1 kΩ'] }] }],
     step(dt, m) {
@@ -75,14 +75,16 @@
   });
   b.start();
 
-  // Va por pasos: primero solo la fuente (encender, apagar y la perilla), luego aparece el medidor
-  // de corriente (caudal) y al final el de voltaje (presión).
+  // Va por pasos: primero solo la fuente (encender, apagar y la perilla), luego aparece el multímetro
+  // en A, en serie, para la corriente (caudal), y al final con la perilla en V para el voltaje (presión),
+  // con sus puntas a los dos lados de la resistencia.
+  const g = b.gw;
   const STEPS = [
-    ['La fuente', { I: false, V: false }],
-    ['La corriente', { I: true, V: false }],
-    ['El voltaje', { I: true, V: true }]
+    ['La fuente', () => b.showMeters({ a: false })],
+    ['La corriente', () => { b.showMeters({ a: true }); b.setDial('a', 'A', [[g.X1 - 60, g.BOT]]); }],
+    ['El voltaje', () => { b.showMeters({ a: true }); b.setDial('a', 'V', [[g.X0, g.MY], [g.X1, g.MY]]); }]
   ];
-  Sim.steps(STEPS.map(s => s[0]), k => b.showMeters(STEPS[k][1]));
+  Sim.steps(STEPS.map(s => s[0]), k => STEPS[k][1]());
 })();
 </script>
 </body>

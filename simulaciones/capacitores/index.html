@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021172227">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021171039"></script>
-<script src="../../assets/banco.js?v=20261021171039"></script>
+<script src="../../assets/sim.js?v=20261021172227"></script>
+<script src="../../assets/banco.js?v=20261021172227"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -159,7 +159,7 @@
         st.charge ? { pts: [n.A, n.P], I: Ic, v0: V, comps: [], link: true } : { pts: [n.B, n.P], I: Ic, v0: 0, comps: [], link: true },
         // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
         { pts: p.C, I: Ic, v0: st.charge ? V : 0, comps: [
-          { at: [XR, g.TOP], half: 46, dV: Ic * st.R / 1000, pr: pinchR,
+          { at: [XR, g.TOP], half: 46, dV: Ic * st.R / 1000, R: st.R, pr: pinchR,
             draw: (ctx, w) => w ? D.narrow(ctx, XR, g.TOP, half(st.R)) : D.resistor(ctx, XR, g.TOP),
             tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(st.R)] },
           { at: [XC, g.TOP], half: rc, dV: st.Vc, pr: pinchC, ext: rc + 4,
@@ -340,8 +340,8 @@
     label: side => (st.charge ? 'Pasar a descargar' : 'Pasar a cargar') + (side === 'w' ? ' (válvula de tres vías)' : ' (conmutador)'),
     onClick: () => { st.charge = !st.charge; }
   });
-  // El voltímetro empieza conectado al capacitor: la roja entre la resistencia y el capacitor, la negra a la derecha.
-  b.st.clamps.V = [[(XR + 46 + XC - RCMAX) / 2, b.gw.TOP], [b.gw.X1, b.gw.MY]];
+  // El multímetro (en V) empieza conectado al capacitor: la roja entre la resistencia y el capacitor, la negra a la derecha.
+  b.st.clamps.a = [[(XR + 46 + XC - RCMAX) / 2, b.gw.TOP], [b.gw.X1, b.gw.MY]];
   b.start();
 })();
 </script>

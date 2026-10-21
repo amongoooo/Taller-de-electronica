@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021172227">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021171039"></script>
-<script src="../../assets/banco.js?v=20261021171039"></script>
+<script src="../../assets/sim.js?v=20261021172227"></script>
+<script src="../../assets/banco.js?v=20261021172227"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -72,7 +72,7 @@
       const R = st.R, dR = st.rburnt ? (st.closed ? V : 0) : m.I * R / 1000;
       // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
       const comps = [
-        { at: [XV, g.TOP], half: 28, dV: st.closed ? 0 : V, ext: w => w ? 46 : 30,
+        { at: [XV, g.TOP], half: 28, dV: st.closed ? 0 : V, R: st.closed ? 0 : Infinity, ext: w => w ? 46 : 30,
           draw: (ctx, w) => w ? D.valve(ctx, XV, g.TOP, st.closed) : D.knifeSwitch(ctx, XV, g.TOP, st.closed),
           tag: w => [w ? 'válvula' : 'interruptor', w ? (st.closed ? 'abierta' : 'cerrada') : (st.closed ? 'cerrado' : 'abierto'), !st.closed] },
         { at: [XL, g.TOP], half: 30, dV: st.closed ? Math.max(0, V - dR) : 0, pr: ledPart, ext: w => w ? 52 : 28,
@@ -83,7 +83,7 @@
           },
           tag: w => [w ? 'rueda' : 'LED', st.broken ? (w ? 'rota' : 'quemado') : st.rev ? 'al revés' : st.led, st.broken || st.rev] }
       ];
-      if (R) comps.push({ at: [g.PX, g.TOP], half: 46, dV: dR, pr: pinch,
+      if (R) comps.push({ at: [g.PX, g.TOP], half: 46, dV: dR, R: st.rburnt ? Infinity : R, pr: pinch,
         draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, half(R)) : D.resistor(ctx, g.PX, g.TOP),
         tag: w => st.rburnt ? [w ? 'tubo reventado' : 'resistencia quemada', '', true] : [w ? 'tramo angosto' : 'resistencia', ohm(R)] });
       return [{ pts: b.loopPts(g), I: m.I, v0: V, comps }];
