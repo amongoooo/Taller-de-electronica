@@ -566,7 +566,9 @@
   // Imán: la perilla se queda en su valor hasta que el puntero se pasa bien hacia el siguiente (mientras,
   // solo se estira un poquito hacia él, como jalada por un imán), y los valores redondos (múltiplos de
   // magnet) jalan desde más lejos; al cambiar de valor salta con un giro con rebote (y en el celular, una
-  // vibración mínima), como si tuviera muescas.
+  // vibración mínima), como si tuviera muescas. Cerca de su valor hay una zona muerta: ahí ni se estira.
+  Sim.DEAD = { knob: 4, range: 0.2 };   // perillas: grados; sliders: fracción de un paso
+  const dead = (d, z) => Math.sign(d) * Math.max(0, Math.abs(d) - z);
   Sim.knob = (el, { min, max, step, value, label, format, onInput, magnet = 0 }) => {
     el.classList.add('knob');
     el.tabIndex = 0;
@@ -596,7 +598,7 @@
       const old = k.value;
       if (Math.abs(v - k.value) >= 0.9 * step) k.set(v);   // si no, todavía pegada a su valor
       if (k.value !== old && e.pointerType === 'touch' && navigator.vibrate) try { navigator.vibrate(6); } catch (err) {}
-      const pull = Math.max(-7, Math.min(7, 0.3 * (a - angle(k.value))));   // el estirón hacia el puntero
+      const pull = Math.max(-7, Math.min(7, 0.3 * dead(a - angle(k.value), Sim.DEAD.knob)));   // el estirón hacia el puntero
       cap.style.transform = `rotate(${angle(k.value) + pull}deg)`;
     };
     const release = () => { cap.style.transform = `rotate(${angle(k.value)}deg)`; };
@@ -617,7 +619,8 @@
 
   // Imán para un slider (input range): se queda pegado a su valor (solo se estira un poco hacia el dedo)
   // hasta que el puntero se pasa bien hacia el siguiente, y entonces salta con un pequeño latido (y en el
-  // celular, una vibración mínima). Los múltiplos de magnet jalan desde más lejos. Se llama antes de
+  // celular, una vibración mínima). Los múltiplos de magnet jalan desde más lejos. Muy cerca de su valor
+  // (la zona muerta) no se mueve nada. Se llama antes de
   // agregarle al slider sus otros 'input', que solo se enteran cuando de verdad cambia de valor.
   Sim.snapRange = (inp, { step = +inp.step || 1, magnet = 0 } = {}) => {
     const min = +inp.min, max = +inp.max;
@@ -631,7 +634,7 @@
       const v = +inp.value;
       let n = Math.abs(v - cur) < 0.9 * step ? cur : q(v);
       if (magnet) { const m = Math.round(v / magnet) * magnet; if (Math.abs(v - m) < 0.38 * magnet && m >= min && m <= max) n = q(m); }
-      if (n === cur) { inp.value = cur + 0.25 * (v - cur); e.stopImmediatePropagation(); return; }
+      if (n === cur) { inp.value = cur + 0.25 * dead(v - cur, Sim.DEAD.range * step); e.stopImmediatePropagation(); return; }
       cur = n; inp.value = n;
       inp.classList.remove('snap-a', 'snap-b'); inp.classList.add(beat++ % 2 ? 'snap-a' : 'snap-b');
       if (touch && navigator.vibrate) try { navigator.vibrate(6); } catch (err) {}
