@@ -7,6 +7,8 @@
 //
 // Sim.bench({
 //   iFull,            mA a escala completa en los medidores de corriente y caudal
+//   iMax,             mA con el voltaje al máximo y la menor resistencia posible (si falta, iFull):
+//                     el tubo del medidor de caudal solo se llena del todo con ese caudal
 //   flowSpeed,        rapidez de las partículas en la tubería normal, por cada mA
 //   v0,               voltaje inicial de la perilla
 //   layout(g),        se llama cuando cambia el tamaño de un panel (g.side es 'w' o 'e')
@@ -32,7 +34,7 @@
   const EXPAND = icon('<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>');
 
   Sim.bench = o => {
-    const iFull = o.iFull || 12, flowSpeed = o.flowSpeed || 12;
+    const iFull = o.iFull || 12, iMax = o.iMax || iFull, flowSpeed = o.flowSpeed || 12;
     const st = { on: false, set: o.v0 ?? 6, v: 0, tau: 1, level: Sim.ramp(), m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nS: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(), nPa: Sim.needle(), nPb: Sim.needle(), turb: 0,
       segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false }, show: { V: true, I: true } };
@@ -1029,7 +1031,7 @@
       if (c < 1) {
         ctx.save(); ctx.beginPath(); ctx.rect(-60, -38, 120, sh.bottom + 36); ctx.clip(); ctx.globalAlpha = 1 - c;
         if (kind === 'V' && g.side === 'w') columns(ctx);
-        else if (g.side === 'w') flowTube(ctx, needle.x);
+        else if (g.side === 'w') flowTube(ctx, flowFrac());
         else D.dial(ctx, 0, 0, 30, needle.x, color);
         ctx.restore();
       }
@@ -1063,18 +1065,27 @@
       }
     };
     // Medidor de caudal: un tramo de tubo con el agua que pasa; entre más caudal, más partículas (y
-    // van un poco más rápido). Cada partícula tiene su lugar fijo (bien repartidas aunque sean pocas),
-    // así al subir el caudal solo aparecen más.
-    const NF = 30, flowDots = Array.from({ length: NF }, (_, k) => [(0.5 + k * 0.7548777) % 1, (0.5 + k * 0.5698403) % 1]);
+    // van un poco más rápido). Lleno del todo solo con el mayor caudal posible (iMax); va con la raíz
+    // para que con poco caudal ya se vean algunas. Las partículas tienen su lugar en una cuadrícula
+    // con un poco de desorden (llena se ve pareja, sin franjas) y aparecen en orden revuelto, así con
+    // pocas quedan repartidas. Las del centro van un poco más rápido, como en un tubo real.
+    const FC = 20, FR = 6, NF = FC * FR, flowDots = [];
+    {
+      let seed = 7;
+      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let r = 0; r < FR; r++) for (let c = 0; c < FC; c++) flowDots.push([(c + 0.3 + 0.4 * rnd()) / FC, (r + 0.5) / FR + (rnd() - 0.5) * 0.1, rnd()]);
+      flowDots.sort((a, c) => a[2] - c[2]);
+    }
+    const flowFrac = () => Math.sqrt(Math.max(0, Math.min(1, st.nIm.x * iFull / iMax)));
     const flowTube = (ctx, frac) => {
-      const L = 92, hh = 14, y0 = -4, n = Math.max(0, Math.min(1, frac)) * NF;
+      const L = 92, hh = 14, y0 = -4, n = frac * NF;
       D.roundRect(ctx, -L / 2 - 4, y0 - hh - 5, L + 8, 2 * hh + 10, 7, C.pipe);
       D.roundRect(ctx, -L / 2, y0 - hh, L, 2 * hh, 4, C['water-soft']);
       ctx.save(); ctx.beginPath(); ctx.rect(-L / 2, y0 - hh, L, 2 * hh); ctx.clip();
       for (let k = 0; k < Math.ceil(n); k++) {
-        const [u, v] = flowDots[k], x = -L / 2 + (u * L + st.flowPh) % L;
-        ctx.globalAlpha = Math.min(1, n - k) * Math.min(1, (x + L / 2) / 8, (L / 2 - x) / 8);
-        D.circle(ctx, x, y0 - hh + 4 + v * (2 * hh - 8), 3, C.water);
+        const [u, v] = flowDots[k], c = 2 * v - 1, x = -L / 2 + (u * L + st.flowPh * (1.15 - 0.3 * c * c)) % L;
+        ctx.globalAlpha = Math.min(1, n - k) * Math.min(1, (x + L / 2) / 5, (L / 2 - x) / 5);
+        D.circle(ctx, x, y0 - hh + 2.5 + v * (2 * hh - 5), 2.5, C.water);
       }
       ctx.restore();
       D.arrow(ctx, 0, y0 + hh + 12, 0, 6, C.muted);
@@ -1232,7 +1243,7 @@
       st.nPa.step(connected('V', 0) ? st.probe.V.va / VMAX : 0, tn, dt);
       st.nPb.step(connected('V', 1) ? st.probe.V.vb / VMAX : 0, tn, dt);
       st.turb += Math.min(st.probe.I.value, 60) * 0.5 * dt;
-      st.flowPh = ((st.flowPh || 0) + (14 + 50 * Math.min(1, Math.max(0, st.nIm.x))) * dt) % 1e4;
+      st.flowPh = ((st.flowPh || 0) + (14 + 50 * flowFrac()) * dt) % 1e4;
       animate(dt);
       for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (const kind of ['V', 'I']) for (let i = 0; i < NP[kind]; i++) ropeStep(side, g, kind, i, dt);
       st.rpm = st.m.I * RPM_PER_MA;                                // 10 rpm por cada mL/s
