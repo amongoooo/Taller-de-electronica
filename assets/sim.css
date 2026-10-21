@@ -88,7 +88,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-panel canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }   /* para arrastrar los cables con el dedo */
 .sim-tag {
   position: absolute; top: 10px; left: 12px; z-index: 1;
-  font-family: var(--font-display); font-stretch: 125%; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  font-family: var(--font-display); font-stretch: 125%; font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   border-radius: 6px; padding: 2px 8px;
 }
 .sim-tag.w { background: var(--water-soft); color: var(--water); }
@@ -100,32 +100,34 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 
 .sim-btn {
   font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap;
-  font-size: max(12px, calc(var(--s, 1) * 19px));
+  font-size: max(14px, calc(var(--s, 1) * 19px));
   padding: .45em 1em; border-radius: 999px;
   border: 2px solid var(--ok); background: var(--ok); color: var(--card);
 }
-.sim-btn.small { font-size: max(11px, calc(var(--s, 1) * 15px)); padding: .4em .8em; }
+.sim-btn.small { font-size: max(14px, calc(var(--s, 1) * 15px)); padding: .4em .8em; }
 .sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
 /* Barra de colores de las partículas, arriba a la derecha de cada panel, entre lo que marca cada punta
    (el modo se elige en la sección Ver). Su esquina de arriba a la derecha va en el punto dado. */
 .sim-layer > .sim-colors { transform: translate(-100%, 0); }
 .sim-colors {
-  display: flex; align-items: center; justify-content: flex-end; gap: .6em; width: max(180px, calc(var(--s, 1) * 222px));
-  padding: .3em .2em; border-radius: 8px; cursor: pointer; touch-action: none; user-select: none;
-  font-size: max(11px, calc(var(--s, 1) * 13px)); color: var(--muted);
+  display: flex; flex-direction: column; gap: .2em; width: max(210px, calc(var(--s, 1) * 240px));
+  padding: .3em .45em; border-radius: 8px; cursor: pointer; touch-action: none; user-select: none;
+  font-size: max(14px, calc(var(--s, 1) * 15px)); line-height: 1.25; color: var(--muted);
 }
+.sim-colors .hd { display: flex; align-items: center; justify-content: space-between; gap: .6em; }
 .sim-colors:hover { background: var(--bg); }
 .sim-colors .scale { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .4em; font-family: var(--font-mono); white-space: nowrap; }
 .sim-colors .bar {
   flex: 1; height: .75em; border-radius: 2px;
   background: linear-gradient(90deg, hsl(215 85% 50%), hsl(179 85% 50%), hsl(143 85% 50%), hsl(108 85% 50%), hsl(72 85% 50%), hsl(36 85% 50%), hsl(0 85% 50%));
 }
-.sim-colors .mode { display: none; font-weight: 700; }
+.sim-colors .mode { font-weight: 700; color: var(--ink); white-space: nowrap; }
+.sim-colors .plain { display: none; }
 .sim-colors[data-bar="false"] .scale { display: none; }
-.sim-colors[data-bar="false"] .mode { display: inline; }
+.sim-colors[data-bar="false"] .plain { display: block; }
 /* Un puntito por modo: lleno el elegido. Se pueden tocar. */
 .sim-colors .dots { flex: none; display: flex; gap: .35em; }
-.sim-colors .dots i { width: .65em; height: .65em; border-radius: 50%; border: 1.5px solid var(--muted); }
+.sim-colors .dots i { width: .7em; height: .7em; border-radius: 50%; border: 1.5px solid var(--muted); }
 .sim-colors .dots i.on { background: var(--water); border-color: var(--water); }
 
 /* Interruptor de encendido (bomba, fuente, pila, generador): palanca que sube a ON y baja a OFF. */
@@ -133,7 +135,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   display: flex; flex-direction: column; align-items: center; gap: max(1px, calc(var(--s, 1) * 3px));
   padding: 0; border: 0; background: none; cursor: pointer; touch-action: manipulation;
   font: inherit; font-weight: 800; letter-spacing: .02em; line-height: 1;
-  font-size: max(9px, calc(var(--s, 1) * 12px)); color: var(--muted);
+  font-size: max(12px, calc(var(--s, 1) * 14px)); color: var(--muted);
 }
 .sw-track {
   position: relative; width: max(22px, calc(var(--s, 1) * 32px)); height: max(38px, calc(var(--s, 1) * 56px));
@@ -277,14 +279,14 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-menu .opt[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--ink); }
 /* Potencia y calor (Sim.powerRow): lo que aguanta, lo que recibe y una barra hasta quemarse. */
 .sim-menu .heat { gap: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
-.sim-menu .heat .pw-t { font-size: 13px; color: var(--muted); }
-.sim-menu .heat .pw { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; color: var(--muted); }
+.sim-menu .heat .pw-t { font-size: 14px; color: var(--muted); }
+.sim-menu .heat .pw { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px; color: var(--muted); }
 .sim-menu .heat .pw > div { display: grid; }
 .sim-menu .heat .pw b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 17px; color: var(--ink); white-space: nowrap; }
 .sim-menu .heat .pw b.over { color: var(--danger); }
 .sim-menu .heat .bar { height: 12px; border-radius: 6px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; margin-top: 4px; }
 .sim-menu .heat .bar i { display: block; height: 100%; border-radius: 6px; }
-.sim-menu .heat .bl { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 13px; color: var(--muted); }
+.sim-menu .heat .bl { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 14px; color: var(--muted); }
 .sim-menu .heat .bl > * { white-space: nowrap; }
 .sim-menu .heat .bl b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; color: var(--ink); }
 .sim-menu .heat .bl .end { margin-left: auto; }
@@ -305,7 +307,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   border: 2px solid var(--line); background: var(--bg);
 }
 .sim-seg button {
-  font: inherit; font-weight: 700; font-size: max(12px, calc(var(--s, 1) * 15px)); cursor: pointer; white-space: nowrap;
+  font: inherit; font-weight: 700; font-size: max(14px, calc(var(--s, 1) * 15px)); cursor: pointer; white-space: nowrap;
   padding: .3em .9em; border: 0; border-radius: 999px; background: transparent; color: var(--muted); touch-action: manipulation;
 }
 .sim-seg button:hover { color: var(--ink); }
@@ -436,13 +438,13 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-sec[hidden] { display: none; }
 .sim-sec h3 {
   display: flex; align-items: center; gap: 8px; margin: 0; color: var(--act);
-  font-family: var(--font-display); font-stretch: 125%; font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  font-family: var(--font-display); font-stretch: 125%; font-size: 14px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap;
 }
 .sim-sec h3 svg { width: 18px; height: 18px; flex: none; }
 .sim-sec .body { display: grid; gap: 10px; min-width: 0; }
 .sim-side-row { display: grid; gap: 6px; min-width: 0; }
-.sim-side-row > .lbl { font-size: 13px; font-weight: 700; color: var(--muted); }
-.sim-hint { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.sim-side-row > .lbl { font-size: 14px; font-weight: 700; color: var(--muted); }
+.sim-hint { margin: 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
 .sim-side-btn, .sim-sec .pb-btn {
   justify-self: start; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 6px 14px; border-radius: 999px;
   border: 2px solid var(--act); background: var(--card); color: var(--act);
@@ -459,7 +461,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-side .sim-seg { justify-self: start; }
 .sim-side .sim-seg button { font-size: 14px; }
 .sim-side .sim-seg.three { display: grid; grid-template-columns: repeat(3, 1fr); justify-self: stretch; border-radius: 14px; }
-.sim-side .sim-seg.three button { font-size: 13px; padding: .35em .3em; white-space: normal; line-height: 1.15; border-radius: 10px; }
+.sim-side .sim-seg.three button { font-size: 14px; padding: .35em .3em; white-space: normal; line-height: 1.15; border-radius: 10px; }
 .sim-side .sim-viewseg button { padding: 4px 10px; }
 .sim-page[data-side="col"] .sim-sec .sim-viewseg { display: none; }
 .sim-page[data-side="col"] .sim-side-row:has(> .sim-viewseg) { display: none; }
@@ -491,28 +493,28 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-read .r.R .nm { color: var(--a-ver); }
 .sim-read .r.warn .vl { color: var(--danger); }
 .sim-read .vl { font-family: var(--font-mono); font-size: 16px; white-space: nowrap; }
-.sim-read .r.off .vl { font-family: var(--font-body); font-size: 13px; color: var(--muted); }
+.sim-read .r.off .vl { font-family: var(--font-body); font-size: 14px; color: var(--muted); }
 /* Cada multímetro en Medir: su lectura, su perilla y sus botones; al final, sacar el segundo. */
 .sim-mms { display: grid; gap: 14px; }
 .sim-mm { display: grid; gap: 6px; }
 .sim-mm[hidden] { display: none; }
 .sim-side .sim-seg.four { display: grid; grid-template-columns: repeat(4, 1fr); justify-self: stretch; border-radius: 14px; }
-.sim-side .sim-seg.four button { font-size: 13px; padding: .35em .2em; white-space: nowrap; border-radius: 10px; }
+.sim-side .sim-seg.four button { font-size: 14px; padding: .35em .2em; white-space: nowrap; border-radius: 10px; }
 .sim-add { justify-self: start; }
 /* Polaridad y tierra: botones para invertir cada medidor y llevar la punta negra a tierra. */
 .sim-pol { display: flex; flex-wrap: wrap; gap: 6px; }
-.sim-pol .sim-side-btn { padding: 5px 12px; font-size: 13px; }
+.sim-pol .sim-side-btn { padding: 5px 12px; font-size: 14px; }
 .sim-pol .sim-side-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--act) 14%, var(--card)); }
 
 /* Inercia y cables. */
 .sim-inercia { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
 .sim-inercia input[type="range"], .sim-cables input[type="range"] { width: 100%; min-width: 0; accent-color: var(--water); }
-.sim-inercia output { font-family: var(--font-mono); font-size: 13px; color: var(--muted); min-width: 4.5ch; white-space: nowrap; }
+.sim-inercia output { font-family: var(--font-mono); font-size: 14px; color: var(--muted); min-width: 4.5ch; white-space: nowrap; }
 .sim-cables summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--muted); }
 .sim-cables[open] { display: grid; gap: 8px; }
-.sim-cables label { display: grid; grid-template-columns: 4.2em auto minmax(50px, 1fr) auto; align-items: center; gap: 4px 6px; font-size: 13px; }
+.sim-cables label { display: grid; grid-template-columns: 4.2em auto minmax(50px, 1fr) auto; align-items: center; gap: 4px 6px; font-size: 14px; }
 .sim-cables .name { font-weight: 700; }
-.sim-cables .lo, .sim-cables .hi { color: var(--muted); font-size: 12px; }
+.sim-cables .lo, .sim-cables .hi { color: var(--muted); font-size: 14px; }
 
 /* ---------- lo que se toca en el dibujo, por acción ---------- */
 .sim-layer > * { --act: var(--a-com); }
@@ -526,7 +528,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 /* Globito al pasar el ratón: acción y nombre. */
 .sim-tip {
   position: fixed; z-index: 50; pointer-events: none; opacity: 0; transition: opacity .12s;
-  padding: 4px 10px; border-radius: 8px; background: var(--ink); color: var(--card); font-size: 13px; white-space: nowrap;
+  padding: 4px 10px; border-radius: 8px; background: var(--ink); color: var(--card); font-size: 14px; white-space: nowrap;
 }
 .sim-tip b { color: color-mix(in srgb, var(--act) 45%, #fff); }
 .sim-tip.on { opacity: 1; }
@@ -540,7 +542,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-page.show-acts .sim-layer > [data-act-name]:not([hidden]):not(.ring):not(.jack):not(.shy):not(.pb-anchor)::after {
   content: attr(data-act-name); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
   padding: 1px 7px; border-radius: 999px; background: var(--act); color: #fff;
-  font: 700 11px/1.5 var(--font-body); letter-spacing: .02em; white-space: nowrap; pointer-events: none; z-index: 3;
+  font: 700 14px/1.4 var(--font-body); letter-spacing: .02em; white-space: nowrap; pointer-events: none; z-index: 3;
 }
 .sim-page.show-acts .sim-sec { animation: sim-acts-sec 1.1s ease-in-out infinite alternate; }
 @keyframes sim-acts { from { outline-offset: 3px; } to { outline-offset: 7px; } }

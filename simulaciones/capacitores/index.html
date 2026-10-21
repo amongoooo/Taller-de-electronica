@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021190025">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021190734">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021190025"></script>
-<script src="../../assets/banco.js?v=20261021190025"></script>
+<script src="../../assets/sim.js?v=20261021190734"></script>
+<script src="../../assets/banco.js?v=20261021190734"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -200,7 +200,7 @@
       b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
       b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'tramo angosto', ohm(st.R));
       b.tag(ctx, pinchC, XC, g.TOP - rc - 30, 'tanque con membrana', uF(st.C));
-      D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15 });
+      D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15, bg: true });
       graph(ctx, g, 'presión', 'caudal');
     },
     drawE(ctx, g, m) {
@@ -218,7 +218,7 @@
       b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
       b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'resistencia', ohm(st.R));
       b.tag(ctx, pinchC, XC, g.TOP - rc - 30, 'capacitor', uF(st.C));
-      D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15 });
+      D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15, bg: true });
       graph(ctx, g, 'voltaje', 'corriente');
     }
   });
@@ -247,8 +247,8 @@
     const n = Math.round(Math.max(0, Math.min(1, st.Vc / b.VMAX)) * (2 * ph) / 9);
     for (let k = 0; k < n; k++) {
       const yy = y - ph + 5 + (2 * ph - 10) * (n > 1 ? k / (n - 1) : 0.5);
-      D.text(ctx, '+', XC - 16, yy, '#d6392b', { size: 13 });
-      D.text(ctx, '−', XC + 16, yy, C.neg, { size: 13 });
+      D.text(ctx, '+', XC - 16, yy, '#d6392b', { size: 14 });
+      D.text(ctx, '−', XC + 16, yy, C.neg, { size: 14 });
     }
   }
   // Válvula de tres vías: arriba va al circuito; abajo, a la bomba (cargar); a la derecha, al puente (descargar).
@@ -288,7 +288,7 @@
         const f = (st.ev.v0 + 0.632 * (st.ev.v1 - st.ev.v0)) / b.VMAX;
         ctx.setLineDash([4, 4]); D.line(ctx, [[X(tt), y0 + pad], [X(tt), Y(0)]], 1.5, C.muted, 'butt'); ctx.setLineDash([]);
         D.circle(ctx, X(tt), Y(f), 4.5, VC, C.card, 1.5);
-        D.text(ctx, 'τ', X(tt) + 9, Y(0) - 10, C.muted, { size: 15 });
+        D.text(ctx, 'τ', X(tt) + 9, Y(0) - 10, C.muted, { size: 15, bg: true });
       }
     }
     const curve = (k, full, col) => {
@@ -302,10 +302,10 @@
     };
     curve(2, b.iFull, IC);
     curve(1, b.VMAX, VC);
-    D.text(ctx, nameV, x0 + 10, y0 + 12, VC, { align: 'left', size: 13 });
+    D.text(ctx, nameV, x0 + 10, y0 + 12, VC, { align: 'left', size: 14 });
     ctx.font = `700 ${Sim.compact ? 15 : 13}px ${Sim.FONT}`;
-    D.text(ctx, nameI, x0 + 20 + ctx.measureText(nameV).width, y0 + 12, IC, { align: 'left', size: 13 });
-    D.text(ctx, 'τ = R·C = ' + secs(tau()), x1 - 10, y0 + 12, C.ink, { align: 'right', size: 13, font: Sim.MONO, weight: 500 });
+    D.text(ctx, nameI, x0 + 20 + ctx.measureText(nameV).width, y0 + 12, IC, { align: 'left', size: 14 });
+    D.text(ctx, 'τ = R·C = ' + secs(tau()), x1 - 10, y0 + 12, C.ink, { align: 'right', size: 14, font: Sim.MONO, weight: 500 });
   }
 
   const rebuild = () => { build('w'); build('e'); };

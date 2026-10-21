@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021190025">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021190734">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021190025"></script>
-<script src="../../assets/banco.js?v=20261021190025"></script>
+<script src="../../assets/sim.js?v=20261021190734"></script>
+<script src="../../assets/banco.js?v=20261021190734"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -149,7 +149,7 @@
     ctx.lineWidth = 2.5; ctx.strokeStyle = heat > 0.3 ? '#ff7a1f' : C.ink;
     if (st.blown) { D.line(ctx, [[x - 24, y], [x - 7, y - 3]], 2.5, C.ink); D.line(ctx, [[x + 7, y + 3], [x + 24, y]], 2.5, C.ink); }
     else D.line(ctx, [[x - 24, y], [x + 24, y]], 2.5, ctx.strokeStyle);
-    if (st.blown) D.text(ctx, 'fusible fundido', x, y - h - 18, C.danger, { size: 14 });
+    if (st.blown) D.text(ctx, 'fusible fundido', x, y - h - 18, C.danger, { size: 14, bg: true });
     else b.tag(ctx, fusePart, x, y - h - 18, 'fusible', mA(st.fuse));   // arriba, adentro del circuito: abajo está la fuente
     if (st.breakT < 1.2) {
       ctx.globalAlpha = Math.min(1, (1.2 - st.breakT) / 0.4);
@@ -181,9 +181,11 @@
     for (let k = 1; k <= n; k++) ctx.lineTo(xs + (xe - xs) * k / n, y + (k === n ? 0 : (k % 2 ? -6 : 6)));
     ctx.lineWidth = 2; ctx.strokeStyle = C.muted; ctx.stroke();
     D.circle(ctx, bx, by, 8, st.blown ? C.danger : C.metal, C.ink, 2);
-    // el nombre va arriba, adentro del circuito y más alto que la bomba (abajo está el controlador)
-    if (st.blown) D.text(ctx, 'válvula cerrada', g.X0 + 24, y - H - 26, C.danger, { size: 14, align: 'left' });
-    else b.tag(ctx, fusePart, g.X0 + 24, y - H - 26, 'válvula de seguridad', mLs(st.fuse), false, true);
+    // el nombre va arriba, adentro del circuito, en dos renglones para que quepa entre el tubo de la
+    // izquierda y la bomba sin encimarse
+    const lx = g.X0 + P + 10;   // justo adentro del tubo de la izquierda
+    if (st.blown) D.text(ctx, 'válvula cerrada', lx, y - H - 26, C.danger, { size: 14, align: 'left', bg: true });
+    else b.tag(ctx, fusePart, lx, y - H - 30, 'válvula de seguridad', mLs(st.fuse), false, true, true);
     if (st.breakT < 1) {   // salpicadura al cerrarse de golpe
       ctx.globalAlpha = Math.min(1, (1 - st.breakT) / 0.4);
       for (const p of st.sparks) D.circle(ctx, x0 - 22 + p.x * 0.6, y + p.y * 0.6, 3, C.water);
@@ -207,7 +209,7 @@
     const x = g.PX, y = g.TOP;
     ctx.fillStyle = 'rgba(30, 20, 15, 0.55)'; ctx.beginPath(); ctx.ellipse(x, y, 24, 13, 0, 0, Math.PI * 2); ctx.fill();
     D.line(ctx, [[x - 3, y - 14], [x + 3, y - 4], [x - 3, y + 4], [x + 3, y + 14]], 6, C.card);
-    D.text(ctx, 'quemada', x, y + 44, C.danger, { size: 14 });
+    D.text(ctx, 'quemada', x, y + 44, C.danger, { size: 14, bg: true });
     smoke(ctx, x, y - 12);
   }
   // Tramo angosto reventado: una grieta por donde sale el agua; ya no circula.
@@ -224,7 +226,7 @@
       for (const p of st.drops) D.circle(ctx, x + p.x, y - h + p.y, 3, C.water);
       ctx.globalAlpha = 1;
     }
-    D.text(ctx, 'tubo reventado', x, y + 44, C.danger, { size: 14 });
+    D.text(ctx, 'tubo reventado', x, y + 44, C.danger, { size: 14, bg: true });
   }
   function smoke(ctx, x, y) {
     const t = st.burnT;
@@ -292,6 +294,8 @@
     pos: g => [fuseAt(g)[0], g.BOT - 80], hidden: () => !st.blown,
     text: side => side === 'w' ? 'Abrir la válvula' : 'Fusible nuevo', onClick: repair
   });
+  // La punta roja empieza más arriba en el tubo de la izquierda, para no taparle el nombre a la válvula.
+  b.st.clamps.a[0] = [b.gw.X0, b.gw.TOP + 0.4 * (b.gw.BOT - b.gw.TOP)];
   b.start();
 })();
 </script>

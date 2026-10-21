@@ -114,10 +114,23 @@
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
     if (line) { ctx.lineWidth = lw; ctx.strokeStyle = line; ctx.stroke(); }
   };
-  D.text = (ctx, t, x, y, col, { align = 'center', size = 16, font = Sim.FONT, weight = 700 } = {}) => {
-    ctx.fillStyle = col; ctx.font = `${weight} ${Sim.compact ? Math.round(size * 1.15) : size}px ${font}`;   // en el celular, letra un poco más grande
+  // bg: los letreros del dibujo llevan detrás un fondo del color de la tarjeta, para que una tubería,
+  // un cable o una manguera que pase por ahí no los tape (se ve como si pasara por debajo).
+  D.text = (ctx, t, x, y, col, { align = 'center', size = 16, font = Sim.FONT, weight = 700, bg = false } = {}) => {
+    const px = Sim.compact ? Math.round(size * 1.15) : size;   // en el celular, letra un poco más grande
+    ctx.font = `${weight} ${px}px ${font}`;
     ctx.fontStretch = font === Sim.WIDE ? 'expanded' : 'normal';
-    ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
+    ctx.textAlign = align; ctx.textBaseline = 'middle';
+    if (bg && t) {
+      const w = ctx.measureText(t).width, x0 = align === 'left' ? x : align === 'right' ? x - w : x - w / 2;
+      D.backdrop(ctx, x0, y, w, px);
+    }
+    ctx.fillStyle = col; ctx.fillText(t, x, y);
+  };
+  // El fondo de un letrero de ancho w que empieza en x, centrado en y, con letra de px.
+  D.backdrop = (ctx, x, y, w, px) => {
+    const h = Math.round(px * 1.3);
+    D.roundRect(ctx, x - 5, y - h / 2, w + 10, h, h / 2, C.card);
   };
   D.arrow = (ctx, x, y, angle, size, col) => {
     ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.fillStyle = col;
@@ -213,7 +226,7 @@
   D.burntResistor = (ctx, x, y, t, label = 'quemada') => {
     ctx.fillStyle = 'rgba(30, 20, 15, 0.55)'; ctx.beginPath(); ctx.ellipse(x, y, 24, 13, 0, 0, Math.PI * 2); ctx.fill();
     D.line(ctx, [[x - 3, y - 14], [x + 3, y - 4], [x - 3, y + 4], [x + 3, y + 14]], 6, C.card);
-    if (label) D.text(ctx, label, x, y + 44, C.danger, { size: 14 });
+    if (label) D.text(ctx, label, x, y + 44, C.danger, { size: 14, bg: true });
     D.smoke(ctx, x, y - 12, t);
   };
   // Tramo angosto reventado (medio ancho hn): una grieta arriba y el agua que salpica al reventar.
@@ -236,7 +249,7 @@
       }
       ctx.globalAlpha = 1;
     }
-    if (label) D.text(ctx, label, x, y + 44, C.danger, { size: 14 });
+    if (label) D.text(ctx, label, x, y + 44, C.danger, { size: 14, bg: true });
   };
   // Medidor de aguja; frac de 0 a 1 (puede pasarse un poco si la aguja rebota).
   D.dial = (ctx, x, y, r, frac, col, letter) => {
@@ -263,7 +276,7 @@
     }
     labels.forEach(([t, frac]) => {
       const a = (-135 + frac * 270 - 90) * Math.PI / 180;
-      D.text(ctx, t, x + Math.cos(a) * (r + 20), y + Math.sin(a) * (r + 20), C.muted, { size: 13, font: Sim.MONO, weight: 500 });
+      D.text(ctx, t, x + Math.cos(a) * (r + 20), y + Math.sin(a) * (r + 20), C.muted, { size: 14, font: Sim.MONO, weight: 500 });
     });
   };
 
@@ -329,7 +342,7 @@
       D.line(ctx, [[x + 15, y - 15], [x - 15, y + 15]], 4, C.danger);
     }
     const t = broken ? 'rueda rota' : rev ? 'compuerta cerrada' : label;
-    if (t) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15 });
+    if (t) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15, bg: true });
   };
   // LED en un cable horizontal; I en mA decide el brillo. La corriente entra por la izquierda.
   D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED', rgb = null } = {}) => {
@@ -349,7 +362,7 @@
     D.line(ctx, [[x + 3, y - 17], [x + 12, y - 26]], 2, C.muted); D.line(ctx, [[x + 11, y - 14], [x + 20, y - 23]], 2, C.muted);
     if (broken) { D.line(ctx, [[x - 13, y - 13], [x + 13, y + 13]], 4, C.danger); D.line(ctx, [[x + 13, y - 13], [x - 13, y + 13]], 4, C.danger); }
     const t = broken ? label + ' quemado' : rev ? label + ' al revés' : label;
-    D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15 });
+    D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15, bg: true });
   };
   // Válvula en una tubería horizontal.
   D.valve = (ctx, x, y, open) => {
@@ -358,14 +371,14 @@
     else { ctx.fillStyle = C.danger; ctx.fillRect(x - 4, y - 17, 8, 34); }
     D.line(ctx, [[x, y - 19], [x, y - 32]], 4, C.ink);
     D.line(ctx, open ? [[x, y - 32], [x, y - 44]] : [[x - 13, y - 32], [x + 13, y - 32]], 6, C.ink);
-    D.text(ctx, open ? 'válvula abierta' : 'válvula cerrada', x, y + 48, open ? C.muted : C.danger, { size: 15 });
+    D.text(ctx, open ? 'válvula abierta' : 'válvula cerrada', x, y + 48, open ? C.muted : C.danger, { size: 15, bg: true });
   };
   // Interruptor de cuchilla en un cable horizontal.
   D.knifeSwitch = (ctx, x, y, closed) => {
     ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 30, 56, 40);
     D.circle(ctx, x - 22, y, 5, C.card, C.ink, 2.5); D.circle(ctx, x + 22, y, 5, C.card, C.ink, 2.5);
     D.line(ctx, closed ? [[x - 18, y], [x + 18, y]] : [[x - 18, y - 3], [x + 16, y - 26]], 3.5, C.ink);
-    D.text(ctx, closed ? 'interruptor cerrado' : 'interruptor abierto', x, y + 48, closed ? C.muted : C.danger, { size: 15 });
+    D.text(ctx, closed ? 'interruptor cerrado' : 'interruptor abierto', x, y + 48, closed ? C.muted : C.danger, { size: 15, bg: true });
   };
 
   // ---------- medidores: ruedita con aguja y pantallita de siete segmentos ----------
@@ -426,7 +439,7 @@
     D.dial(ctx, x, y, r, frac, color);
     if (lcd === 'right') D.lcd(ctx, x + r + 10 + lcdW / 2, y, lcdW, 32, text, unit);
     else D.lcd(ctx, x, y + r + 24, lcdW, 30, text, unit);
-    if (label) D.text(ctx, label, box[0] + box[2] / 2, box[1] + box[3] + 16, C.muted, { size: 15 });
+    if (label) D.text(ctx, label, box[0] + box[2] / 2, box[1] + box[3] + 16, C.muted, { size: 15, bg: true });
     return box;
   };
 
@@ -523,12 +536,14 @@
     };
   };
   // Barra de colores para leer la rapidez del agua (o lo que marque el modo de color: lo, hi en las puntas).
-  D.speedLegend = (ctx, x, y, w, lo = 'lento', hi = 'rápido') => {
+  // Arriba dice qué colorea (title).
+  D.speedLegend = (ctx, x, y, w, lo = 'lento', hi = 'rápido', title = 'color: rapidez') => {
     const g = ctx.createLinearGradient(x, 0, x + w, 0);
     for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, Sim.speedColor(i / 6));
+    if (title) D.text(ctx, title, x, y - 18, C.muted, { align: 'left', size: 14, bg: true });
     ctx.fillStyle = g; ctx.fillRect(x, y - 5, w, 10);
-    D.text(ctx, lo, x, y + 16, C.muted, { align: 'left', size: 13, weight: 400 });
-    D.text(ctx, hi, x + w, y + 16, C.muted, { align: 'right', size: 13, weight: 400 });
+    D.text(ctx, lo, x, y + 17, C.muted, { align: 'left', size: 14, weight: 400 });
+    D.text(ctx, hi, x + w, y + 17, C.muted, { align: 'right', size: 14, weight: 400 });
   };
 
   // ---------- inercia ----------

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021190025">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021190734">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021190025"></script>
+<script src="../../assets/sim.js?v=20261021190734"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -268,8 +268,8 @@
     for (const [r, v] of [[0, 0], [1, 1], [12, 13.5], [13, 14.5]]) {
       for (const u of [-0.6, N - 0.4]) D.text(ctx, ROWNAME[r], ...g.pt(u, v), r === 0 || r === 12 ? REDW : C.neg, { size: 18 });
     }
-    for (let r = 2; r < 12; r++) for (const u of [-0.6, N - 0.4]) D.text(ctx, ROWNAME[r], ...g.pt(u, ROWV[r]), C.muted, { size: 13, weight: 400 });
-    for (let c = 0; c < N; c++) for (const v of [1.9, 12.6]) D.text(ctx, String(c + 1), ...g.pt(c, v), C.muted, { size: 11, font: Sim.MONO, weight: 500 });
+    for (let r = 2; r < 12; r++) for (const u of [-0.6, N - 0.4]) D.text(ctx, ROWNAME[r], ...g.pt(u, ROWV[r]), C.muted, { size: 14, weight: 400 });
+    for (let c = 0; c < N; c++) for (const v of [1.9, 12.6]) D.text(ctx, String(c + 1), ...g.pt(c, v), C.muted, { size: 14, font: Sim.MONO, weight: 500 });
     // por dentro: tiras de metal (o canales de agua) que unen los agujeros
     for (const gr of GROUPS) {
       const sel = st.sel === gr;
@@ -354,7 +354,7 @@
       }
       const f = ny > 0 ? -1 : 1;   // el valor va del lado de arriba (o a la izquierda si está parada)
       const o = 19 + 20 * Math.abs(nx);   // parada, la etiqueta necesita más espacio a un lado
-      if (!ghost) D.text(ctx, k.burnt ? (water ? 'reventado' : 'quemada') : ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, k.burnt ? C.danger : C.ink, { size: 12, font: Sim.MONO, weight: 600 });
+      if (!ghost) D.text(ctx, k.burnt ? (water ? 'reventado' : 'quemada') : ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, k.burnt ? C.danger : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
       if (k.burnt && !water) D.smoke(ctx, M[0], M[1] - 8, k.breakT);
     } else if (k.type === 'led') {
       const glowK = k.burnt ? 0 : Math.min(1, k.I / 20), [cr, cg, cb] = Sim.led(k.led).rgb;
@@ -421,7 +421,7 @@
       D.roundRect(ctx, ...R, 8, '#2b3640', C.ink, 2);
       // la franja de color de la pila; con el fusible fundido se pone gris y lo dice
       D.roundRect(ctx, R[0] + 6, R[1] + 6, R[2] - 12, R[3] * 0.32, 4, st.fuse ? '#c77d00' : '#5b6670');
-      if (!st.fuse) D.text(ctx, 'fusible fundido', R[0] + R[2] / 2, R[1] + 6 + R[3] * 0.16, '#ffb3a8', { size: 13 });
+      if (!st.fuse) D.text(ctx, 'fusible fundido', R[0] + R[2] / 2, R[1] + 6 + R[3] * 0.16, '#ffb3a8', { size: 14 });
       D.text(ctx, '9 V', cx, cy + 6, '#fff', { size: 22 });
       D.circle(ctx, ...tp, 7, '#d8dde1', C.ink, 2); D.circle(ctx, ...tn, 7, '#d8dde1', C.ink, 2);
       const [lx, ly] = g.pt(TERM['+'][0] - 0.55, TERM['+'][1]), [mx, my] = g.pt(TERM['-'][0] - 0.55, TERM['-'][1]);
@@ -440,7 +440,7 @@
     // en vertical no cabe arriba de la bomba: va entre la bomba y la protoboard
     const [x, y] = g === GEO.h ? [g.pt(-3.9, 3)[0], g.pt(-3.9, 3)[1] - 62] : g.pt(-1.75, 3);
     D.roundRect(ctx, x - 70, y - 18, 140, 36, 8, C.card, C.danger, 1.5);
-    D.text(ctx, 'válvula de seguridad', x, y - 8, C.danger, { size: 12 }); D.text(ctx, 'cerrada', x, y + 8, C.danger, { size: 12 });
+    D.text(ctx, 'válvula de seguridad', x, y - 9, C.danger, { size: 14, bg: true }); D.text(ctx, 'cerrada', x, y + 9, C.danger, { size: 14, bg: true });
   }
   function trayComp(type, vy) {
     const span = type === 'led' ? 1 : 2.4, u0 = -3.9 - span / 2;
