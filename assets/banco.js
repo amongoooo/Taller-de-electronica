@@ -36,10 +36,10 @@
   const RED = '#d6392b';
   // Pasos de la perilla del límite de corriente (mA), de 1 mA a 1 A: diez por cada década.
   const LIMS = [1, 10, 100].flatMap(d => [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8].map(x => Math.round(x * d * 10) / 10)).concat(1000);
-  // Lo que marca la perilla del límite: en mA (o A) en la fuente, en mL/s en la bomba.
+  // Lo que marca la perilla del límite: en mA (o A) en la fuente, en mL/s (o L/s) en la bomba.
   const limText = (i, side) => {
-    if (side === 'w') { const q = i * MLS_PER_MA; return [digits(q, 3, q < 10 ? 1 : 0), 'mL/s']; }
-    return i >= 1000 ? [digits(i / 1000, 1, 2), 'A'] : [digits(i, 3, i < 10 ? 1 : 0), 'mA'];
+    const [small, big] = side === 'w' ? ['mL/s', 'L/s'] : ['mA', 'A'], q = side === 'w' ? i * MLS_PER_MA : i;
+    return q >= 1000 ? [digits(q / 1000, 1, 2), big] : [digits(q, 3, q < 10 ? 1 : 0), small];
   };
   // Íconos de los botones de cada medidor: conector (recoger) y flechas (compactar o mostrar completo).
   const icon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -1200,7 +1200,12 @@
       ctx.restore();
       ctx.globalAlpha = a0;
     };
-    const probeText = (kind, scale, width, d) => ready(kind) ? digits(st.probe[kind].value * scale, width, d) : ' ----';
+    // Lectura y unidad de un medidor; desde 1000 mA (o mL/s) pasa a la unidad grande: 1.00 A (o L/s).
+    const probeText = (kind, scale, unit, big) => {
+      if (!ready(kind)) return [' ----', unit];
+      const v = st.probe[kind].value * scale;
+      return big && Math.abs(v) >= 999.95 ? [Sim.reading(v / 1000), big] : [Sim.reading(v), unit];
+    };
 
     function drawWater() {
       const g = b.gw, m = st.m, ctx = b.pw.begin();
@@ -1214,8 +1219,8 @@
         text: digits(st.vo * PSI_PER_V, 2, 2), unit: 'psi' });
       D.pump(ctx, g.PX, g.BOT, st.rotor, st.omega);
       drawProbe(ctx, g, 'I', 'caudal',
-        probeText('I', MLS_PER_MA, 2, 2), 'mL/s', C.water);
-      drawProbe(ctx, g, 'V', 'presión', probeText('V', PSI_PER_V, 2, 2), 'psi', C.water);
+        ...probeText('I', MLS_PER_MA, 'mL/s', 'L/s'), C.water);
+      drawProbe(ctx, g, 'V', 'presión', ...probeText('V', PSI_PER_V, 'psi'), C.water);
       drawTips(ctx, g, 'I'); drawTips(ctx, g, 'V');
     }
     function drawElectric() {
@@ -1229,8 +1234,8 @@
         text: digits(st.vo, 2, 2), unit: 'V' });
       D.source(ctx, g.PX, g.BOT);
       drawProbe(ctx, g, 'I', 'amperímetro',
-        probeText('I', 1, 2, 2), 'mA', C.charge);
-      drawProbe(ctx, g, 'V', 'voltímetro', probeText('V', 1, 2, 2), 'V', C.charge);
+        ...probeText('I', 1, 'mA', 'A'), C.charge);
+      drawProbe(ctx, g, 'V', 'voltímetro', ...probeText('V', 1, 'V'), C.charge);
       drawTips(ctx, g, 'I'); drawTips(ctx, g, 'V');
     }
 
