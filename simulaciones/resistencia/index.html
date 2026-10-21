@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021164100">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021175300">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021164100"></script>
-<script src="../../assets/banco.js?v=20261021164100"></script>
+<script src="../../assets/sim.js?v=20261021175300"></script>
+<script src="../../assets/banco.js?v=20261021175300"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -118,7 +118,7 @@
       burntResistor(ctx, g);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
       fuse(ctx, g);
-      label(ctx, g, st.R ? ohm(st.R) : '0 Ω', !st.R, true);
+      label(ctx, g, st.R ? 'resistencia' : 'cortocircuito', !st.R);   // el valor se ve en su menú
     }
   });
   function label(ctx, g, t, danger, mono) {
@@ -145,7 +145,7 @@
     ctx.lineWidth = 2.5; ctx.strokeStyle = st.heat > 0.3 && !st.blown ? '#ff7a1f' : C.ink;
     if (st.blown) { D.line(ctx, [[x - 24, y], [x - 7, y - 3]], 2.5, C.ink); D.line(ctx, [[x + 7, y + 3], [x + 24, y]], 2.5, C.ink); }
     else D.line(ctx, [[x - 24, y], [x + 24, y]], 2.5, ctx.strokeStyle);
-    D.text(ctx, st.blown ? 'fusible fundido' : 'fusible ' + mA(st.fuse), x, y + h + 18, st.blown ? C.danger : C.muted, { size: 14 });
+    D.text(ctx, st.blown ? 'fusible fundido' : 'fusible', x, y + h + 18, st.blown ? C.danger : C.muted, { size: 14 });
     if (st.breakT < 1.2) {
       ctx.globalAlpha = Math.min(1, (1.2 - st.breakT) / 0.4);
       if (st.breakT < 0.15) D.circle(ctx, x, y, 30, `rgba(255, 230, 150, ${1 - st.breakT / 0.15})`);
@@ -175,7 +175,7 @@
     for (let k = 1; k <= n; k++) ctx.lineTo(xs + (xe - xs) * k / n, y + (k === n ? 0 : (k % 2 ? -6 : 6)));
     ctx.lineWidth = 2; ctx.strokeStyle = C.muted; ctx.stroke();
     D.circle(ctx, bx, by, 8, st.blown ? C.danger : C.metal, C.ink, 2);
-    D.text(ctx, st.blown ? 'válvula cerrada' : 'válvula ' + mLs(st.fuse), x0, y + H + 16, st.blown ? C.danger : C.muted, { size: 14 });
+    D.text(ctx, st.blown ? 'válvula cerrada' : 'válvula de seguridad', x0, y + H + 16, st.blown ? C.danger : C.muted, { size: 14 });
     if (st.breakT < 1) {   // salpicadura al cerrarse de golpe
       ctx.globalAlpha = Math.min(1, (1 - st.breakT) / 0.4);
       for (const p of st.sparks) D.circle(ctx, x0 - 22 + p.x * 0.6, y + p.y * 0.6, 3, C.water);
