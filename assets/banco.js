@@ -1,5 +1,6 @@
 // Banco común de las simulaciones de agua y electricidad: dos paneles con el mismo circuito,
-// bomba y fuente enlazadas (interruptor, LED, perilla con su pantallita y medidor), manómetro/voltímetro y caudal/amperímetro
+// bomba y fuente enlazadas (interruptor, LEDs CV/CC, perillas de voltaje y de límite de corriente con sus
+// pantallitas y medidor), manómetro/voltímetro y caudal/amperímetro
 // abajo junto al controlador: el voltímetro con dos puntas (mangueras en el agua) entre dos puntos del
 // circuito y el amperímetro con una pinza (turbinita en el agua) en un punto, con cables que cuelgan,
 // e inercia. Los medidores se pueden arrastrar y cada uno tiene dos botones: recoger sus cables y
@@ -11,8 +12,11 @@
 //                     el tubo del medidor de caudal solo se llena del todo con ese caudal
 //   flowSpeed,        rapidez de las partículas en la tubería normal, por cada mA
 //   v0,               voltaje inicial de la perilla
+//   lim0,             límite de corriente inicial en mA (100 si falta)
 //   layout(g),        se llama cuando cambia el tamaño de un panel (g.side es 'w' o 'e')
-//   model(V),         devuelve { I } (mA totales) y lo que la página necesite para dibujar
+//   model(V),         devuelve { I } (mA totales) y lo que la página necesite para dibujar; V es el voltaje
+//                     que de verdad sale de la fuente (menor que el de la perilla si llegó al límite),
+//                     así que I debe crecer con V y ser finita aunque haya un corto
 //   circuit(g, m, V), tramos del circuito sin contar la fuente, para las puntas (ver más abajo);
 //                     si falta, es una sola vuelta con todo el voltaje en el centro de arriba
 //   step(dt, m),      avanza lo que se mueve (partículas, ruedas)
@@ -29,6 +33,13 @@
   const SRC = 40;   // medio ancho de la bomba (y de la fuente) sobre el cable de abajo
   const PROBE = { V: '#8b5cf6', I: '#0ea371' };   // color de cada medidor y de la región que mide
   const RED = '#d6392b';
+  // Pasos de la perilla del límite de corriente (mA), de 1 mA a 1 A: diez por cada década.
+  const LIMS = [1, 10, 100].flatMap(d => [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8].map(x => Math.round(x * d * 10) / 10)).concat(1000);
+  // Lo que marca la perilla del límite: en mA (o A) en la fuente, en mL/s (o L/s) en la bomba.
+  const limText = (i, side) => {
+    if (side === 'w') { const q = i * MLS_PER_MA; return q >= 1000 ? [digits(q / 1000, 2, 1), 'L/s'] : [digits(q, 3, 0), 'mL/s']; }
+    return i >= 1000 ? [digits(i / 1000, 1, 2), 'A'] : [digits(i, 3, i < 10 ? 1 : 0), 'mA'];
+  };
   // Íconos de los botones de cada medidor: conector (recoger) y flechas (compactar o mostrar completo).
   const icon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const PLUG = icon('<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>');
@@ -37,7 +48,7 @@
 
   Sim.bench = o => {
     const iFull = o.iFull || 12, iMax = o.iMax || iFull, flowSpeed = o.flowSpeed || 12;
-    const st = { on: false, set: o.v0 ?? 6, v: 0, tau: 1, level: Sim.ramp(), m: { I: 0 },
+    const st = { on: false, set: o.v0 ?? 6, lim: Sim.nearest(LIMS, o.lim0 ?? 100), v: 0, vo: 0, cc: false, tau: 1, level: Sim.ramp(), m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nS: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(), nPa: Sim.needle(), nPb: Sim.needle(), turb: 0,
       segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false }, show: { V: true, I: true } };
     const b = { st, VMAX, KPA_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
@@ -240,10 +251,13 @@
     };
 
     // ---------- controlador: bomba y fuente enlazadas ----------
-    // Interruptor ON/OFF a la izquierda, con su LED; la perilla con su pantallita arriba (lo que marca la
-    // perilla) y a la derecha el medidor de lo que en verdad sale (sube y baja con la inercia).
+    // Como una fuente de laboratorio: interruptor ON/OFF a la izquierda con los LEDs CV y CC; la perilla del
+    // voltaje y la del límite de corriente (en el agua, presión y caudal máximo), cada una con su pantallita
+    // arriba (lo que marca la perilla), y a la derecha el medidor de lo que en verdad sale (sube y baja con
+    // la inercia). La fuente da el voltaje de la perilla mientras la corriente no pase del límite (CV); si
+    // se pasaría, sostiene la corriente en el límite y baja el voltaje lo necesario (CC).
     const power = b.linkedButton({
-      pos: g => [g.BX + 52, g.BY + 97], cls: 'sim-power',
+      pos: g => [g.BX + 44, g.BY + 97], cls: 'sim-power',
       label: side => (st.on ? 'Apagar ' : 'Encender ') + (side === 'w' ? 'la bomba' : 'la fuente'),
       onClick: () => { st.on = !st.on; }
     });
@@ -251,14 +265,20 @@
     const syncPower = () => power.forEach(el => el.setAttribute('aria-pressed', String(st.on)));
     power.forEach(el => el.addEventListener('click', syncPower)); syncPower();
     b.linkedKnob({
-      pos: g => [g.CX, g.BY + 100], min: 0, max: VMAX, step: 0.5, value: st.set,
+      pos: g => [g.BX + 148, g.BY + 100], min: 0, max: VMAX, step: 0.5, value: st.set,
       label: side => side === 'w' ? 'Presión de la bomba' : 'Voltaje de la fuente',
       format: (v, side) => side === 'w' ? Math.round(v * KPA_PER_V) + ' kPa' : fmt(v) + ' V',
       scale: side => side === 'w' ? [['0', 0], ['60', 0.5], ['120', 1]] : [['0', 0], ['6', 0.5], ['12', 1]],
       caption: side => side === 'w' ? 'presión (kPa)' : 'voltaje (V)',
       onInput: v => { st.set = v; }
     });
-    b.knobs.pop();   // la escala de esta perilla la dibuja la caja del controlador
+    b.linkedKnob({
+      pos: g => [g.BX + 256, g.BY + 100], min: 0, max: LIMS.length - 1, step: 1, value: LIMS.indexOf(st.lim),
+      label: side => side === 'w' ? 'Caudal máximo de la bomba' : 'Límite de corriente de la fuente',
+      format: (k, side) => limText(LIMS[k], side).join(' '),
+      onInput: k => { st.lim = LIMS[k]; }
+    });
+    b.knobs.length = 0;   // las escalas de estas perillas las dibuja la caja del controlador
 
     const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
     const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
@@ -909,13 +929,22 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.placing) setPlacing(null); });
 
     // ---------- dibujo común ----------
-    const controllerBox = (ctx, g, title, fill, scale, lcd) => {
+    const controllerBox = (ctx, g, title, fill, scales, lcd, leds) => {
       if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 30, 28, 18); }   // cuello hacia el circuito
       D.roundRect(ctx, g.BX, g.BY, g.BW, g.BH, 14, fill, C.ink, 2.5);
       D.text(ctx, title, g.BX + 18, g.BY + 24, C.ink, { align: 'left', size: 15 });
-      D.knobScale(ctx, g.CX, g.BY + 100, 36, scale);
-      D.lcd(ctx, g.CX, g.BY + 34, 104, 32, ...lcd);   // lo que marca la perilla, aunque esté apagada
-      D.led(ctx, g.BX + 100, g.BY + 97, st.v > 0.05 ? 1 : 0);   // detecta presión desde 0.5 kPa (0.05 V)
+      // lo que marca cada perilla, aunque esté apagada
+      D.knobScale(ctx, g.BX + 148, g.BY + 100, 36, scales[0]);
+      D.lcd(ctx, g.BX + 148, g.BY + 34, 88, 32, ...lcd);
+      D.knobScale(ctx, g.BX + 256, g.BY + 100, 36, scales[1], 6);
+      D.lcd(ctx, g.BX + 256, g.BY + 34, 88, 32, ...limText(st.lim, g.side));
+      // CV (verde): sale el voltaje de la perilla. CC (rojo): llegó al límite y sostiene la corriente.
+      // Encienden con la salida, desde 0.5 kPa (0.05 V) adentro de la fuente.
+      const out = st.v > 0.05;
+      D.led(ctx, g.BX + 86, g.BY + 74, out && !st.cc ? 1 : 0);
+      D.text(ctx, leds[0], g.BX + 86, g.BY + 92, C.ink, { size: 10, weight: 700 });
+      D.led(ctx, g.BX + 86, g.BY + 112, out && st.cc ? 1 : 0, '#ff4a3d');
+      D.text(ctx, leds[1], g.BX + 86, g.BY + 130, C.ink, { size: 10, weight: 700 });
     };
     const knobScales = (ctx, g) => b.knobs.forEach(k => {
       const [x, y] = k.pos(g);
@@ -1151,8 +1180,9 @@
       o.drawW(ctx, g, m);
       knobScales(ctx, g);
       D.speedLegend(ctx, ...g.LEG);
-      controllerBox(ctx, g, 'BOMBA', C.metal, [['0', 0], ['120', 1]], [digits(st.set * KPA_PER_V, 3, 0), 'kPa']);
-      D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: st.nS.x, color: C.water, lcdW: 104,
+      controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['120', 1]], [['10', 0], ['10k', 1]]],
+        [digits(st.set * KPA_PER_V, 3, 0), 'kPa'], ['presión', 'caudal']);
+      D.meter(ctx, g.BX + g.BW - 62, g.BY + 52, { r: 30, frac: st.nS.x, color: C.water, lcdW: 92,
         text: digits(st.rpm, 4, 0), unit: 'rpm' });
       D.pump(ctx, g.PX, g.BOT, st.rotor, st.omega);
       drawProbe(ctx, g, 'I', 'caudal',
@@ -1165,9 +1195,10 @@
       drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       o.drawE(ctx, g, m);
       knobScales(ctx, g);
-      controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [['0', 0], ['12', 1]], [digits(st.set, 2, 1), 'V']);
-      D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: st.nV.x, color: C.charge, lcdW: 104,
-        text: digits(st.v, 2, 2), unit: 'V' });
+      controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
+        [digits(st.set, 2, 1), 'V'], ['CV', 'CC']);
+      D.meter(ctx, g.BX + g.BW - 62, g.BY + 52, { r: 30, frac: st.nV.x, color: C.charge, lcdW: 92,
+        text: digits(st.vo, 2, 2), unit: 'V' });
       D.source(ctx, g.PX, g.BOT);
       drawProbe(ctx, g, 'I', 'amperímetro',
         probeText('I', 1, 2, 2), 'mA', C.charge);
@@ -1248,13 +1279,23 @@
       }
       if (moved) { b.pw.replace(); b.pe.replace(); }
     };
+    // Voltaje que sale con el de adentro Vs: el mismo si la corriente no pasa del límite; si pasaría,
+    // el que da justo el límite (la corriente crece con el voltaje, así que se busca partiendo a la mitad).
+    const regulate = Vs => {
+      const over = V => o.model(V).I > st.lim;
+      if (Vs <= 0 || !over(Vs)) return [Math.max(0, Vs), false];
+      let lo = 0, hi = Vs;
+      for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (over(mid)) hi = mid; else lo = mid; }
+      return [lo, true];
+    };
     b.start = () => Sim.run(dt => {
       st.v = st.level.step(st.on ? st.set : 0, st.tau, dt);
+      [st.vo, st.cc] = regulate(st.v);
       smooth.t += dt;
-      st.m = inertia(st.v);
+      st.m = inertia(st.vo);
       const tn = Math.min(0.15, st.tau * 0.15);                    // las agujas apenas se atrasan
-      st.nV.step(st.v / VMAX, tn, dt);
-      st.segs = buildSegs(b.gw, st.m, st.v);
+      st.nV.step(st.vo / VMAX, tn, dt);
+      st.segs = buildSegs(b.gw, st.m, st.vo);
       const before = JSON.stringify(st.clamps);
       st.probe = measure(st.segs);
       if (JSON.stringify(st.clamps) !== before) { b.pw.replace(); b.pe.replace(); }
