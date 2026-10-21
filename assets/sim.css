@@ -86,14 +86,25 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
 /* Barra de colores de las partículas, arriba a la derecha de cada panel, entre lo que marca cada punta
    (el modo se elige en la sección Ver). Su esquina de arriba a la derecha va en el punto dado. */
-.sim-layer > .sim-colors { transform: translate(-100%, 0); pointer-events: none; }
-.sim-colors { width: max(150px, calc(var(--s, 1) * 190px)); font-size: max(11px, calc(var(--s, 1) * 13px)); color: var(--muted); }
-.sim-colors .scale { display: flex; align-items: center; gap: .4em; margin-top: .1em; font-family: var(--font-mono); white-space: nowrap; }
+.sim-layer > .sim-colors { transform: translate(-100%, 0); }
+.sim-colors {
+  display: flex; align-items: center; justify-content: flex-end; gap: .6em; width: max(180px, calc(var(--s, 1) * 222px));
+  padding: .3em .2em; border-radius: 8px; cursor: pointer; touch-action: none; user-select: none;
+  font-size: max(11px, calc(var(--s, 1) * 13px)); color: var(--muted);
+}
+.sim-colors:hover { background: var(--bg); }
+.sim-colors .scale { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .4em; font-family: var(--font-mono); white-space: nowrap; }
 .sim-colors .bar {
   flex: 1; height: .75em; border-radius: 2px;
   background: linear-gradient(90deg, hsl(215 85% 50%), hsl(179 85% 50%), hsl(143 85% 50%), hsl(108 85% 50%), hsl(72 85% 50%), hsl(36 85% 50%), hsl(0 85% 50%));
 }
+.sim-colors .mode { display: none; font-weight: 700; }
 .sim-colors[data-bar="false"] .scale { display: none; }
+.sim-colors[data-bar="false"] .mode { display: inline; }
+/* Un puntito por modo: lleno el elegido. Se pueden tocar. */
+.sim-colors .dots { flex: none; display: flex; gap: .35em; }
+.sim-colors .dots i { width: .65em; height: .65em; border-radius: 50%; border: 1.5px solid var(--muted); }
+.sim-colors .dots i.on { background: var(--water); border-color: var(--water); }
 
 /* Interruptor de encendido (bomba, fuente, pila, generador): palanca que sube a ON y baja a OFF. */
 .sim-power {
@@ -281,7 +292,10 @@ input[type="range"].snap-b::-moz-range-thumb { animation: sim-snap-b .2s ease-ou
   font-weight: 700; font-size: 14px; border: 2px solid var(--water); color: var(--water); background: var(--card);
   transition: background .15s, box-shadow .15s;
 }
-span.sim-go { display: none; }
+span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
+/* Mientras quedan pasos, la flecha va al paso y dice cuál ("Paso 2"). */
+.sim-go .stp { white-space: nowrap; }
+.sim-go .stp:empty, .sim-go[data-step="true"] .n, .sim-go[data-step="true"] .name { display: none; }
 .sim-go.next { flex-direction: row-reverse; padding: 0 8px 0 12px; }
 .sim-go:hover { background: var(--water-soft); }
 .sim-go .arr svg { display: block; width: 18px; height: 18px; }
@@ -458,12 +472,12 @@ span.sim-go { display: none; }
 .sim-tip.on { opacity: 1; }
 
 /* ¿Qué se toca?: todo lo que se toca, marcado con el color de su acción y el nombre de la acción. */
-.sim-page.show-acts .sim-layer > :not([hidden]):not(.ring):not(.jack):not(.shy):not(.sim-colors):not(.pb-anchor) {
+.sim-page.show-acts .sim-layer > :not([hidden]):not(.ring):not(.jack):not(.shy):not(.pb-anchor) {
   outline: 3px solid var(--act); outline-offset: 3px; border-radius: 12px; animation: sim-acts 1.1s ease-in-out infinite alternate;
   background-color: color-mix(in srgb, var(--act) 10%, transparent);
 }
 .sim-page.show-acts .sim-layer > .knob, .sim-page.show-acts .sim-layer > .sim-clamp { border-radius: 50% !important; }
-.sim-page.show-acts .sim-layer > [data-act-name]:not([hidden]):not(.ring):not(.jack):not(.shy):not(.sim-colors):not(.pb-anchor)::after {
+.sim-page.show-acts .sim-layer > [data-act-name]:not([hidden]):not(.ring):not(.jack):not(.shy):not(.pb-anchor)::after {
   content: attr(data-act-name); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
   padding: 1px 7px; border-radius: 999px; background: var(--act); color: #fff;
   font: 700 11px/1.5 var(--font-body); letter-spacing: .02em; white-space: nowrap; pointer-events: none; z-index: 3;
@@ -519,7 +533,7 @@ span.sim-go { display: none; }
     padding: 8px max(10px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px));
     background: var(--card); border-top: 1px solid var(--line);
   }
-  span.sim-go { display: block; visibility: hidden; width: 36px; }
+  span.sim-go, .sim-go.none:not([data-step="true"]) { display: block; visibility: hidden; width: 36px; }
   .sim-go .name { display: none; }
   .sim-stage { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
 }
