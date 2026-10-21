@@ -698,9 +698,15 @@
   // Nombre corto de un control para su globito: lo que dice antes de los dos puntos.
   const tipName = e => (e.getAttribute('aria-label') || e.textContent || '').split(':')[0].trim();
 
-  // Barra: ← · título · pasos · [vista · simulación anterior y siguiente] · ¿Qué se toca? · Controles.
-  // En el celular vertical, lo de en medio ([…]) baja a una barra pegada abajo, al alcance del pulgar.
+  // Barra en tres zonas: dónde estoy (← · título con «Simulación N de 9» · pasos con nombre), qué miro
+  // (vista · ¿Qué se toca? · Controles) y a dónde voy ([‹ · Siguiente ›], un solo botón principal que dice
+  // a dónde lleva). En el celular vertical, [‹ · dónde estoy · Siguiente ›] baja a una barra pegada abajo,
+  // al alcance del pulgar, y la vista queda como pestañas Agua | Electricidad debajo del título.
   const foot = bar && el('div', 'sim-foot');
+  // Lo de adentro de una flecha: la de atrás es solo la flecha; la de adelante dice a dónde lleva
+  // («Paso 2 · La fuente» o «Siguiente · 4 Resistencias…»).
+  Sim.goHTML = (cls, what, name) => cls === 'prev' ? `<span class="arr">${chev(-1)}</span>`
+    : `<span class="lbl"><span class="stp">${what}</span><span class="name"> · ${name}</span></span><span class="arr">${chev(1)}</span>`;
   Sim.ORDER = [
     ['voltaje-presion', 'Voltaje y corriente'],
     ['como-medir', 'Cómo medir'],
@@ -715,15 +721,23 @@
   if (foot) {
     const m = /\/simulaciones\/([^/]+)\//.exec(location.pathname);
     const i = m ? Sim.ORDER.findIndex(s => s[0] === m[1]) : -1;
+    const N = Sim.ORDER.length;
     const link = (j, cls) => {
       const s = i >= 0 && Sim.ORDER[j];
       if (!s) return `<span class="sim-go ${cls}" aria-hidden="true"></span>`;
       const what = (cls === 'prev' ? 'Simulación anterior' : 'Siguiente simulación') + `: ${j + 1}. ${s[1]}`;
-      return `<a class="sim-go ${cls}" href="../${s[0]}/" title="${what}" aria-label="${what}">` +
-        `<span class="arr">${chev(cls === 'prev' ? -1 : 1)}</span><span class="n">${j + 1}</span><span class="name">${s[1]}</span></a>`;
+      return `<a class="sim-go ${cls}" href="../${s[0]}/" title="${what}" aria-label="${what}">` + Sim.goHTML(cls, 'Siguiente', `${j + 1} ${s[1]}`) + '</a>';
     };
-    foot.innerHTML = link(i - 1, 'prev') + link(i + 1, 'next');
-    foot.setAttribute('role', 'navigation'); foot.setAttribute('aria-label', 'Vista y simulaciones');
+    foot.innerHTML = link(i - 1, 'prev') +
+      `<span class="sim-where" aria-live="polite"><span class="k">${i >= 0 ? `Simulación ${i + 1} de ${N}` : ''}</span><b class="nm"></b></span>` +
+      link(i + 1, 'next');
+    foot.setAttribute('role', 'navigation'); foot.setAttribute('aria-label', 'Pasos y simulaciones');
+    // El título dice cuál es de las N, así que ningún número queda suelto.
+    const h1 = bar.querySelector('h1');
+    if (h1 && i >= 0) {
+      const t = el('div', 'sim-title', `<span class="of">Simulación ${i + 1} de ${N}</span>`);
+      h1.replaceWith(t); t.appendChild(h1);
+    }
     bar.appendChild(foot);
   }
 
@@ -747,7 +761,13 @@
     help.setAttribute('aria-label', '¿Qué se toca? Marca todo lo que se puede tocar');
     const btn = el('button', 'sim-ctl-btn', svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>') + '<span class="t">Controles</span>');
     btn.type = 'button'; btn.setAttribute('aria-controls', 'simSide'); btn.setAttribute('aria-label', 'Controles');
-    bar.append(help, btn);
+    bar.insertBefore(help, foot && foot.parentNode === bar ? foot : null);
+    bar.insertBefore(btn, foot && foot.parentNode === bar ? foot : null);
+    // En el celular, ¿Qué se toca? va dentro de la hoja de controles (arriba hay poco lugar).
+    const help2 = el('button', 'sim-side-help', '<span class="q">?</span> ¿Qué se toca?');
+    help2.type = 'button';
+    box.querySelector('.sim-side-hd').insertBefore(help2, box.querySelector('.sim-side-hd .x'));
+    help2.addEventListener('click', () => { setSheet(false); help.click(); });
 
     // col: columna fija (se puede esconder, y se recuerda); sheet: hoja que se abre y se cierra.
     let open = store.get('sim-side', ['0', '1'], '1') === '1';
@@ -935,7 +955,7 @@
       return g;
     };
     const segs = [make()];
-    if (foot) foot.insertBefore(segs[0], foot.querySelector('.next'));
+    if (bar) bar.insertBefore(segs[0], bar.querySelector('.sim-help-btn') || (foot && foot.parentNode === bar ? foot : null));
     if (Sim.side) segs.push(Sim.side.row('ver', 'Qué se ve', make()).lastChild);
     const update = () => {
       stage.dataset.view = view; Sim.view = view;
@@ -949,64 +969,59 @@
 
   // Para las páginas que van apareciendo de a poco: steps es una lista de nombres y go(k) se llama
   // con el paso elegido (de 0 a steps.length − 1). El paso queda en la dirección (#paso-2), así que
-  // se puede recargar o compartir en ese paso. Va en la barra, junto al título.
+  // se puede recargar o compartir en ese paso. Va en la barra, junto al título: un segmento con su
+  // nombre por paso (se toca para ir a él). Para avanzar y regresar están las flechas de la derecha.
   Sim.steps = (steps, go) => {
     const n = steps.length;
     const wrap = el('div', 'sim-steps');
-    wrap.innerHTML =
-      '<button type="button" class="step prev" aria-label="Paso anterior">' + chev(-1) + '</button>' +
-      '<div class="body"><span class="num" aria-live="polite"></span><div class="segs"></div></div>' +
-      '<button type="button" class="step next" aria-label="Paso siguiente">' + chev(1) + '</button>';
-    const prev = wrap.querySelector('.prev'), next = wrap.querySelector('.next'), num = wrap.querySelector('.num');
+    wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', 'Pasos');
     const segs = steps.map((name, j) => {
-      const b = el('button', 'seg');
+      const b = el('button', 'seg', `<i></i><span class="t"><b>${j + 1}</b><span class="name"> · ${name}</span></span>`);
       b.type = 'button'; b.title = `Paso ${j + 1}: ${name}`;
       b.setAttribute('aria-label', `Ir al paso ${j + 1}: ${name}`);
       b.addEventListener('click', () => set(j, true));
-      wrap.querySelector('.segs').appendChild(b);
+      wrap.appendChild(b);
       return b;
     });
+    const where = foot && foot.querySelector('.sim-where');
     const fromHash = () => { const m = /^#paso-(\d+)$/.exec(location.hash); return m ? Math.min(n, Math.max(1, +m[1])) - 1 : 0; };
     let k = -1;
     const set = (j, push) => {
       if (j === k) return;
       k = j;
-      num.innerHTML = `<b>${k + 1}/${n}</b> <span class="name">${steps[k]}</span>`;
       segs.forEach((b, i) => { b.dataset.on = String(i <= k); b.toggleAttribute('aria-current', i === k); });
-      prev.disabled = k === 0; next.disabled = k === n - 1;
+      if (where) { where.querySelector('.k').textContent = `Paso ${k + 1} de ${n}`; where.querySelector('.nm').textContent = steps[k]; }
       if (foot) foot.dataset.last = String(k === n - 1);
       syncGo();
       if (push) history.replaceState(null, '', k ? `#paso-${k + 1}` : location.pathname + location.search);
       go(k);
     };
-    prev.addEventListener('click', () => set(Math.max(0, k - 1), true));
-    next.addEventListener('click', () => set(Math.min(n - 1, k + 1), true));
-    // Las flechas de simulación (abajo en el celular) primero recorren los pasos: mientras quede un paso
-    // de ese lado van a él, y luego a la otra simulación. Si no hay simulación anterior, la flecha solo
-    // aparece mientras haya un paso atrás.
+    // Las flechas de la derecha (abajo en el celular) primero recorren los pasos: mientras quede un paso
+    // de ese lado van a él, y luego a la otra simulación. Si no hay simulación de ese lado, la flecha solo
+    // aparece mientras haya un paso.
     const gos = foot ? ['prev', 'next'].map((cls, i) => {
       let a = foot.querySelector('.sim-go.' + cls);
       if (a.tagName === 'SPAN') {
-        const b = el('a', 'sim-go ' + cls + ' none', `<span class="arr">${chev(i ? 1 : -1)}</span>`);
+        const b = el('a', 'sim-go ' + cls + ' none', Sim.goHTML(cls, '', ''));
         b.href = '#'; a.replaceWith(b); a = b;
       }
-      a.insertAdjacentHTML('beforeend', '<span class="stp"></span>');
       const d = i ? 1 : -1;
       a.addEventListener('click', e => { const j = k + d; if (j >= 0 && j < n) { e.preventDefault(); set(j, true); } else if (a.classList.contains('none')) e.preventDefault(); });
-      return { a, d, title: a.title };
+      const stp = a.querySelector('.stp'), nm = a.querySelector('.name');
+      return { a, d, title: a.title, stp, nm, stp0: stp && stp.textContent, nm0: nm && nm.textContent };
     }) : [];
     function syncGo() {
-      gos.forEach(({ a, d, title }) => {
+      gos.forEach(({ a, d, title, stp, nm, stp0, nm0 }) => {
         const j = k + d, step = j >= 0 && j < n;
         a.dataset.step = String(step);
-        a.querySelector('.stp').textContent = step ? `Paso ${j + 1}` : '';
+        if (stp) { stp.textContent = step ? `Paso ${j + 1}` : stp0; nm.textContent = step ? ` · ${steps[j]}` : nm0; }
         const t = step ? `${d > 0 ? 'Paso siguiente' : 'Paso anterior'}: ${j + 1}. ${steps[j]}` : title;
         if (t) { a.title = t; a.setAttribute('aria-label', t); }
       });
     }
     window.addEventListener('hashchange', () => set(fromHash(), false));
-    const h1 = bar.querySelector('h1');
-    bar.insertBefore(wrap, h1.nextSibling);
+    const after = bar.querySelector('.sim-title') || bar.querySelector('h1');
+    bar.insertBefore(wrap, after.nextSibling);
     set(fromHash(), false);
   };
 
