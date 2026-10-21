@@ -131,11 +131,13 @@
     ctx.lineCap = 'round'; path(pts); ln(3.6, C.water);
   };
   // Puntos que avanzan por el recorrido; phase crece con la corriente.
+  // En modo de color por voltaje o corriente (Sim.colorMode) cada punto toma el color de donde está.
   D.flow = (ctx, pts, phase, col, { gap = 30, r = 4.5 } = {}) => {
-    const L = D.len(pts), off = ((phase % gap) + gap) % gap;
+    const L = D.len(pts), off = ((phase % gap) + gap) % gap, byField = Sim.byField();
     ctx.fillStyle = col;
     for (let d = off, i = 0; d < L; d += gap, i++) {
       const [x, y] = D.pointAt(pts, d), [jx, jy] = Sim.jitter(x, y, i);
+      if (byField) ctx.fillStyle = Sim.particleColor(x, y);
       ctx.beginPath(); ctx.arc(x + jx, y + jy, r, 0, Math.PI * 2); ctx.fill();
     }
   };
@@ -377,6 +379,19 @@
   // Dentro de la tubería las del centro van más rápido que las de las orillas, como en un tubo real.
   // El color indica la rapidez: azul lento, rojo rápido.
   Sim.speedColor = t => `hsl(${Math.round(215 - 215 * Math.max(0, Math.min(1, t)))} 85% 50%)`;
+  // Modo de color de las partículas (se recuerda en este navegador): 'v' rapidez, 'p' presión (voltaje)
+  // en ese punto del circuito, 'q' caudal (corriente) que pasa por ese tramo. Para 'p' y 'q' el banco
+  // pone en Sim.field(x, y) → [presión, caudal], cada uno de 0 a 1; sin él siempre es por rapidez.
+  Sim.COLOR_MODES = ['v', 'p', 'q'];
+  Sim.colorMode = (() => { try { const v = localStorage.getItem('sim-color'); return Sim.COLOR_MODES.includes(v) ? v : 'v'; } catch (e) { return 'v'; } })();
+  Sim.setColorMode = k => { Sim.colorMode = k; try { localStorage.setItem('sim-color', k); } catch (e) {} };
+  Sim.field = null;
+  Sim.byField = () => Sim.colorMode !== 'v' && !!Sim.field;
+  // Color de una partícula en (x, y); speed es su rapidez de 0 a 1 (sin ella, null en modo rapidez).
+  Sim.particleColor = (x, y, speed) => {
+    if (!Sim.byField()) return speed == null ? null : Sim.speedColor(speed);
+    return Sim.speedColor(Sim.field(x, y)[Sim.colorMode === 'p' ? 0 : 1]);
+  };
   // Partículas del agua: en pantallas chicas (Sim.compact) van menos y más grandes para que se distingan.
   Sim.compact = false;
   Sim.water = (pts, halfAt = () => Sim.PIPE, {
@@ -421,19 +436,19 @@
           const [d, h] = locate(p.v);
           const [x, y, tx, ty] = D.frameAt(pts, d);
           const off = p.f * h, [jx, jy, js] = Sim.jitter(x, y, i);
-          ctx.fillStyle = Sim.speedColor(Math.max(Math.abs(rate * p.u / h), js) / vmax);
+          ctx.fillStyle = Sim.particleColor(x, y, Math.max(Math.abs(rate * p.u / h), js) / vmax);
           ctx.beginPath(); ctx.arc(x - ty * off + jx, y + tx * off + jy, r, 0, Math.PI * 2); ctx.fill();
         });
       }
     };
   };
-  // Barra de colores para leer la rapidez del agua.
-  D.speedLegend = (ctx, x, y, w) => {
+  // Barra de colores para leer la rapidez del agua (o lo que marque el modo de color: lo, hi en las puntas).
+  D.speedLegend = (ctx, x, y, w, lo = 'lento', hi = 'rápido') => {
     const g = ctx.createLinearGradient(x, 0, x + w, 0);
     for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, Sim.speedColor(i / 6));
     ctx.fillStyle = g; ctx.fillRect(x, y - 5, w, 10);
-    D.text(ctx, 'lento', x, y + 16, C.muted, { align: 'left', size: 13, weight: 400 });
-    D.text(ctx, 'rápido', x + w, y + 16, C.muted, { align: 'right', size: 13, weight: 400 });
+    D.text(ctx, lo, x, y + 16, C.muted, { align: 'left', size: 13, weight: 400 });
+    D.text(ctx, hi, x + w, y + 16, C.muted, { align: 'right', size: 13, weight: 400 });
   };
 
   // ---------- inercia ----------
