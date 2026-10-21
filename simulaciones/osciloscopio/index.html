@@ -74,7 +74,7 @@
 
   const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, fi: 10, amp: 6, off: 0, wave: 'sine', led: true,
     ph: 0, T: 0, vi: 2, ti: 8, trig: true, probe: [300, 980], side: [-1, -1],
-    rotor: 0, rotorOm: 0, wheel: 0, wheelOm: 0, glow: 0, charge: 0, shake: 0,
+    rotor: 0, rotorOm: 0, wheel: 0, wheelOm: 0, glow: 0, shut: 0, charge: 0, shake: 0,
     recs: [], sweep: { ts: 0, done: [] }, traces: [], beam: null };
 
   // Circuito: el generador empuja la corriente por la resistencia y el LED (si está puesto).
@@ -145,13 +145,13 @@
     if (r.band) return r.band;
     const N = 96, v = [];
     for (let j = 0; j < N; j++) v.push(sigPh(r, j / N));
-    const min = Math.min(...v), max = Math.max(...v), mid = (min + max) / 2;
+    const min = Math.min(...v), max = Math.max(...v), mid = (min + max) / 2, mean = v.reduce((a, x) => a + x, 0) / N;
     let tp = null;
     if (max - min > 0.05) for (let j = 0; j < N; j++) {
       const a = v[(j + N - 1) % N], b = v[j];
       if (a < mid && b >= mid) { tp = (j - 1 + (mid - a) / (b - a)) / N; break; }
     }
-    return (r.band = { min, max, mid, tp });
+    return (r.band = { min, max, mid, mean, tp });
   };
 
   // Barrido: el haz cruza la pantalla en 10 divisiones. Con disparo, cada barrido empieza en el mismo
@@ -207,12 +207,15 @@
   const advance = dt => {
     st.level = st.ramp.step(st.on ? 1 : 0, st.tau, dt);
     const f = freqAt(st.fi), n = Math.max(1, Math.min(4000, Math.ceil(dt * f * 32))), h = dt / n;
-    let q = 0, qa = 0, peak = 0, last = 0;
+    let q = 0, qa = 0, peak = 0, last = 0, back = 0;
     for (let k = 0; k < n; k++) {
       const e = st.level * (st.amp * WAVES[st.wave](st.ph + f * h * (k + 0.5)) + st.off);
       const I = model(e, st.led).I;
       q += I * h; qa += Math.abs(I) * h; peak = Math.max(peak, Math.abs(I)); last = I;
+      if (e < -0.05) back += h;
     }
+    // Con la presión al revés la compuerta de la rueda se cierra; se avisa cuando pasa la mayor parte del tiempo.
+    st.shut += (back / dt - st.shut) * Math.min(1, dt / 0.12);
     st.ph = frac(st.ph + f * dt);
     st.T += dt;
     const sgn = last < 0 ? -1 : 1, rad = RPM_PER_MA / 60 * 2 * Math.PI, wrad = Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI;
@@ -512,12 +515,20 @@
       D.arrow(ctx, sx + sw + 2, yt, Math.PI, 6, w ? PURPLE : '#c4b0ff');
     }
     // Lecturas: escalas arriba y mediciones abajo.
+    // Cada lectura lleva un fondo del color de la pantalla para que la traza no la tape.
     const k = 1, u = unitV(g.side), opt = { size: 13, font: Sim.MONO, weight: 500 };
-    D.text(ctx, `${fmt(vdiv * k, vdiv * k < 1 ? 1 : 0)} ${u}/div`, sx + 8, sy + 14, txt, { ...opt, align: 'left' });
-    D.text(ctx, `${tText(TDIV[st.ti])}/div`, sx + sw - 8, sy + 14, txt, { ...opt, align: 'right' });
-    const pp = b ? b.max - b.min : 0;
-    D.text(ctx, pp > 0.05 ? `f ${fText(r.f)}` : 'f --', sx + 8, sy + sh - 14, txt, { ...opt, align: 'left' });
-    D.text(ctx, `pp ${fmt(pp * k, 1)} ${u}`, sx + sw - 8, sy + sh - 14, txt, { ...opt, align: 'right' });
+    const read = (t, x, y, align) => {
+      D.text(ctx, t, -999, -999, txt, { ...opt, align });   // solo para fijar la letra y medir
+      const tw = ctx.measureText(t).width, x0 = align === 'left' ? x : align === 'right' ? x - tw : x - tw / 2;
+      ctx.globalAlpha = 0.85; D.roundRect(ctx, x0 - 4, y - 9, tw + 8, 18, 4, w ? '#fffdf5' : Sim.LCD.bg); ctx.globalAlpha = 1;
+      D.text(ctx, t, x, y, txt, { ...opt, align });
+    };
+    read(`${fmt(vdiv * k, vdiv * k < 1 ? 1 : 0)} ${u}/div`, sx + 8, sy + 14, 'left');
+    read(`${tText(TDIV[st.ti])}/div`, sx + sw - 8, sy + 14, 'right');
+    const pp = b ? b.max - b.min : 0, mean = b && Math.abs(b.mean) >= 0.05 ? b.mean : 0;
+    read(pp > 0.05 ? `f ${fText(r.f)}` : 'f --', sx + 8, sy + sh - 14, 'left');
+    read(`prom ${fmt(mean * k, 1)} ${u}`, sx + sw / 2, sy + sh - 14, 'center');   // promedio: negativo si la señal está abajo del cero
+    read(`pp ${fmt(pp * k, 1)} ${u}`, sx + sw - 8, sy + sh - 14, 'right');
     // Perillas y bornes
     D.knobScale(ctx, g.SX + 500, g.SY + 110, 36, VDIV.map((v, i) => [String(fmt(v * k, v * k < 1 ? 1 : 0)), i / (VDIV.length - 1)]), VDIV.length - 1);
     D.text(ctx, `${u}/div`, g.SX + 500, g.SY + 168, C.muted, { size: 14 });
@@ -533,7 +544,11 @@
     D.pipe(ctx, g.loop);
     D.narrow(ctx, g.XR, g.TOP, HN);
     water.draw(ctx);
-    if (st.led) D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, label: 'rueda' });
+    if (st.led) {
+      const a = clamp01((st.shut - 0.5) * 3);   // con la presión al revés: compuerta cerrada
+      D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, label: a > 0.5 ? '' : 'rueda' });
+      if (a > 0.5) { ctx.globalAlpha = a; D.text(ctx, 'compuerta cerrada', g.XL, g.TOP + 48, C.danger, { size: 15 }); ctx.globalAlpha = 1; }
+    }
     D.speedLegend(ctx, g.X0 + 30, g.BOT - 46, 150);
     drawScope(ctx, g);
     drawGen(ctx, g);
