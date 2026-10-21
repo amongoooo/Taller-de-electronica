@@ -14,6 +14,7 @@
   font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 4px 12px; border-radius: 999px;
   border: 2px solid var(--line); background: var(--bg); color: var(--ink);
 }
+.pb-anchor { width: max(26px, calc(var(--s, 1) * 44px)); aspect-ratio: 1; border-radius: 50%; border: 2px solid transparent; pointer-events: none !important; }
 .pb-btn[aria-pressed="true"] { border-color: var(--water); background: var(--water-soft); color: var(--water); }
 @media (max-width: 600px) { .pb-btn { font-size: 13px; padding: 4px 9px; } }
 </style>
@@ -61,9 +62,10 @@
   const POWER = [-3.9, 6.75];
   const TRAY = [-5.6, 7.7, -2.2, 14.6];
   const TRAYITEMS = [['wire', 8.7], ['res', 11.05], ['led', 13.4]];
-  const V0 = 9, RINT = 1, FUSE = 1, VF = 1.9, RD = 15, IMAX = 30, LED_K = 5.8, KPA_PER_V = 10;
+  const V0 = 9, RINT = 1, FUSE = 1, RD = 15, IMAX = 30, LED_K = 5.8, KPA_PER_V = 10;
   const VIOLET = '#8b5cf6', OKC = '#0ea371', REDW = '#d6392b';
-  const RVALUES = [100, 220, 470, 1000, 10000];
+  const RVALUES = Sim.series(100, 10000);   // valores comunes (serie E12)
+  const vf = k => Sim.led(k.led).vf;        // cada color de LED necesita otro voltaje
   const COLORS = ['#1f9d55', '#e0a400', '#2563eb', '#ea7a1a', '#d6392b', '#15212a'];
 
   const GEO = {
@@ -85,7 +87,7 @@
   try { st.inside = localStorage.getItem('pb-dentro') !== '0'; } catch (e) {}
   const legUV = l => l.term ? TERM[l.term] : l.c != null ? [l.c, ROWV[l.r]] : [l.u, l.v];
   const legNode = l => l.term ? (l.term === '+' ? 'bp' : 'bn') : l.c != null ? group(l.c, l.r) : null;
-  const make = (type, a, b, extra = {}) => ({ id: st.nextId++, type, a, b, I: 0, on: false, heat: 0, burnt: false, ang: 0, breakT: 9, R: 470, ...extra });
+  const make = (type, a, b, extra = {}) => ({ id: st.nextId++, type, a, b, I: 0, on: false, heat: 0, burnt: false, ang: 0, breakT: 9, R: 470, led: 'rojo', ...extra });
   const hole = (c, r) => ({ c, r });
   const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(0, 1), { color: '#15212a' })];
   const example = () => {
@@ -120,7 +122,7 @@
 
   // ---------- el circuito: análisis de nodos ----------
   // Cada tira de 5 agujeros y cada riel es un nodo. La pila es una fuente de 9 V con 1 Ω por dentro
-  // y un fusible de 1 A; el LED necesita 1,9 V y tiene 15 Ω; los cables, 0,05 Ω.
+  // y un fusible de 1 A; el LED necesita el voltaje de su color (1,8 V el rojo) y tiene 15 Ω; los cables, 0,05 Ω.
   function solve() {
     const idx = new Map(), names = [];
     const id = n => { if (n === 'bn') return -1; if (!idx.has(n)) { idx.set(n, names.length); names.push(n); } return idx.get(n); };
@@ -141,14 +143,14 @@
       for (let i = 0; i < n; i++) G[i][i] += 1e-9;
       if (src) { add(0, -1, 1 / RINT); inj(0, V0 / RINT); }
       for (const e of els) {
-        if (e.k.type === 'led') { if (e.k.on) { add(e.i, e.j, 1 / RD); inj(e.i, VF / RD); inj(e.j, -VF / RD); } }
+        if (e.k.type === 'led') { if (e.k.on) { add(e.i, e.j, 1 / RD); inj(e.i, vf(e.k) / RD); inj(e.j, -vf(e.k) / RD); } }
         else add(e.i, e.j, 1 / (e.k.type === 'res' ? e.k.R : 0.05));
       }
       V = gauss(G, n);
       let changed = false;
       for (const e of els) if (e.k.type === 'led') {
         const dv = (e.i >= 0 ? V[e.i] : 0) - (e.j >= 0 ? V[e.j] : 0);
-        const on = e.k.on ? dv - VF > -1e-9 : dv > VF;
+        const on = e.k.on ? dv - vf(e.k) > -1e-9 : dv > vf(e.k);
         if (on !== e.k.on) { e.k.on = on; changed = true; }
       }
       if (!changed) break;
@@ -156,7 +158,7 @@
     const v = i => i >= 0 ? V[i] : 0;
     for (const e of els) {
       const dv = v(e.i) - v(e.j);
-      e.k.I = 1000 * (e.k.type === 'led' ? (e.k.on ? (dv - VF) / RD : 0) : dv / (e.k.type === 'res' ? e.k.R : 0.05));
+      e.k.I = 1000 * (e.k.type === 'led' ? (e.k.on ? (dv - vf(e.k)) / RD : 0) : dv / (e.k.type === 'res' ? e.k.R : 0.05));
     }
     st.Ibat = src ? 1000 * (V0 - v(0)) / RINT : 0;
     st.V = { bn: 0 };
@@ -341,14 +343,15 @@
       const o = 19 + 20 * Math.abs(nx);   // parada, la etiqueta necesita más espacio a un lado
       if (!ghost) D.text(ctx, ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, C.ink, { size: 12, font: Sim.MONO, weight: 500 });
     } else if (k.type === 'led') {
-      const glowK = k.burnt ? 0 : Math.min(1, k.I / 20);
+      const glowK = k.burnt ? 0 : Math.min(1, k.I / 20), [cr, cg, cb] = Sim.led(k.led).rgb;
+      const tone = (f, w) => `rgb(${[cr, cg, cb].map(c => Math.round((c + (255 - c) * w) * f)).join(', ')})`;   // más claro (w) o más oscuro (f)
       if (water) {
         D.line(ctx, [A, B], 14, C.pipe); D.line(ctx, [A, B], 8, C['water-soft']);
         D.circle(ctx, ...M, 15, C.metal, k.burnt ? C.danger : C.ink, 2);
         D.circle(ctx, ...M, 11, C['water-soft']);
         if (!k.burnt) D.rotor(ctx, ...M, 9, k.ang, k.I * Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI, 4, C.ink);
         else D.rotor(ctx, ...M, 4, 0.5, 0, 4, C.muted);
-        D.circle(ctx, ...M, 2.5, C.ink);
+        D.circle(ctx, ...M, 3.5, `rgb(${cr}, ${cg}, ${cb})`, C.ink, 1.5);   // el color del LED
         // flecha: el único sentido en que la compuerta deja pasar el agua (de la pata + a la −)
         const dv = (st.V[legNode(k.a)] ?? 0) - (st.V[legNode(k.b)] ?? 0);
         const blocked = !k.burnt && dv < -0.5;
@@ -362,13 +365,13 @@
         D.line(ctx, [M, B], 2.5, '#8d969d');
         if (glowK > 0) {
           const gr = ctx.createRadialGradient(...M, 4, ...M, 46);
-          gr.addColorStop(0, `rgba(255, 60, 40, ${0.8 * glowK})`); gr.addColorStop(1, 'rgba(255, 60, 40, 0)');
+          gr.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${0.8 * glowK})`); gr.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
           ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(...M, 46, 0, Math.PI * 2); ctx.fill();
         }
-        D.circle(ctx, ...M, 13, k.burnt ? '#5b5f63' : glowK > 0 ? `rgb(255, ${Math.round(150 - 90 * glowK)}, ${Math.round(130 - 90 * glowK)})` : '#e8a59c', k.burnt ? '#2b2f33' : '#b0463a', 2);
+        D.circle(ctx, ...M, 13, k.burnt ? '#5b5f63' : glowK > 0 ? tone(1, 0.4 - 0.4 * glowK) : tone(1, 0.55), k.burnt ? '#2b2f33' : tone(0.62, 0), 2);
         // lado plano del lado − (cátodo)
         ctx.save(); ctx.translate(...M); ctx.rotate(ang);
-        D.line(ctx, [[11, -7], [11, 7]], 3, k.burnt ? '#2b2f33' : '#b0463a', 'butt');
+        D.line(ctx, [[11, -7], [11, 7]], 3, k.burnt ? '#2b2f33' : tone(0.62, 0), 'butt');
         ctx.restore();
         D.circle(ctx, M[0] - 4, M[1] - 4, 3.5, 'rgba(255,255,255,0.7)');
         D.text(ctx, '+', A[0] - nx * 13, A[1] - ny * 13, REDW, { size: 14 });
@@ -472,6 +475,33 @@
     drawSelLabel(ctx, g, side);
   }
 
+  // ---------- menú de cada componente ----------
+  // Tocar una resistencia o un LED abre su menú (Sim.menu) junto a él: su valor o su color, girarlo,
+  // ponerlo nuevo y quitarlo. Un marcador en cada panel (sin dibujo) sirve para colocar el menú.
+  const anchors = {};
+  let menuK = null;
+  Object.entries(panels).forEach(([side, p]) => {
+    const el = document.createElement('div');
+    el.className = 'pb-anchor';
+    p.box.querySelector('.sim-layer').appendChild(el);
+    p.at(el, () => menuK ? geo(p).pt(...lerp(legUV(menuK.a), legUV(menuK.b), 0.5)) : [-999, -999]);
+    anchors[side] = el;
+  });
+  const openMenu = (side, k) => {
+    menuK = k; panels.w.replace(); panels.e.replace();
+    const water = side === 'w';
+    const remove = { text: 'Quitar de la protoboard', danger: true, onClick: () => { st.comps = st.comps.filter(c => c !== k); Sim.menu.close(); } };
+    const o = k.type === 'res'
+      ? Sim.resistorMenu({ values: RVALUES, get: () => k.R, set: R => { k.R = R; }, format: ohm, actions: [remove] })(side)
+      : Sim.ledMenu({ get: () => k.led, set: id => { k.led = id; }, actions: [
+        { text: water ? 'Girar la rueda' : 'Girar el LED', onClick: () => { const t = k.a; k.a = k.b; k.b = t; } },
+        { text: water ? 'Poner una rueda nueva' : 'Poner un LED nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; k.heat = 0; } },
+        remove] })(side);
+    // tocar la protoboard no la cierra aquí: lo decide el toque (otro componente abre su menú)
+    o.ignore = t => t === panels.w.canvas || t === panels.e.canvas;
+    Sim.menu.open(anchors[side], o);
+  };
+
   // ---------- tocar y arrastrar ----------
   const distSeg = (p, a, b) => {
     const dx = b[0] - a[0], dy = b[1] - a[1], s = dx * dx + dy * dy;
@@ -488,15 +518,19 @@
     cv.addEventListener('pointerdown', e => {
       if (st.drag) return;
       const q = toUV(e), hit = Math.max(0.42, 18 / (p.scale * P));
-      const d = { start: q, last: q, moved: false, id: e.pointerId, sx: e.clientX, sy: e.clientY };
-      // 1) una pata
+      const d = { start: q, last: q, moved: false, id: e.pointerId, sx: e.clientX, sy: e.clientY, menu: Sim.menu.isOpen() ? menuK : null };
+      Sim.menu.close();
+      // 1) una pata (menos en el foquito de un LED: tocarlo abre su menú)
       let best = null, bd = hit;
+      const onLed = st.comps.find(k => k.type === 'led' && Math.hypot(...lerp(legUV(k.a), legUV(k.b), 0.5).map((x, i) => x - q[i])) < 0.4);
+      if (onLed) bd = 0;
       for (const k of st.comps) for (const leg of k.type === 'lead' ? ['b'] : ['a', 'b']) {
         const dd = Math.hypot(...legUV(k[leg]).map((x, i) => x - q[i]));
         if (dd < bd) { bd = dd; best = { k, leg }; }
       }
       if (best) Object.assign(d, { kind: 'leg', k: best.k, leg: best.k[best.leg], orig: copyLeg(best.k[best.leg]) });
       // 2) el cuerpo de un componente
+      if (onLed) Object.assign(d, { kind: 'body', k: onLed, orig: [copyLeg(onLed.a), copyLeg(onLed.b)], o: [legUV(onLed.a), legUV(onLed.b)] });
       if (!d.kind) for (const k of [...st.comps].reverse()) {
         if (k.type === 'lead') continue;
         const a = legUV(k.a), b = legUV(k.b), m = lerp(a, b, 0.5);
@@ -549,9 +583,7 @@
           }
           if (!done) remove();
         } else if (d.kind === 'body') {
-          const k = d.k;
-          if (k.type === 'res') k.R = RVALUES[(RVALUES.indexOf(k.R) + 1) % RVALUES.length];
-          else if (k.type === 'led') { if (k.burnt) { k.burnt = false; k.heat = 0; } else { const t = k.a; k.a = k.b; k.b = t; } }
+          if (d.k !== d.menu && (d.k.type === 'res' || d.k.type === 'led')) openMenu(side, d.k);   // tocarlo otra vez lo cierra
         } else if (d.kind === 'battery') { if (!st.fuse) { st.fuse = true; st.fuseHeat = 0; } }
         else {
           const at = d.kind === 'leg' ? d.leg : nearestHole(...q, new Set(), 0.5);

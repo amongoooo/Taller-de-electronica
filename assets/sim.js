@@ -258,12 +258,13 @@
   Sim.WHEEL_RPM_PER_MA = 4;
   // Rueda de molino dentro de la tubería (el LED del lado del agua). Gira con la corriente y tiene
   // una compuerta que solo deja pasar el agua hacia la derecha; rev = al revés, broken = rota.
-  D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '' } = {}) => {
+  // tint: el color del LED que representa (un punto en el eje).
+  D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '', tint = null } = {}) => {
     D.circle(ctx, x, y, 30, C.metal, broken ? C.danger : C.ink, 2.5);
     D.circle(ctx, x, y, 24, C['water-soft']);
     if (broken) D.rotor(ctx, x, y, 7, 0.5, 0, 4, C.muted);   // solo quedan los muñones de las aspas
     else D.rotor(ctx, x, y, 19, angle, omega, 4, C.ink);
-    D.circle(ctx, x, y, 4, C.ink);
+    if (tint) D.circle(ctx, x, y, 6.5, tint, C.ink, 2); else D.circle(ctx, x, y, 4, C.ink);
     D.arrow(ctx, x, y - 42, rev ? Math.PI : 0, 8, rev ? C.danger : C.muted);
     if (broken) {
       D.line(ctx, [[x - 15, y - 15], [x + 15, y + 15]], 4, C.danger);
@@ -273,18 +274,18 @@
     if (t) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15 });
   };
   // LED en un cable horizontal; I en mA decide el brillo. La corriente entra por la izquierda.
-  D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED' } = {}) => {
-    const dir = rev ? -1 : 1;
+  D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED', rgb = null } = {}) => {
+    const dir = rev ? -1 : 1, [cr, cg, cb] = rgb || [255, 70, 50];   // rgb: el color de su luz (Sim.LEDS); apagado se ve un poco de ese color
     ctx.fillStyle = C.card; ctx.fillRect(x - 26, y - 26, 52, 52);
     const glow = broken ? 0 : Math.min(1, I / 30);   // brilla más con más corriente, hasta los 30 mA que aguanta
     if (glow > 0) {
       const g = ctx.createRadialGradient(x, y, 3, x, y, 40);
-      g.addColorStop(0, `rgba(255, 70, 50, ${0.75 * glow})`); g.addColorStop(1, 'rgba(255, 70, 50, 0)');
+      g.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${0.75 * glow})`); g.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 40, 0, Math.PI * 2); ctx.fill();
     }
     D.line(ctx, [[x - 26, y], [x - 12, y]], 4, C.ink); D.line(ctx, [[x + 12, y], [x + 26, y]], 4, C.ink);
     ctx.beginPath(); ctx.moveTo(x - 12 * dir, y - 13); ctx.lineTo(x - 12 * dir, y + 13); ctx.lineTo(x + 11 * dir, y); ctx.closePath();
-    ctx.fillStyle = !broken && glow > 0 ? `rgba(255, 90, 60, ${0.3 + 0.7 * glow})` : C.card; ctx.fill();
+    ctx.fillStyle = !broken && glow > 0 ? `rgba(${cr}, ${cg}, ${cb}, ${0.3 + 0.7 * glow})` : rgb ? `rgba(${cr}, ${cg}, ${cb}, 0.16)` : C.card; ctx.fill();
     ctx.lineWidth = 2.5; ctx.strokeStyle = broken ? C.muted : C.ink; ctx.lineJoin = 'miter'; ctx.stroke();
     D.line(ctx, [[x + 12 * dir, y - 13], [x + 12 * dir, y + 13]], 3, broken ? C.muted : C.ink);
     D.line(ctx, [[x + 3, y - 17], [x + 12, y - 26]], 2, C.muted); D.line(ctx, [[x + 11, y - 14], [x + 20, y - 23]], 2, C.muted);
@@ -625,6 +626,198 @@
     else { const bar = document.querySelector('.sim-bar'); bar.insertBefore(wrap, bar.querySelector('h1').nextSibling); }
     set(fromHash(), false);
   };
+
+  // ---------- valores comunes de los componentes ----------
+  // Serie E12: los valores de resistencia que se consiguen en cualquier tienda (100, 120, 150… 820 y
+  // cada década). Sim.series(min, max) da los que caen entre min y max; Sim.nearest el más cercano
+  // de una lista (en escala logarítmica, como se reparten).
+  Sim.E12 = [1, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2];
+  Sim.series = (min, max, base = Sim.E12) => {
+    const out = [];
+    for (let p = 10 ** Math.floor(Math.log10(min)); p <= max; p *= 10)
+      for (const m of base) { const v = Math.round(m * p * 1000) / 1000; if (v >= min * 0.999 && v <= max * 1.001) out.push(v); }
+    return out;
+  };
+  Sim.nearest = (list, x) => list.reduce((a, v) => {
+    const d = u => u > 0 && x > 0 ? Math.abs(Math.log(u / x)) : Math.abs(u - x);
+    return d(v) < d(a) ? v : a;
+  });
+  // Colores de LED: cada uno necesita un voltaje distinto para encender (vf, en V). rgb es el color de su luz
+  // (la del blanco, azulada para que se vea sobre el fondo blanco) y swatch el de su botón en el menú.
+  Sim.LEDS = [
+    { id: 'rojo', name: 'Rojo', vf: 1.8, rgb: [255, 60, 45] },
+    { id: 'amarillo', name: 'Amarillo', vf: 2.0, rgb: [250, 190, 20] },
+    { id: 'verde', name: 'Verde', vf: 2.2, rgb: [40, 200, 70] },
+    { id: 'azul', name: 'Azul', vf: 3.0, rgb: [40, 110, 255] },
+    { id: 'blanco', name: 'Blanco', vf: 3.2, rgb: [150, 185, 225], swatch: '#f4f7fa' }
+  ];
+  Sim.led = id => Sim.LEDS.find(l => l.id === id) || Sim.LEDS[0];
+
+  // ---------- menú de un componente ----------
+  // Al tocar un componente se abre una tarjetita junto a él con lo que se le puede cambiar:
+  // Sim.menu.toggle(anchor, { title, note, rows }) la abre (o la cierra si ya estaba abierta para anchor).
+  // title y note pueden ser funciones; cada fila es una de:
+  //   { label, values, get, set, format }   slider que pasa por una lista de valores (los comunes)
+  //   { label, options: [{ value, text, color }], get, set }   botones para escoger (el color de un LED)
+  //   { actions: [{ text, onClick, hidden, danger }] }   botones (fundir, poner uno nuevo…)
+  // Se cierra tocando fuera (menos donde ignore(target) diga), con Esc o con la ×; mientras está abierta se actualiza sola.
+  Sim.menu = (() => {
+    let el = null, cur = null, raf = 0;
+    const val = (f, ...a) => typeof f === 'function' ? f(...a) : f;
+    const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+    const close = (focusBack = false) => {
+      if (!cur) return;
+      const a = cur.anchor;
+      cur = null; el.hidden = true; cancelAnimationFrame(raf);
+      a.removeAttribute('aria-expanded');
+      if (focusBack) a.focus();
+    };
+    const setup = () => {
+      el = mk('div', 'sim-menu'); el.hidden = true;
+      el.setAttribute('role', 'dialog');
+      document.body.appendChild(el);
+      // tocar fuera la cierra (el componente que la abrió la cierra él mismo, con toggle)
+      document.addEventListener('pointerdown', e => {
+        if (cur && !el.contains(e.target) && !cur.anchor.contains(e.target) && !(cur.o.ignore && cur.o.ignore(e.target))) close();
+      }, true);
+      document.addEventListener('keydown', e => { if (cur && e.key === 'Escape') { close(true); e.preventDefault(); } });
+    };
+    const slider = r => {
+      const row = mk('div', 'row'), top = mk('div', 'top'), out = mk('output', 'val');
+      top.append(mk('span', 'lbl', r.label), out);
+      const ctl = mk('div', 'ctl'), minus = mk('button', 'step', '−'), plus = mk('button', 'step', '+'), inp = mk('input');
+      minus.type = plus.type = 'button';
+      minus.setAttribute('aria-label', 'Menos'); plus.setAttribute('aria-label', 'Más');
+      inp.type = 'range'; inp.min = 0; inp.max = r.values.length - 1; inp.step = 1;
+      inp.setAttribute('aria-label', r.label);
+      ctl.append(minus, inp, plus);
+      const ends = mk('div', 'ends');
+      ends.append(mk('span', '', r.format(r.values[0])), mk('span', '', r.format(r.values[r.values.length - 1])));
+      row.append(top, ctl, ends);
+      const index = () => r.values.indexOf(Sim.nearest(r.values, r.get()));
+      const go = i => { i = Math.max(0, Math.min(r.values.length - 1, i)); r.set(r.values[i]); sync(); };
+      inp.addEventListener('input', () => go(+inp.value));
+      minus.addEventListener('click', () => go(index() - 1));
+      plus.addEventListener('click', () => go(index() + 1));
+      const sync = () => {
+        const i = index();
+        if (document.activeElement !== inp || +inp.value !== i) inp.value = i;
+        inp.style.setProperty('--f', r.values.length > 1 ? i / (r.values.length - 1) : 0);
+        out.textContent = r.format(r.get());
+        inp.setAttribute('aria-valuetext', out.textContent);
+        minus.disabled = i <= 0; plus.disabled = i >= r.values.length - 1;
+      };
+      return { row, sync };
+    };
+    const choice = r => {
+      const row = mk('div', 'row'), top = mk('div', 'top'), out = mk('output', 'val');
+      top.append(mk('span', 'lbl', r.label), out);
+      const list = mk('div', 'opts');
+      list.setAttribute('role', 'group'); list.setAttribute('aria-label', r.label);
+      const btns = r.options.map(o => {
+        const btn = mk('button', 'opt');
+        btn.type = 'button'; btn.title = o.text; btn.setAttribute('aria-label', o.text);
+        if (o.color) btn.style.setProperty('--c', o.color);
+        btn.addEventListener('click', () => { r.set(o.value); sync(); });
+        list.appendChild(btn);
+        return btn;
+      });
+      row.append(top, list);
+      const sync = () => {
+        const v = r.get();
+        btns.forEach((btn, k) => btn.setAttribute('aria-pressed', String(r.options[k].value === v)));
+        const o = r.options.find(o => o.value === v);
+        out.textContent = o ? (o.detail || o.text) : '';
+      };
+      return { row, sync };
+    };
+    const actions = r => {
+      const row = mk('div', 'row acts');
+      const btns = r.actions.map(a => {
+        const btn = mk('button', 'act' + (a.danger ? ' danger' : ''));
+        btn.type = 'button';
+        btn.addEventListener('click', () => { a.onClick(); sync(); });
+        row.appendChild(btn);
+        return btn;
+      });
+      const sync = () => {
+        btns.forEach((btn, k) => { const a = r.actions[k]; btn.textContent = val(a.text); btn.hidden = !!val(a.hidden); });
+        row.hidden = btns.every(btn => btn.hidden);
+      };
+      return { row, sync };
+    };
+    // Junto al componente: abajo si cabe, si no arriba; en el celular casi a todo lo ancho.
+    const place = () => {
+      const a = cur.anchor.getBoundingClientRect(), vw = innerWidth, vh = innerHeight, M = 8;
+      if (!a.width && !a.height) return close();
+      const w = el.offsetWidth, h = el.offsetHeight, cx = a.left + a.width / 2;
+      const left = Math.max(M, Math.min(vw - w - M, cx - w / 2));
+      let top = a.bottom + 10, below = true;
+      if (top + h > vh - M) {
+        if (a.top - 10 - h >= M) { top = a.top - 10 - h; below = false; }
+        else top = Math.max(M, vh - h - M);
+      }
+      el.style.left = left + 'px'; el.style.top = top + 'px';
+      el.dataset.at = below ? 'below' : 'above';
+      el.style.setProperty('--ax', Math.max(18, Math.min(w - 18, cx - left)) + 'px');
+    };
+    const tick = () => {
+      if (!cur) return;
+      cur.title.textContent = val(cur.o.title);
+      const note = val(cur.o.note) || '';
+      cur.note.textContent = note; cur.note.hidden = !note;
+      cur.parts.forEach(p => p.sync());
+      place();
+      raf = requestAnimationFrame(tick);
+    };
+    const open = (anchor, o) => {
+      if (!el) setup();
+      if (cur) close();
+      el.innerHTML = '';
+      const hd = mk('div', 'hd'), title = mk('h2', 'ttl'), x = mk('button', 'x', '×');
+      x.type = 'button'; x.setAttribute('aria-label', 'Cerrar');
+      x.addEventListener('click', () => close(true));
+      hd.append(title, x);
+      const note = mk('p', 'note');
+      el.append(hd, note);
+      const parts = o.rows.map(r => r.values ? slider(r) : r.options ? choice(r) : actions(r));
+      parts.forEach(p => el.appendChild(p.row));
+      cur = { anchor, o, title, note, parts };
+      anchor.setAttribute('aria-expanded', 'true');
+      el.hidden = false;
+      el.setAttribute('aria-label', val(o.title));
+      tick();
+      const first = el.querySelector('input, .opt, .act:not([hidden])');
+      if (first && anchor.matches(':focus-visible')) first.focus();
+    };
+    return {
+      open, close,
+      toggle: (anchor, o) => cur && cur.anchor === anchor ? close() : open(anchor, o),
+      isOpen: anchor => !!cur && (!anchor || cur.anchor === anchor)
+    };
+  })();
+
+  // Menús de siempre (para b.part o b.pinch del banco): cada uno devuelve menu(side), con side 'w' (agua) o 'e'.
+  //   Sim.resistorMenu({ name, values, get, set, format, actions })   valores comunes de resistencia
+  //   Sim.ledMenu({ name, get, set, actions })   color del LED (Sim.LEDS): cada uno necesita otro voltaje (10 kPa por volt)
+  // actions son los botones de abajo (ver Sim.menu), o actions(side); name es 'R1', '1'…, si hay más de uno.
+  Sim.resistorMenu = ({ name = '', values, get, set, format, actions }) => side => ({
+    title: (side === 'w' ? 'Tramo angosto' : 'Resistencia') + (name ? ' ' + name : ''),
+    note: side === 'w' ? 'Más angosto es más resistencia: deja pasar menos agua.'
+      : 'Valores comerciales de resistencia. Más resistencia deja pasar menos corriente.',
+    rows: [{ label: side === 'w' ? 'Resistencia del tramo' : 'Resistencia', values, get, set, format },
+      ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
+  });
+  Sim.ledMenu = ({ name = '', get, set, actions }) => side => ({
+    title: (side === 'w' ? 'Rueda' : 'LED') + (name ? ' ' + name : ''),
+    note: () => side === 'w'
+      ? `La rueda de cada color es más o menos dura: esta necesita ${Math.round(Sim.led(get()).vf * 10)} kPa para empezar a girar.`
+      : `Cada color necesita un voltaje distinto para encender: el ${Sim.led(get()).name.toLowerCase()}, unos ${Sim.fmt(Sim.led(get()).vf)} V.`,
+    rows: [{ label: 'Color', get, set, options: Sim.LEDS.map(l => ({
+      value: l.id, text: l.name, color: l.swatch || `rgb(${l.rgb})`,
+      detail: l.name + ' · ' + (side === 'w' ? Math.round(l.vf * 10) + ' kPa' : Sim.fmt(l.vf) + ' V')
+    })) }, ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
+  });
 
   window.Sim = Sim;
 })();

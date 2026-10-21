@@ -117,12 +117,13 @@
       return el;
     };
     // Un botón en cada lado que hacen lo mismo. text(side) da su texto; b.refresh() lo actualiza.
+    // onClick(side, el) recibe el lado y el botón que se tocó.
     const buttons = [];
     b.linkedButton = ({ pos, text, label, onClick, cls = 'sim-btn small', hidden }) => {
       const pair = ['w', 'e'].map(side => {
         const el = document.createElement('button');
         el.type = 'button'; el.className = cls;
-        el.addEventListener('click', () => { onClick(); b.refresh(); });
+        el.addEventListener('click', () => { onClick(side, el); b.refresh(); });
         return b.place(side, el, pos);
       });
       buttons.push({ pair, text, label, hidden });
@@ -138,6 +139,11 @@
       }));
       b.pw.replace(); b.pe.replace();
     };
+    // Un componente que abre su menú al tocarlo (Sim.menu): menu(side) da { title, note, rows }.
+    // Lo que cambia en el menú se ve en los dos lados.
+    b.part = ({ pos, label, menu, cls = 'sim-hit', hidden }) => b.linkedButton({
+      cls, pos, label, hidden, onClick: (side, el) => Sim.menu.toggle(el, menu(side))
+    });
     // Una perilla en cada lado, enlazadas. scale(side) da las marcas [texto, fracción]; caption(side) su nombre.
     b.linkedKnob = ({ pos, min, max, step, value, label, format, scale, caption, ticks = 12, onInput }) => {
       const ks = {};
@@ -153,9 +159,10 @@
     // Una resistencia que se ajusta pellizcando: agarrando el borde del tramo angosto (o las marcas de
     // la resistencia) con un dedo o el ratón el borde sigue al puntero; con dos dedos, el ancho es la
     // separación entre ellos. Más angosto = más resistencia. half(R) da el medio ancho del tramo y
-    // fromHalf(h) la resistencia para un medio ancho; set(R) la cambia. Devuelve { drag } para
-    // saber si se está agarrando (las marcas se pintan de azul).
-    b.pinch = ({ pos, get, set, half, fromHalf, label, text }) => {
+    // fromHalf(h) la resistencia para un medio ancho; set(R) la cambia. Con menu(side), tocarla sin
+    // arrastrar abre su menú (con Enter o Espacio también). Devuelve { drag } para saber si se está
+    // agarrando (las marcas se pintan de azul).
+    b.pinch = ({ pos, get, set, half, fromHalf, label, text, menu }) => {
       const pr = { drag: false };
       // flechas y rueda: un poco más ancho o angosto (lo que haga falta para que cambie el valor)
       const nudge = f => {
@@ -163,26 +170,45 @@
       };
       ['w', 'e'].forEach(side => {
         const el = document.createElement('div');
-        el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', 'slider');
+        el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', menu ? 'button' : 'slider');
         el.setAttribute('aria-label', label(side));
+        if (menu) el.setAttribute('aria-haspopup', 'dialog');
         b.place(side, el, pos);
         const p = panel(side), pts = new Map();
+        let start = 0, moved = false;
         const toY = e => (e.clientY - p.box.getBoundingClientRect().top - p.oy) / p.scale;
         const update = () => {
           const ys = [...pts.values()];
           const h = ys.length > 1 ? Math.abs(ys[0] - ys[1]) / 2 - 9 : Math.abs(ys[0] - pos(geo(side))[1]) - 14;
           set(fromHalf(h));
         };
-        el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); pts.set(e.pointerId, toY(e)); pr.drag = true; update(); e.preventDefault(); });
-        el.addEventListener('pointermove', e => { if (pts.has(e.pointerId)) { pts.set(e.pointerId, toY(e)); update(); } });
-        const up = e => { pts.delete(e.pointerId); if (!pts.size) pr.drag = false; };
+        // Con menú, el borde empieza a seguir al puntero solo cuando se arrastra: un toque abre el menú.
+        const grab = () => { moved = true; pr.drag = true; if (menu) Sim.menu.close(); update(); };
+        el.addEventListener('pointerdown', e => {
+          el.setPointerCapture(e.pointerId); pts.set(e.pointerId, toY(e)); e.preventDefault();
+          if (pts.size === 1) { start = e.clientY; moved = false; }
+          if (!menu || pts.size > 1) grab();
+        });
+        el.addEventListener('pointermove', e => {
+          if (!pts.has(e.pointerId)) return;
+          pts.set(e.pointerId, toY(e));
+          if (moved) update(); else if (Math.abs(e.clientY - start) > 6) grab();
+        });
+        const up = e => {
+          if (!pts.has(e.pointerId)) return;
+          pts.delete(e.pointerId);
+          if (pts.size) return;
+          pr.drag = false;
+          if (menu && !moved && e.type === 'pointerup') Sim.menu.toggle(el, menu(side));
+        };
         el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
         el.addEventListener('wheel', e => { e.preventDefault(); nudge(e.deltaY < 0 ? -1 : 1); }, { passive: false });
         el.addEventListener('keydown', e => {
+          if (menu && (e.key === 'Enter' || e.key === ' ')) { Sim.menu.toggle(el, menu(side)); e.preventDefault(); return; }
           const f = { ArrowUp: -1, ArrowRight: -1, ArrowDown: 1, ArrowLeft: 1 }[e.key];
           if (f) { nudge(f); e.preventDefault(); }
         });
-        setInterval(() => el.setAttribute('aria-valuetext', text(get())), 500);
+        setInterval(() => el.setAttribute(menu ? 'aria-description' : 'aria-valuetext', text(get())), 500);
       });
       return pr;
     };

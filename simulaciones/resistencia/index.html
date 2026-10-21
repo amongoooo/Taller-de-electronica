@@ -41,15 +41,19 @@
 (() => {
   const { C, draw: D, fmt } = Sim;
   // 0 Ω es un cortocircuito: solo la resistencia interna de la fuente (y de la bomba) limita la corriente.
-  // La resistencia se cambia pellizcando el tramo angosto: de 100 Ω a 10 kΩ, y abierto del todo es 0 Ω.
+  // La resistencia se cambia pellizcando el tramo angosto o tocándolo (abre su menú): valores comunes
+  // de 100 Ω a 10 kΩ, y abierto del todo es 0 Ω.
   const RMIN = 100, RMAX = 10000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
+  const RVALUES = [0, ...Sim.series(RMIN, RMAX)];
   const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
-  const nice = R => { const p = 10 ** (Math.floor(Math.log10(R)) - 1); return Math.round(R / p) * p; };   // dos cifras
-  const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : nice(RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
-  const RINT = 15, IFUSE = 100, FUSE_K = 52.5;   // resistencia interna de la fuente; el fusible aguanta 100 mA
+  const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
+  // Resistencia interna de la fuente. El fusible (de 100 mA al empezar) se cambia tocándolo.
+  const RINT = 15, FUSES = [50, 100, 250, 500, 1000], FUSE_K = 52.5;
+  const mA = i => i >= 1000 ? fmt(i / 1000, 0) + ' A' : i + ' mA';
+  const mLs = i => { const q = i * b.MLS_PER_MA; return q >= 1000 ? fmt(q / 1000, q % 1000 ? 1 : 0) + ' L/s' : q + ' mL/s'; };
   const PMAX = 0.25, RES_K = 2.9;                 // la resistencia es de ¼ W
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
-  const st = { R: 1000, blown: false, heat: 0, breakT: 9, sparks: [], burnt: false, rheat: 0, burnT: 9, drops: [] };
+  const st = { R: 1000, fuse: 100, blown: false, heat: 0, breakT: 9, sparks: [], burnt: false, rheat: 0, burnT: 9, drops: [] };
   const sides = {};
   const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), half(st.R));
   // El fusible (en el agua, una válvula de seguridad) va en el tubo de abajo, a la izquierda.
@@ -69,10 +73,10 @@
       return [{ pts: b.loopPts(g), I: m.I, v0: Vt, comps: [fuse, { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : Vt }] }];
     },
     step(dt, m) {
-      // Arriba de 100 mA el fusible se calienta, aunque la inercia esté en 0: la corriente llega al
+      // Arriba de lo que aguanta (100 mA al empezar) el fusible se calienta, aunque la inercia esté en 0: la corriente llega al
       // instante, pero el hilo tarda en fundirse, y entre más se pasa más rápido (como I²·t).
       // Con 600 mA tarda 1,5 s; en uno real serían milisegundos, aquí va lento para que se vea.
-      const over = (m.I / IFUSE) ** 2 - 1;
+      const over = (m.I / st.fuse) ** 2 - 1;
       if (over > 0 && !st.blown) {
         st.heat += dt * over / FUSE_K;
         if (st.heat >= 1) blow();
@@ -120,7 +124,7 @@
   }
   // Cables al rojo: brillan más cuanto más se pasa la corriente de lo que aguanta el fusible.
   function hot(ctx, path, m) {
-    const k = Math.max(st.heat, Math.min(1, Math.max(0, (m.I - IFUSE) / (2 * IFUSE))));
+    const k = Math.max(st.heat, Math.min(1, Math.max(0, (m.I - st.fuse) / (2 * st.fuse))));
     if (!k) return;
     ctx.globalAlpha = 0.35 * k; D.line(ctx, path, 16, '#ff5a1f'); ctx.globalAlpha = 1;
     D.line(ctx, path, 4, `rgba(255, ${Math.round(110 - 60 * k)}, 30, ${0.4 + 0.6 * k})`);
@@ -139,7 +143,7 @@
     ctx.lineWidth = 2.5; ctx.strokeStyle = st.heat > 0.3 && !st.blown ? '#ff7a1f' : C.ink;
     if (st.blown) { D.line(ctx, [[x - 24, y], [x - 7, y - 3]], 2.5, C.ink); D.line(ctx, [[x + 7, y + 3], [x + 24, y]], 2.5, C.ink); }
     else D.line(ctx, [[x - 24, y], [x + 24, y]], 2.5, ctx.strokeStyle);
-    D.text(ctx, st.blown ? 'fusible fundido' : 'fusible', x, y + h + 18, st.blown ? C.danger : C.muted, { size: 14 });
+    D.text(ctx, st.blown ? 'fusible fundido' : 'fusible ' + mA(st.fuse), x, y + h + 18, st.blown ? C.danger : C.muted, { size: 14 });
     if (st.breakT < 1.2) {
       ctx.globalAlpha = Math.min(1, (1.2 - st.breakT) / 0.4);
       if (st.breakT < 0.15) D.circle(ctx, x, y, 30, `rgba(255, 230, 150, ${1 - st.breakT / 0.15})`);
@@ -169,7 +173,7 @@
     for (let k = 1; k <= n; k++) ctx.lineTo(xs + (xe - xs) * k / n, y + (k === n ? 0 : (k % 2 ? -6 : 6)));
     ctx.lineWidth = 2; ctx.strokeStyle = C.muted; ctx.stroke();
     D.circle(ctx, bx, by, 8, st.blown ? C.danger : C.metal, C.ink, 2);
-    D.text(ctx, st.blown ? 'válvula cerrada' : 'válvula de seguridad', x0, y + H + 16, st.blown ? C.danger : C.muted, { size: 14 });
+    D.text(ctx, st.blown ? 'válvula cerrada' : 'válvula ' + mLs(st.fuse), x0, y + H + 16, st.blown ? C.danger : C.muted, { size: 14 });
     if (st.breakT < 1) {   // salpicadura al cerrarse de golpe
       ctx.globalAlpha = Math.min(1, (1 - st.breakT) / 0.4);
       for (const p of st.sparks) D.circle(ctx, x0 - 22 + p.x * 0.6, y + p.y * 0.6, 3, C.water);
@@ -239,20 +243,35 @@
   const pinch = b.pinch({
     pos: g => [g.PX, g.TOP], get: () => st.R, half, fromHalf,
     set: R => { st.R = R; sides.w.water.setProfile(profile(sides.w.g)); },
-    label: side => side === 'w' ? 'Ancho del tramo angosto' : 'Resistencia',
-    text: R => R ? ohm(R) : '0 Ω, cortocircuito'
+    label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia',
+    text: R => R ? ohm(R) : '0 Ω, cortocircuito',
+    menu: side => Sim.resistorMenu({
+      values: RVALUES, get: () => st.R, set: setR, format: R => R ? ohm(R) : '0 Ω (corto)',
+      actions: [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.burnt, onClick: renew }]
+    })(side)
   });
+  function setR(R) { st.R = R; sides.w.water.setProfile(profile(sides.w.g)); }
   // Botón para poner una resistencia (o un tubo) nueva.
+  const renew = () => { st.burnt = false; st.rheat = 0; st.burnT = 9; };
   b.linkedButton({
     pos: g => [g.PX, g.TOP + 78], hidden: () => !st.burnt,
     text: side => side === 'w' ? 'Tubo nuevo' : 'Resistencia nueva',
-    onClick: () => { st.burnt = false; st.rheat = 0; st.burnT = 9; }
+    onClick: renew
   });
-  // Tocar el fusible o la válvula (o el botón) lo repone.
+  // Tocar el fusible (o la válvula) abre su menú: cuánta corriente aguanta, y ponerlo nuevo si se fundió.
   const repair = () => { st.blown = false; st.heat = 0; st.breakT = 9; };
-  b.linkedButton({
-    cls: 'sim-hit', pos: g => fuseAt(g), hidden: () => !st.blown,
-    label: side => side === 'w' ? 'Abrir la válvula de seguridad' : 'Poner un fusible nuevo', onClick: repair
+  b.part({
+    pos: g => fuseAt(g),
+    label: side => side === 'w' ? 'Válvula de seguridad' : 'Fusible',
+    menu: side => ({
+      title: side === 'w' ? 'Válvula de seguridad' : 'Fusible',
+      note: side === 'w' ? 'Se cierra si pasa más agua de la que aguanta, para que no se reviente nada.'
+        : 'Se funde si pasa más corriente de la que aguanta y corta el circuito para protegerlo.',
+      rows: [
+        { label: side === 'w' ? 'Cierra arriba de' : 'Aguanta', values: FUSES, get: () => st.fuse, set: v => { st.fuse = v; }, format: side === 'w' ? mLs : mA },
+        { actions: [{ text: side === 'w' ? 'Abrir la válvula' : 'Poner un fusible nuevo', hidden: () => !st.blown, onClick: repair }] }
+      ]
+    })
   });
   b.linkedButton({
     pos: g => [fuseAt(g)[0], g.BOT - 46], hidden: () => !st.blown,

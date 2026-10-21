@@ -50,11 +50,12 @@
   // cierra el circuito solo con la resistencia y el capacitor.
   const RMIN = 470, RMAX = 10000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
   const CMIN = 220, CMAX = 4700, RCMIN = 18, RCMAX = 48, LNC = Math.log(CMAX / CMIN);   // capacidad en µF
-  const nice = x => { const p = 10 ** (Math.floor(Math.log10(x)) - 1); return Math.round(x / p) * p; };   // dos cifras
+  // Valores comunes: resistencias de la serie E12 y capacitores de la E6 (220, 330, 470, 680 µF…).
+  const RVALUES = Sim.series(RMIN, RMAX), CVALUES = Sim.series(CMIN, CMAX, [1, 1.5, 2.2, 3.3, 4.7, 6.8]);
   const half = R => HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN;
-  const fromHalf = h => nice(RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
+  const fromHalf = h => Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
   const rcOf = c => RCMIN + (RCMAX - RCMIN) * Math.log(c / CMIN) / LNC;   // radio del tanque
-  const cOf = r => nice(CMIN * Math.exp((Math.max(RCMIN, Math.min(RCMAX, r)) - RCMIN) / (RCMAX - RCMIN) * LNC));
+  const cOf = r => Sim.nearest(CVALUES, CMIN * Math.exp((Math.max(RCMIN, Math.min(RCMAX, r)) - RCMIN) / (RCMAX - RCMIN) * LNC));
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
   const uF = c => c + ' µF';
   const secs = t => fmt(t, t < 1 ? 2 : 1) + ' s';
@@ -293,17 +294,26 @@
   }
 
   const rebuild = () => { build('w'); build('e'); };
+  // Tocar la resistencia o el capacitor abre su menú; en los dos se ve cuánto queda τ = R·C.
+  const setR = R => { st.R = R; rebuild(); }, setC = c => { st.C = c; rebuild(); };
+  const rMenu = Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: ohm });
   const pinchR = b.pinch({
-    pos: g => [XR, g.TOP], get: () => st.R, half, fromHalf,
-    set: R => { st.R = R; rebuild(); },
-    label: side => side === 'w' ? 'Ancho del tramo angosto' : 'Resistencia',
-    text: ohm
+    pos: g => [XR, g.TOP], get: () => st.R, half, fromHalf, set: setR,
+    label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia',
+    text: ohm,
+    menu: side => ({ ...rMenu(side), note: () => (side === 'w' ? 'Más angosto es más resistencia: el tanque se llena más despacio.'
+      : 'Más resistencia deja pasar menos corriente: el capacitor se carga más despacio.') + ' τ = R·C = ' + secs(tau()) })
   });
   const pinchC = b.pinch({
-    pos: g => [XC, g.TOP], get: () => st.C, half: rcOf, fromHalf: cOf,
-    set: c => { st.C = c; rebuild(); },
-    label: side => side === 'w' ? 'Tamaño del tanque' : 'Capacidad del capacitor',
-    text: uF
+    pos: g => [XC, g.TOP], get: () => st.C, half: rcOf, fromHalf: cOf, set: setC,
+    label: side => side === 'w' ? 'Tanque con membrana' : 'Capacitor',
+    text: uF,
+    menu: side => ({
+      title: side === 'w' ? 'Tanque con membrana' : 'Capacitor',
+      note: () => (side === 'w' ? 'Un tanque más grande guarda más agua antes de que la membrana se estire del todo.'
+        : 'Más capacidad guarda más carga con el mismo voltaje: tarda más en cargarse.') + ' τ = R·C = ' + secs(tau()),
+      rows: [{ label: side === 'w' ? 'Tamaño (capacidad)' : 'Capacidad', values: CVALUES, get: () => st.C, set: setC, format: uF }]
+    })
   });
   [...document.querySelectorAll('.sim-pinch')].slice(-2).forEach(el => el.classList.add('cap'));
   // Tocar el conmutador (o la válvula) lo cambia entre cargar y descargar.
