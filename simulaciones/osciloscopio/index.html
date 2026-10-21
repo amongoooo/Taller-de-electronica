@@ -294,8 +294,8 @@
 
   // Generador
   linkedButton({
-    pos: g => [g.GX + 48, g.GY + 110], cls: 'sim-power',
-    html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>',
+    pos: g => [g.GX + 44, g.GY + 110], cls: 'sim-power',
+    html: Sim.SWITCH,
     label: side => (st.on ? 'Apagar ' : 'Encender ') + (side === 'w' ? 'la bomba' : 'el generador'),
     attrs: () => ({ 'aria-pressed': String(st.on) }),
     onClick: () => { st.on = !st.on; }
@@ -449,7 +449,7 @@
     ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 26, 28, 22);   // cuello hacia el circuito
     D.roundRect(ctx, x, y, g.GW, g.GH, 14, w ? C.metal : C['charge-soft'], C.ink, 2.5);
     D.text(ctx, w ? 'BOMBA DE VAIVÉN' : 'GENERADOR DE FUNCIONES', x + 18, y + 24, C.ink, { align: 'left', size: 15 });
-    D.led(ctx, x + 48, y + 62, st.level > 0.02 ? 1 : 0);
+    D.led(ctx, x + 84, y + 110, st.level > 0.02 ? 1 : 0);
     const f = freqAt(st.fi), txt = f < 10 ? f.toFixed(2) : f < 100 ? f.toFixed(1) : f.toFixed(0);
     D.lcd(ctx, x + 470, y + 28, 150, 30, txt.padStart(5, ' '), 'Hz');
     const k = w ? KPA_PER_V : 1;

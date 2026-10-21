@@ -12,7 +12,7 @@ https://amongoooo.github.io/Taller-de-electronica/
 
 ## Formato común
 
-Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, título, un selector para ver solo el agua, ambas o solo la electricidad, y ajustes generales como la inercia) y dos paneles, agua y electricidad, lado a lado en pantallas horizontales o uno sobre otro en vertical. Cada fuente de energía (bomba, fuente de voltaje) es un controlador: una caja con su botón de encendido, su perilla y su medidor.
+Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, título, un selector para ver solo el agua, ambas o solo la electricidad, y ajustes generales como la inercia) y dos paneles, agua y electricidad, lado a lado en pantallas horizontales o uno sobre otro en vertical. Cada fuente de energía (bomba, fuente de voltaje) es un controlador: una caja con su interruptor ON/OFF y su LED, su perilla con una pantallita de siete segmentos arriba que dice lo que marca la perilla, y su medidor de lo que en verdad sale.
 
 `assets/sim.js` reúne lo que se repite:
 

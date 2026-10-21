@@ -456,6 +456,10 @@
     }
   });
 
+  // ---------- interruptor de encendido ----------
+  // Contenido de un botón .sim-power: palanca con ON arriba y OFF abajo (aria-pressed dice si está encendido).
+  Sim.SWITCH = '<span class="sw-on" aria-hidden="true">ON</span><span class="sw-track" aria-hidden="true"><span class="sw-thumb"></span></span><span class="sw-off" aria-hidden="true">OFF</span>';
+
   // ---------- perilla ----------
   // el: un elemento vacío; se le agrega la tapa con su marca. Se gira arrastrando, con la rueda del ratón o con las flechas.
   Sim.knob = (el, { min, max, step, value, label, format, onInput }) => {
