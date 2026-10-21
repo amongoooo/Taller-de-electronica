@@ -134,7 +134,7 @@
   }
   // Al romperse, las aspas salen volando (agua) y el LED suelta chispas y humo (electricidad).
   function breakIt() {
-    st.broken = true; st.heat = 0; st.breakT = 0;
+    st.broken = true; st.heat = 0; st.breakT = 0; b.halt();
     st.debris = [0, 1, 2, 3].map(k => {
       const a = st.ang + k * Math.PI / 2, v = 160 + 90 * Math.random();
       return { x: Math.cos(a) * 10, y: Math.sin(a) * 10, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 140, a, spin: (Math.random() - 0.5) * 30 };
