@@ -232,6 +232,10 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   box-shadow: 0 10px 30px rgba(21, 33, 42, 0.2);
 }
 .sim-menu[hidden] { display: none; }
+/* Crece desde su flechita, o sea desde el componente (Sim.menu anima la entrada y la salida). */
+.sim-menu { transform-origin: var(--ax, 50%) 0; }
+.sim-menu[data-at="above"] { transform-origin: var(--ax, 50%) 100%; }
+.sim-menu.leaving { pointer-events: none; }
 .sim-menu::before {
   content: ""; position: absolute; left: var(--ax, 50%); width: 14px; height: 14px;
   background: var(--card); border: 1px solid var(--line); transform: translateX(-50%) rotate(45deg);
@@ -429,10 +433,21 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-page[data-side="sheet"] .sim-side {
   position: fixed; z-index: 40; top: 0; right: 0; bottom: 0; width: min(340px, 92vw);
   border-left: 1px solid var(--line); box-shadow: -10px 0 30px rgba(21, 33, 42, .18);
-  transform: translateX(105%); transition: transform .25s ease; visibility: hidden;
+  transform: translateX(105%); visibility: hidden;
+  transition: transform .22s cubic-bezier(0.23, 1, 0.32, 1), visibility 0s linear .22s;   /* se va rápido */
 }
-.sim-page[data-side="sheet"][data-open="true"] .sim-side { transform: none; visibility: visible; }
-.sim-page[data-side="sheet"][data-open="true"] .sim-scrim { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(21, 33, 42, .28); }
+.sim-page[data-side="sheet"][data-open="true"] .sim-side {
+  transform: none; visibility: visible;
+  transition: transform .34s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s;   /* llega como cajón */
+}
+.sim-page[data-side="sheet"] .sim-scrim {
+  display: block; position: fixed; inset: 0; z-index: 39; background: rgba(21, 33, 42, .28);
+  opacity: 0; pointer-events: none; transition: opacity .22s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.sim-page[data-side="sheet"][data-open="true"] .sim-scrim { opacity: 1; pointer-events: auto; transition-duration: .34s; }
+@media (prefers-reduced-motion: reduce) {
+  .sim-page[data-side="sheet"] .sim-side, .sim-page[data-side="sheet"][data-open="true"] .sim-side { transition: visibility 0s; }
+}
 
 .sim-sec { display: grid; gap: 10px; padding: 10px 12px 12px; border-radius: 12px; background: var(--bg); border-left: 4px solid var(--act); }
 .sim-sec[hidden] { display: none; }
@@ -556,7 +571,10 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   padding: 12px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   box-shadow: 0 -8px 30px rgba(21, 33, 42, .2);
 }
-.sim-menu.sheet::before { display: none; }
+/* agarradera: la hoja se cierra deslizándola hacia abajo (Sim.swipeClose) */
+.sim-menu.sheet::before {
+  left: 50%; top: 5px; width: 36px; height: 4px; border: 0; border-radius: 2px; background: var(--line); transform: translateX(-50%);
+}
 
 /* ---------- celular ---------- */
 @media (max-width: 600px), (max-height: 500px) {
@@ -584,6 +602,9 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   .sim-page[data-side="sheet"] .sim-side {
     top: auto; left: 0; width: auto; max-height: 82dvh; border-left: 0; border-top: 1px solid var(--line);
     border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(21, 33, 42, .2); transform: translateY(105%);
+  }
+  .sim-page[data-side="sheet"] .sim-side::before {
+    content: ""; position: absolute; left: 50%; top: 5px; width: 36px; height: 4px; border-radius: 2px; background: var(--line); transform: translateX(-50%);
   }
 }
 /* Celular vertical: arriba solo ← · título · Controles, y debajo las pestañas Agua | Electricidad

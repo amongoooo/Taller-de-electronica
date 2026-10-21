@@ -681,6 +681,50 @@
     requestAnimationFrame(frame);
   };
 
+  // Movimiento de la interfaz (menús, hojas): curvas que arrancan rápido y frenan suave. Con «reducir
+  // movimiento» en el sistema, las cosas solo aparecen y desaparecen (sin deslizarse). La simulación no
+  // cambia: las partículas son la física.
+  Sim.REDUCE = matchMedia('(prefers-reduced-motion: reduce)');
+  Sim.EASE = { out: 'cubic-bezier(0.23, 1, 0.32, 1)', drawer: 'cubic-bezier(0.32, 0.72, 0, 1)' };
+  // Arrastrar una hoja hacia donde se esconde la cierra: basta un tirón rápido o pasar la mitad. Hacia el
+  // otro lado se resiste (cada vez se mueve menos). handle: de dónde se agarra; el: lo que se mueve;
+  // axis 'x' (se esconde a la derecha) o 'y' (abajo), o una función que lo diga; when(): si ahora se puede;
+  // close(transform actual).
+  Sim.swipeClose = (handle, el, axis, when, close) => {
+    let s = null;
+    const ax = () => typeof axis === 'function' ? axis() : axis;
+    const pos = e => s.ax === 'y' ? e.clientY : e.clientX;
+    const move = d => `translate${s.ax.toUpperCase()}(${d}px)`;
+    handle.style.touchAction = 'none';
+    handle.addEventListener('pointerdown', e => {
+      if (s || !when() || e.button > 0 || e.target.closest('button, input, a')) return;   // los botones siguen siendo botones
+      s = { ax: ax(), id: e.pointerId, lt: e.timeStamp, v: 0, d: 0 };
+      s.p0 = s.lp = pos(e);
+      handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener('pointermove', e => {
+      if (!s || e.pointerId !== s.id) return;   // un solo dedo
+      const p = pos(e), dt = e.timeStamp - s.lt;
+      if (dt > 0) { s.v = 0.6 * (p - s.lp) / dt + 0.4 * s.v; s.lp = p; s.lt = e.timeStamp; }
+      const raw = p - s.p0;
+      s.d = raw >= 0 ? raw : 0.5 * raw / (1 - raw / 50);   // hacia dentro: a lo más unos 25 px
+      el.style.transition = 'none';
+      el.style.transform = move(s.d);
+    });
+    const end = e => {
+      if (!s || e.pointerId !== s.id) return;
+      const { d, v } = s, size = s.ax === 'y' ? el.offsetHeight : el.offsetWidth, from = el.style.transform;
+      s = null;
+      if (!from) return;
+      el.style.transform = '';
+      if (d > size / 2 || (v > 0.11 && d > 8)) { el.style.transition = ''; close(from); return; }
+      el.animate([{ transform: from }, { transform: 'none' }], { duration: Sim.REDUCE.matches ? 0 : 260, easing: Sim.EASE.drawer })
+        .finished.finally(() => { el.style.transition = ''; });
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  };
+
   // ---------- acciones: la barra de arriba y la columna de controles ----------
   // Todo lo que se toca pertenece a una acción, con su color y su lugar fijo en todas las páginas:
   //   com  Cambiar componentes (verde)   med  Medir (morado)          ali  Alimentar (ámbar, solo en el instrumento)
@@ -803,6 +847,7 @@
     });
     box.querySelector('.x').addEventListener('click', () => { if (mode() === 'col') { open = false; store.set('sim-side', '0'); sync(); } else setSheet(false); });
     scrim.addEventListener('click', () => setSheet(false));
+    Sim.swipeClose(box.querySelector('.sim-side-hd'), box, () => phoneQ.matches ? 'y' : 'x', () => mode() === 'sheet' && sheetOpen, () => setSheet(false));
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen) setSheet(false); });
     colQ.addEventListener('change', sync);
     sync();
@@ -1154,14 +1199,34 @@
       if (!d) { d = mk('div', 'sim-dock'); p.box.appendChild(d); }
       return d;
     };
-    const close = (card, focusBack = false) => {
+    // Al abrir, la tarjeta crece un poquito desde su flechita (desde el componente); la hoja del celular sube
+    // desde abajo; la de la columna baja apenas. Al cerrar se va más rápido de lo que llegó. Si se cambia de
+    // un componente a otro con la tarjeta abierta, la nueva solo aparece (sin crecer otra vez).
+    const enter = (card, quick) => {
+      const el = card.el, sheet = el.classList.contains('sheet'), still = quick || Sim.REDUCE.matches;
+      const kf = still ? [{ opacity: 0 }, { opacity: 1 }]
+        : sheet ? [{ transform: 'translateY(100%)' }, { transform: 'none' }]
+        : card.docked ? [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }]
+        : [{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }];
+      el.animate(kf, { duration: still ? 120 : sheet ? 320 : 180, easing: sheet && !still ? Sim.EASE.drawer : Sim.EASE.out });
+    };
+    const leave = (el, instant, from) => {
+      if (instant || el.classList.contains('docked')) return el.remove();   // en la columna, las demás suben enseguida
+      const sheet = el.classList.contains('sheet');
+      el.classList.add('leaving'); el.setAttribute('aria-hidden', 'true');
+      const kf = Sim.REDUCE.matches ? [{ opacity: 1 }, { opacity: 0 }]
+        : sheet ? [{ transform: from || 'none' }, { transform: 'translateY(100%)' }]
+        : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.97)' }];
+      el.animate(kf, { duration: sheet ? 220 : 120, easing: Sim.EASE.out, fill: 'forwards' }).finished.finally(() => el.remove());
+    };
+    const close = (card, focusBack = false, instant = false, from = '') => {
       if (!card) return;
       cards = cards.filter(c => c !== card);
-      card.el.remove();
+      leave(card.el, instant, from);
       card.anchor.removeAttribute('aria-expanded');
       if (focusBack) card.anchor.focus();
     };
-    const closeFloating = () => cards.filter(c => !c.docked).forEach(c => close(c));
+    const closeFloating = instant => cards.filter(c => !c.docked).forEach(c => close(c, false, instant));
     const setup = () => {
       ready = true;
       // tocar fuera cierra la tarjeta flotante (el componente que la abrió la cierra él mismo, con toggle)
@@ -1263,7 +1328,7 @@
     // Junto al componente: abajo si cabe, si no arriba; en el celular casi a todo lo ancho.
     const place = card => {
       const el = card.el, a = card.anchor.getBoundingClientRect(), vw = innerWidth, vh = innerHeight, M = 8;
-      if (!a.width && !a.height) return close(card);
+      if (!a.width && !a.height) return close(card, false, true);
       el.classList.toggle('sheet', phoneQ.matches);
       if (phoneQ.matches) { el.style.left = el.style.top = ''; return; }
       const w = el.offsetWidth, h = el.offsetHeight, cx = a.left + a.width / 2;
@@ -1288,24 +1353,27 @@
       });
       d.style.top = top + 'px'; d.style.width = DOCK_W + 'px';
     };
+    const refresh = c => {
+      c.title.textContent = val(c.o.title);
+      c.parts.forEach(p => p.sync());
+      if (c.docked) placeDock(c.docked); else place(c);
+    };
     const tick = () => {
       raf = 0;
       if (!cards.length) return;
       for (const c of [...cards]) {
         const now = c.docked && dockFor(c.anchor);
         if (c.docked && (!now || !!now.side !== !!c.docked.side)) { close(c); continue; }   // ya no hay lugar (cambió la pantalla)
-        c.title.textContent = val(c.o.title);
-        c.parts.forEach(p => p.sync());
-        if (c.docked) placeDock(c.docked); else place(c);
+        refresh(c);
       }
       raf = requestAnimationFrame(tick);
     };
     const open = (anchor, o) => {
       if (!ready) setup();
+      const p = dockFor(anchor), swap = !p && cards.some(c => !c.docked);
       const old = cards.find(c => c.anchor === anchor);
-      if (old) close(old);
-      const p = dockFor(anchor);
-      if (!p) closeFloating();
+      if (old) close(old, false, true);
+      if (!p) closeFloating(true);
       const el = mk('div', 'sim-menu' + (p ? ' docked' : ''));
       el.setAttribute('role', 'dialog');
       const hd = mk('div', 'hd'), title = mk('h2', 'ttl'), x = mk('button', 'x', '×');
@@ -1316,6 +1384,7 @@
       parts.forEach(q => el.appendChild(q.row));
       const card = { anchor, o, el, title, parts, docked: p };
       x.addEventListener('click', () => close(card, true));
+      Sim.swipeClose(hd, el, 'y', () => el.classList.contains('sheet') && cards.includes(card), from => close(card, false, false, from));
       if (p) {
         const d = dockEl(p);
         d.prepend(el);
@@ -1324,6 +1393,8 @@
       cards.push(card);
       anchor.setAttribute('aria-expanded', 'true');
       el.setAttribute('aria-label', val(o.title));
+      refresh(card);   // ya en su lugar, para que crezca desde el componente
+      if (cards.includes(card)) enter(card, swap);
       if (!raf) tick();
       const first = el.querySelector('input, .opt, .act:not([hidden])');
       if (first && anchor.matches(':focus-visible')) first.focus();
