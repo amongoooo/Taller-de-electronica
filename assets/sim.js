@@ -341,7 +341,9 @@
   D.lcd = (ctx, x, y, w, h, text, unit) => {
     D.roundRect(ctx, x - w / 2, y - h / 2, w, h, 5, Sim.LCD.bg, C.ink, 1.5);
     const uw = unit ? unit.length * (Sim.compact ? 8 : 7) + 6 : 0;
-    D.segments(ctx, text, x + w / 2 - 8 - uw, y, h * 0.58);
+    // Si el número no cabe (un caudal o una corriente grande), los dígitos se achican para caber.
+    const n = [...text.replace(/(.)\./g, '$1')].length, room = w - 14 - uw;
+    D.segments(ctx, text, x + w / 2 - 8 - uw, y, Math.min(h * 0.58, room / (n * 0.84 - 0.32)));
     if (unit) D.text(ctx, unit, x + w / 2 - 6, y + h * 0.12, Sim.LCD.unit, { align: 'right', size: 12, font: Sim.MONO, weight: 500 });
   };
   // Número con ancho fijo para la pantallita (espacios a la izquierda).
@@ -349,6 +351,9 @@
     const s = Math.abs(v) < 0.5 * Math.pow(10, -d) ? (0).toFixed(d) : v.toFixed(d);
     return s.padStart(width + (d ? 1 : 0), ' ');
   };
+  // Lectura de un medidor en 4 dígitos: los decimales se van quitando cuando el número crece,
+  // así 9.99, 99.99, 999.9 y 1000 ocupan lo mismo en la pantallita.
+  Sim.reading = v => { const a = Math.abs(v); return Sim.digits(v, 4, a < 99.995 ? 2 : a < 999.95 ? 1 : 0); };
   // Medidor completo: caja, ruedita con aguja y pantallita debajo ('below') o a la derecha ('right').
   // Devuelve la caja que ocupa, para acomodar la etiqueta.
   D.meter = (ctx, x, y, { r = 34, frac = 0, text = '', unit = '', label = '', color, lcd = 'below', lcdW = 100 }) => {
