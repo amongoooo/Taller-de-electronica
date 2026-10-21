@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021110000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021120000">
 <style>
 .sim-bar .ctl { gap: 8px; }
 .pb-btn {
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021110000"></script>
+<script src="../../assets/sim.js?v=20261021120000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -62,7 +62,7 @@
   const POWER = [-3.9, 6.75];
   const TRAY = [-5.6, 7.7, -2.2, 14.6];
   const TRAYITEMS = [['wire', 8.7], ['res', 11.05], ['led', 13.4]];
-  const V0 = 9, RINT = 1, FUSE = 1, RD = 15, IMAX = 30, LED_K = 5.8, KPA_PER_V = 10;
+  const V0 = 9, RINT = 1, FUSE = 1, RD = 15, IMAX = 30, LED_K = 5.8;
   const VIOLET = '#8b5cf6', OKC = '#0ea371', REDW = '#d6392b';
   const RVALUES = Sim.series(100, 10000);   // valores comunes (serie E12)
   const vf = k => Sim.led(k.led).vf;        // cada color de LED necesita otro voltaje
@@ -444,7 +444,7 @@
     if (!st.sel) return;
     const [x, y] = g.pt(...st.selAt);
     const has = st.reach.has(st.sel), v = st.V[st.sel] ?? 0;
-    const t = !has ? 'sin conexión' : side === 'w' ? Math.round(v * KPA_PER_V) + ' kPa' : fmt(v) + ' V';
+    const t = !has ? 'sin conexión' : side === 'w' ? fmt(v) + ' psi' : fmt(v) + ' V';
     ctx.font = `700 15px ${Sim.MONO}`;
     const w = ctx.measureText(t).width + 18;
     const ly = y - 30 < 14 ? y + 30 : y - 30;

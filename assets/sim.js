@@ -254,7 +254,7 @@
     D.text(ctx, '+', x - 26, y - 30, C.ink, { size: 20 });
   };
   // Las ruedas giran lento (4 rpm por mA, unas 2 vueltas por segundo a 30 mA) para que se vea
-  // cómo cambia su velocidad con la resistencia; la bomba sí gira a 10 rpm por mL/s.
+  // cómo cambia su velocidad con la resistencia; la bomba sí gira a 100 rpm por mL/s.
   Sim.WHEEL_RPM_PER_MA = 4;
   // Rueda de molino dentro de la tubería (el LED del lado del agua). Gira con la corriente y tiene
   // una compuerta que solo deja pasar el agua hacia la derecha; rev = al revés, broken = rota.
@@ -799,7 +799,7 @@
 
   // Menús de siempre (para b.part o b.pinch del banco): cada uno devuelve menu(side), con side 'w' (agua) o 'e'.
   //   Sim.resistorMenu({ name, values, get, set, format, actions })   valores comunes de resistencia
-  //   Sim.ledMenu({ name, get, set, actions })   color del LED (Sim.LEDS): cada uno necesita otro voltaje (10 kPa por volt)
+  //   Sim.ledMenu({ name, get, set, actions })   color del LED (Sim.LEDS): cada uno necesita otro voltaje (1 psi por volt)
   // actions son los botones de abajo (ver Sim.menu), o actions(side); name es 'R1', '1'…, si hay más de uno.
   Sim.resistorMenu = ({ name = '', values, get, set, format, actions }) => side => ({
     title: (side === 'w' ? 'Tramo angosto' : 'Resistencia') + (name ? ' ' + name : ''),
@@ -810,7 +810,7 @@
     title: (side === 'w' ? 'Rueda' : 'LED') + (name ? ' ' + name : ''),
     rows: [{ label: 'Color', get, set, options: Sim.LEDS.map(l => ({
       value: l.id, text: l.name, color: l.swatch || `rgb(${l.rgb})`,
-      detail: l.name + ' · ' + (side === 'w' ? Math.round(l.vf * 10) + ' kPa' : Sim.fmt(l.vf) + ' V')
+      detail: l.name + ' · ' + (side === 'w' ? Sim.fmt(l.vf) + ' psi' : Sim.fmt(l.vf) + ' V')
     })) }, ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
   });
 
