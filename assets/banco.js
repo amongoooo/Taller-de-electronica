@@ -378,6 +378,44 @@
       return v > 0.05 ? still * (0.5 + 2.2 * v / VMAX) : 0;
     };
 
+    // ---------- color de las partículas ----------
+    // Presión (voltaje) y caudal (corriente) en cada punto, de 0 a 1, para colorear las partículas según
+    // Sim.colorMode: la presión va de 0 a 12 psi (V) y baja en cada componente; el caudal va de 0 a la
+    // escala completa de los medidores (iFull) y es el del tramo. Dentro de la bomba (o la fuente) la
+    // presión sube de 0 a lo que sale.
+    Sim.field = (x, y) => {
+      let best = null, bsg = null;
+      for (const sg of st.segs) {
+        const p = project(sg.pts, x, y);
+        if (!best || p.dist < best.dist) { best = p; bsg = sg; }
+      }
+      if (!best) return [0, 0];
+      const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
+      return [v / VMAX, Math.abs(bsg.I) / iFull];
+    };
+    // Botón junto a la barra de colores de cada lado (enlazados) que abre un menú para elegir el modo.
+    // En la electricidad, con el modo rapidez las cargas van de su color de siempre (sin barra).
+    const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'] };
+    const modeIndex = () => Sim.COLOR_MODES.indexOf(Sim.colorMode);
+    b.linkedButton({
+      cls: 'sim-btn small sim-colors',
+      pos: g => [g.LEG[0] - 10, g.LEG[1]],
+      text: side => 'color: ' + COLOR_NAMES[side][modeIndex()],
+      label: side => 'Color de las partículas: ' + COLOR_NAMES[side][modeIndex()],
+      onClick: (side, el) => Sim.menu.toggle(el, {
+        title: side === 'w' ? 'Color del agua' : 'Color de las cargas',
+        rows: [{ label: 'Color según', values: [0, 1, 2], get: modeIndex,
+          set: k => { Sim.setColorMode(Sim.COLOR_MODES[k]); b.refresh(); }, format: k => COLOR_NAMES[side][k] }]
+      })
+    });
+    // Barra de colores con lo que marca cada punta según el modo.
+    const legend = (ctx, g, side) => {
+      const [x, y, w] = g.LEG, m = Sim.colorMode;
+      if (m === 'p') D.speedLegend(ctx, x, y, w, side === 'w' ? '0 psi' : '0 V', side === 'w' ? VMAX * PSI_PER_V + ' psi' : VMAX + ' V');
+      else if (m === 'q') D.speedLegend(ctx, x, y, w, '0', side === 'w' ? iFull * MLS_PER_MA + ' mL/s' : iFull + ' mA');
+      else if (side === 'w') D.speedLegend(ctx, x, y, w);
+    };
+
     st.clamps = {
       V: [[b.gw.X0, b.gw.MY], [b.gw.X1, b.gw.MY]],
       I: [[b.gw.X1 - 60, b.gw.BOT]]
@@ -1212,7 +1250,7 @@
       drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       o.drawW(ctx, g, m);
       knobScales(ctx, g);
-      D.speedLegend(ctx, ...g.LEG);
+      legend(ctx, g, 'w');
       controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set * PSI_PER_V, 2, 1), 'psi'], ['presión', 'caudal']);
       D.meter(ctx, g.BX + g.BW - 62, g.BY + 52, { r: 30, frac: st.nV.x, color: C.water, lcdW: 92,
@@ -1228,6 +1266,7 @@
       drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       o.drawE(ctx, g, m);
       knobScales(ctx, g);
+      legend(ctx, g, 'e');
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set, 2, 1), 'V'], ['CV', 'CC']);
       D.meter(ctx, g.BX + g.BW - 62, g.BY + 52, { r: 30, frac: st.nV.x, color: C.charge, lcdW: 92,

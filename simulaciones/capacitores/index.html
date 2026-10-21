@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021130000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021150000">
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
 .sim-pinch.cap { width: max(50px, calc(var(--s, 1) * 112px)); height: max(60px, calc(var(--s, 1) * 136px)); }
@@ -39,8 +39,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021130000"></script>
-<script src="../../assets/banco.js?v=20261021130000"></script>
+<script src="../../assets/sim.js?v=20261021150000"></script>
+<script src="../../assets/banco.js?v=20261021150000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -117,7 +117,7 @@
             let v = ((k + (j % 2) * 0.5) * s + shift) % VT; if (v < 0) v += VT;
             const [d, h] = locate(v), [x, y, tx, ty] = D.frameAt(pts, d), off = f * h;
             const [jx, jy, js] = Sim.jitter(x, y, i);
-            ctx.fillStyle = Sim.speedColor(Math.max(Math.abs(flow * Sim.PIPE * u / h), js) / 200);
+            ctx.fillStyle = Sim.particleColor(x, y, Math.max(Math.abs(flow * Sim.PIPE * u / h), js) / 200);
             ctx.beginPath(); ctx.arc(x - ty * off + jx, y + tx * off + jy, r, 0, Math.PI * 2); ctx.fill();
           }
         });
