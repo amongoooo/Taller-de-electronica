@@ -817,18 +817,23 @@
       syncs.unshift(sync); sync(); syncs.forEach(f => f());
     })));
 
-    // Tocar un medidor quita sus puntas del circuito y lo prepara para conectarse: el siguiente toque
-    // pone la punta roja (+) y el siguiente la negra (−); el amperímetro solo necesita un toque para su
+    // Tocar un medidor atenúa sus puntas (se pueden reposicionar), muestra sus botones y lo prepara: el siguiente toque
+    // pone la punta roja (+) y el siguiente la negra (−), que se deslizan ahí; el amperímetro solo necesita un toque para su
     // pinza. Si una punta está guardada en el medidor, solo se pone esa. Tocar el medidor otra vez o
     // Esc cancela y las puntas regresan a donde estaban.
     st.placing = null;
+    st.pend = per(false);   // puestas, pero esperando su nuevo lugar (se ven atenuadas)
     const setPlacing = v => {
-      if (st.placing && (!v || !v.prev)) st.placed[st.placing.kind] = st.placing.prev.slice();
+      if (st.placing && (!v || !v.prev)) { st.placed[st.placing.kind] = st.placing.prev.slice(); st.pend[st.placing.kind].fill(false); }
       if (v && !v.prev) {
         v.prev = st.placed[v.kind].slice();
         v.todo = v.prev.some(Boolean) && !v.prev.every(Boolean) ? v.prev.map((p, i) => p ? -1 : i).filter(i => i >= 0) : st.placed[v.kind].map((_, i) => i);
         v.i = v.todo[0];
-        v.todo.forEach(i => { st.placed[v.kind][i] = false; st.reel[v.kind][i] = 0; ['lift', 'floor', 'drop'].forEach(k => { st[k][v.kind][i] = null; }); });
+        // las puntas que estaban puestas no desaparecen: se ven atenuadas hasta tocar su nuevo lugar
+        v.todo.forEach(i => {
+          if (v.prev[i] && !st.reel[v.kind][i]) { st.pend[v.kind][i] = true; st.lift[v.kind][i] = null; return; }
+          st.placed[v.kind][i] = false; st.reel[v.kind][i] = 0; ['lift', 'floor', 'drop'].forEach(k => { st[k][v.kind][i] = null; });
+        });
         syncReel();
       }
       st.placing = v;
@@ -875,13 +880,31 @@
         e.preventDefault();
       });
       syncs.push(() => { el.hidden = !st.show[kind]; });
-      // Dos botones siempre a los lados de su nombre: recoger (conector) y compactar.
+      // Dos botones a los lados de su nombre: recoger (conector) y compactar. Solo se ven con el
+      // puntero encima del medidor (o de ellos) o cuando se tocó el medidor para conectarlo.
+      const shy = [];
+      let peek = false, peekT = null;
+      const syncShy = () => {
+        const on = peek || !!(st.placing && st.placing.kind === kind);
+        shy.forEach(bt => bt.classList.toggle('shy', !on));
+      };
+      const setPeek = v => {
+        clearTimeout(peekT);
+        if (v) { peek = true; syncShy(); } else peekT = setTimeout(() => { peek = false; syncShy(); }, 400);
+      };
+      const hover = t => {
+        t.addEventListener('pointerenter', () => setPeek(true)); t.addEventListener('pointerleave', () => setPeek(false));
+        t.addEventListener('focusin', () => setPeek(true)); t.addEventListener('focusout', () => setPeek(false));
+      };
+      hover(el);
+      syncs.push(syncShy);
       const water = side === 'w', what = kind === 'V' ? (water ? 'las mangueras' : 'los cables') : (water ? 'la manguera' : 'el cable');
       const button = (dx, svg, label, onClick) => {
         const bt = document.createElement('button');
         bt.type = 'button'; bt.className = 'sim-meter-btn'; bt.innerHTML = svg;
         bt.setAttribute('aria-label', label); bt.title = label;
         bt.addEventListener('click', onClick);
+        shy.push(bt); hover(bt);
         b.place(side, bt, g => {
           const [x, y] = meterAt(g, kind), s = Math.max(30, 28 * panel(side).scale * g.MK);
           bt.style.width = bt.style.height = s + 'px';
@@ -917,7 +940,11 @@
         const r = p.box.getBoundingClientRect();
         const { kind, i } = st.placing;
         const x = (e.clientX - r.left - p.ox) / p.scale, y = (e.clientY - r.top - p.oy) / p.scale;
+        // una punta atenuada se desliza de donde estaba a su nuevo lugar
+        const from = st.pend[kind][i] ? pose(b.gw, kind, i) : null;
+        st.pend[kind][i] = false; st.floor[kind][i] = null;
         moveClamp(kind, i, x, y, x, y);
+        if (from) st.drop[kind][i] = { from, t: 0 };
         st.placed[kind][i] = true; st.click[kind][i] = 0;
         const next = st.placing.todo[st.placing.todo.indexOf(i) + 1];
         if (next !== undefined) { st.placing.i = next; syncs.forEach(f => f()); }
@@ -1256,7 +1283,7 @@
           }
           if (st.morph[kind][i] !== m0 || st.reel[kind][i] !== r0) moved = true;
           const dr = st.drop[kind][i], lf = st.lift[kind][i], o0 = st.off[kind][i];
-          st.off[kind][i] = connected(kind, i) ? Math.max(0, o0 - dt / 0.2) : Math.min(1, o0 + dt / 0.2);
+          st.off[kind][i] = connected(kind, i) && !st.pend[kind][i] ? Math.max(0, o0 - dt / 0.2) : Math.min(1, o0 + dt / 0.2);
           st.click[kind][i] += dt;
           // levantada, la punta gira poco a poco para que su contacto mire a la línea más cercana
           // (si se agarró del anillo, el círculo solo lo sigue)
