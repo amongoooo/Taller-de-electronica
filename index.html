@@ -15,6 +15,11 @@
   --font-display: "Saira", "Segoe UI", sans-serif;
   --font-body: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
 }
+:root[data-theme="dark"] {
+  --bg: #0e151b; --card: #18222b; --ink: #e2e9ef; --muted: #9cadba; --line: #2f3d49;
+  --water: #4fa6e6; --charge: #f0a830;
+  color-scheme: dark;
+}
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.5; }
 .wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 56px; display: grid; gap: 28px; }
@@ -30,13 +35,21 @@ a.card:hover { border-color: var(--water); }
 .tag { font-family: var(--font-display); font-stretch: 125%; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--water); }
 .card.soon { border-style: dashed; }
 .card.soon .tag { color: var(--muted); }
+header { position: relative; }
+.theme { position: absolute; top: 0; right: 0; display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); }
+.theme button { font: inherit; font-size: 14px; font-weight: 700; padding: 4px 12px; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
+.theme button:hover { color: var(--ink); }
+.theme button[aria-pressed="true"] { background: var(--water); color: var(--card); }
+@media (max-width: 600px) { .theme { position: static; margin-bottom: 14px; } }
 footer { color: var(--muted); font-size: 14px; }
 footer a { color: var(--water); }
 </style>
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
 <div class="wrap">
   <header>
+    <div class="theme" role="group" aria-label="Tema"><button type="button" data-v="light">Claro</button><button type="button" data-v="dark">Oscuro</button></div>
     <div class="eyebrow">Taller de Electrónica</div>
     <h1>Simulaciones</h1>
     <p class="lede">Simulaciones interactivas para acompañar el taller en laboratorio con fuente, generador de funciones y osciloscopio. Funcionan en el navegador, también en el celular.</p>
@@ -95,5 +108,18 @@ footer a { color: var(--water); }
 
   <footer>Código en <a href="https://github.com/amongoooo/Taller-de-electronica">GitHub</a>.</footer>
 </div>
+<script>
+// Tema claro u oscuro: el mismo que en las simulaciones (sim-theme).
+(() => {
+  const root = document.documentElement, bs = document.querySelectorAll('.theme button');
+  const sync = () => bs.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === (root.dataset.theme === 'dark' ? 'dark' : 'light'))));
+  bs.forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.v === 'dark') root.dataset.theme = 'dark'; else delete root.dataset.theme;
+    try { localStorage.setItem('sim-theme', b.dataset.v); } catch (e) {}
+    sync();
+  }));
+  sync();
+})();
+</script>
 </body>
 </html>

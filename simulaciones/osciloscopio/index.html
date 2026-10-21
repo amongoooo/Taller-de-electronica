@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021093516">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021093837">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* Botones de forma de onda del generador. */
 .sim-wave {
@@ -45,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021093516"></script>
+<script src="../../assets/sim.js?v=20261021093837"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -422,7 +423,10 @@
     D.roundRect(ctx, P + 2, -7, 10, 14, 2.5, '#9aa6af', col, 2.5);
     D.line(ctx, [[P + 2, 0], [P + 12, 0]], 4, C.water);
   };
-  const tipColor = k => k ? C.ink : RED;
+  // Papel del registrador (más oscuro en el modo oscuro) y su cuadrícula.
+  const paper = () => C.dark ? '#262420' : '#fffdf5';
+  const grid = mid => C.dark ? (mid ? '#5c5444' : '#3a362d') : (mid ? '#d6c7a6' : '#ece2cc');
+  const tipColor = k => k ? C.neg : RED;
   const drawCables = (ctx, g) => [0, 1].forEach(k => {
     const f = frame(k), L = tipLen(g.side), [jx, jy] = g.jacks[k];
     const ax = f.x + f.n[0] * L, ay = f.y + f.n[1] * L;
@@ -483,11 +487,11 @@
     D.text(ctx, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO', g.SX + 20, g.SY + 24, C.ink, { align: 'left', size: 14, font: Sim.WIDE });
     // Pantalla (en el agua, papel cuadriculado)
     const ink = w ? PURPLE : '#c4b0ff', txt = w ? C.muted : Sim.LCD.on;
-    D.roundRect(ctx, sx - 4, sy - 4, sw + 8, sh + 8, 6, w ? '#fffdf5' : Sim.LCD.bg, C.ink, 2);
+    D.roundRect(ctx, sx - 4, sy - 4, sw + 8, sh + 8, 6, w ? paper() : Sim.LCD.bg, C.ink, 2);
     ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
     ctx.lineWidth = 1;
-    for (let i = 0; i <= 10; i++) D.line(ctx, [[sx + i * DIV, sy], [sx + i * DIV, sy + sh]], i === 5 ? 1.6 : 1, w ? (i === 5 ? '#d6c7a6' : '#ece2cc') : `rgba(142, 247, 166, ${i === 5 ? 0.35 : 0.14})`, 'butt');
-    for (let i = 0; i <= 8; i++) D.line(ctx, [[sx, sy + i * DIV], [sx + sw, sy + i * DIV]], i === 4 ? 1.6 : 1, w ? (i === 4 ? '#d6c7a6' : '#ece2cc') : `rgba(142, 247, 166, ${i === 4 ? 0.35 : 0.14})`, 'butt');
+    for (let i = 0; i <= 10; i++) D.line(ctx, [[sx + i * DIV, sy], [sx + i * DIV, sy + sh]], i === 5 ? 1.6 : 1, w ? grid(i === 5) : `rgba(142, 247, 166, ${i === 5 ? 0.35 : 0.14})`, 'butt');
+    for (let i = 0; i <= 8; i++) D.line(ctx, [[sx, sy + i * DIV], [sx + sw, sy + i * DIV]], i === 4 ? 1.6 : 1, w ? grid(i === 4) : `rgba(142, 247, 166, ${i === 4 ? 0.35 : 0.14})`, 'butt');
     const Y = v => cy - v / vdiv * DIV;
     for (const tr of st.traces) {
       if (tr.pts.length < 2) continue;
@@ -520,7 +524,7 @@
     const read = (t, x, y, align) => {
       D.text(ctx, t, -999, -999, txt, { ...opt, align });   // solo para fijar la letra y medir
       const tw = ctx.measureText(t).width, x0 = align === 'left' ? x : align === 'right' ? x - tw : x - tw / 2;
-      ctx.globalAlpha = 0.85; D.roundRect(ctx, x0 - 4, y - 9, tw + 8, 18, 4, w ? '#fffdf5' : Sim.LCD.bg); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.85; D.roundRect(ctx, x0 - 4, y - 9, tw + 8, 18, 4, w ? paper() : Sim.LCD.bg); ctx.globalAlpha = 1;
       D.text(ctx, t, x, y, txt, { ...opt, align });
     };
     read(`${fmt(vdiv * k, vdiv * k < 1 ? 1 : 0)} ${u}/div`, sx + 8, sy + 14, 'left');

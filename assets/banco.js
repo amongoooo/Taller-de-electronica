@@ -848,7 +848,7 @@
       const [x, y] = meterAt(g, kind);
       return NP[kind] === 1 ? [x, y - 40 * g.MK] : leadJack(g, kind, i);
     };
-    const jackColor = (kind, j) => j ? C.ink : RED;
+    const jackColor = (kind, j) => j ? C.neg : RED;
 
     // Cada punta toca el circuito de forma perpendicular, del lado donde estaba el puntero al ponerla o
     // arrastrarla (adentro o afuera del circuito); si no hay, del lado que mira hacia su medidor.
@@ -1606,7 +1606,7 @@
       D.roundRect(ctx, -6, -15, 18, 30, 3, C.ink);
       D.line(ctx, [[-6, 0], [12, 0]], 2.5, C.card, 'butt');            // el corte
       D.circle(ctx, 5, yr, 3.6, dull(RED, o), C.card, 1.2);
-      D.circle(ctx, 5, -yr, 3.6, C.ink, C.card, 1.2);
+      D.circle(ctx, 5, -yr, 3.6, C.neg, C.card, 1.2);
     };
     // En el agua: un tapón parte la tubería en dos y el agua sale por la manguera roja, pasa por el
     // medidor y regresa por la negra.
@@ -1615,7 +1615,7 @@
       D.roundRect(ctx, -P - 6, -21, 2 * P + 12, 42, 5, C.metal, C.ink, 2);
       [-1, 1].forEach(s => D.roundRect(ctx, -P + 1, s > 0 ? 3 : -18, 2 * P - 2, 15, 3, C['water-soft']));
       ctx.fillStyle = C.ink; ctx.fillRect(-P - 6, -2.5, 2 * P + 12, 5);   // el tapón
-      [[yr, dull(RED, o)], [-yr, C.ink]].forEach(([y, col]) => {
+      [[yr, dull(RED, o)], [-yr, C.neg]].forEach(([y, col]) => {
         D.roundRect(ctx, P + 4, y - 5, 9, 10, 2.5, '#9aa6af', col, 2);
         D.line(ctx, [[P - 2, y], [P + 12, y]], 3.5, C.water);
       });
@@ -1652,7 +1652,7 @@
         const water = g.side === 'w';
         D.text(ctx, 'toca el circuito para', 0, ly, PROBE[kind], { size: 12 });
         if (kind === 'I') D.text(ctx, 'ponerlo en serie', 0, ly + 16, PROBE.I, { size: 13 });
-        else D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 16, st.placing.i ? C.ink : RED, { size: 13 });
+        else D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 16, st.placing.i ? C.neg : RED, { size: 13 });
       } else D.text(ctx, label, 0, ly, PROBE[kind], { size: 14, font: Sim.WIDE });
       ctx.restore();
       // bornes rojo (+) y negro (−)
@@ -1667,7 +1667,7 @@
     // la misma escala que las partículas en el modo de color por presión (0 a 12 psi).
     const columns = ctx => {
       const top = -26, h = 62;
-      [[-22, st.nPa.x, RED], [22, st.nPb.x, C.ink]].forEach(([cx, f, col]) => {
+      [[-22, st.nPa.x, RED], [22, st.nPb.x, C.neg]].forEach(([cx, f, col]) => {
         D.roundRect(ctx, cx - 10, top, 20, h, 5, C.card, col, 2);
         const lv = Math.max(0, Math.min(1, f)) * (h - 4);
         if (lv > 0.5) D.roundRect(ctx, cx - 8, top + h - 2 - lv, 16, lv, 3, Sim.speedColor(f));
@@ -1714,7 +1714,7 @@
       ctx.moveTo(x0 - 1, -h0); ctx.lineTo(x1 - 3, -h1); ctx.quadraticCurveTo(x1, -h1, x1, 0);
       ctx.quadraticCurveTo(x1, h1, x1 - 3, h1); ctx.lineTo(x0 - 1, h0); ctx.closePath();
       ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = C.ink; ctx.stroke();
-      ctx.strokeStyle = col === C.ink ? 'rgba(255,255,255,0.45)' : 'rgba(21,33,42,0.45)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = col === C.neg && !C.dark ? 'rgba(255,255,255,0.45)' : 'rgba(21,33,42,0.45)'; ctx.lineWidth = 1.5;
       for (let k = 1; k <= 3; k++) {
         const x = x0 + BOOT * k / 4, h = h0 + (h1 - h0) * k / 4 - 1;
         ctx.beginPath(); ctx.moveTo(x, -h); ctx.lineTo(x, h); ctx.stroke();
@@ -1740,7 +1740,7 @@
       D.circle(ctx, 0, 0, 16, C.card); ctx.restore();
       D.circle(ctx, 0, 0, 14, col);
       D.circle(ctx, 0, 0, 16, null, C.ink, 1.5);
-      D.text(ctx, kind === 'I' ? 'A' : i ? '−' : '+', 0, 1, '#fff', { size: 20, weight: 800 });
+      D.text(ctx, kind === 'I' ? 'A' : i ? '−' : '+', 0, 1, kind === 'V' && i && C.dark ? C.card : '#fff', { size: 20, weight: 800 });
       ctx.restore();
       ctx.globalAlpha = a0;
     };
