@@ -969,13 +969,18 @@
     const tip = el('div', 'sim-tip');
     tip.setAttribute('aria-hidden', 'true');
     document.body.appendChild(tip);
-    let cur = null, t = 0;
-    const hide = () => { clearTimeout(t); cur = null; tip.classList.remove('on'); };
+    // Después del primero, al pasar a otra cosa enseguida el globito sale sin esperar y sin desvanecerse.
+    let cur = null, t = 0, warm = 0;
+    const hide = keep => {
+      clearTimeout(t); cur = null;
+      warm = keep === true && tip.classList.contains('on') ? performance.now() + 600 : keep === true ? warm : 0;
+      tip.classList.remove('on');
+    };
     document.addEventListener('pointerover', e => {
       if (e.pointerType !== 'mouse' || e.buttons) return;
       const c = e.target.closest && e.target.closest('.sim-layer > *');
       if (c === cur) return;
-      hide();
+      hide(true);
       if (!c || c.matches('.ring, .jack') || !tipName(c)) return;
       cur = c;
       t = setTimeout(() => {
@@ -983,14 +988,15 @@
         const k = Sim.actOf(c), r = c.getBoundingClientRect();
         tip.innerHTML = `<b>${Sim.ACTS[k][1]}</b> · ${tipName(c)}`;
         tip.dataset.act = k;
+        tip.classList.toggle('warm', performance.now() < warm);
         tip.classList.add('on');
         const w = tip.offsetWidth;
         tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
         tip.style.top = Math.max(8, r.top - tip.offsetHeight - 8) + 'px';
-      }, 450);
+      }, performance.now() < warm ? 0 : 450);
     });
-    document.addEventListener('pointerdown', hide, true);
-    document.addEventListener('scroll', hide, true);
+    document.addEventListener('pointerdown', () => hide(), true);
+    document.addEventListener('scroll', () => hide(), true);
   }
 
   // ---------- vista: Agua · Ambos · Electricidad ----------
