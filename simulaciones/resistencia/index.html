@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021035446">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021100000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,20 +35,21 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021035446"></script>
-<script src="../../assets/banco.js?v=20261021035446"></script>
+<script src="../../assets/sim.js?v=20261021100000"></script>
+<script src="../../assets/banco.js?v=20261021100000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
-  // 0 Ω es un cortocircuito: solo la resistencia interna de la fuente (y de la bomba) limita la corriente.
+  // 0 Ω es un cortocircuito: solo el límite de corriente de la fuente (o el caudal máximo de la bomba) la detiene.
   // La resistencia se cambia pellizcando el tramo angosto o tocándolo (abre su menú): valores comunes
   // de 100 Ω a 10 kΩ, y abierto del todo es 0 Ω.
   const RMIN = 100, RMAX = 10000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
   const RVALUES = [0, ...Sim.series(RMIN, RMAX)];
   const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
   const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
-  // Resistencia interna de la fuente. El fusible (de 100 mA al empezar) se cambia tocándolo.
-  const RINT = 15, FUSES = [50, 100, 250, 500, 1000], FUSE_K = 52.5;
+  // Los cables tienen 0,05 Ω (para que un corto no sea una división entre 0). El fusible (de 100 mA al
+  // empezar) se cambia tocándolo.
+  const RW = 0.05, FUSES = [50, 100, 250, 500, 1000], FUSE_K = 52.5;
   const mA = i => i >= 1000 ? fmt(i / 1000, 0) + ' A' : i + ' mA';
   const mLs = i => { const q = i * b.MLS_PER_MA; return q >= 1000 ? fmt(q / 1000, q % 1000 ? 1 : 0) + ' L/s' : q + ' mL/s'; };
   const PMAX = 0.25, RES_K = 2.9;                 // la resistencia es de ¼ W
@@ -61,22 +62,22 @@
 
   const b = Sim.bench({
     iFull: 30,
-    iMax: 12 / RINT * 1000,   // 12 V en cortocircuito: solo la resistencia interna limita la corriente
-    v0: 9,
+    iMax: 1000,   // en cortocircuito sale justo el límite de la fuente, que llega hasta 1 A
+    v0: 9, lim0: 500,
     layout(g) {
       const s = sides[g.side] = { phase: 0, g };
       if (g.side === 'w') s.water = Sim.water(g.loop, profile(g));
     },
-    model: V => ({ I: st.blown || st.burnt ? 0 : V / (st.R + RINT) * 1000 }),
-    // Voltaje en las terminales: la fuente pierde I·RINT por dentro, así que en cortocircuito se cae casi a 0.
+    model: V => ({ I: st.blown || st.burnt ? 0 : V / (st.R + RW) * 1000 }),
+    // En cortocircuito la fuente llega a su límite y baja su voltaje casi a 0.
     circuit(g, m, V) {
-      const Vt = Math.max(0, V - m.I * RINT / 1000), fuse = { at: fuseAt(g), half: 24, dV: st.blown ? Vt : 0 };
-      return [{ pts: b.loopPts(g), I: m.I, v0: Vt, comps: [fuse, { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : Vt }] }];
+      const fuse = { at: fuseAt(g), half: 24, dV: st.blown ? V : 0 };
+      return [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [fuse, { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : V }] }];
     },
     step(dt, m) {
       // Arriba de lo que aguanta (100 mA al empezar) el fusible se calienta, aunque la inercia esté en 0: la corriente llega al
       // instante, pero el hilo tarda en fundirse, y entre más se pasa más rápido (como I²·t).
-      // Con 600 mA tarda 1,5 s; en uno real serían milisegundos, aquí va lento para que se vea.
+      // Con 500 mA (el límite de la fuente al empezar) tarda 2,2 s; en uno real serían milisegundos, aquí va lento para que se vea.
       const over = (m.I / st.fuse) ** 2 - 1;
       if (over > 0 && !st.blown) {
         st.heat += dt * over / FUSE_K;
