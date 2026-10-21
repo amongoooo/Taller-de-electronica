@@ -50,7 +50,7 @@
   Sim.bench = o => {
     const iFull = o.iFull || 12, iMax = o.iMax || iFull, flowSpeed = o.flowSpeed || 12;
     const st = { on: false, set: o.v0 ?? 6, lim: Sim.nearest(LIMS, o.lim0 ?? 100), v: 0, vo: 0, cc: false, tau: 1, level: Sim.ramp(), m: { I: 0 },
-      rpm: 0, omega: 0, rotor: 0, nV: Sim.needle(), nVm: Sim.needle(), nIm: Sim.needle(), nPa: Sim.needle(), nPb: Sim.needle(), turb: 0,
+      rpm: 0, omega: 0, rotor: 0, nVm: Sim.needle(), nIm: Sim.needle(), nPa: Sim.needle(), nPb: Sim.needle(), turb: 0,
       segs: [], probe: { V: null, I: null }, pinned: { V: false, I: false }, show: { V: true, I: true } };
     const b = { st, VMAX, PSI_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
@@ -78,23 +78,23 @@
       return [MODES[mode].W, best.H, MODES[mode].x0, mode];
     };
     const geometry = (side, W, H, mode = 'ancho') => {
-      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, BW: 430, BH: 152, MK: 1 };
+      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, BW: 330, BH: 152, MK: 1 };
       if (mode === 'lateral') {
         g.BOT = H - 64;
         g.BX = 700; g.MK = 1.25;
         const my = 40 + 40 * g.MK;
-        g.meters = { V: [g.BX + 105, my], I: [g.BX + g.BW - 105, my] };
+        g.meters = { V: [g.BX + 55, my], I: [g.BX + g.BW - 55, my] };
         g.BY = my + 116 * g.MK;
         g.LEG = [g.BX + 140, Math.min(H - 22, g.BY + g.BH + 28), 150];
       } else if (mode === 'alto') {
         g.BOT = H - 444;
-        g.BX = g.PX - 215; g.BY = g.BOT + 46; g.MK = 1.35;
+        g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46; g.MK = 1.35;
         const my = g.BY + g.BH + 34 + 40 * g.MK;
         g.meters = { V: [g.PX - 135, my], I: [g.PX + 135, my] };
         g.LEG = [505, 24, 150];
       } else {
         g.BOT = H - 214;
-        g.BX = g.PX - 215; g.BY = g.BOT + 46;
+        g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46;
         g.meters = { V: [g.BX / 2, g.BY + 40], I: [(g.BX + g.BW + W) / 2, g.BY + 40] };
         g.LEG = [600, 46, 160];
       }
@@ -1255,8 +1255,6 @@
       legend(ctx, g, 'w');
       controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set * PSI_PER_V, 2, 1), 'psi'], ['presión', 'caudal']);
-      D.meter(ctx, g.BX + g.BW - 62, g.BY + 52, { r: 30, frac: st.nV.x, color: C.water, lcdW: 92,
-        text: digits(st.vo * PSI_PER_V, 2, 2), unit: 'psi' });
       D.pump(ctx, g.PX, g.BOT, st.rotor, st.omega);
       drawProbe(ctx, g, 'I', 'caudal',
         ...probeText('I', MLS_PER_MA, 'mL/s', 'L/s'), C.water);
@@ -1271,8 +1269,6 @@
       legend(ctx, g, 'e');
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set, 2, 1), 'V'], ['CV', 'CC']);
-      D.meter(ctx, g.BX + g.BW - 62, g.BY + 52, { r: 30, frac: st.nV.x, color: C.charge, lcdW: 92,
-        text: digits(st.vo, 2, 2), unit: 'V' });
       D.source(ctx, g.PX, g.BOT);
       drawProbe(ctx, g, 'I', 'amperímetro',
         ...probeText('I', 1, 'mA', 'A'), C.charge);
@@ -1368,7 +1364,6 @@
       smooth.t += dt;
       st.m = inertia(st.vo);
       const tn = Math.min(0.15, st.tau * 0.15);                    // las agujas apenas se atrasan
-      st.nV.step(st.vo / VMAX, tn, dt);
       st.segs = buildSegs(b.gw, st.m, st.vo);
       const before = JSON.stringify(st.clamps);
       st.probe = measure(st.segs);
