@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=202610210926">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021093516">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=202610210926"></script>
-<script src="../../assets/banco.js?v=202610210926"></script>
+<script src="../../assets/sim.js?v=20261021093516"></script>
+<script src="../../assets/banco.js?v=20261021093516"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -67,11 +67,22 @@
     // Si no pasa corriente, todo el voltaje queda en el interruptor abierto o en el LED que la bloquea.
     circuit(g, m, V) {
       const R = st.R, dR = m.I * R / 1000;
+      // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
       const comps = [
-        { at: [XV, g.TOP], half: 28, dV: st.closed ? 0 : V },
-        { at: [XL, g.TOP], half: 30, dV: st.closed ? V - dR : 0 }
+        { at: [XV, g.TOP], half: 28, dV: st.closed ? 0 : V, ext: w => w ? 46 : 30,
+          draw: (ctx, w) => w ? D.valve(ctx, XV, g.TOP, st.closed) : D.knifeSwitch(ctx, XV, g.TOP, st.closed),
+          tag: w => [w ? 'válvula' : 'interruptor', w ? (st.closed ? 'abierta' : 'cerrada') : (st.closed ? 'cerrado' : 'abierto'), !st.closed] },
+        { at: [XL, g.TOP], half: 30, dV: st.closed ? V - dR : 0, pr: ledPart, ext: w => w ? 52 : 28,
+          draw: (ctx, w) => {
+            const [jx, jy] = shake();
+            if (w) D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, tint: `rgb(${Sim.led(st.led).rgb})` });
+            else D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: m.I, broken: st.broken, rev: st.rev, rgb: Sim.led(st.led).rgb });
+          },
+          tag: w => [w ? 'rueda' : 'LED', st.broken ? (w ? 'rota' : 'quemado') : st.rev ? 'al revés' : st.led, st.broken || st.rev] }
       ];
-      if (R) comps.push({ at: [g.PX, g.TOP], half: 46, dV: dR });
+      if (R) comps.push({ at: [g.PX, g.TOP], half: 46, dV: dR, pr: pinch,
+        draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, half(R)) : D.resistor(ctx, g.PX, g.TOP),
+        tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(R)] });
       return [{ pts: b.loopPts(g), I: m.I, v0: V, comps }];
     },
     step(dt, m) {
@@ -178,7 +189,7 @@
     onClick: () => { st.rev = !st.rev; }
   });
   // Tocar la rueda (o el LED) abre su menú: su color, girarlo y romperlo o poner uno nuevo.
-  b.part({
+  const ledPart = b.part({
     pos: g => [XL, g.TOP],
     label: side => side === 'w' ? 'Rueda' : 'LED',
     menu: Sim.ledMenu({

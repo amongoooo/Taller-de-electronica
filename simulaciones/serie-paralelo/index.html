@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=202610210926">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021093516">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=202610210926"></script>
-<script src="../../assets/banco.js?v=202610210926"></script>
+<script src="../../assets/sim.js?v=20261021093516"></script>
+<script src="../../assets/banco.js?v=20261021093516"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -96,17 +96,25 @@
     },
     // Cómo se reparte el voltaje: un LED roto (o todos, si no alcanza para encenderlos) se queda con él.
     circuit(g, m, V) {
-      const [b1, b2] = st.broken, R = (x, y, dV) => ({ at: [x, y], half: 46, dV }), L = (x, y, dV) => ({ at: [x, y], half: 30, dV });
+      // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
+      const [b1, b2] = st.broken;
+      const R = (x, y, dV, k = 0) => ({ at: [x, y], half: 46, dV, pr: pinch[k],
+        draw: (ctx, w) => w ? D.narrow(ctx, x, y, half(st.R[k])) : D.resistor(ctx, x, y),
+        tag: () => ['R' + (k + 1), ohm(st.R[k])] });
+      const L = (x, y, dV, i = 0) => ({ at: [x, y], half: 30, dV, pr: ledParts[i], ext: w => w ? 52 : 28,
+        draw: (ctx, w) => w ? D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], tint: `rgb(${Sim.led(st.led[i]).rgb})` })
+          : D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], rgb: Sim.led(st.led[i]).rgb }),
+        tag: w => [(w ? 'rueda ' : 'LED ') + (i + 1), st.broken[i] ? (w ? 'rota' : 'quemado') : st.led[i], st.broken[i]] });
       if (st.mode === 'serie') {
         const n = b1 + b2, on = m.I > 0;
         const led = k => n ? (st.broken[k] ? V / n : 0) : on ? vf(k) : V / 2;
         return [{ pts: b.loopPts(g), I: m.I, v0: V,
-          comps: [R(XR, g.TOP, on ? V - vf(0) - vf(1) : 0), L(420, g.TOP, led(0)), L(545, g.TOP, led(1))] }];
+          comps: [R(XR, g.TOP, on ? V - vf(0) - vf(1) : 0), L(420, g.TOP, led(0), 0), L(545, g.TOP, led(1), 1)] }];
       }
       const YB = sides.e.YB;
       const branch = (i, pts, y) => {
         const on = m.branch[i] > 0;
-        return { pts, I: m.branch[i], v0: V, comps: [R(XR, y, on ? V - vf(i) : 0), L(470, y, on ? vf(i) : V)] };
+        return { pts, I: m.branch[i], v0: V, comps: [R(XR, y, on ? V - vf(i) : 0, i), L(470, y, on ? vf(i) : V, i)] };
       };
       return [
         { pts: [[g.X1, YB], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]], I: m.I, v0: 0, comps: [] },
@@ -159,7 +167,7 @@
   });
 
   // Tocar una rueda (o un LED) abre su menú: su color, y romperlo o repararlo.
-  [0, 1].forEach(i => b.part({
+  const ledParts = [0, 1].map(i => b.part({
     pos: g => ledPos(g, i),
     label: side => (side === 'w' ? 'Rueda ' : 'LED ') + (i + 1),
     menu: Sim.ledMenu({

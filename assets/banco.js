@@ -24,7 +24,13 @@
 //   stateful,         true si la corriente cambia sola con el tiempo (un capacitor que se carga):
 //                     esos cambios ya vienen suaves y no se toman como cambios del circuito
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
+//   overlay(ctx, g, m)                    lo que va encima de todo (avisos de la página)
 // })
+// Vista de nodos (Ver → Dibujo: Circuito | Nodos): los cables se juntan en nodos con su voltaje y solo quedan
+// los componentes. Para dibujarlos ahí, cada componente de circuit() trae draw(ctx, water, g, m) (lo dibuja en
+// su lugar de siempre; el banco lo mueve y lo gira), tag(water) → [nombre, valor, peligro], pr (su b.pinch o
+// b.part) y ext (cuánto sobresale de su cable, o ext(water)). Un tramo con link: true es un contacto cerrado.
+// b.setNodes(v) y b.nodesOn() la ponen o la quitan; b.where() dice en qué nodos están las puntas.
 // b.showMeters({ V, I }) muestra u oculta cada medidor con sus puntas (para las páginas que van por pasos).
 // b.ground(g) es el punto de la tierra común en el cable de abajo.
 // b.halt() se llama al romperse algo (se funde el fusible, se quema o revienta una pieza): el siguiente
@@ -131,9 +137,10 @@
 
     // ---------- ayudas para controles ----------
     // Agrega un elemento a la capa de controles de un lado; pos(g) da su lugar en el dibujo.
-    b.place = (side, el, pos) => {
+    // Con follow, sigue a su componente en la vista de nodos (b.follow).
+    b.place = (side, el, pos, follow) => {
       panel(side).box.querySelector('.sim-layer').appendChild(el);
-      panel(side).at(el, () => pos(geo(side)));
+      panel(side).at(el, follow ? () => (b.follow ? b.follow(pos(geo(side))) : pos(geo(side))) : () => pos(geo(side)));
       return el;
     };
     // Un botón en cada lado que hacen lo mismo. text(side) da su texto; b.refresh() lo actualiza.
@@ -147,7 +154,7 @@
         el.type = 'button'; el.className = cls + (act ? ' side-dup' : '');
         if (act) el.dataset.act = act;
         el.addEventListener('click', () => { onClick(side, el); b.refresh(); });
-        return b.place(side, el, pos);
+        return b.place(side, el, pos, true);
       });
       const extra = act && Sim.side ? Sim.side.button(act, '', () => { const sd = shownSide(); onClick(sd, pair[sd === 'w' ? 0 : 1]); b.refresh(); }) : null;
       buttons.push({ pair, text, label, hidden, extra });
@@ -232,7 +239,7 @@
         el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', menu ? 'button' : 'slider');
         el.setAttribute('aria-label', label(side));
         if (menu) el.setAttribute('aria-haspopup', 'dialog');
-        b.place(side, el, pos);
+        b.place(side, el, pos, true);
         const p = panel(side), pts = new Map();
         let start = 0, moved = false;
         const toY = e => (e.clientY - p.box.getBoundingClientRect().top - p.oy) / p.scale;
@@ -345,8 +352,12 @@
     // { pts, I (mA en el sentido del recorrido), v0 (voltaje al inicio), comps: [{ at: [x, y], half, dV }] }:
     // en cada componente el voltaje baja dV a lo largo de su ancho; en el cable no cambia.
     // Las puntas no se pueden poner encima de un componente ni de la fuente.
-    // Tierra común (ver drawGround): en el cable de abajo, junto al − de la fuente.
-    b.ground = g => [g.PX + SRC + 22, g.BOT];
+    // Tierra común (ver drawGround): en el cable de abajo, junto al − de la fuente. En la vista de nodos,
+    // en el nodo de la tierra.
+    b.ground = g => {
+      const p = [g.PX + SRC + 22, g.BOT], gn = net && st.nodes.u && net.nodes.find(n => n.ground);
+      return gn ? lerp(p, gn.p, geomE(st.nodes.u)) : p;
+    };
     b.loopPts = g => [[g.PX - SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [g.X1, g.TOP], [g.X1, g.BOT], [g.PX + SRC, g.BOT]];
     const project = (pts, x, y) => {
       let best = null, d0 = 0;
@@ -359,14 +370,24 @@
       }
       return best;
     };
-    const buildSegs = (g, m, V) => {
+    // Tramos que da la página (o una sola vuelta) más el de la fuente, del − al +.
+    // Un tramo con link: true es un contacto cerrado (un conmutador): une dos puntos para los nodos, pero
+    // en el circuito normal no se le pueden poner puntas.
+    const circuitList = (g, m, V) => {
       const list = o.circuit ? o.circuit(g, m, V)
         : [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [{ at: [g.PX, g.TOP], half: 46, dV: V }] }];
       list.push({ pts: [[g.PX + SRC, g.BOT], [g.PX - SRC, g.BOT]], I: m.I, v0: 0, comps: [], source: true });
+      return list;
+    };
+    // Cada componente va de d0 a d1 del tramo (o se ubica por su centro at y su medio ancho half).
+    const buildSegs = list => {
       const segs = list.map(sg => {
-        const comps = (sg.comps || []).map(c => { const d = project(sg.pts, ...c.at).d; return { d0: d - c.half, d1: d + c.half, dV: c.dV }; })
-          .sort((a, c) => a.d0 - c.d0);
-        const v = d => comps.reduce((u, c) => u - c.dV * Math.max(0, Math.min(1, (d - c.d0) / (c.d1 - c.d0))), sg.v0);
+        const comps = (sg.comps || []).map(c => {
+          if (c.d0 != null) return c;
+          const d = project(sg.pts, ...c.at).d;
+          return { d0: d - c.half, d1: d + c.half, dV: c.dV };
+        }).sort((a, c) => a.d0 - c.d0);
+        const v = d => comps.reduce((u, c) => u - c.dV * Math.max(0, Math.min(1, (d - c.d0) / (c.d1 - c.d0 || 1))), sg.v0);
         return { ...sg, L: D.len(sg.pts), comps, v };
       });
       // Esquinas: puntos donde los tramos que llegan no siguen en línea recta. dir apunta hacia
@@ -388,17 +409,264 @@
         const sx = c.u.reduce((a, u) => a + u[0], 0), sy = c.u.reduce((a, u) => a + u[1], 0), l = Math.hypot(sx, sy);
         if (l > 0.2) segs.corners.push({ x: c.x, y: c.y, dir: [sx / l, sy / l] });
       });
+      // En la vista de nodos: dónde queda cada nodo en los tramos (para que las puntas se peguen a él).
+      segs.nodes = [];
+      segs.forEach((sg, k) => (sg.zones || []).forEach(z => {
+        if (!segs.nodes.some(n => n.node === z.node)) segs.nodes.push({ node: z.node, k, d: z.d, x: z.node.p[0], y: z.node.p[1] });
+      }));
       return segs;
     };
-    // Lleva un punto al lugar más cercano del circuito donde se puede poner una punta. Con corners,
-    // cerca de una esquina (por fuera o por dentro) la punta se pega a la esquina.
-    const snap = (segs, x, y, corners) => {
-      let best = null, cn = null;
-      if (corners) for (const c of segs.corners || []) if (Math.hypot(c.x - x, c.y - y) < 36 && (!cn || Math.hypot(c.x - x, c.y - y) < Math.hypot(cn.x - x, cn.y - y))) cn = c;
-      segs.forEach((sg, k) => {
+
+    // ---------- vista de nodos ----------
+    // Con "Nodos" (en la sección Ver) los cables, que son ideales, se juntan: todo lo que está unido por
+    // cable (o tubería) es un solo nodo con un solo voltaje (presión), y entre los nodos solo quedan los
+    // componentes. El dibujo se transforma poco a poco: primero cada cable toma el color de su nodo y
+    // luego se encoge hasta un punto. Medir voltaje es comparar dos nodos (las puntas del voltímetro se
+    // pegan a ellos); medir corriente es abrir el camino entre un nodo y un componente y meter el
+    // amperímetro en serie (no se puede poner encima de un nodo).
+    // Cada componente de la página puede traer draw(ctx, water, g, m), que lo dibuja en su lugar de
+    // siempre (el banco lo mueve y lo gira), y tag(water) → [nombre, valor, peligro] para su etiqueta;
+    // pr es su b.pinch o b.part (el valor va en azul mientras su menú está abierto).
+    const RN = 14;        // radio de un nodo (en el agua, una cámara un poco más grande)
+    const NODE_T = 1.6;   // segundos que tarda en transformarse
+    st.nodes = { on: false, u: 0 }; st.nph = [];
+    let net = null;
+    const lerp = (a, c, t) => [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t];
+    // u de 0 a 1 es todo el cambio; la forma se mueve en la segunda parte (en la primera se colorea)
+    const geomE = u => ease(Math.max(0, Math.min(1, (u - 0.3) / 0.7)));
+    const keyOf = p => Math.round(p[0]) + ',' + Math.round(p[1]);
+    // El pedazo del recorrido de d = a a d = b, con un punto extra a la mitad (mid es su índice):
+    // ese punto va al centro del nodo aunque el pedazo sea recto.
+    const piecePts = (pts, a, b) => {
+      const q = [[a, D.pointAt(pts, a)], [(a + b) / 2, D.pointAt(pts, (a + b) / 2), true], [b, D.pointAt(pts, b)]];
+      let s = 0;
+      for (let i = 1; i < pts.length - 1; i++) {
+        s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        if (s > a && s < b) q.push([s, pts[i]]);
+      }
+      q.sort((x, y) => x[0] - y[0]);
+      return { pts: q.map(x => x[1]), mid: q.findIndex(x => x[2]) };
+    };
+    // Nodos del circuito: los pedazos de cable entre componentes, unidos donde se tocan sus puntas.
+    const analyze = list => {
+      const pieces = [], comps = [];
+      const sp = list.find(s => s.source), plusK = keyOf(sp.pts[1]), minusK = keyOf(sp.pts[0]);
+      list.forEach((sg, k) => {
         if (sg.source) return;
+        const L = D.len(sg.pts);
+        const cs = (sg.comps || []).map(c => {
+          const d = project(sg.pts, ...c.at).d, [x, y, tx, ty] = D.frameAt(sg.pts, d);
+          return { c, k, half: c.half, d0: d - c.half, d1: d + c.half, at: [x, y], a0: Math.atan2(ty, tx) };
+        }).sort((p, q) => p.d0 - q.d0);
+        let from = null, a = 0, v = sg.v0;
+        [...cs, null].forEach(c => {
+          const pp = piecePts(sg.pts, a, c ? c.d0 : L), last = pp.pts.length - 1;
+          const pc = { k, ...pp, from, to: c, v, ends: [from ? null : keyOf(pp.pts[0]), c ? null : keyOf(pp.pts[last])] };
+          if (from) from.next = pc;
+          if (c) { c.prev = pc; comps.push(c); v -= c.c.dV; a = c.d1; from = c; }
+          pieces.push(pc);
+        });
+      });
+      const par = pieces.map((_, i) => i), find = i => par[i] === i ? i : (par[i] = find(par[i])), byKey = new Map();
+      pieces.forEach((p, i) => p.ends.forEach(key => {
+        if (key == null) return;
+        if (byKey.has(key)) par[find(i)] = find(byKey.get(key)); else byKey.set(key, i);
+      }));
+      const roots = new Map();
+      pieces.forEach((p, i) => {
+        const r = find(i);
+        if (!roots.has(r)) roots.set(r, { sx: 0, sy: 0, sl: 0, ax: 0, ay: 0, sv: 0, n: 0 });
+        const n = p.node = roots.get(r);
+        for (let j = 1; j < p.pts.length; j++) {
+          const A = p.pts[j - 1], B = p.pts[j], l = Math.hypot(B[0] - A[0], B[1] - A[1]);
+          n.sx += (A[0] + B[0]) / 2 * l; n.sy += (A[1] + B[1]) / 2 * l; n.sl += l;
+        }
+        n.ax += p.pts[0][0]; n.ay += p.pts[0][1]; n.sv += p.v; n.n++;
+        if (p.ends.includes(minusK)) n.ground = true;
+        if (p.ends.includes(plusK)) n.plus = true;
+      });
+      const nodes = [...roots.values()];
+      nodes.forEach((n, id) => { n.id = id; n.v = n.sv / n.n; n.p = n.sl > 1 ? [n.sx / n.sl, n.sy / n.sl] : [n.ax / n.n, n.ay / n.n]; });
+      comps.forEach(c => { c.A = c.prev.node; c.B = c.next.node; });
+      // Que no queden encimados: entre dos nodos cabe su componente con un poco de cable a cada lado
+      // (para el amperímetro), y los nodos no se tocan. Sin salirse del lugar del circuito.
+      const g = b.gw;
+      for (let it = 0; it < 40; it++) {
+        const push = (P, Q, need) => {
+          let dx = Q.p[0] - P.p[0], dy = Q.p[1] - P.p[1], d = Math.hypot(dx, dy);
+          if (d >= need) return;
+          if (d < 1e-3) { dx = 1; dy = 0; d = 1; }
+          const f = (need - d) / 2 * 0.5 / d;
+          P.p = [P.p[0] - dx * f, P.p[1] - dy * f]; Q.p = [Q.p[0] + dx * f, Q.p[1] + dy * f];
+        };
+        comps.forEach(c => { if (c.A !== c.B) push(c.A, c.B, 2 * c.half + 2 * RN + 70); });
+        for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) push(nodes[i], nodes[j], 80);
+        const src = { p: [g.PX, g.BOT] };   // ni encima de la fuente (ella no se mueve)
+        nodes.forEach(n => { const s0 = src.p; push(src, n, 110); src.p = s0; });
+        nodes.forEach(n => { n.p = [Math.max(g.X0, Math.min(g.X1, n.p[0])), Math.max(g.TOP - 30, Math.min(g.BOT - 40, n.p[1]))]; });
+      }
+      // Los componentes entre los mismos dos nodos (en paralelo) van lado a lado, en el orden de siempre.
+      const groups = new Map();
+      comps.forEach(c => {
+        const key = Math.min(c.A.id, c.B.id) + '-' + Math.max(c.A.id, c.B.id);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(c);
+      });
+      groups.forEach(gc => {
+        const [P, Q] = gc[0].A.id <= gc[0].B.id ? [gc[0].A, gc[0].B] : [gc[0].B, gc[0].A];
+        let dx = Q.p[0] - P.p[0], dy = Q.p[1] - P.p[1], l = Math.hypot(dx, dy);
+        const same = P === Q;
+        if (same || l < 1e-3) { dx = 1; dy = 0; l = 1; }
+        const u = [dx / l, dy / l], perp = [-u[1], u[0]];
+        gc.sort((a, c) => (a.at[0] * perp[0] + a.at[1] * perp[1]) - (c.at[0] * perp[0] + c.at[1] * perp[1]));
+        gc.forEach((c, j) => {
+          // un componente con los dos lados en el mismo nodo (en corto) queda aparte, arriba del nodo
+          const off = same ? -(70 + 90 * j) : (j - (gc.length - 1) / 2) * 110;
+          c.mid = [(P.p[0] + Q.p[0]) / 2 + perp[0] * off, (P.p[1] + Q.p[1]) / 2 + perp[1] * off];
+          c.a1 = same ? c.a0 : c.A === P ? Math.atan2(u[1], u[0]) : Math.atan2(-u[1], -u[0]);
+        });
+      });
+      return { pieces, comps, nodes, plusK, minusK, sig: pieces.map(p => p.pts.length + (p.to ? 'c' : '')).join(',') };
+    };
+    // Lugar de cada cosa con la transformación en e (0 el circuito de siempre, 1 los nodos).
+    const morph = (n, e) => {
+      n.comps.forEach(c => {
+        const da = Math.atan2(Math.sin(c.a1 - c.a0), Math.cos(c.a1 - c.a0)), ang = c.a0 + da * e;
+        const [x, y] = lerp(c.at, c.mid, e), u = [Math.cos(ang), Math.sin(ang)];
+        c.pose = { x, y, ang, a: [x - u[0] * c.half, y - u[1] * c.half], b: [x + u[0] * c.half, y + u[1] * c.half] };
+      });
+      n.pieces.forEach(p => {
+        const last = p.pts.length - 1;
+        p.m = p.pts.map((q, j) => {
+          if (j === 0 && p.from) return p.from.pose.b;
+          if (j === last && p.to) return p.to.pose.a;
+          const key = j === 0 ? p.ends[0] : j === last ? p.ends[1] : null;
+          if (key && (key === n.plusK || key === n.minusK)) return q;   // la fuente no se mueve
+          return lerp(q, p.node.p, e);
+        });
+      });
+    };
+    // Los tramos para las puntas con la forma de ahora: cada uno, sus pedazos y sus componentes en orden.
+    const morphedList = (n, list) => {
+      const out = [];
+      list.forEach((sg, k) => {
+        if (sg.source) { out.push(sg); return; }
+        const pts = [], comps = [], zones = [];
+        let L = 0;
+        const add = q => {
+          const l = pts.length ? Math.hypot(q[0] - pts[pts.length - 1][0], q[1] - pts[pts.length - 1][1]) : 0;
+          if (pts.length && l < 0.01) return;
+          L += l; pts.push(q);
+        };
+        n.pieces.filter(p => p.k === k).forEach(p => {
+          p.m.forEach((q, j) => { add(q); if (j === p.mid) zones.push({ d: L, node: p.node }); });
+          if (p.to) { const d0 = L; add(p.to.pose.b); comps.push({ d0, d1: L, dV: p.to.c.dV }); }
+        });
+        if (pts.length > 1 && L > 0.5) out.push({ pts, I: sg.I, v0: sg.v0, comps, zones, link: sg.link });
+      });
+      return out;
+    };
+    // Las puntas puestas siguen al circuito mientras se transforma: cada una recuerda en qué pedazo de
+    // cable está (y en qué parte) y va al mismo lugar del pedazo con su nueva forma.
+    st.att = { V: [null, null], I: [null] };
+    const onPiece = (pcs, x, y) => {
+      let best = null;
+      pcs.forEach((p, pi) => {
+        for (let j = 1; j < p.m.length; j++) {
+          const A = p.m[j - 1], B = p.m[j], dx = B[0] - A[0], dy = B[1] - A[1], s2 = dx * dx + dy * dy;
+          const t = s2 ? Math.max(0, Math.min(1, ((x - A[0]) * dx + (y - A[1]) * dy) / s2)) : 0;
+          const dist = Math.hypot(x - A[0] - dx * t, y - A[1] - dy * t);
+          if (!best || dist < best.dist - 1e-6) best = { p: pi, j, t, dist };
+        }
+      });
+      return best;
+    };
+    const remap = (old, n) => {
+      const same = old && old.sig === n.sig;
+      for (const kind of ['V', 'I']) st.clamps[kind].forEach(([x, y], i) => {
+        let a = st.att[kind][i];
+        if (!same) { st.att[kind][i] = null; return; }
+        if (!a || Math.hypot(a.x - x, a.y - y) > 0.01) a = st.att[kind][i] = onPiece(old.pieces, x, y);
+        if (!a || a.dist > 3) { st.att[kind][i] = null; return; }
+        const p = n.pieces[a.p], q = lerp(p.m[a.j - 1], p.m[a.j], a.t);
+        st.clamps[kind][i] = q; a.x = q[0]; a.y = q[1];
+      });
+    };
+    let prevNet = null;
+    const nodeView = (list, dt) => {
+      const nd = st.nodes, u0 = nd.u;
+      nd.u = nd.on ? Math.min(1, u0 + dt / NODE_T) : Math.max(0, u0 - dt / NODE_T);
+      if (nd.u !== u0) { b.pw.replace(); b.pe.replace(); }
+      if (!nd.on && !nd.u && !prevNet) { net = null; return list; }
+      const n = analyze(list);
+      morph(n, geomE(nd.u));
+      remap(prevNet, n);
+      net = prevNet = nd.on || nd.u ? n : null;
+      return nd.u ? morphedList(n, list) : list;
+    };
+    // Un control de la página junto a un componente lo sigue a su lugar en la vista de nodos.
+    b.follow = q => {
+      if (!net || !st.nodes.u) return q;
+      let best = null;
+      for (const c of net.comps) { const d = Math.hypot(c.c.at[0] - q[0], c.c.at[1] - q[1]); if (!best || d < best.d) best = { c, d }; }
+      if (!best || best.d > 70) return q;
+      return [q[0] + best.c.pose.x - best.c.c.at[0], q[1] + best.c.pose.y - best.c.c.at[1]];
+    };
+    b.setNodes = v => { st.nodes.on = !!v; syncNodes(); };
+    // Las etiquetas de la vista de nodos no suben de aquí (una página con un aviso arriba lo cambia).
+    b.labelTop = { w: 6, e: 6 };
+    // Dónde está conectado cada medidor, para las páginas que revisan cómo se midió:
+    // { comps, V: [nodo de la roja, nodo de la negra], I: { piece, I } }, con null en lo que no está
+    // conectado. Los nodos traen v (su voltaje), ground y plus; comps, los componentes con c (lo que dio
+    // la página), A y B (sus nodos).
+    b.where = () => {
+      let n = net;
+      if (!n) { n = analyze(circuitList(b.gw, st.m, st.vo)); morph(n, 0); }
+      const at = (kind, i) => {
+        if (!st.show[kind] || !connected(kind, i)) return null;
+        const q = onPiece(n.pieces, ...st.clamps[kind][i]);
+        return q && q.dist < 3 ? n.pieces[q.p] : null;
+      };
+      const pI = at('I', 0);
+      return { comps: n.comps, nodes: n.nodes, V: [0, 1].map(i => { const p = at('V', i); return p ? p.node : null; }),
+        I: pI && { piece: pI, I: st.probe.I ? st.probe.I.value : 0 } };
+    };
+    b.nodesOn = () => st.nodes.on;
+    // Nodo en el que está cada punta del voltímetro (null si no está en un nodo o no está la vista de nodos)
+    // y el componente cuyo cable abrió el amperímetro: para las páginas que revisan cómo se midió.
+    b.net = () => net && st.nodes.u >= 1 ? net : null;
+    const nodeSeg = document.createElement('div');
+    nodeSeg.className = 'sim-seg'; nodeSeg.setAttribute('role', 'group'); nodeSeg.setAttribute('aria-label', 'Dibujo del circuito');
+    nodeSeg.innerHTML = '<button type="button" data-v="0">Circuito</button><button type="button" data-v="1">Nodos</button>';
+    nodeSeg.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => b.setNodes(bt.dataset.v === '1')));
+    const syncNodes = () => nodeSeg.querySelectorAll('button').forEach(bt => bt.setAttribute('aria-pressed', String((bt.dataset.v === '1') === st.nodes.on)));
+    syncNodes();
+    if (Sim.side) {
+      const row = Sim.side.row('ver', 'Dibujo', nodeSeg), view = Sim.side.sec('ver').querySelector('.sim-viewseg');
+      if (view) view.closest('.sim-side-row').after(row);
+    }
+    // Lleva un punto al lugar más cercano del circuito donde se puede poner una punta. Con corners,
+    // cerca de una esquina (por fuera o por dentro) la punta se pega a la esquina. kind es el medidor:
+    // en la vista de nodos el voltímetro se pega a los nodos y el amperímetro no se puede poner en uno.
+    const snap = (segs, x, y, corners, kind) => {
+      let best = null, cn = null;
+      const full = st.nodes.u >= 1 && segs.nodes && segs.nodes.length;
+      if (full && kind === 'V') {
+        for (const z of segs.nodes) {
+          const dist = Math.hypot(z.x - x, z.y - y);
+          if (dist < RN + 40 && (!best || dist < best.dist)) best = { k: z.k, d: z.d, x: z.x, y: z.y, dist, node: z.node };
+        }
+        if (best) return best;
+      }
+      if (corners && !full) for (const c of segs.corners || []) if (Math.hypot(c.x - x, c.y - y) < 36 && (!cn || Math.hypot(c.x - x, c.y - y) < Math.hypot(cn.x - x, cn.y - y))) cn = c;
+      segs.forEach((sg, k) => {
+        if (sg.source || (sg.link && !st.nodes.u)) return;
         let { d } = project(sg.pts, x, y);
         if (cn) { const q = project(sg.pts, cn.x, cn.y); if (q.dist < 0.5) d = q.d; }
+        if (full && kind === 'I') for (const z of sg.zones || []) {
+          const r = RN + 10;
+          if (d > z.d - r && d < z.d + r) d = d - (z.d - r) < z.d + r - d ? z.d - r : z.d + r;
+        }
         for (const c of sg.comps) if (d > c.d0 - 8 && d < c.d1 + 8) d = d - c.d0 < c.d1 - d ? c.d0 - 8 : c.d1 + 8;
         d = Math.max(0, Math.min(sg.L, d));
         const p = D.pointAt(sg.pts, d), dist = Math.hypot(p[0] - x, p[1] - y);
@@ -411,7 +679,7 @@
     // punto: marca la corriente que entra por su cable rojo y sale por el negro. Sin invertir, el rojo
     // queda del lado de donde viene la corriente (el inicio del tramo) y marca positivo; invertido, negativo.
     const measure = segs => {
-      const [A, B] = st.clamps.V.map(([x, y]) => snap(segs, x, y)), [P] = st.clamps.I.map(([x, y]) => snap(segs, x, y));
+      const [A, B] = st.clamps.V.map(([x, y]) => snap(segs, x, y, false, 'V')), [P] = st.clamps.I.map(([x, y]) => snap(segs, x, y, false, 'I'));
       st.clamps.V = [[A.x, A.y], [B.x, B.y]]; st.clamps.I = [[P.x, P.y]];
       const va = segs[A.k].v(A.d), vb = segs[B.k].v(B.d);
       return {
@@ -589,8 +857,11 @@
     const frame = (g, kind, i) => frameAt(g, kind, i, ...st.clamps[kind][i], st.tipSide[kind][i]);
     const frameAt = (g, kind, i, x, y, pref) => {
       let n = [0, 1], t = null;
-      const p = st.segs.length && snap(st.segs, x, y);
-      if (p) {
+      const p = st.segs.length && snap(st.segs, x, y, false, kind);
+      if (p && p.node) {   // en un nodo: la punta sale hacia su medidor (o hacia donde estaba el puntero)
+        const [jx, jy] = jack(g, kind, i), [sx, sy] = pref || [jx - x, jy - y], l = Math.hypot(sx, sy);
+        if (l) n = [sx / l, sy / l];
+      } else if (p) {
         const pts = st.segs[p.k].pts, L = st.segs[p.k].L;
         const a = D.pointAt(pts, Math.max(0, p.d - 3)), c = D.pointAt(pts, Math.min(L, p.d + 3));
         const tx = c[0] - a[0], ty = c[1] - a[1], s = Math.hypot(tx, ty) || 1;
@@ -659,7 +930,7 @@
       const lf = st.lift[kind][i], fl = st.floor[kind][i], dr = st.drop[kind][i];
       if (lf) {
         const [cx, cy] = liftContact(kind, i);
-        const p = st.segs.length && snap(st.segs, cx, cy, true);
+        const p = st.segs.length && snap(st.segs, cx, cy, true, kind);
         const a = p ? ease(Math.max(0, Math.min(1, 1 - (p.dist - 8) / (MAG - 8)))) : 0;
         if (!a) return { x: cx, y: cy, n: lf.n, h: 1 };
         const f = frameAt(g, kind, i, p.x, p.y, lf.n);
@@ -941,7 +1212,7 @@
     // las puntas, igual que la bomba y la fuente.
     // (cx, cy): dónde está el puntero, para saber de qué lado del cable va la punta.
     const moveClamp = (kind, i, x, y, cx, cy) => {
-      const p = snap(st.segs, x, y, true);
+      const p = snap(st.segs, x, y, true, kind);
       if (!p) return;
       st.clamps[kind][i] = [p.x, p.y];
       if (cx !== undefined && Math.hypot(cx - p.x, cy - p.y) > 3) st.tipSide[kind][i] = [cx - p.x, cy - p.y];
@@ -1220,7 +1491,8 @@
     // Tierra común: el − de la fuente es la referencia de 0 V de todo el circuito (en el agua, la salida
     // hacia la bomba es la referencia de 0 psi). Su símbolo cuelga del cable de abajo, junto a la fuente.
     const drawGround = (ctx, g) => {
-      const [x, y] = b.ground(g), y0 = y + (g.side === 'w' ? Sim.PIPE + 5 : 2), yb = y + 27;
+      const e = net ? geomE(st.nodes.u) : 0, r = g.side === 'w' ? Sim.PIPE + 5 : 2;
+      const [x, y] = b.ground(g), y0 = y + r + ((g.side === 'w' ? RN + 5 : RN) - r) * e, yb = y0 + (27 - r) + (r - 5) * e;
       D.line(ctx, [[x, y0], [x, yb]], 3, C.ink, 'butt');
       [[13, 0], [8.5, 5], [4, 10]].forEach(([w, dy]) => D.line(ctx, [[x - w, yb + dy], [x + w, yb + dy]], 3, C.ink, 'butt'));
       D.text(ctx, g.side === 'w' ? '0 psi' : '0 V', x + 18, yb + 6, C.muted, { size: 12, align: 'left' });
@@ -1479,10 +1751,144 @@
       return big && Math.abs(v) >= 999.95 ? [Sim.reading(v / 1000), big] : [Sim.reading(v), unit];
     };
 
+    // El circuito de la página y los cables de los medidores. En la vista de nodos (o mientras se
+    // transforma) el dibujo de la página se desvanece y encima va el de los nodos; los cables de los
+    // medidores siempre pasan por debajo del circuito.
+    const circuitAndCables = (ctx, g, m, drawPage) => {
+      const u = net ? st.nodes.u : 0;
+      if (!u) { drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V'); drawPage(ctx, g, m); return; }
+      if (u < 1) {
+        drawPage(ctx, g, m);
+        ctx.save(); ctx.globalAlpha = Math.min(1, u / 0.3); ctx.fillStyle = C.card; ctx.fillRect(-4000, -4000, 8000, 8000); ctx.restore();
+      }
+      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
+      drawNodes(ctx, g, m, u);
+    };
+    // Color de un nodo: el de su voltaje (presión), con la misma escala que las partículas en ese modo.
+    const nodeColor = n => Sim.speedColor(n.v / VMAX);
+    // Cuánto sobresale un componente a cada lado de su cable (ext de la página, un número o ext(water)).
+    const extOf = (c, water) => typeof c.ext === 'function' ? c.ext(water) : c.ext || 22;
+    const nodeText = (v, water) => Sim.fmt(Math.abs(v) < 0.005 ? 0 : v, 2) + (water ? ' psi' : ' V');
+    const drawNodes = (ctx, g, m, u) => {
+      const water = g.side === 'w', kw = Math.min(1, u / 0.3), kc = Math.min(1, u / 0.5), kn = Math.max(0, (u - 0.5) / 0.5);
+      const c0 = [0, 0];
+      net.nodes.forEach(n => { c0[0] += n.p[0] / net.nodes.length; c0[1] += n.p[1] / net.nodes.length; });
+      ctx.save(); ctx.globalAlpha = kw;
+      // cables (tuberías): cada pedazo con el color de su nodo, y el de la fuente
+      const src = st.segs.find(sg => sg.source);
+      if (src) water ? D.pipe(ctx, src.pts) : D.wire(ctx, src.pts);
+      for (const p of net.pieces) if (water) D.pipe(ctx, p.m); else D.wire(ctx, p.m);
+      ctx.globalAlpha = kw * kc * (water ? 0.55 : 1);
+      for (const p of net.pieces) D.line(ctx, p.m, water ? 2 * Sim.PIPE : 4, nodeColor(p.node));
+      ctx.globalAlpha = kw;
+      // lo que circula, por cada tramo
+      st.segs.forEach((sg, k) => { if (!sg.source) D.flow(ctx, sg.pts, st.nph[k] || 0, water ? C.water : C.charge, { gap: 30, r: water ? 3.6 : 4.5 }); });
+      // componentes: el dibujo de la página, movido y girado a su lugar (sin sus letreros)
+      for (const c of net.comps) (water ? D.pipe : D.wire)(ctx, [c.pose.a, c.pose.b]);   // el cable sigue por debajo
+      const quiet = D.text;
+      for (const c of net.comps) {
+        const P = c.pose;
+        ctx.save(); ctx.translate(P.x, P.y); ctx.rotate(P.ang - c.a0); ctx.translate(-c.c.at[0], -c.c.at[1]);
+        D.text = () => {};
+        try {
+          if (c.c.draw) c.c.draw(ctx, water, g, m);
+          else { D.roundRect(ctx, c.c.at[0] - c.half, c.c.at[1] - 14, 2 * c.half, 28, 6, C.card, C.ink, 2.5); }
+        } finally { D.text = quiet; }
+        ctx.restore();
+      }
+      ctx.restore();
+      if (!kn) return;
+      ctx.save(); ctx.globalAlpha = kn;
+      // Etiquetas derechas (las de los componentes y el valor de cada nodo), donde no tapen nada: de varios
+      // lugares alrededor se escoge el que choca con menos cables, componentes, nodos y otras etiquetas,
+      // sin salirse de lo que se ve y de preferencia hacia afuera del circuito.
+      const dots = [], boxes = [];
+      for (const p of net.pieces) for (let j = 1; j < p.m.length; j++) {
+        const A = p.m[j - 1], B = p.m[j], n = Math.ceil(Math.hypot(B[0] - A[0], B[1] - A[1]) / 6);
+        for (let t = 0; t <= n; t++) dots.push([A[0] + (B[0] - A[0]) * t / (n || 1), A[1] + (B[1] - A[1]) * t / (n || 1), water ? 12 : 4]);
+      }
+      for (const c of net.comps) {
+        const n = Math.ceil(2 * c.half / 8);
+        for (let t = 0; t <= n; t++) dots.push([c.pose.a[0] + (c.pose.b[0] - c.pose.a[0]) * t / n, c.pose.a[1] + (c.pose.b[1] - c.pose.a[1]) * t / n, extOf(c.c, water)]);
+      }
+      net.nodes.forEach(n => dots.push([n.p[0], n.p[1], RN + 10]));
+      for (const kind of ['V', 'I']) if (st.show[kind]) st.clamps[kind].forEach((_, i) => {
+        if (!connected(kind, i)) return;
+        const q = pose(g, kind, i);   // la punta y el principio de su cable, que salen hacia afuera
+        for (let d = 0; d <= 60; d += 15) dots.push([q.x + q.n[0] * d, q.y + q.n[1] * d, d ? 16 : 24]);
+      });
+      // los controles de la página que están sobre el dibujo (un selector, un botón)
+      const q = panel(g.side);
+      if (q.box.clientWidth) for (const it of q.items) {
+        const el = it.el;
+        if (el.hidden || !el.offsetParent || el.matches('.sim-clamp, .sim-hit, .sim-pinch, .sim-meter-hit, .sim-meter-btn, .sim-power, .knob')) continue;
+        const r = el.getBoundingClientRect(), pr = q.box.getBoundingClientRect(), X = v => (v - pr.left - q.ox) / q.scale, Y = v => (v - pr.top - q.oy) / q.scale;
+        if (r.width) boxes.push([X(r.left), Y(r.top), X(r.right), Y(r.bottom)]);
+      }
+      const gn = net.nodes.find(n => n.ground);
+      if (gn) boxes.push([gn.p[0] - 16, gn.p[1] + RN, gn.p[0] + 60, gn.p[1] + RN + 44]);
+      const x0 = g.VX + 6, x1 = g.VX + g.W - 6, y0 = b.labelTop[g.side] || 6, y1 = g.BOT + 30;
+      const place = (w, h, cands) => {
+        let best = null;
+        for (const [x, y, pref] of cands) {
+          const r = [x - w / 2 - 3, y - h / 2 - 3, x + w / 2 + 3, y + h / 2 + 3];
+          let score = -pref * 4;
+          if (r[0] < x0 || r[2] > x1 || r[1] < y0 || r[3] > y1) score += 1000;
+          for (const [dx, dy, rr] of dots) {
+            const ex = Math.max(r[0] - dx, 0, dx - r[2]), ey = Math.max(r[1] - dy, 0, dy - r[3]);
+            if (ex * ex + ey * ey < rr * rr) score += 10;
+          }
+          for (const q of boxes) if (r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]) score += 300;
+          if (!best || score < best.score) best = { x, y, score, r };
+        }
+        boxes.push(best.r);
+        return best;
+      };
+      const out = (x, y) => { const dx = x - c0[0], dy = y - c0[1], l = Math.hypot(dx, dy); return l < 1 ? [0, -1] : [dx / l, dy / l]; };
+      const K = Sim.compact ? 1.15 : 1, TH = Math.round(20 * K);
+      for (const c of net.comps) {
+        const tg = c.c.tag && c.c.tag(water);
+        if (!tg) continue;
+        const P = c.pose, o = out(P.x, P.y), ext = extOf(c.c, water) + 8;
+        ctx.font = `700 ${Math.round(15 * K)}px ${Sim.FONT}`; let w = ctx.measureText(tg[0]).width;
+        if (tg[1]) { ctx.font = `600 ${Math.round(16 * K)}px ${Sim.MONO}`; w += 7 + ctx.measureText(tg[1]).width; }
+        const cands = [];
+        for (const s of [1, -1]) for (const slide of [0, -0.5, 0.5, -1, 1, -1.6, 1.6]) for (const more of [0, 24]) {
+          const px = -Math.sin(P.ang) * s, py = Math.cos(P.ang) * s, tx = Math.cos(P.ang), ty = Math.sin(P.ang);
+          const off = ext + more + Math.abs(px) * w / 2 + Math.abs(py) * TH / 2;
+          cands.push([P.x + px * off + tx * slide * c.half, P.y + py * off + ty * slide * c.half, px * o[0] + py * o[1] - Math.abs(slide) - more / 12]);
+        }
+        const q = place(w, TH, cands);
+        b.tag(ctx, c.c.pr, q.x, q.y, tg[0], tg[1], tg[2]);
+      }
+      // nodos: un punto (en el agua, una cámara) del color de su voltaje, con su valor
+      for (const n of net.nodes) {
+        const [x, y] = n.p, col = nodeColor(n);
+        if (water) {
+          D.circle(ctx, x, y, RN + 8, C.pipe);
+          D.circle(ctx, x, y, RN + 3, C['water-soft']);
+          ctx.globalAlpha = kn * 0.75; D.circle(ctx, x, y, RN + 3, col); ctx.globalAlpha = kn;
+        } else D.circle(ctx, x, y, RN, col, C.ink, 2.5);
+      }
+      for (const n of net.nodes) {
+        if (n.ground) continue;   // la tierra lleva su símbolo con 0 V
+        const [x, y] = n.p, col = nodeColor(n), t = nodeText(n.v, water), o = out(x, y);
+        ctx.font = `600 ${Sim.compact ? 18 : 16}px ${Sim.MONO}`;
+        const w = ctx.measureText(t).width + 14, h = Sim.compact ? 26 : 23, cands = [];
+        for (let k = 0; k < 16; k++) for (const more of [0, 28, 56]) {
+          const a = k * Math.PI / 8, dx = Math.cos(a), dy = Math.sin(a), off = RN + (water ? 14 : 8) + more + Math.abs(dx) * w / 2 + Math.abs(dy) * h / 2;
+          cands.push([x + dx * off, y + dy * off, dx * o[0] + dy * o[1] - more / 14]);
+        }
+        const q = place(w, h, cands);
+        D.roundRect(ctx, q.x - w / 2, q.y - h / 2, w, h, h / 2, C.card, col, 2.5);
+        D.text(ctx, t, q.x, q.y + 0.5, C.ink, { size: 16, font: Sim.MONO, weight: 600 });
+      }
+      ctx.restore();
+    };
+
     function drawWater() {
       const g = b.gw, m = st.m, ctx = b.pw.begin();
-      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
-      o.drawW(ctx, g, m);
+      circuitAndCables(ctx, g, m, o.drawW);
       drawGround(ctx, g);
       knobScales(ctx, g);
       controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
@@ -1492,11 +1898,11 @@
         ...probeText('I', MLS_PER_MA, 'mL/s', 'L/s'), C.water);
       drawProbe(ctx, g, 'V', 'presión', ...probeText('V', PSI_PER_V, 'psi'), C.water);
       drawTips(ctx, g, 'I'); drawTips(ctx, g, 'V');
+      o.overlay && o.overlay(ctx, g, m);
     }
     function drawElectric() {
       const g = b.ge, m = st.m, ctx = b.pe.begin();
-      drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
-      o.drawE(ctx, g, m);
+      circuitAndCables(ctx, g, m, o.drawE);
       drawGround(ctx, g);
       knobScales(ctx, g);
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
@@ -1506,6 +1912,7 @@
         ...probeText('I', 1, 'mA', 'A'), C.charge);
       drawProbe(ctx, g, 'V', 'voltímetro', ...probeText('V', 1, 'V'), C.charge);
       drawTips(ctx, g, 'I'); drawTips(ctx, g, 'V');
+      o.overlay && o.overlay(ctx, g, m);
     }
 
     // ---------- animación ----------
@@ -1564,7 +1971,7 @@
           // (si se agarró del anillo, el círculo solo lo sigue)
           if (lf) { const k = Math.exp(-dt * 18); lf.ox *= k; lf.oy *= k; moved = true; }
           const [cx, cy] = lf ? liftContact(kind, i) : [0, 0];
-          const p = lf && lf.mode !== 'magnet' && st.segs.length && snap(st.segs, cx, cy, true);
+          const p = lf && lf.mode !== 'magnet' && st.segs.length && snap(st.segs, cx, cy, true, kind);
           if (p && p.dist > 1) {
             const a0 = Math.atan2(lf.n[1], lf.n[0]), a1 = Math.atan2(cy - p.y, cx - p.x);
             const d = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)), an = a0 + d * (1 - Math.exp(-dt * 14));
@@ -1596,7 +2003,8 @@
       smooth.t += dt;
       st.m = inertia(st.vo);
       const tn = Math.min(0.15, st.tau * 0.15);                    // las agujas apenas se atrasan
-      st.segs = buildSegs(b.gw, st.m, st.vo);
+      st.segs = buildSegs(nodeView(circuitList(b.gw, st.m, st.vo), dt));
+      if (st.nodes.u) st.segs.forEach((sg, k) => { st.nph[k] = ((st.nph[k] || 0) + Math.sign(sg.I) * Math.min(Math.abs(sg.I), 60) * 6 * dt) % 1e4; });
       const before = JSON.stringify(st.clamps);
       st.probe = measure(st.segs);
       if (JSON.stringify(st.clamps) !== before) { b.pw.replace(); b.pe.replace(); }
@@ -1615,6 +2023,7 @@
       o.step && o.step(dt, st.m);
       drawWater(); drawElectric();
     });
+    Sim.benchNow = b;   // el banco de la página, para probar desde la consola
     return b;
   };
 })();

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=202610210926">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021093516">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=202610210926"></script>
-<script src="../../assets/banco.js?v=202610210926"></script>
+<script src="../../assets/sim.js?v=20261021093516"></script>
+<script src="../../assets/banco.js?v=20261021093516"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -51,6 +51,9 @@
       if (g.side === 'w') s.water = Sim.water(g.loop, Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), hn));
     },
     model: V => ({ I: V / R * 1000 }),
+    circuit: (g, m, V) => [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [{ at: [g.PX, g.TOP], half: 46, dV: V,
+      draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, hn) : D.resistor(ctx, g.PX, g.TOP),
+      tag: w => [w ? 'tramo angosto' : 'resistencia', '1 kΩ'] }] }],
     step(dt, m) {
       sides.w.water.step(m.I * 12, dt);
       sides.e.phase += m.I * 12 * dt;
