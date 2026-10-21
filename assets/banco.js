@@ -107,11 +107,11 @@
         g.BX = 700; g.MK = 1.25;
         const my = 40 + 48 * g.MK;
         g.meters = { a: [g.BX + 55, my], b: [g.BX + g.BW - 55, my] };
-        g.BY = my + 142 * g.MK;
+        g.BY = my + 158 * g.MK;
         g.COL = [650, 10];   // arriba de la columna de medidores no cabe: va arriba a la derecha del circuito
         g.TOP = 170;         // y el circuito baja un poco para dejarle lugar
       } else if (mode === 'alto') {
-        g.BOT = H - 488;
+        g.BOT = H - 504;
         g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46; g.MK = 1.35;
         const my = g.BY + g.BH + 28 + 48 * g.MK;
         g.meters = { a: [g.PX - 135, my], b: [g.PX + 135, my] };
@@ -120,7 +120,7 @@
       } else {
         g.BOT = H - 214;
         g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46;
-        g.meters = { a: [g.BX / 2, g.BY + 18], b: [(g.BX + g.BW + W) / 2, g.BY + 18] };
+        g.meters = { a: [g.BX / 2, g.BY + 4], b: [(g.BX + g.BW + W) / 2, g.BY + 4] };
         g.COL = [W - 12, 10];
       }
       g.CX = g.BX + g.BW / 2;   // centro del controlador (perilla)
@@ -898,11 +898,11 @@
     try { const c = JSON.parse(localStorage.getItem('sim-compact') || '{}'); MS.forEach(k => { if (typeof c[k] === 'boolean') st.compact[k] = c[k]; }); } catch (e) {}
     st.cmp = { a: +st.compact.a, b: +st.compact.b };
     // Forma del multímetro (sin escalar, desde su centro): abajo de la caja, la pantallita (lcd, lx, su
-    // ancho lw y su alto lh), la rueda (kx, ky, kr) y el nombre. Compactado, la rueda se achica y va a la
-    // derecha de la pantallita.
+    // ancho lw y su alto lh), la comparación de sus dos puntas (cmp), la rueda (kx, ky, kr) y el nombre.
+    // Compactado, la rueda se achica y va a la derecha de la pantallita y la comparación se esconde.
     const shape = kind => {
       const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c;
-      return { bottom: mix(116, 6), lcd: mix(-8, -14), lh: mix(34, 30), lx: mix(0, -18), lw: mix(112, 104), kx: mix(0, 54), ky: mix(68, -14), kr: mix(30, 12), label: mix(132, 22), c };
+      return { bottom: mix(132, 6), lcd: mix(-8, -14), lh: mix(34, 30), lx: mix(0, -18), lw: mix(112, 104), cmp: 20, kx: mix(0, 54), ky: mix(86, -14), kr: mix(27, 12), label: mix(148, 22), c };
     };
     const meterAt = (g, kind) => {
       const [x0, y0] = g.meters[kind], o = st.mpos[g.mode + kind], k = g.MK;
@@ -919,6 +919,7 @@
     // Dos bornes arriba: VΩA (el rojo) y COM (el negro). Los cables nunca cambian de borne: solo la perilla.
     const JX = { V: -26, COM: 26 };
     st.dang = { a: DANG[st.dial.a], b: DANG[st.dial.b] };
+    st.dvel = { a: 0, b: 0 }; st.dpull = { a: 0, b: 0 };   // la rueda: su velocidad y su estirón hacia el dedo
     const leadJack = (g, kind, j) => {
       const [x, y] = meterAt(g, kind);
       return [x + (j ? JX.COM : JX.V) * g.MK, y - 40 * g.MK];
@@ -1479,7 +1480,36 @@
         return [x + sh.kx * g.MK, y + sh.ky * g.MK];
       });
       const turn = d => b.setDial(kind, DIAL[(DIAL.indexOf(st.dial[kind]) + d + DIAL.length) % DIAL.length]);
+      // Arrastrarla la gira con imán: se queda en su posición (pasada la zona muerta solo se estira un poco
+      // hacia el dedo) hasta que el dedo está bien más cerca de otra, y entonces salta ahí con un rebote.
+      dial.style.touchAction = 'none';
+      let drag = null;
+      dial.addEventListener('pointerdown', e => {
+        if (shape(kind).c > 0.5) return;
+        dial.setPointerCapture(e.pointerId);
+        drag = { x: e.clientX, y: e.clientY, moved: false, touch: e.pointerType === 'touch' };
+      });
+      dial.addEventListener('pointermove', e => {
+        if (!drag || !dial.hasPointerCapture(e.pointerId)) return;
+        const r = dial.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+        if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+        drag.moved = true;
+        if (Math.hypot(dx, dy) < 6) return;
+        const a = Math.atan2(dx, -dy) * 180 / Math.PI, cur = st.dial[kind];
+        const near = DIAL.reduce((best, d) => Math.abs(DANG[d] - a) < Math.abs(DANG[best] - a) ? d : best, cur);
+        if (near !== cur && Math.abs(DANG[near] - a) < Math.abs(DANG[cur] - a) - 12) {
+          b.setDial(kind, near);
+          if (drag.touch && navigator.vibrate) try { navigator.vibrate(6); } catch (err) {}
+        }
+        st.dpull[kind] = Math.max(-9, Math.min(9, 0.25 * Math.sign(a - DANG[st.dial[kind]]) * Math.max(0, Math.abs(a - DANG[st.dial[kind]]) - Sim.DEAD.knob)));
+        b.pw.replace(); b.pe.replace();
+      });
+      const letGo = () => { if (drag) { drag.done = drag.moved; drag.moved = false; } st.dpull[kind] = 0; };
+      dial.addEventListener('pointerup', letGo);
+      dial.addEventListener('pointercancel', letGo);
       dial.addEventListener('click', e => {
+        if (drag && drag.done) { drag = null; return; }   // fue un arrastre
+        drag = null;
         const r = dial.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
         const sh = shape(kind), s = panel(side).scale * geo(side).MK;
         // con el teclado (sin puntero) o en el centro: la siguiente posición
@@ -1761,6 +1791,7 @@
       ctx.restore();
       D.roundRect(ctx, -68, -32, 136, H - 22, 8, C.metal, C.ink, 1.5);
       D.lcd(ctx, sh.lx, sh.lcd, sh.lw, sh.lh, ...meterText(kind, g.side));
+      compare(ctx, kind, sh, water);
       dialKnob(ctx, kind, sh, water);
       ctx.restore();
       // bornes en la funda: VΩA (rojo) y COM (negro)
@@ -1780,6 +1811,22 @@
         D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 13, weight: 700 });
         D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 16, C.danger, { size: 13 });
       } else D.text(ctx, meterName(kind, g.side), 0, ly, col, { size: 14, font: Sim.WIDE });
+      ctx.restore();
+    };
+    // Formato extendido: abajo de la pantallita, la comparación de la punta roja (+) con la negra (−): el
+    // voltaje (presión) de cada una, con su barra en la misma escala; la pantallita en V marca la resta.
+    const compare = (ctx, kind, sh, water) => {
+      if (sh.c >= 1) return;
+      const r = st.probe[kind], ok = st.show[kind] && ready(kind) && r, s = water ? PSI_PER_V : 1, u = water ? 'psi' : 'V';
+      ctx.save(); ctx.globalAlpha *= 1 - sh.c;
+      [[r && r.va, RED, '+'], [r && r.vb, C.neg, '−']].forEach(([v, col, t], i) => {
+        const y = sh.cmp + i * 13, f = ok ? Math.max(0, Math.min(1, v / 12)) : 0;
+        D.circle(ctx, -58, y, 4.5, col);
+        D.text(ctx, t, -58, y - 0.5, col === RED ? '#fff' : C.card, { size: 9, weight: 800 });
+        D.roundRect(ctx, -50, y - 3.5, 66, 7, 3.5, C.card, C.muted, 1);
+        if (f > 0) D.roundRect(ctx, -50, y - 3.5, Math.max(7, 66 * f), 7, 3.5, MCOL.V);
+        D.text(ctx, ok ? Sim.reading(v * s) + ' ' + u : '—', 62, y, C.ink, { size: 11, weight: 700, align: 'right' });
+      });
       ctx.restore();
     };
     // Rueda del multímetro: grande, oscura, con su barra que apunta a la posición elegida (raya blanca en
@@ -2114,10 +2161,16 @@
         const c0 = st.cmp[kind];
         st.cmp[kind] = st.compact[kind] ? Math.min(1, c0 + dt / 0.3) : Math.max(0, c0 - dt / 0.3);
         if (st.cmp[kind] !== c0) moved = true;
-        // la rueda gira a su posición
-        const a0 = st.dang[kind], to = DANG[st.dial[kind]];
-        st.dang[kind] = Math.abs(to - a0) < 0.5 ? to : to + (a0 - to) * Math.exp(-dt * 16);
-        if (st.dang[kind] !== a0) moved = true;
+        // la rueda va a su posición (más su estirón hacia el dedo) como jalada por un imán: con un rebote
+        const a0 = st.dang[kind], to = DANG[st.dial[kind]] + st.dpull[kind];
+        if (Math.abs(to - a0) > 0.05 || Math.abs(st.dvel[kind]) > 0.5) {
+          const h = dt / 4;
+          for (let i = 0; i < 4; i++) {
+            st.dvel[kind] += (420 * (to - st.dang[kind]) - 20 * st.dvel[kind]) * h;
+            st.dang[kind] += st.dvel[kind] * h;
+          }
+          moved = true;
+        } else if (a0 !== to) { st.dang[kind] = to; st.dvel[kind] = 0; moved = true; }
       }
       if (moved) { b.pw.replace(); b.pe.replace(); }
     };
