@@ -85,18 +85,20 @@
         const my = 40 + 40 * g.MK;
         g.meters = { V: [g.BX + 55, my], I: [g.BX + g.BW - 55, my] };
         g.BY = my + 116 * g.MK;
-        g.LEG = [g.BX + 140, Math.min(H - 22, g.BY + g.BH + 28), 150];
+        g.COL = [650, 10];   // arriba de la columna de medidores no cabe: va arriba a la derecha del circuito
+        g.TOP = 170;         // y el circuito baja un poco para dejarle lugar
       } else if (mode === 'alto') {
         g.BOT = H - 444;
         g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46; g.MK = 1.35;
         const my = g.BY + g.BH + 34 + 40 * g.MK;
         g.meters = { V: [g.PX - 135, my], I: [g.PX + 135, my] };
-        g.LEG = [505, 24, 150];
+        g.COL = [660, 10];
+        g.TOP = 170;
       } else {
         g.BOT = H - 214;
         g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46;
         g.meters = { V: [g.BX / 2, g.BY + 40], I: [(g.BX + g.BW + W) / 2, g.BY + 40] };
-        g.LEG = [600, 46, 160];
+        g.COL = [W - 12, 10];
       }
       g.CX = g.BX + g.BW / 2;   // centro del controlador (perilla)
       g.MIDY = (g.TOP + g.BOT) / 2;
@@ -414,27 +416,40 @@
       const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
       return [v / VMAX, Math.abs(bsg.I) / iFull];
     };
-    // Botón junto a la barra de colores de cada lado (enlazados) que abre un menú para elegir el modo.
-    // En la electricidad, con el modo rapidez las cargas van de su color de siempre (sin barra).
+    // Esquina de arriba a la derecha de cada lado (enlazados): un slider de tres opciones para el modo
+    // de color y, debajo, la barra de colores con lo que marca cada punta. En la electricidad, con el
+    // modo rapidez las cargas van de su color de siempre y no hay barra.
     const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'] };
-    const modeIndex = () => Sim.COLOR_MODES.indexOf(Sim.colorMode);
-    b.linkedButton({
-      cls: 'sim-btn small sim-colors',
-      pos: g => [g.LEG[0] - 10, g.LEG[1]],
-      text: side => 'color: ' + COLOR_NAMES[side][modeIndex()],
-      label: side => 'Color de las partículas: ' + COLOR_NAMES[side][modeIndex()],
-      onClick: (side, el) => Sim.menu.toggle(el, {
-        title: side === 'w' ? 'Color del agua' : 'Color de las cargas',
-        rows: [{ label: 'Color según', values: [0, 1, 2], get: modeIndex,
-          set: k => { Sim.setColorMode(Sim.COLOR_MODES[k]); b.refresh(); }, format: k => COLOR_NAMES[side][k] }]
-      })
+    const ends = side => ({
+      v: ['lento', 'rápido'],
+      p: side === 'w' ? ['0 psi', VMAX * PSI_PER_V + ' psi'] : ['0 V', VMAX + ' V'],
+      q: ['0', side === 'w' ? iFull * MLS_PER_MA + ' mL/s' : iFull + ' mA']
+    })[Sim.shownColorMode()];
+    const pickers = ['w', 'e'].map(side => {
+      const el = document.createElement('div');
+      el.className = 'sim-colors'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Color de las partículas');
+      el.innerHTML = '<input type="range" min="0" max="2" step="1" aria-label="Color de las partículas según">' +
+        '<div class="opts">' + COLOR_NAMES[side].map((t, k) => `<button type="button" tabindex="-1" data-k="${k}">${t}</button>`).join('') + '</div>' +
+        '<div class="scale"><span></span><div class="bar"></div><span></span></div>';
+      const inp = el.querySelector('input');
+      const pick = k => { Sim.setColorMode(Sim.COLOR_MODES[k]); syncColors(); };
+      inp.addEventListener('input', () => pick(+inp.value));
+      el.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => pick(+bt.dataset.k)));
+      return { side, el: b.place(side, el, g => g.COL), inp };
     });
-    // Barra de colores con lo que marca cada punta según el modo.
-    const legend = (ctx, g, side) => {
-      const [x, y, w] = g.LEG, m = Sim.colorMode;
-      if (m === 'p') D.speedLegend(ctx, x, y, w, side === 'w' ? '0 psi' : '0 V', side === 'w' ? VMAX * PSI_PER_V + ' psi' : VMAX + ' V');
-      else if (m === 'q') D.speedLegend(ctx, x, y, w, '0', side === 'w' ? iFull * MLS_PER_MA + ' mL/s' : iFull + ' mA');
-      else if (side === 'w') D.speedLegend(ctx, x, y, w);
+    const syncColors = () => pickers.forEach(({ side, el, inp }) => {
+      const k = Sim.COLOR_MODES.indexOf(Sim.colorMode);
+      inp.value = k; inp.setAttribute('aria-valuetext', COLOR_NAMES[side][k]);
+      el.querySelectorAll('button').forEach((bt, j) => bt.setAttribute('aria-pressed', String(j === k)));
+      el.dataset.bar = String(side === 'w' || Sim.shownColorMode() !== 'v');
+      el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
+    });
+    syncColors();
+    // Mientras se arrastra una punta, las partículas se colorean por lo que mide (presión o caudal);
+    // al soltarla vuelven al modo elegido.
+    const colorWhileDragging = () => {
+      const k = st.lift.V.some(Boolean) ? 'p' : st.lift.I.some(Boolean) ? 'q' : null;
+      if (k !== Sim.colorOverride) { Sim.colorOverride = k; syncColors(); }
     };
 
     st.clamps = {
@@ -1273,7 +1288,6 @@
       drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       o.drawW(ctx, g, m);
       knobScales(ctx, g);
-      legend(ctx, g, 'w');
       controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set * PSI_PER_V, 2, 1), 'psi'], ['presión', 'caudal']);
       D.pump(ctx, g.PX, g.BOT, st.rotor, st.omega);
@@ -1287,7 +1301,6 @@
       drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       o.drawE(ctx, g, m);
       knobScales(ctx, g);
-      legend(ctx, g, 'e');
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set, 2, 1), 'V'], ['CV', 'CC']);
       D.source(ctx, g.PX, g.BOT);
@@ -1396,6 +1409,7 @@
       st.turb += Math.min(st.probe.I.value, 60) * 0.5 * dt;
       st.flowPh = ((st.flowPh || 0) + (14 + 50 * flowFrac()) * dt) % 1e4;
       animate(dt);
+      colorWhileDragging();
       for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (const kind of ['V', 'I']) for (let i = 0; i < NP[kind]; i++) ropeStep(side, g, kind, i, dt);
       st.rpm = st.m.I * RPM_PER_MA;                                // 100 rpm por cada mL/s
       st.omega = -st.rpm / 60 * 2 * Math.PI;                       // rad/s, a la velocidad real
