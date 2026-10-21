@@ -211,6 +211,8 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   background: var(--card); color: var(--ink); border: 2px solid var(--line); box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
 }
 .sim-meter-btn[hidden] { display: none; }
+.sim-meter-btn { transition: opacity .2s; }
+.sim-meter-btn.shy { opacity: 0; pointer-events: none; }
 .sim-meter-btn svg { width: 62%; height: 62%; }
 .sim-meter-btn:hover, .sim-meter-btn:focus-visible { border-color: var(--water); color: var(--water); }
 .sim-meter-btn[aria-pressed="true"] { border-color: var(--water); color: var(--water); }
