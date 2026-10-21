@@ -655,8 +655,8 @@
 
   // ---------- menú de un componente ----------
   // Al tocar un componente se abre una tarjetita junto a él con lo que se le puede cambiar:
-  // Sim.menu.toggle(anchor, { title, note, rows }) la abre (o la cierra si ya estaba abierta para anchor).
-  // title y note pueden ser funciones; cada fila es una de:
+  // Sim.menu.toggle(anchor, { title, rows }) la abre (o la cierra si ya estaba abierta para anchor).
+  // title puede ser una función; cada fila es una de (label solo lo leen los lectores de pantalla):
   //   { label, values, get, set, format }   slider que pasa por una lista de valores (los comunes)
   //   { label, options: [{ value, text, color }], get, set }   botones para escoger (el color de un LED)
   //   { actions: [{ text, onClick, hidden, danger }] }   botones (fundir, poner uno nuevo…)
@@ -682,36 +682,39 @@
       }, true);
       document.addEventListener('keydown', e => { if (cur && e.key === 'Escape') { close(true); e.preventDefault(); } });
     };
+    // Slider: arriba el valor actual, grande, con los de junto a cada lado (se tocan para ir a ellos);
+    // abajo una rayita por cada valor de la lista.
     const slider = r => {
-      const row = mk('div', 'row'), top = mk('div', 'top'), out = mk('output', 'val');
-      top.append(mk('span', 'lbl', r.label), out);
-      const ctl = mk('div', 'ctl'), minus = mk('button', 'step', '−'), plus = mk('button', 'step', '+'), inp = mk('input');
-      minus.type = plus.type = 'button';
-      minus.setAttribute('aria-label', 'Menos'); plus.setAttribute('aria-label', 'Más');
+      const row = mk('div', 'row slide'), top = mk('div', 'near');
+      const prev = mk('button', 'adj prev'), out = mk('output', 'val'), next = mk('button', 'adj next');
+      prev.type = next.type = 'button';
+      top.append(prev, out, next);
+      const inp = mk('input');
       inp.type = 'range'; inp.min = 0; inp.max = r.values.length - 1; inp.step = 1;
       inp.setAttribute('aria-label', r.label);
-      ctl.append(minus, inp, plus);
-      const ends = mk('div', 'ends');
-      ends.append(mk('span', '', r.format(r.values[0])), mk('span', '', r.format(r.values[r.values.length - 1])));
-      row.append(top, ctl, ends);
+      const ticks = mk('div', 'ticks');
+      r.values.forEach(() => ticks.appendChild(mk('span')));
+      row.append(top, inp, ticks);
       const index = () => r.values.indexOf(Sim.nearest(r.values, r.get()));
       const go = i => { i = Math.max(0, Math.min(r.values.length - 1, i)); r.set(r.values[i]); sync(); };
       inp.addEventListener('input', () => go(+inp.value));
-      minus.addEventListener('click', () => go(index() - 1));
-      plus.addEventListener('click', () => go(index() + 1));
+      prev.addEventListener('click', () => go(index() - 1));
+      next.addEventListener('click', () => go(index() + 1));
       const sync = () => {
-        const i = index();
+        const i = index(), n = r.values.length;
         if (document.activeElement !== inp || +inp.value !== i) inp.value = i;
-        inp.style.setProperty('--f', r.values.length > 1 ? i / (r.values.length - 1) : 0);
         out.textContent = r.format(r.get());
         inp.setAttribute('aria-valuetext', out.textContent);
-        minus.disabled = i <= 0; plus.disabled = i >= r.values.length - 1;
+        prev.textContent = i > 0 ? r.format(r.values[i - 1]) : '';
+        next.textContent = i < n - 1 ? r.format(r.values[i + 1]) : '';
+        prev.disabled = i <= 0; next.disabled = i >= n - 1;
+        prev.setAttribute('aria-label', 'Bajar a ' + prev.textContent); next.setAttribute('aria-label', 'Subir a ' + next.textContent);
+        [...ticks.children].forEach((t, k) => t.classList.toggle('on', k === i));
       };
       return { row, sync };
     };
     const choice = r => {
-      const row = mk('div', 'row'), top = mk('div', 'top'), out = mk('output', 'val');
-      top.append(mk('span', 'lbl', r.label), out);
+      const row = mk('div', 'row'), out = mk('output', 'val');
       const list = mk('div', 'opts');
       list.setAttribute('role', 'group'); list.setAttribute('aria-label', r.label);
       const btns = r.options.map(o => {
@@ -722,7 +725,7 @@
         list.appendChild(btn);
         return btn;
       });
-      row.append(top, list);
+      row.append(out, list);
       const sync = () => {
         const v = r.get();
         btns.forEach((btn, k) => btn.setAttribute('aria-pressed', String(r.options[k].value === v)));
@@ -764,8 +767,6 @@
     const tick = () => {
       if (!cur) return;
       cur.title.textContent = val(cur.o.title);
-      const note = val(cur.o.note) || '';
-      cur.note.textContent = note; cur.note.hidden = !note;
       cur.parts.forEach(p => p.sync());
       place();
       raf = requestAnimationFrame(tick);
@@ -778,11 +779,10 @@
       x.type = 'button'; x.setAttribute('aria-label', 'Cerrar');
       x.addEventListener('click', () => close(true));
       hd.append(title, x);
-      const note = mk('p', 'note');
-      el.append(hd, note);
+      el.append(hd);
       const parts = o.rows.map(r => r.values ? slider(r) : r.options ? choice(r) : actions(r));
       parts.forEach(p => el.appendChild(p.row));
-      cur = { anchor, o, title, note, parts };
+      cur = { anchor, o, title, parts };
       anchor.setAttribute('aria-expanded', 'true');
       el.hidden = false;
       el.setAttribute('aria-label', val(o.title));
@@ -803,16 +803,11 @@
   // actions son los botones de abajo (ver Sim.menu), o actions(side); name es 'R1', '1'…, si hay más de uno.
   Sim.resistorMenu = ({ name = '', values, get, set, format, actions }) => side => ({
     title: (side === 'w' ? 'Tramo angosto' : 'Resistencia') + (name ? ' ' + name : ''),
-    note: side === 'w' ? 'Más angosto es más resistencia: deja pasar menos agua.'
-      : 'Valores comerciales de resistencia. Más resistencia deja pasar menos corriente.',
     rows: [{ label: side === 'w' ? 'Resistencia del tramo' : 'Resistencia', values, get, set, format },
       ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
   });
   Sim.ledMenu = ({ name = '', get, set, actions }) => side => ({
     title: (side === 'w' ? 'Rueda' : 'LED') + (name ? ' ' + name : ''),
-    note: () => side === 'w'
-      ? `La rueda de cada color es más o menos dura: esta necesita ${Math.round(Sim.led(get()).vf * 10)} kPa para empezar a girar.`
-      : `Cada color necesita un voltaje distinto para encender: el ${Sim.led(get()).name.toLowerCase()}, unos ${Sim.fmt(Sim.led(get()).vf)} V.`,
     rows: [{ label: 'Color', get, set, options: Sim.LEDS.map(l => ({
       value: l.id, text: l.name, color: l.swatch || `rgb(${l.rgb})`,
       detail: l.name + ' · ' + (side === 'w' ? Math.round(l.vf * 10) + ' kPa' : Sim.fmt(l.vf) + ' V')

@@ -333,20 +333,32 @@ span.sim-go { visibility: hidden; width: 38px; padding: 0; }
   background: transparent; color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer;
 }
 .sim-menu .x:hover { background: var(--bg); color: var(--ink); }
-.sim-menu .note { margin: -6px 0 0; font-size: 14px; color: var(--muted); line-height: 1.35; }
-.sim-menu .note[hidden], .sim-menu .row[hidden], .sim-menu .act[hidden] { display: none; }
+.sim-menu .row[hidden], .sim-menu .act[hidden] { display: none; }
 .sim-menu .row { display: grid; gap: 6px; }
-.sim-menu .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-weight: 700; font-size: 15px; }
 .sim-menu .val { font-family: var(--font-mono); font-weight: 500; font-size: 17px; color: var(--ink); white-space: nowrap; }
-.sim-menu .ctl { display: flex; align-items: center; gap: 8px; }
-.sim-menu .step {
-  flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; cursor: pointer;
-  border: 2px solid var(--water); background: var(--card); color: var(--water);
-  font: inherit; font-size: 22px; font-weight: 700; line-height: 1; touch-action: manipulation;
+/* Slider: el valor actual grande en medio y los de junto a los lados; una rayita por valor abajo. */
+.sim-menu .near { display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 8px; }
+.sim-menu .near .val { font-size: 26px; color: var(--water); text-align: center; }
+.sim-menu .adj {
+  font: inherit; font-family: var(--font-mono); font-size: 14px; color: var(--muted); white-space: nowrap;
+  background: none; border: 0; padding: 6px 2px; cursor: pointer; touch-action: manipulation;
 }
-.sim-menu .step:disabled { opacity: .3; cursor: default; }
-.sim-menu input[type="range"] { flex: 1 1 auto; min-width: 0; height: 36px; margin: 0; accent-color: var(--water); }
-.sim-menu .ends { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding: 0 44px; }
+.sim-menu .adj.prev { text-align: left; }
+.sim-menu .adj.next { text-align: right; }
+.sim-menu .adj:hover { color: var(--water); }
+.sim-menu .adj:disabled { cursor: default; }
+.sim-menu input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 32px; margin: 0; background: transparent; cursor: pointer;
+}
+.sim-menu input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--ink); }
+.sim-menu input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--ink); }
+.sim-menu input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 8px; height: 30px; margin-top: -13px; border-radius: 4px; background: var(--water); border: 0;
+}
+.sim-menu input[type="range"]::-moz-range-thumb { width: 8px; height: 30px; border-radius: 4px; background: var(--water); border: 0; }
+.sim-menu .ticks { display: flex; justify-content: space-between; padding: 0 3px; margin-top: -6px; }
+.sim-menu .ticks span { width: 2px; height: 7px; border-radius: 1px; background: var(--line); }
+.sim-menu .ticks span.on { background: var(--water); height: 10px; }
 .sim-menu .opts { display: flex; flex-wrap: wrap; gap: 10px; }
 .sim-menu .opt {
   width: 40px; height: 40px; padding: 0; border-radius: 50%; cursor: pointer;

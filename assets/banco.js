@@ -162,13 +162,16 @@
     // la resistencia) con un dedo o el ratón el borde sigue al puntero; con dos dedos, el ancho es la
     // separación entre ellos. Más angosto = más resistencia. half(R) da el medio ancho del tramo y
     // fromHalf(h) la resistencia para un medio ancho; set(R) la cambia. Con menu(side), tocarla sin
-    // arrastrar abre su menú (con Enter o Espacio también). Devuelve { drag } para saber si se está
-    // agarrando (las marcas se pintan de azul).
+    // arrastrar abre su menú (con Enter o Espacio también). Cada marca (la de arriba o la de abajo) se
+    // resalta al pasar el puntero o el dedo; con la rueda del ratón, girar hacia arriba sobre la de
+    // arriba ensancha el tubo y sobre la de abajo lo angosta (como si se arrastrara esa marca).
+    // Devuelve { drag, grip } para b.grips: grip es −1 (la marca de arriba), 1 (la de abajo), 2 (las
+    // dos, con dos dedos) o 0.
     b.pinch = ({ pos, get, set, half, fromHalf, label, text, menu }) => {
-      const pr = { drag: false };
-      // flechas y rueda: un poco más ancho o angosto (lo que haga falta para que cambie el valor)
+      const pr = { drag: false, grip: 0 };
+      // flechas y rueda: un poco más ancho o angosto, lo justo para pasar al valor de junto
       const nudge = f => {
-        for (let k = 1; k <= 8; k++) { const R = fromHalf(half(get()) + f * k); if (R !== get()) return set(R); }
+        for (let k = 1; k <= 120; k++) { const R = fromHalf(half(get()) + f * k * 0.05); if (R !== get()) return set(R); }
       };
       ['w', 'e'].forEach(side => {
         const el = document.createElement('div');
@@ -179,20 +182,22 @@
         const p = panel(side), pts = new Map();
         let start = 0, moved = false;
         const toY = e => (e.clientY - p.box.getBoundingClientRect().top - p.oy) / p.scale;
+        const gripAt = y => y < pos(geo(side))[1] ? -1 : 1;
+        // con un dedo, la marca agarrada sigue al puntero (aunque cruce al otro lado se queda angosto)
         const update = () => {
           const ys = [...pts.values()];
-          const h = ys.length > 1 ? Math.abs(ys[0] - ys[1]) / 2 - 9 : Math.abs(ys[0] - pos(geo(side))[1]) - 14;
+          const h = ys.length > 1 ? Math.abs(ys[0] - ys[1]) / 2 - 9 : (pr.grip || 1) * (ys[0] - pos(geo(side))[1]) - 14;
           set(fromHalf(h));
         };
         // Con menú, el borde empieza a seguir al puntero solo cuando se arrastra: un toque abre el menú.
         const grab = () => { moved = true; pr.drag = true; if (menu) Sim.menu.close(); update(); };
         el.addEventListener('pointerdown', e => {
           el.setPointerCapture(e.pointerId); pts.set(e.pointerId, toY(e)); e.preventDefault();
-          if (pts.size === 1) { start = e.clientY; moved = false; }
+          if (pts.size === 1) { start = e.clientY; moved = false; pr.grip = gripAt(toY(e)); } else pr.grip = 2;
           if (!menu || pts.size > 1) grab();
         });
         el.addEventListener('pointermove', e => {
-          if (!pts.has(e.pointerId)) return;
+          if (!pts.has(e.pointerId)) { if (!pts.size) pr.grip = gripAt(toY(e)); return; }
           pts.set(e.pointerId, toY(e));
           if (moved) update(); else if (Math.abs(e.clientY - start) > 6) grab();
         });
@@ -201,10 +206,16 @@
           pts.delete(e.pointerId);
           if (pts.size) return;
           pr.drag = false;
+          if (e.pointerType !== 'mouse') pr.grip = 0;   // en pantallas táctiles no queda el dedo encima
           if (menu && !moved && e.type === 'pointerup') Sim.menu.toggle(el, menu(side));
         };
         el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-        el.addEventListener('wheel', e => { e.preventDefault(); nudge(e.deltaY < 0 ? -1 : 1); }, { passive: false });
+        el.addEventListener('pointerleave', () => { if (!pts.size) pr.grip = 0; });
+        el.addEventListener('wheel', e => {
+          e.preventDefault();
+          pr.grip = gripAt(toY(e));
+          nudge((e.deltaY < 0 ? 1 : -1) * -pr.grip);
+        }, { passive: false });
         el.addEventListener('keydown', e => {
           if (menu && (e.key === 'Enter' || e.key === ' ')) { Sim.menu.toggle(el, menu(side)); e.preventDefault(); return; }
           const f = { ArrowUp: -1, ArrowRight: -1, ArrowDown: 1, ArrowLeft: 1 }[e.key];
@@ -214,10 +225,12 @@
       });
       return pr;
     };
-    // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde h.
+    // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde h: claritas, y
+    // azules la que está bajo el puntero o se arrastra. active es lo que devuelve b.pinch (o true).
     b.grips = (ctx, x, y, h, active) => {
-      const col = active ? C.water : C.muted;
       for (const sgn of [-1, 1]) {
+        const on = active === true || (active && (active.grip === sgn || active.grip === 2));
+        const col = on ? C.water : '#c3cfd8';
         const yy = y + sgn * (h + 9);
         D.roundRect(ctx, x - 16, yy - 3, 32, 6, 3, col);
         D.arrow(ctx, x + 24, yy, sgn * Math.PI / 2, 5, col);
