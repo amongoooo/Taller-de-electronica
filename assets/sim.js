@@ -195,6 +195,49 @@
     ctx.lineTo(x + 36, y); ctx.lineTo(x + 46, y);
     ctx.lineWidth = 3.5; ctx.strokeStyle = C.ink; ctx.lineJoin = 'miter'; ctx.stroke();
   };
+  // Calor que se ve en el dibujo (ver Sim.heat): un resplandor naranja que crece con k (de 0 a 1).
+  D.heatGlow = (ctx, x, y, k, rad = 52) => {
+    if (!(k > 0)) return;
+    const gr = ctx.createRadialGradient(x, y, 4, x, y, rad);
+    gr.addColorStop(0, `rgba(255, 110, 30, ${0.75 * Math.min(1, k)})`); gr.addColorStop(1, 'rgba(255, 110, 30, 0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+  };
+  // Humo que sube (t: segundos desde que se quemó).
+  D.smoke = (ctx, x, y, t) => {
+    for (let k = 0; k < 4; k++) {
+      const u = ((t * 0.5 + k / 4) % 1);
+      D.circle(ctx, x + 6 * Math.sin(k * 2 + t), y - 50 * u, 4 + 10 * u, `rgba(110, 110, 110, ${0.35 * (1 - u)})`);
+    }
+  };
+  // Resistencia quemada: tiznada, partida a la mitad y echando humo (se dibuja encima de D.resistor).
+  D.burntResistor = (ctx, x, y, t, label = 'quemada') => {
+    ctx.fillStyle = 'rgba(30, 20, 15, 0.55)'; ctx.beginPath(); ctx.ellipse(x, y, 24, 13, 0, 0, Math.PI * 2); ctx.fill();
+    D.line(ctx, [[x - 3, y - 14], [x + 3, y - 4], [x - 3, y + 4], [x + 3, y + 14]], 6, C.card);
+    if (label) D.text(ctx, label, x, y + 44, C.danger, { size: 14 });
+    D.smoke(ctx, x, y - 12, t);
+  };
+  // Tramo angosto reventado (medio ancho hn): una grieta arriba y el agua que salpica al reventar.
+  // Antes de reventar (k = calor, de 0 a 1, sin reventar todavía) gotea.
+  D.burstPipe = (ctx, x, y, hn, t, burst, k = 0, label = 'tubo reventado') => {
+    if (!burst) {
+      if (k > 0.5) {
+        const s = performance.now() / 1000;
+        for (let j = 0; j < 3; j++) D.circle(ctx, x - 8 + 8 * j, y - Sim.PIPE - 4 - ((s * 40 + j * 11) % 14), 2, C.water);
+      }
+      return;
+    }
+    const h = hn + 5;
+    D.line(ctx, [[x - 10, y - h], [x - 3, y - h + 5], [x + 3, y - h - 1], [x + 10, y - h + 4]], 3, C.danger);
+    if (t < 1.2) {
+      ctx.globalAlpha = Math.min(1, (1.2 - t) / 0.5);
+      for (let j = 0; j < 14; j++) {
+        const a = -Math.PI / 2 + ((j * 0.618) % 1 - 0.5) * 1.6, v = 120 + 160 * ((j * 0.383) % 1);
+        D.circle(ctx, x + ((j * 0.27) % 1 - 0.5) * 16 + Math.cos(a) * v * t, y - h + Math.sin(a) * v * t + 250 * t * t, 3, C.water);
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (label) D.text(ctx, label, x, y + 44, C.danger, { size: 14 });
+  };
   // Medidor de aguja; frac de 0 a 1 (puede pasarse un poco si la aguja rebota).
   D.dial = (ctx, x, y, r, frac, col, letter) => {
     D.circle(ctx, x, y, r, C.card, C.ink, 3);
@@ -750,7 +793,7 @@
     // (el mismo que al tocarlo en el dibujo). anchor() es el componente en el panel que se ve.
     const parts = [];
     let list = null, cards = null;
-    side.cards = () => { side.sec('com'); return cards; };
+    side.cards = () => { comBody(); return cards; };   // también en páginas sin lista (la protoboard)
     const comBody = () => {
       if (!list) {
         const b = side.sec('com');
@@ -990,6 +1033,62 @@
   ];
   Sim.led = id => Sim.LEDS.find(l => l.id === id) || Sim.LEDS[0];
 
+  // ---------- calor de los componentes ----------
+  // Cada componente que se puede quemar lleva su temperatura T: se calienta con la potencia P que recibe
+  // y se enfría hacia la del cuarto (25 °C), las dos cosas con su tiempo τ (dT/dt = (T_P − T)/τ, donde T_P
+  // es a la que llegaría si P no cambiara). Con justo la potencia que aguanta llega a su temperatura máxima
+  // y ahí se queda; con más la pasa y se quema, más rápido entre más se pasa: con el doble tarda τ·ln 2.
+  // Uno real tarda más en calentarse; aquí τ es de unos segundos para que se vea.
+  //   resistencia de ¼ W (película de carbón, hasta 155 °C)
+  //   LED de 5 mm: aguanta 30 mA, o sea pMax = Vf · 30 mA (de 54 mW el rojo a 96 mW el blanco), hasta 125 °C
+  //   fusible: su "potencia" es (I / In)², 1 con la corriente que aguanta; se funde rápido si se pasa mucho
+  //   y tarda (decenas de segundos) si se pasa poco, como uno de verdad
+  Sim.HEAT = {
+    res: { pMax: 0.25, tMax: 155, tau: 8 },
+    led: { pMax: 0.054, tMax: 125, tau: 2.5 },
+    fuse: { pMax: 1, tMax: 125, tau: 25 }
+  };
+  Sim.LED_IMAX = 30;   // mA
+  Sim.heat = (o = Sim.HEAT.res) => {
+    const T0 = 25;
+    const h = { ...o, T: T0, P: 0,
+      max: () => typeof h.pMax === 'function' ? h.pMax() : h.pMax,
+      // 0 a la temperatura del cuarto, 1 justo al quemarse
+      get f() { return Math.max(0, (h.T - T0) / (h.tMax - T0)); },
+      // lo que se ve en el dibujo (brillo, temblor): solo ya muy caliente, de 60 % en adelante
+      get glow() { return Math.max(0, Math.min(1, (h.f - 0.6) / 0.4)); },
+      // avanza dt segundos con la potencia P; devuelve true en el instante en que se quema
+      step(P, dt) {
+        const was = h.T >= h.tMax, Tp = T0 + Math.max(0, P) / h.max() * (h.tMax - T0);
+        h.P = Math.max(0, P);
+        h.T = Tp + (h.T - Tp) * Math.exp(-dt / h.tau);
+        return !was && h.T >= h.tMax;
+      },
+      reset() { h.T = T0; h.P = 0; }
+    };
+    return h;
+  };
+  // Potencia en vatios: 0,081 W, 1,25 W.
+  Sim.watts = P => Sim.fmt(P, P >= 10 ? 1 : P >= 1 ? 2 : 3) + ' W';
+  // Fila del menú con la potencia y el calor de un componente (Sim.heat h): cuánto aguanta, cuánto recibe
+  // ahora y una barra con su temperatura (en el agua, su desgaste) hasta que se quema. broken() dice si ya
+  // se quemó; what es 'res' o 'led'.
+  Sim.powerRow = (h, side, { broken = () => false, what = 'res' } = {}) => ({
+    heat: () => {
+      const w = side === 'w', b = broken();
+      return {
+        label: w ? 'Potencia (presión × caudal)' : 'Potencia (voltaje × corriente)',
+        rated: Sim.watts(h.max()),
+        now: Sim.watts(b ? 0 : h.P), over: !b && h.P > h.max(),
+        f: b ? 1 : h.f, burnt: b,
+        name: w ? 'Desgaste' : 'Temperatura',
+        val: b ? (w ? (what === 'res' ? 'reventó' : 'se rompió') : 'se quemó')
+          : w ? Math.round(100 * Math.min(1, h.f)) + ' %' : Math.round(h.T) + ' °C',
+        end: w ? (what === 'res' ? 'revienta' : 'se rompe') : 'se quema a ' + h.tMax + ' °C'
+      };
+    }
+  });
+
   // ---------- menú de un componente ----------
   // Al tocar un componente se abre una tarjetita junto a él con lo que se le puede cambiar:
   // Sim.menu.toggle(anchor, { title, rows }) la abre (o la cierra si ya estaba abierta para anchor).
@@ -1095,6 +1194,24 @@
       };
       return { row, sync };
     };
+    // Potencia y calor (ver Sim.powerRow): lo que aguanta y lo que recibe, y una barra que se llena hasta quemarse.
+    const heatRow = r => {
+      const row = mk('div', 'row heat');
+      row.innerHTML = '<div class="pw-t"></div><div class="pw"><div><span>Aguanta</span><b class="rated"></b></div><div><span>Ahora</span><b class="now"></b></div></div>' +
+        '<div class="bar"><i></i></div><div class="bl"><span class="nm"></span><b class="tv"></b><span class="end"></span></div>';
+      const q = c => row.querySelector(c), bar = q('.bar i');
+      const sync = () => {
+        const v = r.heat(), f = Math.max(0, Math.min(1, v.f));
+        q('.pw-t').textContent = v.label;
+        q('.rated').textContent = v.rated; q('.now').textContent = v.now;
+        q('.now').classList.toggle('over', !!v.over);
+        q('.nm').textContent = v.name; q('.tv').textContent = v.val; q('.end').textContent = v.end;
+        bar.style.width = (100 * f).toFixed(1) + '%';
+        bar.style.background = v.burnt ? 'var(--danger)' : `hsl(${Math.round(130 - 130 * f)}, 75%, ${Math.round(42 + 8 * f)}%)`;
+        row.classList.toggle('burnt', !!v.burnt);
+      };
+      return { row, sync };
+    };
     const actions = r => {
       const row = mk('div', 'row acts');
       const btns = r.actions.map(a => {
@@ -1162,7 +1279,7 @@
       x.type = 'button'; x.setAttribute('aria-label', 'Cerrar');
       hd.append(title, x);
       el.append(hd);
-      const parts = o.rows.map(r => r.values ? slider(r) : r.options ? choice(r) : actions(r));
+      const parts = o.rows.map(r => r.values ? slider(r) : r.options ? choice(r) : r.heat ? heatRow(r) : actions(r));
       parts.forEach(q => el.appendChild(q.row));
       const card = { anchor, o, el, title, parts, docked: p };
       x.addEventListener('click', () => close(card, true));
@@ -1189,20 +1306,22 @@
   })();
 
   // Menús de siempre (para b.part o b.pinch del banco): cada uno devuelve menu(side), con side 'w' (agua) o 'e'.
-  //   Sim.resistorMenu({ name, values, get, set, format, actions })   valores comunes de resistencia
-  //   Sim.ledMenu({ name, get, set, actions })   color del LED (Sim.LEDS): cada uno necesita otro voltaje (1 psi por volt)
+  //   Sim.resistorMenu({ name, values, get, set, format, actions, heat, broken })   valores comunes de resistencia
+  //   Sim.ledMenu({ name, get, set, actions, heat, broken })   color del LED (Sim.LEDS): cada uno necesita otro voltaje (1 psi por volt)
   // actions son los botones de abajo (ver Sim.menu), o actions(side); name es 'R1', '1'…, si hay más de uno.
-  Sim.resistorMenu = ({ name = '', values, get, set, format, actions }) => side => ({
+  // heat es su Sim.heat (y broken() si ya se quemó): agrega la fila de la potencia y el calor.
+  Sim.resistorMenu = ({ name = '', values, get, set, format, actions, heat, broken }) => side => ({
     title: (side === 'w' ? 'Tramo angosto' : 'Resistencia') + (name ? ' ' + name : ''),
     rows: [{ label: side === 'w' ? 'Resistencia del tramo' : 'Resistencia', values, get, set, format },
+      ...(heat ? [Sim.powerRow(heat, side, { broken })] : []),
       ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
   });
-  Sim.ledMenu = ({ name = '', get, set, actions }) => side => ({
+  Sim.ledMenu = ({ name = '', get, set, actions, heat, broken }) => side => ({
     title: (side === 'w' ? 'Rueda' : 'LED') + (name ? ' ' + name : ''),
     rows: [{ label: 'Color', get, set, options: Sim.LEDS.map(l => ({
       value: l.id, text: l.name, color: l.swatch || `rgb(${l.rgb})`,
       detail: l.name + ' · ' + (side === 'w' ? Sim.fmt(l.vf) + ' psi' : Sim.fmt(l.vf) + ' V')
-    })) }, ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
+    })) }, ...(heat ? [Sim.powerRow(heat, side, { broken, what: 'led' })] : []), ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
   });
 
   window.Sim = Sim;

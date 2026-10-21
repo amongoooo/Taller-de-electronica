@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021093837">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021093837"></script>
-<script src="../../assets/banco.js?v=20261021093837"></script>
+<script src="../../assets/sim.js?v=20261021171039"></script>
+<script src="../../assets/banco.js?v=20261021171039"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -49,9 +49,13 @@
   const fromHalf = h => Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
   const XR = 260;                 // posición de las resistencias
-  const st = { mode: 'serie', R: [470, 470], led: ['rojo', 'rojo'], broken: [false, false], ang: [0, 0], om: [0, 0] };
+  const st = { mode: 'serie', R: [470, 470], led: ['rojo', 'rojo'], broken: [false, false], rb: [false, false], burnT: [9, 9], ang: [0, 0], om: [0, 0] };
   const sides = {};
   const vf = k => Sim.led(st.led[k]).vf;
+  // Cada LED y cada resistencia se calienta (Sim.heat) y su menú lo muestra: el LED aguanta Vf · 30 mA y se
+  // quema si se pasa; la resistencia, ¼ W (quemada, o reventada en el agua, abre su rama).
+  const lh = [0, 1].map(k => Sim.heat({ ...Sim.HEAT.led, pMax: () => vf(k) * Sim.LED_IMAX / 1000 }));
+  const rh = [0, 1].map(() => Sim.heat(Sim.HEAT.res));
 
   // Recorridos de cada modo. En paralelo hay un tronco común (abajo) y dos ramas: A arriba y B a media altura.
   function layout(g) {
@@ -87,9 +91,9 @@
     iFull: 30, v0: 9,
     layout,
     model(V) {
-      const [b1, b2] = st.broken;
+      const [b1, b2] = [0, 1].map(k => st.broken[k] || st.rb[k]);
       if (st.mode === 'serie') {
-        const I = (b1 || b2) ? 0 : Math.max(0, V - vf(0) - vf(1)) / st.R[0] * 1000;
+        const I = (st.broken[0] || st.broken[1] || st.rb[0]) ? 0 : Math.max(0, V - vf(0) - vf(1)) / st.R[0] * 1000;
         return { I, branch: [I, I] };
       }
       const I1 = b1 ? 0 : Math.max(0, V - vf(0)) / st.R[0] * 1000, I2 = b2 ? 0 : Math.max(0, V - vf(1)) / st.R[1] * 1000;
@@ -101,21 +105,22 @@
       const [b1, b2] = st.broken;
       const R = (x, y, dV, k = 0) => ({ at: [x, y], half: 46, dV, pr: pinch[k],
         draw: (ctx, w) => w ? D.narrow(ctx, x, y, half(st.R[k])) : D.resistor(ctx, x, y),
-        tag: () => ['R' + (k + 1), ohm(st.R[k])] });
+        tag: w => st.rb[k] ? ['R' + (k + 1), w ? 'reventado' : 'quemada', true] : ['R' + (k + 1), ohm(st.R[k])] });
       const L = (x, y, dV, i = 0) => ({ at: [x, y], half: 30, dV, pr: ledParts[i], ext: w => w ? 52 : 28,
         draw: (ctx, w) => w ? D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], tint: `rgb(${Sim.led(st.led[i]).rgb})` })
           : D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], rgb: Sim.led(st.led[i]).rgb }),
         tag: w => [(w ? 'rueda ' : 'LED ') + (i + 1), st.broken[i] ? (w ? 'rota' : 'quemado') : st.led[i], st.broken[i]] });
       if (st.mode === 'serie') {
-        const n = b1 + b2, on = m.I > 0;
-        const led = k => n ? (st.broken[k] ? V / n : 0) : on ? vf(k) : V / 2;
+        const n = st.rb[0] ? 0 : b1 + b2, on = m.I > 0;
+        const led = k => st.rb[0] ? 0 : n ? (st.broken[k] ? V / n : 0) : on ? vf(k) : V / 2;
         return [{ pts: b.loopPts(g), I: m.I, v0: V,
-          comps: [R(XR, g.TOP, on ? V - vf(0) - vf(1) : 0), L(420, g.TOP, led(0), 0), L(545, g.TOP, led(1), 1)] }];
+          comps: [R(XR, g.TOP, st.rb[0] ? V : on ? V - vf(0) - vf(1) : 0), L(420, g.TOP, led(0), 0), L(545, g.TOP, led(1), 1)] }];
       }
       const YB = sides.e.YB;
       const branch = (i, pts, y) => {
         const on = m.branch[i] > 0;
-        return { pts, I: m.branch[i], v0: V, comps: [R(XR, y, on ? V - vf(i) : 0, i), L(470, y, on ? vf(i) : V, i)] };
+        const open = st.rb[i];   // la resistencia quemada se queda con todo el voltaje
+        return { pts, I: m.branch[i], v0: V, comps: [R(XR, y, open ? V : on ? V - vf(i) : 0, i), L(470, y, open ? 0 : on ? vf(i) : V, i)] };
       };
       return [
         { pts: [[g.X1, YB], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]], I: m.I, v0: 0, comps: [] },
@@ -133,6 +138,13 @@
         w.water.a.step(m.branch[0] * k, dt); e.phase.a += m.branch[0] * k * dt;
         w.water.b.step(m.branch[1] * k, dt); e.phase.b += m.branch[1] * k * dt;
       }
+      // calor: el LED con Vf · I, la resistencia con I²·R (en serie la segunda no está)
+      for (let i = 0; i < 2; i++) {
+        const I = st.mode === 'serie' && i ? 0 : m.branch[i] / 1000;
+        if (lh[i].step(st.broken[i] ? 0 : vf(i) * m.branch[i] / 1000, dt) && !st.broken[i]) { st.broken[i] = true; b.halt(); b.refresh(); }
+        if (rh[i].step(st.rb[i] ? 0 : I * I * st.R[i], dt) && !st.rb[i]) { st.rb[i] = true; st.burnT[i] = 0; b.halt(); b.refresh(); }
+        st.burnT[i] += dt;
+      }
       for (let i = 0; i < 2; i++) {
         st.om[i] = st.broken[i] ? 0 : -m.branch[i] * Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI;
         st.ang[i] += st.om[i] * dt;
@@ -144,9 +156,11 @@
       const rs = st.mode === 'serie' ? [0] : [0, 1];
       rs.forEach(k => D.narrow(ctx, XR, rPos(g, k)[1], half(st.R[k])));
       keys.forEach(k => s.water[k].draw(ctx));
-      rs.forEach(k => { const y = rPos(g, k)[1]; b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k]); b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), ohm(st.R[k])); });
+      rs.forEach(k => D.burstPipe(ctx, XR, rPos(g, k)[1], half(st.R[k]), st.burnT[k], st.rb[k], rh[k].glow, ''));
+      rs.forEach(k => { const y = rPos(g, k)[1]; b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k]); b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), st.rb[k] ? (g.side === 'w' ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]); });
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
+        if (!st.broken[i]) D.heatGlow(ctx, x, y, lh[i].glow, 46);
         D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1) + ' ' + st.led[i].replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led[i]).rgb})` });
       });
     },
@@ -156,12 +170,15 @@
       keys.forEach(k => D.flow(ctx, s.paths[k], s.phase[k], C.charge, { gap: 30, r: 4.5 }));
       (st.mode === 'serie' ? [0] : [0, 1]).forEach(k => {
         const y = rPos(g, k)[1];
+        if (!st.rb[k]) D.heatGlow(ctx, XR, y, rh[k].glow);
         D.resistor(ctx, XR, y);
+        if (st.rb[k]) D.burntResistor(ctx, XR, y, st.burnT[k], '');
         b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k]);
-        b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), ohm(st.R[k]));
+        b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), st.rb[k] ? (g.side === 'w' ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]);
       });
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
+        if (!st.broken[i]) D.heatGlow(ctx, x, y, lh[i].glow, 56);
         D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1) + ' ' + st.led[i], rgb: Sim.led(st.led[i]).rgb });
       });
     }
@@ -172,9 +189,9 @@
     pos: g => ledPos(g, i),
     label: side => (side === 'w' ? 'Rueda ' : 'LED ') + (i + 1),
     menu: Sim.ledMenu({
-      name: String(i + 1), get: () => st.led[i], set: id => { st.led[i] = id; },
+      name: String(i + 1), get: () => st.led[i], set: id => { st.led[i] = id; }, heat: lh[i], broken: () => st.broken[i],
       actions: side => [{ text: () => (st.broken[i] ? 'Reparar ' : 'Romper ') + (side === 'w' ? 'la rueda' : 'el LED'), danger: true,
-        onClick: () => { st.broken[i] = !st.broken[i]; if (st.broken[i]) b.halt(); } }]
+        onClick: () => { st.broken[i] = !st.broken[i]; if (st.broken[i]) b.halt(); else lh[i].reset(); } }]
     })
   }));
   // Cada resistencia se ajusta pellizcándola o con su menú (en serie solo está la primera).
@@ -184,9 +201,11 @@
       pos: g => k && st.mode === 'serie' ? [-999, -999] : rPos(g, k), get: () => st.R[k], half, fromHalf, set,
       label: side => (side === 'w' ? 'Tramo angosto ' : 'Resistencia ') + (k + 1),
       text: ohm,
-      menu: Sim.resistorMenu({ name: String(k + 1), values: RVALUES, get: () => st.R[k], set, format: ohm })
+      menu: Sim.resistorMenu({ name: String(k + 1), values: RVALUES, get: () => st.R[k], set, format: ohm, heat: rh[k], broken: () => st.rb[k],
+        actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rb[k], onClick: () => renewR(k) }] })
     });
   });
+  function renewR(k) { st.rb[k] = false; rh[k].reset(); st.burnT[k] = 9; }
   // Selector Serie | Paralelo arriba del circuito: al centro en la computadora, a la izquierda en el celular.
   // También va en Cambiar componentes; mientras la columna de controles se ve, sale del dibujo.
   b.linkedChoice({

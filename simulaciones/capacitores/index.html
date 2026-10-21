@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021093837">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021093837"></script>
-<script src="../../assets/banco.js?v=20261021093837"></script>
+<script src="../../assets/sim.js?v=20261021171039"></script>
+<script src="../../assets/banco.js?v=20261021171039"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -67,6 +67,11 @@
     ph: { A: 0, C: 0, B: 0, N: 0 }, I: { A: 0, C: 0, B: 0, N: 0 } };
   const sides = {};
   const tau = () => st.R * st.C * 1e-6;
+  // La resistencia (¼ W) se calienta con I²·R mientras pasa corriente (Sim.heat), y su menú lo muestra; aquí
+  // no llega a quemarse: lo más que recibe es 12 V / 470 Ω = 0,31 W, solo un instante al empezar a cargar.
+  // El capacitor no se calienta: guarda energía (½·C·V²) y aguanta hasta 16 V (la fuente da 12 como máximo).
+  const rh = Sim.heat(Sim.HEAT.res), CAP_V = 16;
+  const joules = E => fmt(E, E < 0.1 ? 3 : 2) + ' J';
 
   // Nodos: J es el conmutador en el lado izquierdo; N donde el puente llega al cable de abajo.
   const nodes = g => {
@@ -174,6 +179,7 @@
       if (st.charge) { st.ph.A += dp; st.ph.N += dp; } else st.ph.B -= dp;
       const I = dt ? dq / dt : 0;              // mA promedio en este cuadro
       st.I = { C: I, A: st.charge ? I : 0, N: st.charge ? I : 0, B: st.charge ? 0 : -I };
+      rh.step((I / 1000) ** 2 * st.R, dt);
       // Gráfica: cada cambio de lo que alimenta al capacitor marca desde dónde contar τ.
       const target = st.charge && b.st.on ? b.st.set : 0;
       st.t += dt;
@@ -204,6 +210,7 @@
       D.flow(ctx, s.wires.C1, st.ph.C, C.charge, { gap: 30, r: 4.5 });
       D.flow(ctx, s.wires.C2, st.ph.C, C.charge, { gap: 30, r: 4.5 });
       D.circle(ctx, n.XN, g.BOT, 5, C.ink);
+      D.heatGlow(ctx, XR, g.TOP, rh.glow);
       D.resistor(ctx, XR, g.TOP);
       capacitor(ctx, g, rc);
       knife(ctx, n);
@@ -308,7 +315,7 @@
     pos: g => [XR, g.TOP], get: () => st.R, half, fromHalf, set: setR,
     label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia',
     text: ohm,
-    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: ohm })
+    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: ohm, heat: rh })
   });
   const pinchC = b.pinch({
     pos: g => [XC, g.TOP], get: () => st.C, half: rcOf, fromHalf: cOf, set: setC,
@@ -316,7 +323,14 @@
     text: uF,
     menu: side => ({
       title: side === 'w' ? 'Tanque con membrana' : 'Capacitor',
-      rows: [{ label: side === 'w' ? 'Tamaño (capacidad)' : 'Capacidad', values: CVALUES, get: () => st.C, set: setC, format: uF }]
+      rows: [{ label: side === 'w' ? 'Tamaño (capacidad)' : 'Capacidad', values: CVALUES, get: () => st.C, set: setC, format: uF },
+        // lo que aguanta, lo que tiene ahora y la energía que lleva guardada (la barra se llena a 16 V)
+        { heat: () => {
+          const w = side === 'w', u = w ? ' psi' : ' V', E = v => 0.5 * st.C * 1e-6 * v * v;
+          return { label: w ? 'Presión · energía guardada en la membrana' : 'Voltaje · energía guardada (½·C·V²)',
+            rated: CAP_V + u, now: fmt(Math.max(0, st.Vc), 1) + u, over: st.Vc > CAP_V,
+            f: E(st.Vc) / E(CAP_V), name: 'Energía', val: joules(E(st.Vc)), end: 'llena: ' + joules(E(CAP_V)) };
+        } }]
     })
   });
   [...document.querySelectorAll('.sim-pinch')].slice(-2).forEach(el => el.classList.add('cap'));

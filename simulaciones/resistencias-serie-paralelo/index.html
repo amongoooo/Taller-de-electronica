@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021093837">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021093837"></script>
-<script src="../../assets/banco.js?v=20261021093837"></script>
+<script src="../../assets/sim.js?v=20261021171039"></script>
+<script src="../../assets/banco.js?v=20261021171039"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -48,7 +48,10 @@
   const half = R => HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN;
   const fromHalf = h => Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
   const ohm = R => R >= 1000 ? fmt(R / 1000, R >= 10000 ? 0 : 1) + ' kΩ' : Math.round(R) + ' Ω';
-  const st = { mode: 'serie', R: [1000, 2200] };
+  const st = { mode: 'serie', R: [1000, 2200], rb: [false, false], burnT: [9, 9] };
+  // Cada resistencia es de ¼ W y se calienta con I²·R (Sim.heat); su menú lo muestra. Si se pasa se quema
+  // (en el agua el tramo revienta) y su camino se abre.
+  const rh = [0, 1].map(() => Sim.heat(Sim.HEAT.res));
   const sides = {};
 
   function layout(g) {
@@ -80,19 +83,20 @@
     layout,
     model(V) {
       const [R1, R2] = st.R;
-      if (st.mode === 'serie') { const I = V / (R1 + R2) * 1000; return { I, branch: [I, I] }; }
-      const I1 = V / R1 * 1000, I2 = V / R2 * 1000;
+      if (st.mode === 'serie') { const I = st.rb[0] || st.rb[1] ? 0 : V / (R1 + R2) * 1000; return { I, branch: [I, I] }; }
+      const I1 = st.rb[0] ? 0 : V / R1 * 1000, I2 = st.rb[1] ? 0 : V / R2 * 1000;
       return { I: I1 + I2, branch: [I1, I2] };
     },
     circuit(g, m, V) {
       // draw y tag: cómo se ve cada una en la vista de nodos (en su lugar de siempre; el banco la mueve)
       const Rc = (k, dV) => {
         const [x, y] = rPos(g, k);
-        return { at: [x, y], half: 46, dV, pr: pinch[k], tag: () => ['R' + (k + 1), ohm(st.R[k])],
+        return { at: [x, y], half: 46, dV, pr: pinch[k], tag: w => ['R' + (k + 1), st.rb[k] ? (w ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]],
           draw: (ctx, w) => w ? D.narrow(ctx, x, y, half(st.R[k])) : D.resistor(ctx, x, y) };
       };
       if (st.mode === 'serie') {
-        const d1 = m.I * st.R[0] / 1000;
+        // con una quemada no pasa corriente y ella se queda con el voltaje (si son las dos, a la mitad)
+        const n = st.rb[0] + st.rb[1], d1 = n ? (st.rb[0] ? V / n : 0) : m.I * st.R[0] / 1000;
         return [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [Rc(0, d1), Rc(1, V - d1)] }];
       }
       const YB = sides.e.YB;
@@ -104,6 +108,11 @@
       ];
     },
     step(dt, m) {
+      for (let j = 0; j < 2; j++) {
+        const I = m.branch[j] / 1000;
+        if (rh[j].step(st.rb[j] ? 0 : I * I * st.R[j], dt) && !st.rb[j]) { st.rb[j] = true; st.burnT[j] = 0; b.halt(); }
+        st.burnT[j] += dt;
+      }
       const k = 4, w = sides.w, e = sides.e;
       if (st.mode === 'serie') { w.water.loop.step(m.I * k, dt); e.phase.loop += m.I * k * dt; }
       else {
@@ -117,19 +126,26 @@
       keys.forEach(k => D.pipe(ctx, s.paths[k]));
       [0, 1].forEach(k => { const [x, y] = rPos(g, k); D.narrow(ctx, x, y, half(st.R[k])); });
       keys.forEach(k => s.water[k].draw(ctx));
-      [0, 1].forEach(k => { const [x, y] = rPos(g, k); grips(ctx, x, y, half(st.R[k]) + 5, k); });
+      [0, 1].forEach(k => { const [x, y] = rPos(g, k); D.burstPipe(ctx, x, y, half(st.R[k]), st.burnT[k], st.rb[k], rh[k].glow, ''); });
+      [0, 1].forEach(k => { const [x, y] = rPos(g, k); grips(ctx, x, y, half(st.R[k]) + 5, k, true); });
     },
     drawE(ctx, g) {
       const s = sides.e, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
       keys.forEach(k => D.wire(ctx, s.paths[k]));
       keys.forEach(k => D.flow(ctx, s.paths[k], s.phase[k], C.charge, { gap: 30, r: 4.5 }));
-      [0, 1].forEach(k => { const [x, y] = rPos(g, k); D.resistor(ctx, x, y); grips(ctx, x, y, half(st.R[k]) + 5, k); });
+      [0, 1].forEach(k => {
+        const [x, y] = rPos(g, k);
+        if (!st.rb[k]) D.heatGlow(ctx, x, y, rh[k].glow);
+        D.resistor(ctx, x, y);
+        if (st.rb[k]) D.burntResistor(ctx, x, y, st.burnT[k], '');
+        grips(ctx, x, y, half(st.R[k]) + 5, k);
+      });
     }
   });
   // Marcas arriba y abajo de cada tramo (o resistencia) y su nombre.
-  function grips(ctx, x, y, h, k) {
+  function grips(ctx, x, y, h, k, w = false) {
     b.grips(ctx, x, y, h, pinch[k]);
-    b.tag(ctx, pinch[k], x, y - h - 30, 'R' + (k + 1), ohm(st.R[k]));
+    b.tag(ctx, pinch[k], x, y - h - 30, 'R' + (k + 1), st.rb[k] ? (w ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]);
   }
   // Cada resistencia se ajusta pellizcándola o con su menú.
   const pinch = [0, 1].map(k => {
@@ -138,7 +154,9 @@
       pos: g => rPos(g, k), get: () => st.R[k], half, fromHalf, set,
       label: side => (side === 'w' ? 'Tramo angosto ' : 'Resistencia ') + (k + 1),
       text: ohm,
-      menu: Sim.resistorMenu({ name: 'R' + (k + 1), values: RVALUES, get: () => st.R[k], set, format: ohm })
+      menu: Sim.resistorMenu({ name: 'R' + (k + 1), values: RVALUES, get: () => st.R[k], set, format: ohm, heat: rh[k], broken: () => st.rb[k],
+        actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rb[k],
+          onClick: () => { st.rb[k] = false; rh[k].reset(); st.burnT[k] = 9; } }] })
     });
   });
   // Selector Serie | Paralelo arriba del circuito: al centro en la computadora, a la izquierda en el celular.
