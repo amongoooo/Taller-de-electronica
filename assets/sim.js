@@ -131,13 +131,13 @@
     ctx.lineCap = 'round'; path(pts); ln(3.6, C.water);
   };
   // Puntos que avanzan por el recorrido; phase crece con la corriente.
-  // En modo de color por voltaje o corriente (Sim.colorMode) cada punto toma el color de donde está.
+  // Con el banco (Sim.field) cada punto toma el color de su modo (Sim.particleColor); sin él, col.
   D.flow = (ctx, pts, phase, col, { gap = 30, r = 4.5 } = {}) => {
-    const L = D.len(pts), off = ((phase % gap) + gap) % gap, byField = Sim.byField();
+    const L = D.len(pts), off = ((phase % gap) + gap) % gap, byField = !!Sim.field;
     ctx.fillStyle = col;
     for (let d = off, i = 0; d < L; d += gap, i++) {
       const [x, y] = D.pointAt(pts, d), [jx, jy] = Sim.jitter(x, y, i);
-      if (byField) ctx.fillStyle = Sim.particleColor(x, y);
+      if (byField) ctx.fillStyle = Sim.particleColor(x, y, null, col);
       ctx.beginPath(); ctx.arc(x + jx, y + jy, r, 0, Math.PI * 2); ctx.fill();
     }
   };
@@ -389,11 +389,32 @@
   Sim.colorOverride = null;
   Sim.shownColorMode = () => Sim.colorOverride || Sim.colorMode;
   Sim.field = null;
-  Sim.byField = () => Sim.shownColorMode() !== 'v' && !!Sim.field;
-  // Color de una partícula en (x, y); speed es su rapidez de 0 a 1 (sin ella, null en modo rapidez).
-  Sim.particleColor = (x, y, speed) => {
-    if (!Sim.byField()) return speed == null ? null : Sim.speedColor(speed);
-    return Sim.speedColor(Sim.field(x, y)[Sim.shownColorMode() === 'p' ? 0 : 1]);
+  // Al cambiar de modo los colores pasan de uno a otro en FADE segundos. Entre dos escalas (rapidez,
+  // presión, caudal) se recorre la escala de colores; si un lado es el color fijo de las cargas, se mezclan.
+  const FADE = 0.5, fade = { from: null, to: null, t0: 0 };
+  const hue = t => 215 - 215 * Math.max(0, Math.min(1, t));
+  const rgbOf = c => {
+    if (typeof c === 'number') {   // hsl(c 85% 50%)
+      const a = 0.85 * 0.5, f = n => { const k = (n + c / 30) % 12; return 0.5 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+      return [f(0) * 255, f(8) * 255, f(4) * 255];
+    }
+    const m = /^#?([0-9a-f]{6})$/i.exec(c || '');
+    return m ? [0, 2, 4].map(i => parseInt(m[1].substr(i, 2), 16)) : [128, 128, 128];
+  };
+  // Lo que marca cada modo en esa partícula (de 0 a 1), o null si va del color fijo.
+  const valueIn = (mode, x, y, speed) => mode === 'v' || !Sim.field ? speed ?? null : Sim.field(x, y)[mode === 'p' ? 0 : 1];
+  // Color de una partícula en (x, y); speed es su rapidez de 0 a 1 (null en las cargas eléctricas, que en
+  // modo rapidez van de su color fijo base).
+  Sim.particleColor = (x, y, speed, base = null) => {
+    const to = Sim.shownColorMode(), now = performance.now() / 1000;
+    if (to !== fade.to) { fade.from = fade.to ?? to; fade.to = to; fade.t0 = now; }
+    const u = Math.min(1, (now - fade.t0) / FADE), k = u * u * (3 - 2 * u);
+    const b = valueIn(to, x, y, speed);
+    if (k >= 1 || fade.from === to) return b == null ? base : Sim.speedColor(b);
+    const a = valueIn(fade.from, x, y, speed);
+    if (a != null && b != null) return Sim.speedColor(a + (b - a) * k);
+    const [p, q] = [a == null ? base : hue(a), b == null ? base : hue(b)].map(rgbOf);
+    return `rgb(${p.map((v, i) => Math.round(v + (q[i] - v) * k)).join(',')})`;
   };
   // Partículas del agua: en pantallas chicas (Sim.compact) van menos y más grandes para que se distingan.
   Sim.compact = false;
