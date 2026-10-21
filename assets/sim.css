@@ -194,6 +194,13 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-meter-hit:hover, .sim-meter-hit:focus-visible { border-color: var(--act, var(--muted)); }
 .sim-meter-hit.held { cursor: grabbing; }
+/* Perilla de cada multímetro: tocar una posición la gira ahí; el centro pasa a la siguiente. */
+.sim-dial {
+  width: 60px; height: 60px; padding: 0; border-radius: 50%; z-index: 2; cursor: pointer; touch-action: manipulation;
+  background: transparent; border: 2px dashed transparent;
+}
+.sim-dial[hidden] { display: none; }
+.sim-dial:hover, .sim-dial:focus-visible { border-color: var(--act, var(--muted)); }
 /* Botones de cada medidor: recoger sus cables (conector) y compactarlo (solo la pantallita). */
 .sim-meter-btn {
   width: 30px; height: 30px; padding: 0; border-radius: 50%; z-index: 2; cursor: pointer;
@@ -477,9 +484,18 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-read .r[hidden] { display: none; }
 .sim-read .nm { font-weight: 700; font-size: 14px; }
 .sim-read .r.V .nm { color: var(--a-med); }
-.sim-read .r.I .nm { color: var(--ok); }
+.sim-read .r.A .nm { color: var(--ok); }
+.sim-read .r.R .nm { color: var(--a-ver); }
+.sim-read .r.warn .vl { color: var(--danger); }
 .sim-read .vl { font-family: var(--font-mono); font-size: 16px; white-space: nowrap; }
 .sim-read .r.off .vl { font-family: var(--font-body); font-size: 13px; color: var(--muted); }
+/* Cada multímetro en Medir: su lectura, su perilla y sus botones; al final, sacar el segundo. */
+.sim-mms { display: grid; gap: 14px; }
+.sim-mm { display: grid; gap: 6px; }
+.sim-mm[hidden] { display: none; }
+.sim-side .sim-seg.four { display: grid; grid-template-columns: repeat(4, 1fr); justify-self: stretch; border-radius: 14px; }
+.sim-side .sim-seg.four button { font-size: 13px; padding: .35em .2em; white-space: nowrap; border-radius: 10px; }
+.sim-add { justify-self: start; }
 /* Polaridad y tierra: botones para invertir cada medidor y llevar la punta negra a tierra. */
 .sim-pol { display: flex; flex-wrap: wrap; gap: 6px; }
 .sim-pol .sim-side-btn { padding: 5px 12px; font-size: 13px; }
@@ -497,7 +513,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 
 /* ---------- lo que se toca en el dibujo, por acción ---------- */
 .sim-layer > * { --act: var(--a-com); }
-.sim-layer > .sim-clamp, .sim-layer > .sim-meter-hit, .sim-layer > .sim-meter-btn { --act: var(--a-med); }
+.sim-layer > .sim-clamp, .sim-layer > .sim-meter-hit, .sim-layer > .sim-meter-btn, .sim-layer > .sim-dial { --act: var(--a-med); }
 .sim-layer > .sim-power, .sim-layer > .knob, .sim-layer > .sim-wave { --act: var(--a-ali); }
 .sim-layer > [data-act="med"] { --act: var(--a-med); } .sim-layer > [data-act="ali"] { --act: var(--a-ali); }
 .sim-layer > [data-act="com"] { --act: var(--a-com); } .sim-layer > [data-act="arm"] { --act: var(--a-arm); }

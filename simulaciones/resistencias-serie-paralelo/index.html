@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021172227">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021171039"></script>
-<script src="../../assets/banco.js?v=20261021171039"></script>
+<script src="../../assets/sim.js?v=20261021172227"></script>
+<script src="../../assets/banco.js?v=20261021172227"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -91,7 +91,7 @@
       // draw y tag: cómo se ve cada una en la vista de nodos (en su lugar de siempre; el banco la mueve)
       const Rc = (k, dV) => {
         const [x, y] = rPos(g, k);
-        return { at: [x, y], half: 46, dV, pr: pinch[k], tag: w => ['R' + (k + 1), st.rb[k] ? (w ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]],
+        return { at: [x, y], half: 46, dV, R: st.rb[k] ? Infinity : st.R[k], pr: pinch[k], tag: w => ['R' + (k + 1), st.rb[k] ? (w ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]],
           draw: (ctx, w) => w ? D.narrow(ctx, x, y, half(st.R[k])) : D.resistor(ctx, x, y) };
       };
       if (st.mode === 'serie') {
