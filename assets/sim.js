@@ -506,9 +506,9 @@
     let last = performance.now();
     const frame = now => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      requestAnimationFrame(frame);   // primero: si algo falla en un cuadro, la animación no se queda trabada
       Sim.readColors();
       fn(dt);
-      requestAnimationFrame(frame);
     };
     Sim.readColors();
     requestAnimationFrame(frame);
