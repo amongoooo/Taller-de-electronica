@@ -707,7 +707,7 @@
         if (st.dial[k] === 'R') out[k].value = st.show[k] && ready(k) ? ohms(k, va - vb) : NaN;
         if (st.dial[k] !== 'A') continue;
         const sg = segs[A.k], d0 = Math.min(A.d, B.d), d1 = Math.max(A.d, B.d);
-        const clear = A.k === B.k && !sg.source && d1 - d0 > 6 && !sg.comps.some(c => c.d1 > d0 && c.d0 < d1) && !(sg.zones || []).some(z => z.d > d0 && z.d < d1);
+        const clear = A.k === B.k && !sg.source && d1 - d0 > 6 && !sg.comps.some(c => c.d1 > d0 && c.d0 < d1);
         out[k].value = 0;
         if (clear) { out[k].value = (A.d < B.d ? 1 : -1) * sg.I; out[k].cut = { k: A.k, d0, d1 }; }
         else if (st.show[k] && ready(k) && Math.abs(va - vb) > 0.05 && !st.fuse[k]) { st.fuse[k] = true; syncs.forEach(f => f()); }
@@ -1928,10 +1928,16 @@
         if (!sg) continue;
         const a = ct.d0 + 3, z = ct.d1 - 3;
         if (z <= a) continue;
-        const pts = [];
-        for (let d = a; d < z; d += 4) pts.push(D.pointAt(sg.pts, d));
-        pts.push(D.pointAt(sg.pts, z));
-        D.line(ctx, pts, water ? 2 * Sim.PIPE + 14 : 12, C.card, 'butt');
+        // en la vista de nodos el punto del nodo se queda (el cable se corta a sus dos lados)
+        const keep = (st.nodes.u > 0.5 ? sg.zones || [] : []).filter(q => q.d > a && q.d < z);
+        let runs = [[a, z]];
+        keep.forEach(q => { runs = runs.flatMap(([u, v]) => q.d > u && q.d < v ? [[u, q.d - RN - 5], [q.d + RN + 5, v]] : [[u, v]]).filter(([u, v]) => v > u); });
+        runs.forEach(([u, v]) => {
+          const pts = [];
+          for (let d = u; d < v; d += 4) pts.push(D.pointAt(sg.pts, d));
+          pts.push(D.pointAt(sg.pts, v));
+          D.line(ctx, pts, water ? 2 * Sim.PIPE + 14 : 12, C.card, 'butt');
+        });
         for (const [d, s] of [[a, 1], [z, -1]]) {   // extremos: el cable termina (en el agua, un tapón)
           const [px, py, tx, ty] = D.frameAt(sg.pts, d);
           if (water) D.line(ctx, [[px - ty * (Sim.PIPE + 5), py + tx * (Sim.PIPE + 5)], [px + ty * (Sim.PIPE + 5), py - tx * (Sim.PIPE + 5)]], 5, C.pipe, 'butt');
