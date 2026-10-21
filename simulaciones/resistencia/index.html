@@ -104,7 +104,7 @@
       sides.w.water.draw(ctx);
       burstPipe(ctx, g);
       safetyValve(ctx, g);
-      b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch.drag);
+      b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
       label(ctx, g, st.R ? 'tramo angosto' : 'sin estrechamiento', !st.R);
     },
     drawE(ctx, g, m) {
@@ -115,7 +115,7 @@
       if (st.rheat > 0 && !st.burnt) glowAt(ctx, g.PX, g.TOP, st.rheat);
       D.resistor(ctx, g.PX + jx, g.TOP + jy);
       burntResistor(ctx, g);
-      b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch.drag);
+      b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
       fuse(ctx, g);
       label(ctx, g, st.R ? ohm(st.R) : '0 Ω', !st.R, true);
     }
@@ -266,8 +266,6 @@
     label: side => side === 'w' ? 'Válvula de seguridad' : 'Fusible',
     menu: side => ({
       title: side === 'w' ? 'Válvula de seguridad' : 'Fusible',
-      note: side === 'w' ? 'Se cierra si pasa más agua de la que aguanta, para que no se reviente nada.'
-        : 'Se funde si pasa más corriente de la que aguanta y corta el circuito para protegerlo.',
       rows: [
         { label: side === 'w' ? 'Cierra arriba de' : 'Aguanta', values: FUSES, get: () => st.fuse, set: v => { st.fuse = v; }, format: side === 'w' ? mLs : mA },
         { actions: [{ text: side === 'w' ? 'Abrir la válvula' : 'Poner un fusible nuevo', hidden: () => !st.blown, onClick: repair }] }

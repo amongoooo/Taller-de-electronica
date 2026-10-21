@@ -38,13 +38,13 @@ El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junt
 
 ## Resistencias y menú de componentes
 
-Todas las resistencias se cambian pellizcando: se agarra el borde del tramo angosto (o las marcas de la resistencia) y se mueve, o se pellizca con dos dedos. Más angosto es más resistencia. También funcionan la rueda del ratón y las flechas. `b.pinch` y `b.grips` en `assets/banco.js` lo hacen para cualquier página. Los valores siempre son comerciales (serie E12: 100, 120, 150… 820 Ω y cada década).
+Todas las resistencias se cambian pellizcando: se agarra una de las dos marcas (claritas; se pintan de azul con el puntero o el dedo encima) y se mueve, o se pellizca con dos dedos. Con la marca de arriba, subir (arrastrando o con la rueda del ratón) ensancha el tubo y bajar lo angosta; con la de abajo es al revés. Más angosto es más resistencia. También funcionan las flechas. `b.pinch` y `b.grips` en `assets/banco.js` lo hacen para cualquier página. Los valores siempre son comerciales (serie E12: 100, 120, 150… 820 Ω y cada década).
 
-Tocar un componente sin arrastrarlo abre su menú, una tarjetita junto a él (`Sim.menu` en `assets/sim.js`; en el celular ocupa casi todo el ancho):
+Tocar un componente sin arrastrarlo abre su menú, una tarjetita junto a él, sin textos explicativos (`Sim.menu` en `assets/sim.js`; en el celular ocupa casi todo el ancho):
 
-- **Resistencia (tramo angosto):** un slider con los valores comunes y botones − y +.
-- **LED (rueda):** el color; cada uno necesita otro voltaje para encender (rojo 1,8 V, amarillo 2 V, verde 2,2 V, azul 3 V, blanco 3,2 V; en el agua, la presión mínima para que gire la rueda). También girarlo y fundirlo o poner uno nuevo.
-- **Capacitor (tanque con membrana):** la capacidad, en valores comunes de 220 a 4700 µF, y cuánto queda τ = R·C.
+- **Resistencia (tramo angosto):** solo un slider con los valores comunes: arriba el valor actual y, a los lados, el de junto (se tocan para ir a ellos); abajo una rayita por valor.
+- **LED (rueda):** el color; cada uno necesita otro voltaje para encender (rojo 1,8 V, amarillo 2 V, verde 2,2 V, azul 3 V, blanco 3,2 V; en el agua, la presión mínima para que gire la rueda), que se ve junto al nombre. También girarlo y fundirlo o poner uno nuevo.
+- **Capacitor (tanque con membrana):** la capacidad, en valores comunes de 220 a 4700 µF.
 - **Fusible (válvula de seguridad):** cuánta corriente aguanta (50 mA a 1 A) y ponerlo nuevo si se fundió.
 
 En la protoboard, la resistencia y el LED tienen el mismo menú, más un botón para quitarlos. `b.part` abre el menú de un componente del banco; `Sim.resistorMenu` y `Sim.ledMenu` arman los de siempre.

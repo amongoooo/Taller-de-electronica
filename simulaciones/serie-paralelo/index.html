@@ -135,7 +135,7 @@
       const rs = st.mode === 'serie' ? [0] : [0, 1];
       rs.forEach(k => D.narrow(ctx, XR, rPos(g, k)[1], half(st.R[k])));
       keys.forEach(k => s.water[k].draw(ctx));
-      rs.forEach(k => b.grips(ctx, XR, rPos(g, k)[1], half(st.R[k]) + 5, pinch[k].drag));
+      rs.forEach(k => b.grips(ctx, XR, rPos(g, k)[1], half(st.R[k]) + 5, pinch[k]));
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
         D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1), tint: `rgb(${Sim.led(st.led[i]).rgb})` });
@@ -148,7 +148,7 @@
       (st.mode === 'serie' ? [0] : [0, 1]).forEach(k => {
         const y = rPos(g, k)[1];
         D.resistor(ctx, XR, y);
-        b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k].drag);
+        b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k]);
         D.text(ctx, ohm(st.R[k]), XR, y - half(st.R[k]) - 30, C.ink, { size: 15, font: Sim.MONO, weight: 500 });
       });
       [0, 1].forEach(i => {

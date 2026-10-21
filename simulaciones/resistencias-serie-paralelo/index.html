@@ -122,7 +122,7 @@
   });
   // Marcas arriba y abajo de cada tramo (o resistencia) y su valor.
   function grips(ctx, x, y, h, k) {
-    b.grips(ctx, x, y, h, pinch[k].drag);
+    b.grips(ctx, x, y, h, pinch[k]);
     D.text(ctx, `R${k + 1} = ${ohm(st.R[k])}`, x, y - h - 30, C.ink, { size: 15, font: Sim.MONO, weight: 500 });
   }
   // Cada resistencia se ajusta pellizcándola o con su menú.

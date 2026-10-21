@@ -182,8 +182,8 @@
       s.streams.C1.draw(ctx, st.ph.C, st.I.C * K); s.streams.C2.draw(ctx, st.ph.C, st.I.C * K);
       tank(ctx, g, rc);
       valve(ctx, n);
-      b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinchR.drag);
-      b.grips(ctx, XC, g.TOP, rc + 4, pinchC.drag);
+      b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinchR);
+      b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
       D.text(ctx, 'tramo angosto', XR, g.TOP - half(st.R) - 42, C.muted, { size: 15 });
       D.text(ctx, 'tanque con membrana', XC, g.TOP - rc - 30, C.muted, { size: 15 });
       D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15 });
@@ -199,8 +199,8 @@
       D.resistor(ctx, XR, g.TOP);
       capacitor(ctx, g, rc);
       knife(ctx, n);
-      b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinchR.drag);
-      b.grips(ctx, XC, g.TOP, rc + 4, pinchC.drag);
+      b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinchR);
+      b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
       D.text(ctx, ohm(st.R), XR, g.TOP - half(st.R) - 42, C.ink, { size: 16, font: Sim.MONO, weight: 500 });
       D.text(ctx, uF(st.C), XC, g.TOP - rc - 30, C.ink, { size: 16, font: Sim.MONO, weight: 500 });
       D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15 });
@@ -294,15 +294,13 @@
   }
 
   const rebuild = () => { build('w'); build('e'); };
-  // Tocar la resistencia o el capacitor abre su menú; en los dos se ve cuánto queda τ = R·C.
+  // Tocar la resistencia o el capacitor abre su menú.
   const setR = R => { st.R = R; rebuild(); }, setC = c => { st.C = c; rebuild(); };
-  const rMenu = Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: ohm });
   const pinchR = b.pinch({
     pos: g => [XR, g.TOP], get: () => st.R, half, fromHalf, set: setR,
     label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia',
     text: ohm,
-    menu: side => ({ ...rMenu(side), note: () => (side === 'w' ? 'Más angosto es más resistencia: el tanque se llena más despacio.'
-      : 'Más resistencia deja pasar menos corriente: el capacitor se carga más despacio.') + ' τ = R·C = ' + secs(tau()) })
+    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: ohm })
   });
   const pinchC = b.pinch({
     pos: g => [XC, g.TOP], get: () => st.C, half: rcOf, fromHalf: cOf, set: setC,
@@ -310,8 +308,6 @@
     text: uF,
     menu: side => ({
       title: side === 'w' ? 'Tanque con membrana' : 'Capacitor',
-      note: () => (side === 'w' ? 'Un tanque más grande guarda más agua antes de que la membrana se estire del todo.'
-        : 'Más capacidad guarda más carga con el mismo voltaje: tarda más en cargarse.') + ' τ = R·C = ' + secs(tau()),
       rows: [{ label: side === 'w' ? 'Tamaño (capacidad)' : 'Capacidad', values: CVALUES, get: () => st.C, set: setC, format: uF }]
     })
   });
