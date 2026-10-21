@@ -371,19 +371,37 @@
     // Cada medidor recuerda si muestra sus cables o solo indicadores (tocando una punta se cambia),
     // también mientras se arrastran sus puntas. Se recuerda en este navegador. morph va de 0 (cables)
     // a 1 (indicadores) para pasar de uno a otro poco a poco.
-    try { Object.assign(st.pinned, JSON.parse(localStorage.getItem('sim-pinned') || '{}')); } catch (e) {}
+    // El modo es el mismo para el voltímetro y el amperímetro (tocar cualquier punta cambia los dos).
+    try { const v = !!JSON.parse(localStorage.getItem('sim-pinned') || '{}').V; st.pinned.V = st.pinned.I = v; } catch (e) {}
     st.morph = { V: [+st.pinned.V, +st.pinned.V], I: [+st.pinned.I] };   // de cada punta
+    const togglePinned = () => { st.pinned.V = st.pinned.I = !st.pinned.V; savePinned(); syncs.forEach(f => f()); b.pw.replace(); b.pe.replace(); };
+    // off: de 0 a 1, qué tan desvanecida se ve una punta (y su cable) que no está sobre el circuito:
+    // más transparente y con menos color
+    st.off = per(0);
+    const fade = (ctx, o) => { if (o > 0) ctx.globalAlpha *= 1 - 0.45 * o; };
+    const dull = (col, o) => {   // el color mezclado con su gris
+      const h = /^#([0-9a-f]{6})$/i.exec(col || '');
+      if (!h || !(o > 0)) return col;
+      const v = parseInt(h[1], 16), c = [v >> 16, (v >> 8) & 255, v & 255], y = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+      return 'rgb(' + c.map(x => Math.round(x + (y - x) * 0.7 * o)).join(',') + ')';
+    };
     const savePinned = () => { try { localStorage.setItem('sim-pinned', JSON.stringify(st.pinned)); } catch (e) {} };
     const shown = (kind, i) => st.morph[kind][i] < 0.5 && !st.reel[kind][i];
 
+    // Levantada, el puntero (lift.x, lift.y) sostiene la parte agarrada; ox, oy es lo que le falta
+    // para quedar bajo el puntero al empezar a arrastrar. Según de dónde se agarró (lift.mode):
+    //   tip:    el contacto de una punta con cable; la punta gira para mirar a la línea más cercana
+    //   handle: el círculo del indicador (la agarradera); el contacto gira hacia la línea más cercana
+    //   magnet: el anillo del indicador (el imán); el círculo lo sigue como un llavero
+    const liftContact = (kind, i) => {
+      const lf = st.lift[kind][i], L = lf.mode === 'handle' ? PIN_D * ease(st.morph[kind][i]) : 0;
+      return [lf.x + lf.ox - lf.n[0] * L, lf.y + lf.oy - lf.n[1] * L];
+    };
     // Dónde se dibuja cada punta: contacto (x, y), dirección n hacia su cable y h, qué tan levantada va (0 a 1).
-    // Levantada, el puntero sostiene su contacto (lift.x, lift.y; ox, oy es lo que le falta para
-    // llegar bajo el puntero al empezar a arrastrar) y la punta gira para que su contacto mire a la
-    // línea más cercana del circuito.
     const pose = (g, kind, i) => {
       const lf = st.lift[kind][i], fl = st.floor[kind][i], dr = st.drop[kind][i];
       if (lf) {
-        const cx = lf.x + lf.ox, cy = lf.y + lf.oy;
+        const [cx, cy] = liftContact(kind, i);
         const p = st.segs.length && snap(st.segs, cx, cy, true);
         const a = p ? ease(Math.max(0, Math.min(1, 1 - (p.dist - 8) / (MAG - 8)))) : 0;
         if (!a) return { x: cx, y: cy, n: lf.n, h: 1 };
@@ -647,31 +665,62 @@
         const r = p.box.getBoundingClientRect();
         return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale];
       };
-      // Arrastrar levanta la punta (como cable o como indicador, según esté el medidor); tocarla sin
-      // arrastrar cambia el medidor entre cables e indicadores, para limpiar el diagrama.
-      let down = null, dragged = false;
-      el.addEventListener('pointerdown', e => {
-        el.setPointerCapture(e.pointerId); el.focus(); down = [e.clientX, e.clientY]; dragged = false; e.preventDefault();
-      });
-      el.addEventListener('pointermove', e => {
-        if (!el.hasPointerCapture(e.pointerId)) return;
-        if (!dragged && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) return;
-        const [x, y] = toDrawing(e);
-        if (!dragged) {   // el contacto se desliza hasta quedar bajo el puntero
-          const q = pose(geo(side), kind, i);
-          st.lift[kind][i] = { x, y, n: q.n, ox: q.x - x, oy: q.y - y };
-          st.floor[kind][i] = st.drop[kind][i] = null;
-        }
-        dragged = true;
-        Object.assign(st.lift[kind][i], { x, y });
-        b.pw.replace(); b.pe.replace();
-      });
-      const up = () => release(kind, i);
-      el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-      el.addEventListener('click', () => {
-        if (!dragged) { st.pinned[kind] = !st.pinned[kind]; savePinned(); b.pw.replace(); b.pe.replace(); }
-        dragged = false;
-      });
+      // Arrastrar levanta la punta (como cable o como indicador, según el modo); tocarla sin arrastrar
+      // cambia entre cables e indicadores, para limpiar el diagrama. El indicador se agarra del
+      // círculo (este botón) o de su anillo (ring, el imán).
+      // fromJack: se agarra desde el borne del medidor y la punta sale de ahí (si estaba en el
+      // circuito, se desliza hasta el puntero)
+      const grab = (btn, mode, fromJack) => {
+        let down = null, dragged = false;
+        btn.addEventListener('pointerdown', e => {
+          btn.setPointerCapture(e.pointerId); btn.focus(); down = [e.clientX, e.clientY]; dragged = false; e.preventDefault();
+        });
+        btn.addEventListener('pointermove', e => {
+          if (!btn.hasPointerCapture(e.pointerId)) return;
+          if (!dragged && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) return;
+          const [x, y] = toDrawing(e);
+          if (!dragged) {   // lo agarrado se desliza hasta quedar bajo el puntero
+            if (fromJack && st.placing) setPlacing(null);
+            const q = pose(geo(side), kind, i), md = mode(), L = md === 'handle' ? PIN_D * ease(st.morph[kind][i]) : 0;
+            st.lift[kind][i] = { x, y, n: q.n, mode: md, ox: q.x + q.n[0] * L - x, oy: q.y + q.n[1] * L - y };
+            if (fromJack && !st.placed[kind][i]) {   // estaba guardada: sale del borne
+              st.placed[kind][i] = true; st.reel[kind][i] = 0;
+              Object.assign(st.lift[kind][i], { n: [0, 1], ox: 0, oy: 0 });
+              syncs.forEach(f => f()); syncReel();
+            }
+            st.floor[kind][i] = st.drop[kind][i] = null;
+          }
+          dragged = true;
+          const lf = st.lift[kind][i];
+          if (lf.mode === 'magnet') {   // el círculo se queda donde estaba y el anillo lo jala
+            const [ax, ay] = liftContact(kind, i), bx = ax + lf.n[0] * PIN_D, by = ay + lf.n[1] * PIN_D;
+            Object.assign(lf, { x, y });
+            const [cx, cy] = liftContact(kind, i), d = Math.hypot(bx - cx, by - cy);
+            if (d > 1) lf.n = [(bx - cx) / d, (by - cy) / d];
+          } else Object.assign(lf, { x, y });
+          b.pw.replace(); b.pe.replace();
+        });
+        const up = () => release(kind, i);
+        btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
+        btn.addEventListener('click', () => {
+          // tocar el borne sin arrastrar es como tocar el medidor; tocar la punta cambia el modo
+          if (!dragged) fromJack ? setPlacing(st.placing && st.placing.kind === kind ? null : { kind, i: 0 }) : togglePinned();
+          dragged = false;
+        });
+      };
+      grab(el, () => ease(st.morph[kind][i]) > 0.5 ? 'handle' : 'tip');
+      const ring = document.createElement('button');
+      ring.type = 'button'; ring.className = 'sim-clamp ring'; ring.tabIndex = -1; ring.setAttribute('aria-hidden', 'true');
+      b.place(side, ring, g => { const f = pose(g, kind, i); return [f.x, f.y]; });
+      grab(ring, () => 'magnet');
+      syncs.push(() => { ring.hidden = el.hidden || !st.pinned[kind]; });
+      {
+        const jb = document.createElement('button');
+        jb.type = 'button'; jb.className = 'sim-clamp jack'; jb.tabIndex = -1; jb.setAttribute('aria-hidden', 'true');
+        b.place(side, jb, g => jack(g, kind, i));
+        grab(jb, () => st.pinned[kind] ? 'magnet' : 'tip', true);
+        syncs.push(() => { jb.hidden = !st.show[kind] || st.reel[kind][i] > 0; });
+      }
       el.addEventListener('keydown', e => {
         const step = { ArrowUp: [0, -12], ArrowDown: [0, 12], ArrowLeft: [-12, 0], ArrowRight: [12, 0] }[e.key];
         if (!step) return;
@@ -681,7 +730,7 @@
         e.preventDefault();
       });
       const sync = () => { el.hidden = !st.placed[kind][i] || !st.show[kind] || st.reel[kind][i] > 0; };
-      syncs.push(sync); sync();
+      syncs.unshift(sync); sync(); syncs.forEach(f => f());
     })));
 
     // Tocar un medidor quita sus puntas del circuito y lo prepara para conectarse: el siguiente toque
@@ -724,7 +773,7 @@
     let swallow = false;
     [b.pw, b.pe].forEach(p => {
       p.box.addEventListener('pointerdown', e => {
-        if (!st.placing || e.target.closest('.sim-meter-hit')) return;
+        if (!st.placing || e.target.closest('.sim-meter-hit, .sim-clamp.jack')) return;
         const r = p.box.getBoundingClientRect();
         const { kind, i } = st.placing;
         const x = (e.clientX - r.left - p.ox) / p.scale, y = (e.clientY - r.top - p.oy) / p.scale;
@@ -765,17 +814,18 @@
       for (let i = 0; i < NP[kind]; i++) {
         const r = ropes[side][kind + i], m = ease(st.morph[kind][i]);
         if (!r || !r.A || !st.placed[kind][i] || m >= 1) continue;
-        ctx.globalAlpha = 1 - m;
         const rp = st.reel[kind][i] ? reelPose(side, kind, i) : null;
         if (st.reel[kind][i] && !rp) continue;
+        ctx.globalAlpha = 1 - m; fade(ctx, st.off[kind][i]);
+        const col = dull(jackColor(kind, i), st.off[kind][i]);
         const pts = rp ? rp.rest : null;
-        if (side === 'w' && kind === 'V') { D.hose(ctx, pts || ropePoints(r), jackColor(kind, i)); continue; }   // con la raya de su borne
+        if (side === 'w' && kind === 'V') { D.hose(ctx, pts || ropePoints(r), col); continue; }   // con la raya de su borne
         if (pts) { ctx.beginPath(); pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); }
         else ropePath(ctx, r);
         ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         {
           ctx.lineWidth = 6; ctx.strokeStyle = C.card; ctx.stroke();
-          ctx.lineWidth = 3; ctx.strokeStyle = jackColor(kind, i); ctx.stroke();
+          ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke();
         }
       }
       ctx.restore();
@@ -803,17 +853,17 @@
       for (let i = 0; i < NP[kind]; i++) {
         if (!st.placed[kind][i]) continue;
         const m = ease(st.morph[kind][i]);
-        const q = st.reel[kind][i] ? reelPose(g.side, kind, i) : pose(g, kind, i), col = jackColor(kind, i);
+        const q = st.reel[kind][i] ? reelPose(g.side, kind, i) : pose(g, kind, i), col = dull(jackColor(kind, i), st.off[kind][i]);
         if (!q) continue;
         const live = connected(kind, i), u = st.click[kind][i] / 0.4;
         if (u < 1) { ctx.globalAlpha = 1 - u; D.circle(ctx, q.x, q.y, 8 + 26 * u, null, col, 3); ctx.globalAlpha = 1; }
-        ctx.save(); ctx.translate(q.x, q.y);
+        ctx.save(); fade(ctx, st.off[kind][i]); ctx.translate(q.x, q.y);
         if (q.h > 0) {
           ctx.scale(1 + 0.12 * q.h, 1 + 0.12 * q.h);
           ctx.shadowColor = 'rgba(21,33,42,0.4)'; ctx.shadowBlur = 12 * q.h; ctx.shadowOffsetX = 4 * q.h; ctx.shadowOffsetY = 9 * q.h;
         }
         if (m < 1) {
-          ctx.save(); ctx.globalAlpha = 1 - m; ctx.rotate(Math.atan2(q.n[1], q.n[0])); ctx.scale(1 - 0.4 * m, 1 - 0.4 * m);
+          ctx.save(); ctx.globalAlpha *= 1 - m; ctx.rotate(Math.atan2(q.n[1], q.n[0])); ctx.scale(1 - 0.4 * m, 1 - 0.4 * m);
           if (kind === 'V') (g.side === 'w' ? hoseTip : pen)(ctx, col);
           else (g.side === 'w' ? turbine : clampOn)(ctx, live);
           const rope = !st.reel[kind][i] && ropes[g.side][kind + i], tl = tipLen(g.side, kind);
@@ -822,7 +872,7 @@
             g.side === 'w' && kind === 'V' ? '#9aa6af' : kind === 'I' ? PROBE.I : col);
           ctx.restore();
         }
-        if (m > 0) pin(ctx, q.n, col, kind, m, live);
+        if (m > 0) pin(ctx, q.n, col, kind, m, live, i);
         ctx.restore();
       }
     };
@@ -916,7 +966,7 @@
     // círculo grande del color de la punta con + o − (A en la pinza), con halo para verse de lejos.
     // m de 0 a 1: el palito crece y el círculo aparece con un pequeño rebote. Sin conectar, el
     // anillo va punteado.
-    const pin = (ctx, n, col, kind, m, live) => {
+    const pin = (ctx, n, col, kind, m, live, i) => {
       const bx = n[0] * PIN_D * m, by = n[1] * PIN_D * m, k = m - 1, pop = 1 + 2.7 * k * k * k + 1.7 * k * k;
       const a0 = ctx.globalAlpha;
       ctx.globalAlpha = a0 * Math.min(1, m * 2);
@@ -932,7 +982,7 @@
       D.circle(ctx, 0, 0, 16, C.card); ctx.restore();
       D.circle(ctx, 0, 0, 14, col);
       D.circle(ctx, 0, 0, 16, null, C.ink, 1.5);
-      D.text(ctx, kind === 'I' ? 'A' : col === RED ? '+' : '−', 0, 1, '#fff', { size: 20, weight: 800 });
+      D.text(ctx, kind === 'I' ? 'A' : i ? '−' : '+', 0, 1, '#fff', { size: 20, weight: 800 });
       ctx.restore();
       ctx.globalAlpha = a0;
     };
@@ -1012,12 +1062,14 @@
             syncs.forEach(f => f()); syncReel();
           }
           if (st.morph[kind][i] !== m0 || st.reel[kind][i] !== r0) moved = true;
-          const dr = st.drop[kind][i], lf = st.lift[kind][i];
+          const dr = st.drop[kind][i], lf = st.lift[kind][i], o0 = st.off[kind][i];
+          st.off[kind][i] = connected(kind, i) ? Math.max(0, o0 - dt / 0.2) : Math.min(1, o0 + dt / 0.2);
           st.click[kind][i] += dt;
           // levantada, la punta gira poco a poco para que su contacto mire a la línea más cercana
+          // (si se agarró del anillo, el círculo solo lo sigue)
           if (lf) { const k = Math.exp(-dt * 18); lf.ox *= k; lf.oy *= k; moved = true; }
-          const cx = lf && lf.x + lf.ox, cy = lf && lf.y + lf.oy;
-          const p = lf && st.segs.length && snap(st.segs, cx, cy, true);
+          const [cx, cy] = lf ? liftContact(kind, i) : [0, 0];
+          const p = lf && lf.mode !== 'magnet' && st.segs.length && snap(st.segs, cx, cy, true);
           if (p && p.dist > 1) {
             const a0 = Math.atan2(lf.n[1], lf.n[0]), a1 = Math.atan2(cy - p.y, cx - p.x);
             const d = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)), an = a0 + d * (1 - Math.exp(-dt * 14));

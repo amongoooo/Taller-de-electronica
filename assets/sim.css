@@ -302,3 +302,7 @@ span.sim-go { visibility: hidden; width: 38px; padding: 0; }
   .sim-reel-btn { padding: 4px 8px; }
   .sim-reel-btn .lbl { display: none; }
 }
+/* Anillo del indicador: de aquí se agarra como un imán y el círculo lo sigue. */
+.sim-clamp.ring { width: max(22px, calc(var(--s, 1) * 24px)); }
+/* Borne de cada medidor: de aquí también se saca su punta. */
+.sim-clamp.jack { width: max(24px, calc(var(--s, 1) * 26px)); z-index: 3; }
