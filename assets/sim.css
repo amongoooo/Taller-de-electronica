@@ -14,10 +14,32 @@
   --danger: #c23b2c;
   --ok: #217a4b;
   --metal: #dfe6eb;
+  --neg: #15212a;   /* punta, cable y borne negativos (−) */
   color-scheme: light;
   --font-display: "Saira", "Segoe UI", sans-serif;
   --font-body: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
   --font-mono: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+}
+
+/* Modo oscuro (Ver › Tema, se recuerda en sim-theme). El claro es el de siempre, para proyectar.
+   Mismos significados: agua azul, electricidad ámbar, + rojo, − gris claro (el negro no se vería). */
+:root[data-theme="dark"] {
+  --bg: #0e151b;
+  --card: #18222b;
+  --ink: #e2e9ef;
+  --muted: #9cadba;
+  --line: #2f3d49;
+  --pipe: #64798a;
+  --water-soft: #173a55;
+  --water: #4fa6e6;
+  --charge: #f0a830;
+  --charge-soft: #3e2f12;
+  --danger: #f2685a;
+  --ok: #3fc47f;
+  --metal: #2b3742;
+  --neg: #aab6bf;
+  --a-com: #3fc47f; --a-med: #a487f2; --a-ali: #f0a830; --a-ver: #5d9ff2; --a-arm: #4fa6e6;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -315,7 +337,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   padding: 4px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted);
 }
 .sim-viewseg button:hover { color: var(--ink); }
-.sim-viewseg button[aria-pressed="true"] { color: #fff; background: var(--ink); }
+.sim-viewseg button[aria-pressed="true"] { color: var(--card); background: var(--ink); }
 .sim-viewseg button[data-v="w"][aria-pressed="true"] { background: var(--water); }
 .sim-viewseg button[data-v="e"][aria-pressed="true"] { background: var(--charge); }
 
@@ -408,6 +430,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-sec[data-act="arm"] .sim-hint { flex-basis: 100%; }
 /* Ver: qué se ve, color, inercia y al final pantalla completa. */
 .sim-sec[data-act="ver"] .body > :has(.sim-inercia) { order: 5; }
+.sim-sec[data-act="ver"] .body > .sim-theme { order: 8; }
 .sim-sec[data-act="ver"] .body > .sim-side-btn { order: 9; }
 .sim-side .sim-seg { justify-self: start; }
 .sim-side .sim-seg button { font-size: 14px; }
@@ -439,8 +462,8 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-read .r { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--card); }
 .sim-read .r[hidden] { display: none; }
 .sim-read .nm { font-weight: 700; font-size: 14px; }
-.sim-read .r.V .nm { color: #7c4ddb; }
-.sim-read .r.I .nm { color: #0b8a5f; }
+.sim-read .r.V .nm { color: var(--a-med); }
+.sim-read .r.I .nm { color: var(--ok); }
 .sim-read .vl { font-family: var(--font-mono); font-size: 16px; white-space: nowrap; }
 .sim-read .r.off .vl { font-family: var(--font-body); font-size: 13px; color: var(--muted); }
 /* Polaridad y tierra: botones para invertir cada medidor y llevar la punta negra a tierra. */
@@ -550,3 +573,4 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 }
 /* Solo para lectores de pantalla (avisos que cambian). */
 .sim-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:root[data-theme="dark"] .sim-tip b { color: color-mix(in srgb, var(--act) 60%, #000); }

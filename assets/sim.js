@@ -11,8 +11,17 @@
 
   Sim.readColors = () => {
     const cs = getComputedStyle(document.documentElement);
-    ['card', 'ink', 'muted', 'line', 'pipe', 'water-soft', 'water', 'charge', 'charge-soft', 'danger', 'ok', 'metal']
+    ['bg', 'card', 'ink', 'muted', 'line', 'pipe', 'water-soft', 'water', 'charge', 'charge-soft', 'danger', 'ok', 'metal', 'neg']
       .forEach(k => C[k] = cs.getPropertyValue('--' + k).trim());
+    C.dark = document.documentElement.dataset.theme === 'dark';
+  };
+
+  // Tema: el modo oscuro se pone con data-theme="dark" en <html> (cada página lo pone desde el <head>
+  // para que no parpadee); el dibujo lee los colores de nuevo en cada cuadro.
+  Sim.theme = () => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+  Sim.setTheme = t => {
+    if (t === 'dark') document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme;
+    try { localStorage.setItem('sim-theme', t); } catch (e) {}
   };
 
   Sim.fmt = (x, d = 1) => x.toLocaleString('es-MX', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -819,6 +828,14 @@
       });
       document.addEventListener('fullscreenchange', () => { fs.textContent = document.fullscreenElement ? 'Salir de pantalla completa' : 'Pantalla completa'; });
     }
+    // Tema claro (el de siempre, para proyectar) u oscuro; se recuerda en todo el sitio (sim-theme).
+    const theme = el('div', 'sim-seg');
+    theme.setAttribute('role', 'group'); theme.setAttribute('aria-label', 'Tema');
+    theme.innerHTML = '<button type="button" data-v="light">Claro</button><button type="button" data-v="dark">Oscuro</button>';
+    const syncTheme = () => theme.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === Sim.theme())));
+    theme.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { Sim.setTheme(b.dataset.v); syncTheme(); }));
+    syncTheme();
+    Sim.side.row('ver', 'Tema', theme).classList.add('sim-theme');
   }
 
   // Globito al pasar el ratón sobre algo del dibujo: su acción y su nombre ("Cambiar · Resistencia").

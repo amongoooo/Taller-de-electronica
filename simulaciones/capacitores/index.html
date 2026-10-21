@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021093516">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021093837">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
 .sim-pinch.cap { width: max(50px, calc(var(--s, 1) * 112px)); height: max(60px, calc(var(--s, 1) * 136px)); }
@@ -39,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021093516"></script>
-<script src="../../assets/banco.js?v=20261021093516"></script>
+<script src="../../assets/sim.js?v=20261021093837"></script>
+<script src="../../assets/banco.js?v=20261021093837"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -240,7 +241,7 @@
     for (let k = 0; k < n; k++) {
       const yy = y - ph + 5 + (2 * ph - 10) * (n > 1 ? k / (n - 1) : 0.5);
       D.text(ctx, '+', XC - 16, yy, '#d6392b', { size: 13 });
-      D.text(ctx, '−', XC + 16, yy, C.ink, { size: 13 });
+      D.text(ctx, '−', XC + 16, yy, C.neg, { size: 13 });
     }
   }
   // Válvula de tres vías: arriba va al circuito; abajo, a la bomba (cargar); a la derecha, al puente (descargar).

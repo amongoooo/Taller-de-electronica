@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021093516">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021093837">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
 .pb-btn {
@@ -45,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021093516"></script>
+<script src="../../assets/sim.js?v=20261021093837"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -252,15 +253,18 @@
     st.phase.set(key, ph); return ph;
   };
 
+  // El cable negro (−) se ve gris claro en el modo oscuro.
+  const wireColor = c => c === '#15212a' ? C.neg : c;
+
   function drawBoard(ctx, g, side) {
     const water = side === 'w';
-    D.roundRect(ctx, ...rectW(g, ...BOARD), 10, water ? '#e4eaee' : '#f7f5ef', C.line, 2);
+    D.roundRect(ctx, ...rectW(g, ...BOARD), 10, water ? (C.dark ? '#24313b' : '#e4eaee') : (C.dark ? '#2c2e31' : '#f7f5ef'), C.line, 2);
     // canal del centro
-    D.roundRect(ctx, ...rectW(g, BOARD[0] + 0.3, 7.08, BOARD[2] - 0.3, 7.42), 4, water ? '#d3dbe1' : '#e7e3d8');
+    D.roundRect(ctx, ...rectW(g, BOARD[0] + 0.3, 7.08, BOARD[2] - 0.3, 7.42), 4, water ? (C.dark ? '#1b262e' : '#d3dbe1') : (C.dark ? '#222427' : '#e7e3d8'));
     // líneas de los rieles
-    for (const [v, col] of [[-0.5, REDW], [1.5, C.ink], [13.0, REDW], [15.0, C.ink]]) D.line(ctx, [g.pt(BOARD[0] + 0.4, v), g.pt(BOARD[2] - 0.4, v)], 2.5, col, 'butt');
+    for (const [v, col] of [[-0.5, REDW], [1.5, C.neg], [13.0, REDW], [15.0, C.neg]]) D.line(ctx, [g.pt(BOARD[0] + 0.4, v), g.pt(BOARD[2] - 0.4, v)], 2.5, col, 'butt');
     for (const [r, v] of [[0, 0], [1, 1], [12, 13.5], [13, 14.5]]) {
-      for (const u of [-0.6, N - 0.4]) D.text(ctx, ROWNAME[r], ...g.pt(u, v), r === 0 || r === 12 ? REDW : C.ink, { size: 18 });
+      for (const u of [-0.6, N - 0.4]) D.text(ctx, ROWNAME[r], ...g.pt(u, v), r === 0 || r === 12 ? REDW : C.neg, { size: 18 });
     }
     for (let r = 2; r < 12; r++) for (const u of [-0.6, N - 0.4]) D.text(ctx, ROWNAME[r], ...g.pt(u, ROWV[r]), C.muted, { size: 13, weight: 400 });
     for (let c = 0; c < N; c++) for (const v of [1.9, 12.6]) D.text(ctx, String(c + 1), ...g.pt(c, v), C.muted, { size: 11, font: Sim.MONO, weight: 500 });
@@ -270,14 +274,14 @@
       if (!st.inside && !sel) continue;
       const hs = groupHoles(gr), [c0, r0] = hs[0], [c1, r1] = hs[hs.length - 1];
       const R = rectW(g, c0 - 0.36, ROWV[r0] - 0.36, c1 + 0.36, ROWV[r1] + 0.36);
-      if (st.inside) D.roundRect(ctx, ...R, 8, water ? C['water-soft'] : '#cfd6dc', water ? C.pipe : '#9aa6b0', 2);
+      if (st.inside) D.roundRect(ctx, ...R, 8, water ? C['water-soft'] : C.dark ? '#4a5660' : '#cfd6dc', water ? C.pipe : C.dark ? '#7d8a95' : '#9aa6b0', 2);
       if (sel) D.roundRect(ctx, R[0] - 4, R[1] - 4, R[2] + 8, R[3] + 8, 11, null, VIOLET, 3);
     }
     // agujeros
     for (let c = 0; c < N; c++) for (let r = 0; r < ROWV.length; r++) {
       const [x, y] = g.pt(c, ROWV[r]);
-      if (water) D.circle(ctx, x, y, 6, st.inside ? C['water-soft'] : '#56646e', C.pipe, 2);
-      else D.roundRect(ctx, x - 6, y - 6, 12, 12, 2, '#3d4850');
+      if (water) D.circle(ctx, x, y, 6, st.inside ? C['water-soft'] : C.dark ? '#0f161c' : '#56646e', C.pipe, 2);
+      else D.roundRect(ctx, x - 6, y - 6, 12, 12, 2, C.dark ? '#121619' : '#3d4850');
       if (st.sel === group(c, r)) D.circle(ctx, x, y, 9.5, null, VIOLET, 2.5);
     }
   }
@@ -313,10 +317,10 @@
     if (k.type === 'wire' || k.type === 'lead') {
       if (water) {
         D.line(ctx, path, 16, C.pipe); D.line(ctx, path, 10, C['water-soft']);
-        D.circle(ctx, ...B, 5, k.color);
-        if (k.type === 'lead') D.circle(ctx, ...A, 5, k.color);
+        D.circle(ctx, ...B, 5, wireColor(k.color));
+        if (k.type === 'lead') D.circle(ctx, ...A, 5, wireColor(k.color));
       } else {
-        D.line(ctx, path, 8, 'rgba(0,0,0,0.35)'); D.line(ctx, path, 5.5, hot ? '#ff5a2a' : k.color);
+        D.line(ctx, path, 8, 'rgba(0,0,0,0.35)'); D.line(ctx, path, 5.5, hot ? '#ff5a2a' : wireColor(k.color));
         D.circle(ctx, ...B, 3.5, '#b8c0c6', '#6f7a83', 1.5);
       }
     } else if (k.type === 'res') {
@@ -399,7 +403,7 @@
       D.line(ctx, [[cx, cy], tp], 16, C.pipe); D.line(ctx, [[cx, cy], tp], 10, C['water-soft']);
       D.line(ctx, [[cx, cy], tn], 16, C.pipe); D.line(ctx, [[cx, cy], tn], 10, C['water-soft']);
       D.pump(ctx, cx, cy, st.pump, st.on && st.fuse ? Math.min(40, st.Ibat * 0.6) : 0);
-      D.circle(ctx, ...tp, 7, REDW); D.circle(ctx, ...tn, 7, C.ink);
+      D.circle(ctx, ...tp, 7, REDW); D.circle(ctx, ...tn, 7, C.neg);
       if (g === GEO.h) D.text(ctx, 'bomba', cx, cy + 56, C.muted, { size: 14 });
     } else {
       const R = rectW(g, ...BAT);
@@ -424,7 +428,7 @@
     if (st.fuse) return;
     // en vertical no cabe arriba de la bomba: va entre la bomba y la protoboard
     const [x, y] = g === GEO.h ? [g.pt(-3.9, 3)[0], g.pt(-3.9, 3)[1] - 62] : g.pt(-1.75, 3);
-    D.roundRect(ctx, x - 70, y - 18, 140, 36, 8, 'rgba(255,255,255,0.92)', C.danger, 1.5);
+    D.roundRect(ctx, x - 70, y - 18, 140, 36, 8, C.card, C.danger, 1.5);
     D.text(ctx, 'válvula de seguridad', x, y - 8, C.danger, { size: 12 }); D.text(ctx, 'cerrada', x, y + 8, C.danger, { size: 12 });
   }
   function trayComp(type, vy) {
@@ -448,7 +452,7 @@
     ctx.font = `700 15px ${Sim.MONO}`;
     const w = ctx.measureText(t).width + 18;
     const ly = y - 30 < 14 ? y + 30 : y - 30;
-    D.roundRect(ctx, x - w / 2, ly - 13, w, 26, 13, '#fff', VIOLET, 2);
+    D.roundRect(ctx, x - w / 2, ly - 13, w, 26, 13, C.card, VIOLET, 2);
     D.text(ctx, t, x, ly, has ? VIOLET : C.muted, { size: 15, font: Sim.MONO, weight: 500 });
   }
 
