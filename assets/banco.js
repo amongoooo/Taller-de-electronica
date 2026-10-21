@@ -2,7 +2,8 @@
 // bomba y fuente enlazadas (interruptor, LED, perilla con su pantallita y medidor), manómetro/voltímetro y caudal/amperímetro
 // abajo junto al controlador: el voltímetro con dos puntas (mangueras en el agua) entre dos puntos del
 // circuito y el amperímetro con una pinza (turbinita en el agua) en un punto, con cables que cuelgan,
-// e inercia. Cada página solo agrega su parte del circuito.
+// e inercia. Los medidores se pueden arrastrar y cada uno tiene dos botones: recoger sus cables y
+// compactarlo (solo la pantallita). Cada página solo agrega su parte del circuito.
 //
 // Sim.bench({
 //   iFull,            mA a escala completa en los medidores de corriente y caudal
@@ -24,6 +25,11 @@
   const SRC = 40;   // medio ancho de la bomba (y de la fuente) sobre el cable de abajo
   const PROBE = { V: '#8b5cf6', I: '#0ea371' };   // color de cada medidor y de la región que mide
   const RED = '#d6392b';
+  // Íconos de los botones de cada medidor: conector (recoger) y flechas (compactar o mostrar completo).
+  const icon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const PLUG = icon('<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>');
+  const SHRINK = icon('<path d="M4 14h6v6M20 10h-6V4M10 14l-6 6M14 10l6-6"/>');
+  const EXPAND = icon('<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>');
 
   Sim.bench = o => {
     const iFull = o.iFull || 12, flowSpeed = o.flowSpeed || 12;
@@ -91,6 +97,7 @@
     b.pw.mirror = b.pe; b.pe.mirror = b.pw;
     const relayout = (side, W, H, mode) => {
       const g = geometry(side, W, H, mode);
+      g.VX = (side === 'w' ? b.pw : b.pe).x0 || 0;   // x del dibujo en el borde izquierdo de lo que se ve
       Sim.compact = mode !== 'ancho';
       if (side === 'w') b.gw = g; else b.ge = g;
       o.layout && o.layout(g);
@@ -330,8 +337,31 @@
     st.reel = per(0);
     const connected = (kind, i) => st.placed[kind][i] && !st.lift[kind][i] && !st.floor[kind][i] && !st.drop[kind][i] && !st.reel[kind][i];
     const ready = kind => st.placed[kind].every((_, i) => connected(kind, i));
-    // Medidores junto al controlador (ver los acomodos); los bornes arriba de cada uno.
-    const meterAt = (g, kind) => g.meters[kind];
+    // Medidores junto al controlador (ver los acomodos); los bornes arriba de cada uno. Cada medidor
+    // se puede arrastrar a otro lugar (mpos: cuánto se movió en cada acomodo) y compactar: solo queda
+    // su pantallita, sin la ruedita, las columnas o el tubo. cmp va de 0 a 1 para pasar de uno a otro
+    // poco a poco. Compactado se recuerda en este navegador.
+    st.mpos = {}; st.mheld = { V: false, I: false };
+    st.compact = { V: false, I: false };
+    try { Object.assign(st.compact, JSON.parse(localStorage.getItem('sim-compact') || '{}')); } catch (e) {}
+    st.cmp = { V: +st.compact.V, I: +st.compact.I };
+    // Forma del medidor (sin escalar, desde su centro): abajo de la caja, la pantallita y el nombre.
+    const shape = kind => {
+      const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c;
+      return { bottom: mix(76, 4), lcd: mix(54, -18), label: mix(92, 20) };
+    };
+    const meterAt = (g, kind) => {
+      const [x0, y0] = g.meters[kind], o = st.mpos[g.mode + kind], k = g.MK;
+      if (!o) return [x0, y0];
+      // sin salirse de lo que se ve (con sus botones a los lados y sus bornes arriba)
+      return [Math.max(g.VX + 90 * k, Math.min(g.VX + g.W - 90 * k, x0 + o[0])),
+        Math.max(54 * k, Math.min(g.H - (shape(kind).label + 26) * k, y0 + o[1]))];
+    };
+    const moveMeter = (g, kind, x, y) => {
+      const [x0, y0] = g.meters[kind];
+      st.mpos[g.mode + kind] = [x - x0, y - y0];
+      b.pw.replace(); b.pe.replace();
+    };
     const jack = (g, kind, i) => {
       const [x, y] = meterAt(g, kind);
       return [x + (NP[kind] === 1 ? 0 : i ? 22 : -22) * g.MK, y - 40 * g.MK];
@@ -561,29 +591,20 @@
       wrap.append(btn, pop);
       bar.querySelector('.ctl').appendChild(wrap);
     }
-    // Botón "Recoger": como una aspiradora, los medidores jalan sus cables (o mangueras). Las puntas
-    // conectadas se quedan donde están y su cable se tensa; las que quedaron en el suelo entran al
-    // medidor. Para volver a ponerlas se toca el medidor.
-    const reelBtn = document.createElement('button');
-    reelBtn.type = 'button'; reelBtn.className = 'sim-cable-btn sim-reel-btn';
-    reelBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">' +
-      '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M20 12a8 8 0 0 0-8-8"/></svg><span class="lbl">Recoger</span>';
-    reelBtn.setAttribute('aria-label', 'Recoger los cables y mangueras: tensa los conectados y guarda en su medidor los que están en el suelo');
-    const syncReel = () => { reelBtn.disabled = !['V', 'I'].some(k => st.show[k] && st.placed[k].some(Boolean)); };
-    reelBtn.addEventListener('click', () => {
+    // Botón de recoger en cada medidor (con un conector): como una aspiradora, el medidor jala sus
+    // cables (o mangueras). Las puntas conectadas se quedan donde están y su cable se tensa; las que
+    // quedaron en el suelo entran al medidor. Para volver a ponerlas se toca el medidor.
+    const reelBtns = [];
+    const syncReel = () => reelBtns.forEach(([el, kind]) => { el.disabled = !st.placed[kind].some(Boolean); });
+    const reelIn = kind => {
       if (st.placing) setPlacing(null);
-      ['V', 'I'].forEach(k => {
-        if (!st.show[k]) return;
-        for (let i = 0; i < NP[k]; i++) {
-          if (!st.placed[k][i] || st.lift[k][i]) continue;
-          if (st.floor[k][i]) { if (!st.reel[k][i]) st.reel[k][i] = 1e-6; }
-          else ['w', 'e'].forEach(side => { const r = ropes[side][k + i]; if (r) r.tense = 0.8; });
-        }
-      });
+      for (let i = 0; i < NP[kind]; i++) {
+        if (!st.placed[kind][i] || st.lift[kind][i]) continue;
+        if (st.floor[kind][i]) { if (!st.reel[kind][i]) st.reel[kind][i] = 1e-6; }
+        else ['w', 'e'].forEach(side => { const r = ropes[side][kind + i]; if (r) r.tense = 0.8; });
+      }
       syncs.forEach(f => f());
-    });
-    bar.querySelector('.ctl').appendChild(reelBtn);
-    syncReel();
+    };
     // Agarrar un cable del cuerpo: el punto más cercano sigue al puntero (en los dos paneles).
     const nearRope = (side, x, y) => {
       let best = null;
@@ -759,10 +780,66 @@
       el.setAttribute('aria-label', kind === 'V'
         ? `Conectar ${name}: luego toca el circuito para la ${side === 'w' ? 'manguera' : 'punta'} roja (+) y después para la negra (−)`
         : `Conectar ${name}: luego toca el circuito para poner ${side === 'w' ? 'la turbinita' : 'la pinza'}`);
-      b.place(side, el, g => { const [x, y] = meterAt(g, kind); return [x, y + 18 * g.MK]; });
-      el.addEventListener('click', () => setPlacing(st.placing && st.placing.kind === kind ? null : { kind, i: 0 }));
+      // cubre la caja y su nombre (cambia de tamaño al compactar)
+      b.place(side, el, g => {
+        const [x, y] = meterAt(g, kind), s = panel(side).scale * g.MK, top = -50, bot = shape(kind).label + 8;
+        el.style.width = Math.max(60, 132 * s) + 'px'; el.style.height = Math.max(40, (bot - top) * s) + 'px';
+        return [x, y + (top + bot) / 2 * g.MK];
+      });
+      // tocarlo lo conecta; arrastrarlo (o las flechas) lo cambia de lugar
+      let down = null, dragged = false, from = null;
+      el.addEventListener('pointerdown', e => {
+        el.setPointerCapture(e.pointerId); down = [e.clientX, e.clientY]; dragged = false; from = meterAt(geo(side), kind); e.preventDefault();
+      });
+      el.addEventListener('pointermove', e => {
+        if (!down || !el.hasPointerCapture(e.pointerId)) return;
+        if (!dragged && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 6) return;
+        dragged = true; st.mheld[kind] = true; el.classList.add('held');
+        const s = panel(side).scale;
+        moveMeter(geo(side), kind, from[0] + (e.clientX - down[0]) / s, from[1] + (e.clientY - down[1]) / s);
+      });
+      const up = () => { down = null; st.mheld[kind] = false; el.classList.remove('held'); };
+      el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+      el.addEventListener('click', () => {
+        if (!dragged) setPlacing(st.placing && st.placing.kind === kind ? null : { kind, i: 0 });
+        dragged = false;
+      });
+      el.addEventListener('keydown', e => {
+        const step = { ArrowUp: [0, -12], ArrowDown: [0, 12], ArrowLeft: [-12, 0], ArrowRight: [12, 0] }[e.key];
+        if (!step) return;
+        const g = geo(side), [x, y] = meterAt(g, kind);
+        moveMeter(g, kind, x + step[0], y + step[1]);
+        e.preventDefault();
+      });
       syncs.push(() => { el.hidden = !st.show[kind]; });
+      // Dos botones siempre a los lados de su nombre: recoger (conector) y compactar.
+      const water = side === 'w', what = kind === 'V' ? (water ? 'las mangueras' : 'los cables') : (water ? 'la manguera' : 'el cable');
+      const button = (dx, svg, label, onClick) => {
+        const bt = document.createElement('button');
+        bt.type = 'button'; bt.className = 'sim-meter-btn'; bt.innerHTML = svg;
+        bt.setAttribute('aria-label', label); bt.title = label;
+        bt.addEventListener('click', onClick);
+        b.place(side, bt, g => {
+          const [x, y] = meterAt(g, kind), s = Math.max(30, 28 * panel(side).scale * g.MK);
+          bt.style.width = bt.style.height = s + 'px';
+          return [x + dx * g.MK, y + shape(kind).label * g.MK];
+        });
+        syncs.push(() => { bt.hidden = !st.show[kind]; });
+        return bt;
+      };
+      reelBtns.push([button(-76, PLUG, `Recoger ${what} ${name.replace(/^el /, 'del ')}: tensa lo conectado y guarda lo que está en el suelo`, () => reelIn(kind)), kind]);
+      const cb = button(76, '', '', () => {
+        st.compact[kind] = !st.compact[kind];
+        try { localStorage.setItem('sim-compact', JSON.stringify(st.compact)); } catch (e) {}
+        syncs.forEach(f => f());
+      });
+      syncs.push(() => {
+        const c = st.compact[kind], label = c ? `Mostrar ${name} completo` : `Compactar ${name}: solo la pantallita`;
+        cb.innerHTML = c ? EXPAND : SHRINK; cb.setAttribute('aria-pressed', String(c));
+        cb.setAttribute('aria-label', label); cb.title = c ? 'Mostrar completo' : 'Compactar';
+      });
     }));
+    syncs.push(syncReel); syncs.forEach(f => f());
     b.showMeters = show => {
       Object.assign(st.show, show);
       syncReel();
@@ -773,7 +850,7 @@
     let swallow = false;
     [b.pw, b.pe].forEach(p => {
       p.box.addEventListener('pointerdown', e => {
-        if (!st.placing || e.target.closest('.sim-meter-hit, .sim-clamp.jack')) return;
+        if (!st.placing || e.target.closest('.sim-meter-hit, .sim-meter-btn, .sim-clamp.jack')) return;
         const r = p.box.getBoundingClientRect();
         const { kind, i } = st.placing;
         const x = (e.clientX - r.left - p.ox) / p.scale, y = (e.clientY - r.top - p.oy) / p.scale;
@@ -906,25 +983,38 @@
       D.roundRect(ctx, P, -5, 12, 10, 2.5, C.ink);
     };
     // Medidor con sus bornes.
+    // Medidor con sus bornes: caja, ruedita (en el agua, columnas o tubo) y pantallita. Compactado
+    // solo queda la pantallita; la caja se encoge y lo demás se desvanece.
     const drawProbe = (ctx, g, kind, label, text, unit, color) => {
       if (!st.show[kind]) return;
-      const [x, y] = meterAt(g, kind), needle = kind === 'V' ? st.nVm : st.nIm;
+      const [x, y] = meterAt(g, kind), needle = kind === 'V' ? st.nVm : st.nIm, sh = shape(kind), c = ease(st.cmp[kind]);
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
       const placing = st.placing && st.placing.kind === kind;
       if (placing) {   // borde del color del medidor mientras espera dónde conectarse
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
         ctx.globalAlpha = 0.35 + 0.4 * pulse;
-        D.roundRect(ctx, -66, -46, 132, 126, 14, null, PROBE[kind], 6);
+        D.roundRect(ctx, -66, -46, 132, sh.bottom + 50, 14, null, PROBE[kind], 6);
         ctx.globalAlpha = 1;
       }
-      if (kind === 'V' && g.side === 'w') columns(ctx, text, unit);
-      else D.meter(ctx, 0, 0, { r: 30, frac: needle.x, color, lcdW: 108, text, unit });
+      ctx.save();
+      if (st.mheld[kind]) { ctx.shadowColor = 'rgba(21,33,42,0.35)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; }   // levantado mientras se mueve
+      D.roundRect(ctx, -62, -40, 124, sh.bottom + 40, 10, C.metal, C.ink, 2);
+      ctx.restore();
+      if (c < 1) {
+        ctx.save(); ctx.beginPath(); ctx.rect(-60, -38, 120, sh.bottom + 36); ctx.clip(); ctx.globalAlpha = 1 - c;
+        if (kind === 'V' && g.side === 'w') columns(ctx);
+        else if (g.side === 'w') flowTube(ctx, needle.x);
+        else D.dial(ctx, 0, 0, 30, needle.x, color);
+        ctx.restore();
+      }
+      D.lcd(ctx, 0, sh.lcd, 108, 30, text, unit);
+      const ly = sh.label;
       if (placing) {
         const water = g.side === 'w';
-        D.text(ctx, 'toca el circuito para', 0, 92, PROBE[kind], { size: 12 });
-        if (kind === 'I') D.text(ctx, water ? 'poner la turbinita' : 'poner la pinza', 0, 108, PROBE.I, { size: 13 });
-        else D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, 108, st.placing.i ? C.ink : RED, { size: 13 });
-      } else D.text(ctx, label, 0, 92, PROBE[kind], { size: 15 });
+        D.text(ctx, 'toca el circuito para', 0, ly, PROBE[kind], { size: 12 });
+        if (kind === 'I') D.text(ctx, water ? 'poner la turbinita' : 'poner la pinza', 0, ly + 16, PROBE.I, { size: 13 });
+        else D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 16, st.placing.i ? C.ink : RED, { size: 13 });
+      } else D.text(ctx, label, 0, ly, PROBE[kind], { size: 15 });
       ctx.restore();
       for (let i = 0; i < NP[kind]; i++) {
         const [jx, jy] = jack(g, kind, i);
@@ -933,8 +1023,7 @@
     };
     // Manómetro de dos columnas: cada manguera llena la suya según la presión en su punto; la
     // diferencia de alturas es lo que marca.
-    const columns = (ctx, text, unit) => {
-      D.roundRect(ctx, -62, -40, 124, 116, 10, C.metal, C.ink, 2);
+    const columns = ctx => {
       const top = -26, h = 62;
       [[-22, st.nPa.x, RED], [22, st.nPb.x, C.ink]].forEach(([cx, f, col]) => {
         D.roundRect(ctx, cx - 10, top, 20, h, 5, C.card, col, 2);
@@ -946,7 +1035,23 @@
         D.line(ctx, [[-12, ya], [12, ya]], 1.5, PROBE.V); D.line(ctx, [[-12, yb], [12, yb]], 1.5, PROBE.V);
         D.line(ctx, [[0, ya], [0, yb]], 2, PROBE.V);
       }
-      D.lcd(ctx, 0, 54, 108, 30, text, unit);
+    };
+    // Medidor de caudal: un tramo de tubo con el agua que pasa; entre más caudal, más partículas (y
+    // van un poco más rápido). Cada partícula tiene su lugar fijo (bien repartidas aunque sean pocas),
+    // así al subir el caudal solo aparecen más.
+    const NF = 30, flowDots = Array.from({ length: NF }, (_, k) => [(0.5 + k * 0.7548777) % 1, (0.5 + k * 0.5698403) % 1]);
+    const flowTube = (ctx, frac) => {
+      const L = 92, hh = 14, y0 = -4, n = Math.max(0, Math.min(1, frac)) * NF;
+      D.roundRect(ctx, -L / 2 - 4, y0 - hh - 5, L + 8, 2 * hh + 10, 7, C.pipe);
+      D.roundRect(ctx, -L / 2, y0 - hh, L, 2 * hh, 4, C['water-soft']);
+      ctx.save(); ctx.beginPath(); ctx.rect(-L / 2, y0 - hh, L, 2 * hh); ctx.clip();
+      for (let k = 0; k < Math.ceil(n); k++) {
+        const [u, v] = flowDots[k], x = -L / 2 + (u * L + st.flowPh) % L;
+        ctx.globalAlpha = Math.min(1, n - k) * Math.min(1, (x + L / 2) / 8, (L / 2 - x) / 8);
+        D.circle(ctx, x, y0 - hh + 4 + v * (2 * hh - 8), 3, C.water);
+      }
+      ctx.restore();
+      D.arrow(ctx, 0, y0 + hh + 12, 0, 6, C.muted);
     };
     // Refuerzo a lo largo de +x desde x0 (donde termina la punta), del ancho h[0] al h[1]: funda
     // del color de la punta con anillos, que se angosta hacia el cable.
@@ -1079,6 +1184,11 @@
           if (dr) moved = true;
         }
       }
+      for (const kind of ['V', 'I']) {
+        const c0 = st.cmp[kind];
+        st.cmp[kind] = st.compact[kind] ? Math.min(1, c0 + dt / 0.3) : Math.max(0, c0 - dt / 0.3);
+        if (st.cmp[kind] !== c0) moved = true;
+      }
       if (moved) { b.pw.replace(); b.pe.replace(); }
     };
     b.start = () => Sim.run(dt => {
@@ -1096,6 +1206,7 @@
       st.nPa.step(connected('V', 0) ? st.probe.V.va / VMAX : 0, tn, dt);
       st.nPb.step(connected('V', 1) ? st.probe.V.vb / VMAX : 0, tn, dt);
       st.turb += Math.min(st.probe.I.value, 60) * 0.5 * dt;
+      st.flowPh = ((st.flowPh || 0) + (14 + 50 * Math.min(1, Math.max(0, st.nIm.x))) * dt) % 1e4;
       animate(dt);
       for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (const kind of ['V', 'I']) for (let i = 0; i < NP[kind]; i++) ropeStep(side, g, kind, i, dt);
       st.rpm = st.m.I * RPM_PER_MA;                                // 10 rpm por cada mL/s

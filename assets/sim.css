@@ -118,7 +118,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 /* Punta de un medidor: se arrastra a cualquier punto del circuito (el dibujo lo hace el canvas). */
 .sim-clamp {
   width: max(28px, calc(var(--s, 1) * 40px)); aspect-ratio: 1; border-radius: 50%; padding: 0;
-  background: transparent; border: 2px dashed transparent; cursor: grab; touch-action: none;
+  background: transparent; border: 2px dashed transparent; cursor: grab; touch-action: none; z-index: 2;
 }
 .sim-clamp:active { cursor: grabbing; }
 .sim-clamp:hover, .sim-clamp:focus-visible { border-color: var(--muted); }
@@ -196,12 +196,25 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   .sim-bar input[type="range"] { width: 110px; }
 }
 
-/* Zona para tocar un medidor y conectarlo: luego se toca el circuito para cada caimán. */
+/* Zona para tocar un medidor y conectarlo (luego se toca el circuito para cada caimán) o arrastrarlo
+   a otro lugar. Su tamaño lo pone banco.js (cambia al compactar el medidor). */
 .sim-meter-hit {
-  width: max(70px, calc(var(--s, 1) * 150px)); height: max(60px, calc(var(--s, 1) * 140px)); padding: 0;
+  width: 150px; height: 140px; padding: 0; touch-action: none;
   border-radius: 14px; background: transparent; border: 2px dashed transparent; cursor: pointer;
 }
 .sim-meter-hit:hover, .sim-meter-hit:focus-visible { border-color: var(--muted); }
+.sim-meter-hit.held { cursor: grabbing; }
+/* Botones de cada medidor: recoger sus cables (conector) y compactarlo (solo la pantallita). */
+.sim-meter-btn {
+  width: 30px; height: 30px; padding: 0; border-radius: 50%; z-index: 2; cursor: pointer;
+  display: grid; place-items: center; touch-action: manipulation;
+  background: var(--card); color: var(--ink); border: 2px solid var(--line); box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+}
+.sim-meter-btn[hidden] { display: none; }
+.sim-meter-btn svg { width: 62%; height: 62%; }
+.sim-meter-btn:hover, .sim-meter-btn:focus-visible { border-color: var(--water); color: var(--water); }
+.sim-meter-btn[aria-pressed="true"] { border-color: var(--water); color: var(--water); }
+.sim-meter-btn:disabled { opacity: .4; cursor: default; border-color: var(--line); color: var(--ink); }
 .sim-panel.placing, .sim-panel.placing .sim-layer > * { cursor: crosshair; }
 
 /* Botón "Cables" de la barra: abre un panelito con la rigidez y la inercia de cables y mangueras. */
@@ -292,15 +305,6 @@ span.sim-go { visibility: hidden; width: 38px; padding: 0; }
   .sim-steps .step { width: 24px; height: 24px; }
   /* En el celular acostado, el nombre del paso va a un lado de la barra para ocupar una sola línea. */
   .sim-steps .body { grid-template-columns: auto 1fr; align-items: center; gap: 8px; }
-}
-/* Botón para recoger o sacar los cables de los medidores. */
-.sim-reel-btn { display: inline-flex; align-items: center; gap: 6px; }
-.sim-reel-btn svg { width: 18px; height: 18px; flex: none; }
-.sim-reel-btn[aria-pressed="true"] { border-color: var(--water); color: var(--water); }
-.sim-reel-btn:disabled { opacity: 0.45; cursor: default; }
-@media (max-width: 600px), (max-height: 500px) {
-  .sim-reel-btn { padding: 4px 8px; }
-  .sim-reel-btn .lbl { display: none; }
 }
 /* Anillo del indicador: de aquí se agarra como un imán y el círculo lo sigue. */
 .sim-clamp.ring { width: max(22px, calc(var(--s, 1) * 24px)); }
