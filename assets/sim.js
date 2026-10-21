@@ -4,8 +4,9 @@
   const Sim = {};
   const C = {};
   Sim.C = C;
-  Sim.FONT = '"Atkinson Hyperlegible", "Segoe UI", sans-serif';
-  Sim.MONO = '"JetBrains Mono", ui-monospace, monospace';
+  Sim.FONT = '"Archivo Narrow", "Arial Narrow", sans-serif';
+  Sim.MONO = Sim.FONT;   // los números también en Archivo Narrow (sus cifras son de ancho fijo)
+  Sim.WIDE = '"Saira", "Segoe UI", sans-serif';   // títulos y rótulos importantes, en su versión ancha (ver D.text)
   Sim.PIPE = 13; // medio ancho interior de una tubería normal
 
   Sim.readColors = () => {
@@ -106,6 +107,7 @@
   };
   D.text = (ctx, t, x, y, col, { align = 'center', size = 16, font = Sim.FONT, weight = 700 } = {}) => {
     ctx.fillStyle = col; ctx.font = `${weight} ${Sim.compact ? Math.round(size * 1.15) : size}px ${font}`;   // en el celular, letra un poco más grande
+    ctx.fontStretch = font === Sim.WIDE ? 'expanded' : 'normal';
     ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
   };
   D.arrow = (ctx, x, y, angle, size, col) => {

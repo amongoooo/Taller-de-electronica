@@ -6,8 +6,8 @@
 <title>Osciloscopio · Taller de Electrónica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021085136">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=202610210926">
 <style>
 /* Botones de forma de onda del generador. */
 .sim-wave {
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021085136"></script>
+<script src="../../assets/sim.js?v=202610210926"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -462,7 +462,7 @@
     const w = g.side === 'w', x = g.GX, y = g.GY;
     ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 26, 28, 22);   // cuello hacia el circuito
     D.roundRect(ctx, x, y, g.GW, g.GH, 14, w ? C.metal : C['charge-soft'], C.ink, 2.5);
-    D.text(ctx, w ? 'BOMBA DE VAIVÉN' : 'GENERADOR DE FUNCIONES', x + 18, y + 24, C.ink, { align: 'left', size: 15 });
+    D.text(ctx, w ? 'BOMBA DE VAIVÉN' : 'GENERADOR DE FUNCIONES', x + 18, y + 24, C.ink, { align: 'left', size: 14, font: Sim.WIDE });
     D.led(ctx, x + 84, y + 110, st.level > 0.02 ? 1 : 0);
     const f = freqAt(st.fi), txt = f < 10 ? f.toFixed(2) : f < 100 ? f.toFixed(1) : f.toFixed(0);
     D.lcd(ctx, x + 470, y + 28, 150, 30, txt.padStart(5, ' '), 'Hz');
@@ -480,7 +480,7 @@
   const drawScope = (ctx, g) => {
     const w = g.side === 'w', [sx, sy, sw, sh] = g.scr, cy = sy + sh / 2, vdiv = VDIV[st.vi];
     D.roundRect(ctx, g.SX, g.SY, g.SW, g.SH, 14, C.metal, C.ink, 2.5);
-    D.text(ctx, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO', g.SX + 20, g.SY + 24, C.ink, { align: 'left', size: 15 });
+    D.text(ctx, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO', g.SX + 20, g.SY + 24, C.ink, { align: 'left', size: 14, font: Sim.WIDE });
     // Pantalla (en el agua, papel cuadriculado)
     const ink = w ? PURPLE : '#c4b0ff', txt = w ? C.muted : Sim.LCD.on;
     D.roundRect(ctx, sx - 4, sy - 4, sw + 8, sh + 8, 6, w ? '#fffdf5' : Sim.LCD.bg, C.ink, 2);

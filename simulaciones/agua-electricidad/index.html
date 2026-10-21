@@ -6,7 +6,7 @@
 <title>Circuitos de agua y corriente · Taller de Electrónica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
 <style>
 /* Layout: banco de laboratorio. Cada simulación muestra el circuito de agua y el eléctrico lado a lado, con los controles debajo. */
 :root {
@@ -23,9 +23,9 @@
   --danger: #c23b2c;
   --ok: #217a4b;
   color-scheme: light;
-  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
-  --font-body: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-display: "Saira", "Segoe UI", sans-serif;
+  --font-body: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-mono: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -44,10 +44,10 @@ body {
 }
 header { display: grid; gap: 6px; }
 .eyebrow { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
-h1 { font-family: var(--font-display); font-weight: 750; font-size: clamp(32px, 5vw, 50px); line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 { font-family: var(--font-display); font-stretch: 125%; font-weight: 750; font-size: clamp(32px, 5vw, 50px); line-height: 1.05; margin: 0; text-wrap: balance; }
 h1 .w { color: var(--water); } h1 .e { color: var(--charge); }
 .lede { margin: 4px 0 0; max-width: 64ch; color: var(--muted); }
-h2 { font-family: var(--font-display); font-weight: 600; font-size: 26px; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-stretch: 125%; font-weight: 600; font-size: 26px; margin: 0; text-wrap: balance; }
 h3 { font-size: 15px; margin: 0 0 6px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 
 .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

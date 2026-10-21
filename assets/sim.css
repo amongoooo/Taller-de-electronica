@@ -15,14 +15,14 @@
   --ok: #217a4b;
   --metal: #dfe6eb;
   color-scheme: light;
-  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
-  --font-body: "Atkinson Hyperlegible", "Segoe UI", Verdana, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-display: "Saira", "Segoe UI", sans-serif;
+  --font-body: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-mono: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
 }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 3px solid var(--water); outline-offset: 2px; }
 
 /* Colores de cada acción: lo que se toca se marca con el de la suya (Sim.ACTS). */
@@ -46,7 +46,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-bar .back { flex: none; color: var(--water); font-weight: 700; text-decoration: none; font-size: 15px; white-space: nowrap; }
 .sim-bar .back:hover { text-decoration: underline; }
-.sim-bar h1 { flex: 0 1 auto; min-width: 0; font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sim-bar h1 { flex: 0 1 auto; min-width: 0; font-family: var(--font-display); font-stretch: 125%; font-weight: 600; font-size: 20px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sim-bar .ctl { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
 
 .sim-stage {
@@ -66,7 +66,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-panel canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }   /* para arrastrar los cables con el dedo */
 .sim-tag {
   position: absolute; top: 10px; left: 12px; z-index: 1;
-  font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  font-family: var(--font-display); font-stretch: 125%; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   border-radius: 6px; padding: 2px 8px;
 }
 .sim-tag.w { background: var(--water-soft); color: var(--water); }
@@ -208,7 +208,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-menu[data-at="below"]::before { top: -8px; border-right: 0; border-bottom: 0; }
 .sim-menu[data-at="above"]::before { bottom: -8px; border-left: 0; border-top: 0; }
 .sim-menu .hd { display: flex; align-items: center; gap: 8px; }
-.sim-menu .ttl { flex: 1 1 auto; margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.sim-menu .ttl { flex: 1 1 auto; margin: 0; font-family: var(--font-display); font-stretch: 125%; font-weight: 600; font-size: 18px; }
 .sim-menu .x {
   flex: none; width: 34px; height: 34px; margin: -6px -6px -6px 0; padding: 0; border: 0; border-radius: 50%;
   background: transparent; color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer;
@@ -371,7 +371,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 }
 .sim-page[data-side="col"][data-open="false"] .sim-side { display: none; }
 .sim-side-hd { display: flex; align-items: center; gap: 8px; }
-.sim-side-hd h2 { flex: 1; margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.sim-side-hd h2 { flex: 1; margin: 0; font-family: var(--font-display); font-stretch: 125%; font-weight: 600; font-size: 18px; }
 .sim-side-hd .x {
   width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
   background: transparent; color: var(--muted); font-size: 24px; line-height: 1;
@@ -390,7 +390,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-sec[hidden] { display: none; }
 .sim-sec h3 {
   display: flex; align-items: center; gap: 8px; margin: 0; color: var(--act);
-  font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  font-family: var(--font-display); font-stretch: 125%; font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
 }
 .sim-sec h3 svg { width: 18px; height: 18px; flex: none; }
 .sim-sec .body { display: grid; gap: 10px; min-width: 0; }
