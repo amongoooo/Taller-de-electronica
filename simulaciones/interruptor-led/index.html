@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021093837">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021093837"></script>
-<script src="../../assets/banco.js?v=20261021093837"></script>
+<script src="../../assets/sim.js?v=20261021171039"></script>
+<script src="../../assets/banco.js?v=20261021171039"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -46,9 +46,11 @@
   const RMIN = 100, RMAX = 1000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
   const RVALUES = [0, ...Sim.series(RMIN, RMAX)];
   // El LED necesita un voltaje según su color (unos 2 V el rojo, ver Sim.LEDS) y se quema arriba de 30 mA.
-  const IMAX = 30, LED_K = 5.8, vf = () => Sim.led(st.led).vf;
+  // Los dos se calientan (Sim.heat) y su menú lo muestra: el LED aguanta Vf · 30 mA, la resistencia ¼ W.
+  const IMAX = Sim.LED_IMAX, vf = () => Sim.led(st.led).vf;
+  const lh = Sim.heat({ ...Sim.HEAT.led, pMax: () => vf() * IMAX / 1000 }), rh = Sim.heat(Sim.HEAT.res);
   const XV = 270, XL = 545;              // válvula (interruptor) y LED; la resistencia va al centro
-  const st = { closed: true, R: 470, led: 'rojo', rev: false, broken: false, ang: 0, om: 0, heat: 0, breakT: 9, debris: [], sparks: [] };
+  const st = { closed: true, R: 470, led: 'rojo', rev: false, broken: false, rburnt: false, burnT: 9, ang: 0, om: 0, breakT: 9, debris: [], sparks: [] };
   const sides = {};
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
   const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
@@ -63,17 +65,17 @@
     },
     model(V) {
       const R = st.R;
-      return { I: (st.closed && !st.rev && !st.broken) ? Math.max(0, V - vf()) / (R + 5) * 1000 : 0 };
+      return { I: (st.closed && !st.rev && !st.broken && !st.rburnt) ? Math.max(0, V - vf()) / (R + 5) * 1000 : 0 };
     },
     // Si no pasa corriente, todo el voltaje queda en el interruptor abierto o en el LED que la bloquea.
     circuit(g, m, V) {
-      const R = st.R, dR = m.I * R / 1000;
+      const R = st.R, dR = st.rburnt ? (st.closed ? V : 0) : m.I * R / 1000;
       // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
       const comps = [
         { at: [XV, g.TOP], half: 28, dV: st.closed ? 0 : V, ext: w => w ? 46 : 30,
           draw: (ctx, w) => w ? D.valve(ctx, XV, g.TOP, st.closed) : D.knifeSwitch(ctx, XV, g.TOP, st.closed),
           tag: w => [w ? 'válvula' : 'interruptor', w ? (st.closed ? 'abierta' : 'cerrada') : (st.closed ? 'cerrado' : 'abierto'), !st.closed] },
-        { at: [XL, g.TOP], half: 30, dV: st.closed ? V - dR : 0, pr: ledPart, ext: w => w ? 52 : 28,
+        { at: [XL, g.TOP], half: 30, dV: st.closed ? Math.max(0, V - dR) : 0, pr: ledPart, ext: w => w ? 52 : 28,
           draw: (ctx, w) => {
             const [jx, jy] = shake();
             if (w) D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, tint: `rgb(${Sim.led(st.led).rgb})` });
@@ -83,20 +85,16 @@
       ];
       if (R) comps.push({ at: [g.PX, g.TOP], half: 46, dV: dR, pr: pinch,
         draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, half(R)) : D.resistor(ctx, g.PX, g.TOP),
-        tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(R)] });
+        tag: w => st.rburnt ? [w ? 'tubo reventado' : 'resistencia quemada', '', true] : [w ? 'tramo angosto' : 'resistencia', ohm(R)] });
       return [{ pts: b.loopPts(g), I: m.I, v0: V, comps }];
     },
     step(dt, m) {
-      // Arriba de 30 mA la rueda (el LED) se calienta, aunque la inercia esté en 0: tarda en romperse,
-      // y entre más se pasa más rápido (como I²·t). Con 66 mA tarda 1,5 s y nunca menos de 0,4 s,
-      // para que se vea; si la corriente baja antes, se enfría.
-      const over = (m.I / IMAX) ** 2 - 1;
-      if (over > 0 && !st.broken) {
-        st.heat += dt * Math.min(2.5, over / LED_K);
-        if (st.heat >= 1) breakIt();
-      } else {
-        st.heat = Math.max(0, st.heat - dt / 1.5);
-      }
+      // El LED (la rueda) se calienta con su potencia Vf · I, aunque la inercia esté en 0: arriba de 30 mA
+      // se pasa de lo que aguanta y se quema, más rápido entre más se pasa (con 66 mA, en 1,5 s); si la
+      // corriente baja antes, se enfría. La resistencia igual, con I²·R arriba de ¼ W.
+      if (lh.step(st.broken ? 0 : vf() * m.I / 1000, dt) && !st.broken) breakIt();
+      if (rh.step(st.rburnt ? 0 : (m.I / 1000) ** 2 * st.R, dt) && !st.rburnt) burnR();
+      st.burnT += dt;
       st.breakT += dt;
       for (const d of st.debris) { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 700 * dt; d.a += d.spin * dt; }
       for (const p of st.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; }
@@ -109,23 +107,28 @@
       D.pipe(ctx, g.loop);
       if (st.R) D.narrow(ctx, g.PX, g.TOP, half(st.R));
       sides.w.water.draw(ctx);
+      if (st.R) D.burstPipe(ctx, g.PX, g.TOP, half(st.R), st.burnT, st.rburnt, rh.glow);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
       b.tag(ctx, pinch, g.PX, g.TOP - half(st.R) - 35, st.R ? 'tramo angosto' : 'sin estrechamiento', st.R ? ohm(st.R) : '0 Ω', !st.R);
       D.valve(ctx, XV, g.TOP, st.closed);
       const [jx, jy] = shake();
-      if (st.heat > 0) glow(ctx, XL, g.TOP, 255, 60, 30, 46, st.heat);
+      if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 60, 30, 46, lh.glow);
       D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, label: 'rueda', tint: `rgb(${Sim.led(st.led).rgb})` });
       drawBreak(ctx, g, true);
     },
     drawE(ctx, g, m) {
       D.wire(ctx, g.loop);
       D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
-      if (st.R) D.resistor(ctx, g.PX, g.TOP);
+      if (st.R) {
+        if (!st.rburnt) D.heatGlow(ctx, g.PX, g.TOP, rh.glow);
+        D.resistor(ctx, g.PX, g.TOP);
+        if (st.rburnt) D.burntResistor(ctx, g.PX, g.TOP, st.burnT);
+      }
       b.tag(ctx, pinch, g.PX, g.TOP - half(st.R) - 35, st.R ? 'resistencia' : 'sin resistencia', st.R ? ohm(st.R) : '0 Ω', !st.R);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
       D.knifeSwitch(ctx, XV, g.TOP, st.closed);
       const [jx, jy] = shake();
-      if (st.heat > 0) glow(ctx, XL, g.TOP, 255, 230, 140, 56, st.heat);
+      if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 230, 140, 56, lh.glow);
       D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: m.I, broken: st.broken, rev: st.rev, rgb: Sim.led(st.led).rgb });
       drawBreak(ctx, g, false);
     }
@@ -133,8 +136,8 @@
 
   // Mientras se calienta, la rueda (el LED) brilla y tiembla cada vez más.
   const shake = () => {
-    if (!st.heat || st.broken) return [0, 0];
-    const t = performance.now() / 1000, a = 2.5 * st.heat;
+    if (!lh.glow || st.broken) return [0, 0];
+    const t = performance.now() / 1000, a = 2.5 * lh.glow;
     return [a * Math.sin(t * 53), a * Math.cos(t * 47)];
   };
   function glow(ctx, x, y, r, gc, bc, rad, k) {
@@ -144,7 +147,7 @@
   }
   // Al romperse, las aspas salen volando (agua) y el LED suelta chispas y humo (electricidad).
   function breakIt() {
-    st.broken = true; st.heat = 0; st.breakT = 0; b.halt();
+    st.broken = true; st.breakT = 0; b.halt();
     st.debris = [0, 1, 2, 3].map(k => {
       const a = st.ang + k * Math.PI / 2, v = 160 + 90 * Math.random();
       return { x: Math.cos(a) * 10, y: Math.sin(a) * 10, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 140, a, spin: (Math.random() - 0.5) * 30 };
@@ -155,6 +158,9 @@
     });
     b.refresh();
   }
+  // La resistencia quemada (el tramo reventado) abre el circuito.
+  function burnR() { st.rburnt = true; st.burnT = 0; b.halt(); b.refresh(); }
+  const renewR = () => { st.rburnt = false; rh.reset(); st.burnT = 9; };
   function drawBreak(ctx, g, water) {
     const t = st.breakT, T = 1.4;
     if (t >= T) return;
@@ -194,20 +200,26 @@
     pos: g => [XL, g.TOP],
     label: side => side === 'w' ? 'Rueda' : 'LED',
     menu: Sim.ledMenu({
-      get: () => st.led, set: id => { st.led = id; },
+      get: () => st.led, set: id => { st.led = id; }, heat: lh, broken: () => st.broken,
       actions: side => [
         { text: side === 'w' ? 'Girar la rueda' : 'Girar el LED', onClick: () => { st.rev = !st.rev; } },
         { text: () => st.broken ? (side === 'w' ? 'Poner una rueda nueva' : 'Poner un LED nuevo') : (side === 'w' ? 'Romper la rueda' : 'Fundir el LED'),
-          danger: true, onClick: () => { if (st.broken) { st.broken = false; st.heat = 0; st.breakT = 9; } else breakIt(); } }
+          danger: true, onClick: () => { if (st.broken) { st.broken = false; lh.reset(); st.breakT = 9; } else breakIt(); } }
       ]
     })
   });
-  const setR = R => { st.R = R; sides.w.water.setProfile(profile(sides.w.g)); };
+  const setR = R => { st.R = R; if (!R) renewR(); sides.w.water.setProfile(profile(sides.w.g)); };   // sin resistencia no hay nada quemado
   const pinch = b.pinch({
     pos: g => [g.PX, g.TOP], get: () => st.R, half, fromHalf, set: setR,
     label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia del LED',
     text: R => R ? ohm(R) : 'sin resistencia',
-    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: R => R ? ohm(R) : '0 Ω (sin resistencia)' })
+    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: R => R ? ohm(R) : '0 Ω (sin resistencia)',
+      heat: rh, broken: () => st.rburnt,
+      actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rburnt, onClick: renewR }] })
+  });
+  b.linkedButton({
+    pos: g => [g.PX, g.TOP + 78], hidden: () => !st.rburnt,
+    text: side => side === 'w' ? 'Tubo nuevo' : 'Resistencia nueva', onClick: renewR
   });
   b.start();
 })();

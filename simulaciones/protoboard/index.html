@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021093837">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021171039">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021093837"></script>
+<script src="../../assets/sim.js?v=20261021171039"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -63,7 +63,7 @@
   const POWER = [-3.9, 6.75];
   const TRAY = [-5.6, 7.7, -2.2, 14.6];
   const TRAYITEMS = [['wire', 8.7], ['res', 11.05], ['led', 13.4]];
-  const V0 = 9, RINT = 1, FUSE = 1, RD = 15, IMAX = 30, LED_K = 5.8;
+  const V0 = 9, RINT = 1, FUSE = 1, RD = 15, IMAX = Sim.LED_IMAX;
   const VIOLET = '#8b5cf6', OKC = '#0ea371', REDW = '#d6392b';
   const RVALUES = Sim.series(100, 10000);   // valores comunes (serie E12)
   const vf = k => Sim.led(k.led).vf;        // cada color de LED necesita otro voltaje
@@ -88,8 +88,10 @@
   try { st.inside = localStorage.getItem('pb-dentro') !== '0'; } catch (e) {}
   const legUV = l => l.term ? TERM[l.term] : l.c != null ? [l.c, ROWV[l.r]] : [l.u, l.v];
   const legNode = l => l.term ? (l.term === '+' ? 'bp' : 'bn') : l.c != null ? group(l.c, l.r) : null;
-  const make = (type, a, b, extra = {}) => ({ id: st.nextId++, type, a, b, I: 0, on: false, heat: 0, burnt: false, ang: 0, breakT: 9, R: 470, led: 'rojo', ...extra });
+  const make = (type, a, b, extra = {}) => ({ id: st.nextId++, type, a, b, I: 0, on: false, burnt: false, ang: 0, breakT: 9, R: 470, led: 'rojo', ...extra });
   const hole = (c, r) => ({ c, r });
+  // Calor de una resistencia (¼ W) o de un LED (Vf · 30 mA), ver Sim.heat; su menú lo muestra.
+  const heatOf = k => k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 } : Sim.HEAT.res));
   const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(0, 1), { color: '#15212a' })];
   const example = () => {
     st.comps = [...defaultLeads(),
@@ -132,7 +134,7 @@
     for (const k of st.comps) {
       const n1 = legNode(k.a), n2 = legNode(k.b);
       k.I = 0;
-      if (!n1 || !n2 || n1 === n2 || (k.type === 'led' && k.burnt)) { if (k.type === 'led') k.on = false; continue; }
+      if (!n1 || !n2 || n1 === n2 || k.burnt) { if (k.type === 'led') k.on = false; continue; }
       els.push({ k, i: id(n1), j: id(n2) });
     }
     const n = names.length, src = st.on && st.fuse;
@@ -324,6 +326,7 @@
         D.circle(ctx, ...B, 3.5, '#b8c0c6', '#6f7a83', 1.5);
       }
     } else if (k.type === 'res') {
+      if (!k.burnt && !ghost) D.heatGlow(ctx, ...M, heatOf(k).glow, 36);
       if (water) {
         ctx.save(); ctx.translate(...M); ctx.rotate(ang);
         const h0 = 6, hn = narrowHalf(k.R), s1 = Math.min(L / 2, 26), s2 = Math.min(L / 2 - 2, 16);
@@ -334,6 +337,8 @@
           ctx.closePath(); ctx.fillStyle = col; ctx.fill();
         };
         shape(3, C.pipe); shape(0, C['water-soft']);
+        // reventado: una grieta arriba y otra abajo
+        if (k.burnt) for (const sg of [-1, 1]) D.line(ctx, [[-8, sg * (hn + 3)], [-3, sg * (hn - 1)], [3, sg * (hn + 5)], [8, sg * (hn + 1)]], 2.5, C.danger);
         ctx.restore();
       } else {
         D.line(ctx, [A, B], 2.5, '#8d969d');
@@ -341,13 +346,19 @@
         ctx.save(); ctx.translate(...M); ctx.rotate(ang);
         D.roundRect(ctx, -bl / 2, -7, bl, 14, 7, '#e8cf9e', '#a8895a', 1.5);
         bandColors(k.R).forEach((col, i) => { ctx.fillStyle = col; ctx.fillRect(-bl / 2 + 6 + i * (bl - 12) / 3.4 + (i === 3 ? 3 : 0), -7, 3.5, 14); });
+        if (k.burnt) {   // quemada: tiznada y partida
+          ctx.fillStyle = 'rgba(30, 20, 15, 0.6)'; ctx.beginPath(); ctx.ellipse(0, 0, bl / 2 - 2, 8, 0, 0, Math.PI * 2); ctx.fill();
+          D.line(ctx, [[-2, -8], [2, -2], [-2, 2], [2, 8]], 3, C.card);
+        }
         ctx.restore();
       }
       const f = ny > 0 ? -1 : 1;   // el valor va del lado de arriba (o a la izquierda si está parada)
       const o = 19 + 20 * Math.abs(nx);   // parada, la etiqueta necesita más espacio a un lado
-      if (!ghost) D.text(ctx, ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, C.ink, { size: 12, font: Sim.MONO, weight: 600 });
+      if (!ghost) D.text(ctx, k.burnt ? (water ? 'reventado' : 'quemada') : ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, k.burnt ? C.danger : C.ink, { size: 12, font: Sim.MONO, weight: 600 });
+      if (k.burnt && !water) D.smoke(ctx, M[0], M[1] - 8, k.breakT);
     } else if (k.type === 'led') {
       const glowK = k.burnt ? 0 : Math.min(1, k.I / 20), [cr, cg, cb] = Sim.led(k.led).rgb;
+      if (!k.burnt && !ghost) D.heatGlow(ctx, ...M, heatOf(k).glow, 40);
       const tone = (f, w) => `rgb(${[cr, cg, cb].map(c => Math.round((c + (255 - c) * w) * f)).join(', ')})`;   // más claro (w) o más oscuro (f)
       if (water) {
         D.line(ctx, [A, B], 14, C.pipe); D.line(ctx, [A, B], 8, C['water-soft']);
@@ -496,10 +507,12 @@
     const water = side === 'w';
     const remove = { text: 'Quitar de la protoboard', danger: true, onClick: () => { st.comps = st.comps.filter(c => c !== k); Sim.menu.close(anchors[side]); } };
     const o = k.type === 'res'
-      ? Sim.resistorMenu({ values: RVALUES, get: () => k.R, set: R => { k.R = R; }, format: ohm, actions: [remove] })(side)
-      : Sim.ledMenu({ get: () => k.led, set: id => { k.led = id; }, actions: [
+      ? Sim.resistorMenu({ values: RVALUES, get: () => k.R, set: R => { k.R = R; }, format: ohm, heat: heatOf(k), broken: () => k.burnt, actions: [
+        { text: water ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } },
+        remove] })(side)
+      : Sim.ledMenu({ get: () => k.led, set: id => { k.led = id; }, heat: heatOf(k), broken: () => k.burnt, actions: [
         { text: water ? 'Girar la rueda' : 'Girar el LED', onClick: () => { const t = k.a; k.a = k.b; k.b = t; } },
-        { text: water ? 'Poner una rueda nueva' : 'Poner un LED nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; k.heat = 0; } },
+        { text: water ? 'Poner una rueda nueva' : 'Poner un LED nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } },
         remove] })(side);
     // tocar la protoboard no la cierra aquí: lo decide el toque (otro componente abre su menú)
     o.ignore = t => t === panels.w.canvas || t === panels.e.canvas;
@@ -622,13 +635,13 @@
     // Fusible: arriba de 1 A se calienta y se funde en unos 0,3 s (cortocircuito).
     if (st.fuse && st.Ibat > FUSE * 1000) { st.fuseHeat += dt / 0.3; if (st.fuseHeat >= 1) { st.fuse = false; st.fuseHeat = 0; } }
     else st.fuseHeat = Math.max(0, st.fuseHeat - dt);
-    for (const k of st.comps) if (k.type === 'led') {
-      // Arriba de 30 mA el LED se calienta y se quema, más rápido entre más se pasa (como en Interruptor y LED).
-      const over = (k.I / IMAX) ** 2 - 1;
-      if (over > 0 && !k.burnt) { k.heat += dt * Math.min(2.5, over / LED_K); if (k.heat >= 1) { k.burnt = true; k.heat = 0; k.breakT = 0; } }
-      else k.heat = Math.max(0, k.heat - dt / 1.5);
+    // El LED se calienta con Vf · I (arriba de 30 mA se pasa) y la resistencia con I²·R (arriba de ¼ W):
+    // si se pasan se queman, más rápido entre más se pasan (como en Interruptor y LED), y se abren.
+    for (const k of st.comps) if (k.type === 'led' || k.type === 'res') {
+      const I = Math.abs(k.I) / 1000, P = k.burnt ? 0 : k.type === 'led' ? Sim.led(k.led).vf * I : I * I * k.R;
+      if (heatOf(k).step(P, dt) && !k.burnt) { k.burnt = true; k.breakT = 0; }
       k.breakT += dt;
-      k.ang -= k.I * Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI * dt;
+      if (k.type === 'led') k.ang -= k.I * Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI * dt;
     }
     st.pump += (st.on && st.fuse ? Math.min(40, st.Ibat * 0.6) : 0) * dt;
     render('w', dt); render('e', dt);

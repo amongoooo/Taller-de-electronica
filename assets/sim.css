@@ -268,6 +268,20 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   border: 3px solid var(--card); background: var(--c, var(--muted)); box-shadow: 0 0 0 2px var(--line);
 }
 .sim-menu .opt[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--ink); }
+/* Potencia y calor (Sim.powerRow): lo que aguanta, lo que recibe y una barra hasta quemarse. */
+.sim-menu .heat { gap: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.sim-menu .heat .pw-t { font-size: 13px; color: var(--muted); }
+.sim-menu .heat .pw { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; color: var(--muted); }
+.sim-menu .heat .pw > div { display: grid; }
+.sim-menu .heat .pw b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 17px; color: var(--ink); white-space: nowrap; }
+.sim-menu .heat .pw b.over { color: var(--danger); }
+.sim-menu .heat .bar { height: 12px; border-radius: 6px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; margin-top: 4px; }
+.sim-menu .heat .bar i { display: block; height: 100%; border-radius: 6px; }
+.sim-menu .heat .bl { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 13px; color: var(--muted); }
+.sim-menu .heat .bl > * { white-space: nowrap; }
+.sim-menu .heat .bl b { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; color: var(--ink); }
+.sim-menu .heat .bl .end { margin-left: auto; }
+.sim-menu .heat.burnt .bl b { color: var(--danger); }
 .sim-menu .acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .sim-menu .act {
   font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; padding: .45em 1em; border-radius: 999px;
