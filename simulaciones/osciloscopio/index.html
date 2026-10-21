@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021210000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021191700">
 <style>
 /* Botones de forma de onda del generador. */
 .sim-wave {
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021210000"></script>
+<script src="../../assets/sim.js?v=20261021191700"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -248,6 +248,7 @@
   // Switch arriba: agua o electricidad, o ambos (se recuerda en este navegador).
   Sim.viewSwitch();
   const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
+  Sim.magnetRange(inercia, 0.5);   // se engancha en 0, 0,5, 1… s
   const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
   inercia.addEventListener('input', setTau); setTau();
 
@@ -278,11 +279,11 @@
     buttons.push({ pair, text, label, attrs });
     return pair;
   };
-  const linkedKnob = ({ pos, min, max, step, value, label, format, onInput }) => {
+  const linkedKnob = ({ pos, min, max, step, magnet, value, label, format, onInput }) => {
     const ks = {};
     ['w', 'e'].forEach(side => {
       const el = place(side, document.createElement('div'), pos);
-      ks[side] = Sim.knob(el, { min, max, step, value, label: label(side), format: v => format(v, side),
+      ks[side] = Sim.knob(el, { min, max, step, magnet, value, label: label(side), format: v => format(v, side),
         onInput: v => { onInput(v); ks[side === 'w' ? 'e' : 'w'].set(v, true); } });
     });
     return ks;
@@ -318,11 +319,11 @@
     onInput: v => { st.fi = v; }
   });
   linkedKnob({
-    pos: g => [g.GX + 365, g.GY + 112], min: 0, max: 10, step: 0.5, value: st.amp,
+    pos: g => [g.GX + 365, g.GY + 112], min: 0, max: 10, step: 0.5, magnet: 1, value: st.amp,
     label: () => 'Amplitud', format: val, onInput: v => { st.amp = v; }
   });
   linkedKnob({
-    pos: g => [g.GX + 485, g.GY + 112], min: -5, max: 5, step: 0.5, value: st.off,
+    pos: g => [g.GX + 485, g.GY + 112], min: -5, max: 5, step: 0.5, magnet: 1, value: st.off,
     label: side => side === 'w' ? 'Presión base (offset)' : 'Offset', format: val, onInput: v => { st.off = v; }
   });
   // LED (rueda) que se quita o se pone

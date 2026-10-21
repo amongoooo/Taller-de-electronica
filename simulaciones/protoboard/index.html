@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021210000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021191700">
 <style>
 .sim-bar .ctl { gap: 8px; }
 .pb-btn {
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021210000"></script>
+<script src="../../assets/sim.js?v=20261021191700"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -487,7 +487,7 @@
   const openMenu = (side, k) => {
     menuK = k; panels.w.replace(); panels.e.replace();
     const water = side === 'w';
-    const remove = { text: 'Quitar de la protoboard', danger: true, onClick: () => { st.comps = st.comps.filter(c => c !== k); Sim.menu.close(); } };
+    const remove = { text: 'Quitar de la protoboard', danger: true, onClick: () => { st.comps = st.comps.filter(c => c !== k); Sim.menu.close(anchors[side]); } };
     const o = k.type === 'res'
       ? Sim.resistorMenu({ values: RVALUES, get: () => k.R, set: R => { k.R = R; }, format: ohm, actions: [remove] })(side)
       : Sim.ledMenu({ get: () => k.led, set: id => { k.led = id; }, actions: [
@@ -515,7 +515,7 @@
     cv.addEventListener('pointerdown', e => {
       if (st.drag) return;
       const q = toUV(e), hit = Math.max(0.42, 18 / (p.scale * P));
-      const d = { start: q, last: q, moved: false, id: e.pointerId, sx: e.clientX, sy: e.clientY, menu: Sim.menu.isOpen() ? menuK : null };
+      const d = { start: q, last: q, moved: false, id: e.pointerId, sx: e.clientX, sy: e.clientY, menu: Sim.menu.isOpen(anchors[side]) ? menuK : null };
       Sim.menu.close();
       // 1) una pata (menos en el foquito de un LED: tocarlo abre su menú)
       let best = null, bd = hit;
@@ -580,7 +580,8 @@
           }
           if (!done) remove();
         } else if (d.kind === 'body') {
-          if (d.k !== d.menu && (d.k.type === 'res' || d.k.type === 'led')) openMenu(side, d.k);   // tocarlo otra vez lo cierra
+          if (d.k === d.menu) Sim.menu.close(anchors[side]);   // tocarlo otra vez lo cierra
+          else if (d.k.type === 'res' || d.k.type === 'led') openMenu(side, d.k);
         } else if (d.kind === 'battery') { if (!st.fuse) { st.fuse = true; st.fuseHeat = 0; } }
         else {
           const at = d.kind === 'leg' ? d.leg : nearestHole(...q, new Set(), 0.5);

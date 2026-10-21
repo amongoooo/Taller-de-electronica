@@ -20,9 +20,11 @@
   // size puede ser [W, H] fijo o una función (ancho, alto de la caja) → [W, H], para que el dibujo
   // aproveche la forma de la pantalla; cuando cambia se llama p.onLayout().
   // Los controles HTML dentro de .sim-layer se colocan con p.at(el, () => [x, y]) en coordenadas del dibujo.
+  Sim.panels = [];   // todos los paneles de la página (el menú busca dónde hay lugar a la derecha)
   Sim.panel = (box, size) => {
     const canvas = box.querySelector('canvas');
     const p = { box, canvas, W: 0, H: 0, scale: 1, ox: 0, oy: 0, dpr: 1, items: [], onLayout: null };
+    Sim.panels.push(p);
     const place = it => {
       const [x, y] = it.pos();
       it.el.style.left = (p.ox + x * p.scale) + 'px';
@@ -507,7 +509,10 @@
 
   // ---------- perilla ----------
   // el: un elemento vacío; se le agrega la tapa con su marca. Se gira arrastrando, con la rueda del ratón o con las flechas.
-  Sim.knob = (el, { min, max, step, value, label, format, onInput }) => {
+  // Imán: la perilla se queda en su valor hasta que el puntero se pasa bien de la mitad hacia el
+  // siguiente, y los valores redondos (múltiplos de magnet) jalan desde más lejos; al cambiar de valor
+  // salta con un giro corto (y en el celular, una vibración mínima), como si tuviera muescas.
+  Sim.knob = (el, { min, max, step, value, label, format, onInput, magnet = 0 }) => {
     el.classList.add('knob');
     el.tabIndex = 0;
     el.setAttribute('role', 'slider');
@@ -530,7 +535,12 @@
       const r = el.getBoundingClientRect();
       let a = Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI;
       a = Math.max(-135, Math.min(135, a));
-      k.set(min + (a + 135) / 270 * (max - min));
+      let v = min + (a + 135) / 270 * (max - min);
+      if (magnet) { const m = Math.round(v / magnet) * magnet; if (Math.abs(v - m) < 0.3 * magnet && m >= min && m <= max) v = m; }
+      if (Math.abs(v - k.value) < 0.8 * step) return;   // todavía pegada a su valor
+      const old = k.value;
+      k.set(v);
+      if (k.value !== old && e.pointerType === 'touch' && navigator.vibrate) try { navigator.vibrate(4); } catch (err) {}
     };
     el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); el.focus(); fromPointer(e); e.preventDefault(); });
     el.addEventListener('pointermove', e => { if (el.hasPointerCapture(e.pointerId)) fromPointer(e); });
@@ -544,6 +554,12 @@
     k.set(value, true);
     return k;
   };
+
+  // Imán para un slider (input range): cerca de un múltiplo de every, se queda en él.
+  Sim.magnetRange = (inp, every, pull = 0.3) => inp.addEventListener('input', () => {
+    const v = +inp.value, m = Math.round(v / every) * every;
+    if (Math.abs(v - m) <= pull * every + 1e-9 && m >= +inp.min && m <= +inp.max) inp.value = m;
+  });
 
   // ---------- animación ----------
   Sim.run = fn => {
@@ -706,25 +722,45 @@
   //   { actions: [{ text, onClick, hidden, danger }] }   botones (fundir, poner uno nuevo…)
   // Se cierra tocando fuera (menos donde ignore(target) diga), con Esc o con la ×; mientras está abierta se actualiza sola.
   Sim.menu = (() => {
-    let el = null, cur = null, raf = 0;
+    // En una pantalla ancha, si a la derecha del dibujo queda lugar, los menús se acomodan en una
+    // columna ahí (uno debajo del otro, el más nuevo arriba) y se quedan abiertos hasta tocar su × o el
+    // componente otra vez. Si no hay lugar (el celular, o los dos paneles a la vez), es una sola tarjeta
+    // flotante junto al componente, que se cierra al tocar fuera.
+    let cards = [], raf = 0, ready = false;
+    const DOCK_W = 300;
     const val = (f, ...a) => typeof f === 'function' ? f(...a) : f;
     const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-    const close = (focusBack = false) => {
-      if (!cur) return;
-      const a = cur.anchor;
-      cur = null; el.hidden = true; cancelAnimationFrame(raf);
-      a.removeAttribute('aria-expanded');
-      if (focusBack) a.focus();
+    // Lugar libre a la derecha del dibujo, en el panel del componente.
+    const dockFor = anchor => {
+      const p = Sim.panels.find(q => q.box.contains(anchor));
+      if (!p || !p.box.clientWidth) return null;
+      const free = p.box.clientWidth - (p.ox + (p.x0 + p.W) * p.scale);
+      return free >= DOCK_W + 24 ? p : null;
     };
+    const dockEl = p => {
+      let d = p.box.querySelector(':scope > .sim-dock');
+      if (!d) { d = mk('div', 'sim-dock'); p.box.appendChild(d); }
+      return d;
+    };
+    const close = (card, focusBack = false) => {
+      if (!card) return;
+      cards = cards.filter(c => c !== card);
+      card.el.remove();
+      card.anchor.removeAttribute('aria-expanded');
+      if (focusBack) card.anchor.focus();
+    };
+    const closeFloating = () => cards.filter(c => !c.docked).forEach(c => close(c));
     const setup = () => {
-      el = mk('div', 'sim-menu'); el.hidden = true;
-      el.setAttribute('role', 'dialog');
-      document.body.appendChild(el);
-      // tocar fuera la cierra (el componente que la abrió la cierra él mismo, con toggle)
+      ready = true;
+      // tocar fuera cierra la tarjeta flotante (el componente que la abrió la cierra él mismo, con toggle)
       document.addEventListener('pointerdown', e => {
-        if (cur && !el.contains(e.target) && !cur.anchor.contains(e.target) && !(cur.o.ignore && cur.o.ignore(e.target))) close();
+        for (const c of cards) if (!c.docked && !c.el.contains(e.target) && !c.anchor.contains(e.target) && !(c.o.ignore && c.o.ignore(e.target))) close(c);
       }, true);
-      document.addEventListener('keydown', e => { if (cur && e.key === 'Escape') { close(true); e.preventDefault(); } });
+      document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape' || !cards.length) return;
+        const c = cards.find(c => c.el.contains(document.activeElement)) || cards.find(c => !c.docked) || cards[cards.length - 1];
+        close(c, true); e.preventDefault();
+      });
     };
     // Slider: arriba el valor actual, grande, con los de junto a cada lado (se tocan para ir a ellos);
     // abajo una rayita por cada valor de la lista.
@@ -794,9 +830,9 @@
       return { row, sync };
     };
     // Junto al componente: abajo si cabe, si no arriba; en el celular casi a todo lo ancho.
-    const place = () => {
-      const a = cur.anchor.getBoundingClientRect(), vw = innerWidth, vh = innerHeight, M = 8;
-      if (!a.width && !a.height) return close();
+    const place = card => {
+      const el = card.el, a = card.anchor.getBoundingClientRect(), vw = innerWidth, vh = innerHeight, M = 8;
+      if (!a.width && !a.height) return close(card);
       const w = el.offsetWidth, h = el.offsetHeight, cx = a.left + a.width / 2;
       const left = Math.max(M, Math.min(vw - w - M, cx - w / 2));
       let top = a.bottom + 10, below = true;
@@ -808,36 +844,62 @@
       el.dataset.at = below ? 'below' : 'above';
       el.style.setProperty('--ax', Math.max(18, Math.min(w - 18, cx - left)) + 'px');
     };
+    // La columna empieza debajo de lo que haya arriba a la derecha del panel (el selector de colores).
+    const placeDock = p => {
+      const d = dockEl(p), box = p.box.getBoundingClientRect();
+      let top = 12;
+      p.box.querySelectorAll('.sim-layer > .sim-colors').forEach(c => {
+        const r = c.getBoundingClientRect();
+        if (r.height && r.right > box.right - DOCK_W - 40) top = Math.max(top, r.bottom - box.top + 16);
+      });
+      d.style.top = top + 'px'; d.style.width = DOCK_W + 'px';
+    };
     const tick = () => {
-      if (!cur) return;
-      cur.title.textContent = val(cur.o.title);
-      cur.parts.forEach(p => p.sync());
-      place();
+      raf = 0;
+      if (!cards.length) return;
+      for (const c of [...cards]) {
+        if (c.docked && !dockFor(c.anchor)) { close(c); continue; }   // ya no hay lugar (cambió la pantalla)
+        c.title.textContent = val(c.o.title);
+        c.parts.forEach(p => p.sync());
+        if (c.docked) placeDock(c.docked); else place(c);
+      }
       raf = requestAnimationFrame(tick);
     };
     const open = (anchor, o) => {
-      if (!el) setup();
-      if (cur) close();
-      el.innerHTML = '';
+      if (!ready) setup();
+      const old = cards.find(c => c.anchor === anchor);
+      if (old) close(old);
+      const p = dockFor(anchor);
+      if (!p) closeFloating();
+      const el = mk('div', 'sim-menu' + (p ? ' docked' : ''));
+      el.setAttribute('role', 'dialog');
       const hd = mk('div', 'hd'), title = mk('h2', 'ttl'), x = mk('button', 'x', '×');
       x.type = 'button'; x.setAttribute('aria-label', 'Cerrar');
-      x.addEventListener('click', () => close(true));
       hd.append(title, x);
       el.append(hd);
       const parts = o.rows.map(r => r.values ? slider(r) : r.options ? choice(r) : actions(r));
-      parts.forEach(p => el.appendChild(p.row));
-      cur = { anchor, o, title, parts };
+      parts.forEach(q => el.appendChild(q.row));
+      const card = { anchor, o, el, title, parts, docked: p };
+      x.addEventListener('click', () => close(card, true));
+      if (p) {
+        const d = dockEl(p);
+        d.prepend(el);
+        while (d.children.length > 4) { const last = cards.find(c => c.el === d.lastElementChild); if (last) close(last); else d.lastElementChild.remove(); }
+      } else document.body.appendChild(el);
+      cards.push(card);
       anchor.setAttribute('aria-expanded', 'true');
-      el.hidden = false;
       el.setAttribute('aria-label', val(o.title));
-      tick();
+      if (!raf) tick();
       const first = el.querySelector('input, .opt, .act:not([hidden])');
       if (first && anchor.matches(':focus-visible')) first.focus();
     };
+    const find = anchor => cards.find(c => c.anchor === anchor);
     return {
-      open, close,
-      toggle: (anchor, o) => cur && cur.anchor === anchor ? close() : open(anchor, o),
-      isOpen: anchor => !!cur && (!anchor || cur.anchor === anchor)
+      open,
+      // sin anchor cierra la tarjeta flotante (la de la columna se queda)
+      close: anchor => anchor ? close(find(anchor)) : closeFloating(),
+      toggle: (anchor, o) => find(anchor) ? close(find(anchor)) : open(anchor, o),
+      isOpen: anchor => anchor ? !!find(anchor) : cards.some(c => !c.docked)
     };
   })();
 

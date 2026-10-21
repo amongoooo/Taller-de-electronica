@@ -22,7 +22,7 @@ Cada simulación ocupa toda la pantalla: una barra delgada arriba (regreso, tít
 - `Sim.water`: el agua como partículas; avanzan según el volumen que pasa (más rápido en los tramos angostos y en el centro del tubo) y su color indica la rapidez.
 - `Sim.ramp` y `Sim.needle`: inercia (llega al valor en exactamente el tiempo elegido, con curva suave) y agujas con masa y resorte.
 - `Sim.steps`: botones Anterior y Siguiente en la barra para las páginas que van por pasos; con `b.showMeters({ V, I })` del banco se muestran u ocultan los medidores en cada paso.
-- `Sim.knob`: perilla que se gira arrastrando, con la rueda del ratón o con las flechas del teclado.
+- `Sim.knob`: perilla que se gira arrastrando, con la rueda del ratón o con las flechas del teclado. Tiene imán: se queda en su valor hasta que el puntero se pasa bien hacia el siguiente, y los valores redondos (`magnet`) jalan desde más lejos. `Sim.magnetRange` hace lo mismo con un slider (la inercia se engancha en 0, 0,5, 1… s).
 
 **Importante:** cada vez que cambien `assets/sim.css` o `assets/sim.js`, sube el número `?v=` con el que las páginas los cargan, para que el navegador no use una copia vieja guardada.
 
@@ -38,9 +38,9 @@ El manómetro/voltímetro y el medidor de caudal/amperímetro están abajo, junt
 
 ## Resistencias y menú de componentes
 
-Todas las resistencias se cambian pellizcando: se agarra una de las dos marcas (claritas; se pintan de azul con el puntero o el dedo encima) y se mueve, o se pellizca con dos dedos. Con la marca de arriba, subir (arrastrando o con la rueda del ratón) ensancha el tubo y bajar lo angosta; con la de abajo es al revés. Más angosto es más resistencia. También funcionan las flechas. `b.pinch` y `b.grips` en `assets/banco.js` lo hacen para cualquier página. Los valores siempre son comerciales (serie E12: 100, 120, 150… 820 Ω y cada década).
+Todas las resistencias se cambian pellizcando: se agarra una de las dos marcas (no se ven hasta que el puntero o el dedo está encima; entonces salen en gris clarito) y se mueve, o se pellizca con dos dedos. Con la marca de arriba, subir (arrastrando o con la rueda del ratón) ensancha el tubo y bajar lo angosta; con la de abajo es al revés. Más angosto es más resistencia. También funcionan las flechas. `b.pinch` y `b.grips` en `assets/banco.js` lo hacen para cualquier página. Los valores siempre son comerciales (serie E12: 100, 120, 150… 820 Ω y cada década).
 
-Tocar un componente sin arrastrarlo abre su menú, una tarjetita junto a él, sin textos explicativos (`Sim.menu` en `assets/sim.js`; en el celular ocupa casi todo el ancho):
+Tocar un componente sin arrastrarlo abre su menú sin textos explicativos. En la computadora, si a la derecha del dibujo hay lugar, los menús se acomodan en una columna ahí, uno debajo del otro, y se quedan abiertos hasta tocar su ×. Mientras el menú de una resistencia o un capacitor está abierto, su valor sale en azul sobre él (`b.tag`). Si no hay lugar, es una tarjetita junto al componente (`Sim.menu` en `assets/sim.js`; en el celular ocupa casi todo el ancho):
 
 - **Resistencia (tramo angosto):** solo un slider con los valores comunes: arriba el valor actual y, a los lados, el de junto (se tocan para ir a ellos); abajo una rayita por valor.
 - **LED (rueda):** el color; cada uno necesita otro voltaje para encender (rojo 1,8 V, amarillo 2 V, verde 2,2 V, azul 3 V, blanco 3,2 V; en el agua, la presión mínima para que gire la rueda), que se ve junto al nombre. También girarlo y fundirlo o poner uno nuevo.
