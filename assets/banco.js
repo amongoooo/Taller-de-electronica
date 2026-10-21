@@ -135,26 +135,33 @@
       return el;
     };
     // Un botón en cada lado que hacen lo mismo. text(side) da su texto; b.refresh() lo actualiza.
-    // onClick(side, el) recibe el lado y el botón que se tocó.
+    // onClick(side, el) recibe el lado y el botón que se tocó. Con act ('com', 'med'…) también va en su
+    // sección de la columna de controles, y mientras la columna se ve, sale del dibujo.
     const buttons = [];
-    b.linkedButton = ({ pos, text, label, onClick, cls = 'sim-btn small', hidden }) => {
+    const shownSide = () => Sim.view === 'w' ? 'w' : 'e';
+    b.linkedButton = ({ pos, text, label, onClick, cls = 'sim-btn small', hidden, act }) => {
       const pair = ['w', 'e'].map(side => {
         const el = document.createElement('button');
-        el.type = 'button'; el.className = cls;
+        el.type = 'button'; el.className = cls + (act ? ' side-dup' : '');
+        if (act) el.dataset.act = act;
         el.addEventListener('click', () => { onClick(side, el); b.refresh(); });
         return b.place(side, el, pos);
       });
-      buttons.push({ pair, text, label, hidden });
+      const extra = act && Sim.side ? Sim.side.button(act, '', () => { const sd = shownSide(); onClick(sd, pair[sd === 'w' ? 0 : 1]); b.refresh(); }) : null;
+      buttons.push({ pair, text, label, hidden, extra });
       b.refresh();
       return pair;
     };
     b.refresh = () => {
-      buttons.forEach(({ pair, text, label, hidden }) => pair.forEach((el, k) => {
-        const side = k ? 'e' : 'w';
-        if (text) el.textContent = text(side);
-        if (label) el.setAttribute('aria-label', label(side));
-        if (hidden) el.hidden = hidden();
-      }));
+      buttons.forEach(({ pair, text, label, hidden, extra }) => {
+        pair.forEach((el, k) => {
+          const side = k ? 'e' : 'w';
+          if (text) el.textContent = text(side);
+          if (label) el.setAttribute('aria-label', label(side));
+          if (hidden) el.hidden = hidden();
+        });
+        if (extra) { extra.textContent = text(shownSide()); extra.hidden = !!(hidden && hidden()); }
+      });
       choices.forEach(({ pair, get }) => pair.forEach(el =>
         el.querySelectorAll('button').forEach(btn => btn.setAttribute('aria-pressed', String(btn.dataset.v === get())))));
       b.pw.replace(); b.pe.replace();
@@ -162,26 +169,31 @@
     // Selector de opciones (por ejemplo Serie | Paralelo) en cada lado, enlazados: options son
     // [valor, texto]; get() da la opción elegida y set(valor) la cambia.
     const choices = [];
-    b.linkedChoice = ({ pos, options, get, set, label }) => {
-      const pair = ['w', 'e'].map(side => {
+    b.linkedChoice = ({ pos, options, get, set, label, act }) => {
+      const make = () => {
         const el = document.createElement('div');
-        el.className = 'sim-seg'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', label);
+        el.className = 'sim-seg' + (act ? ' side-dup' : ''); el.setAttribute('role', 'group'); el.setAttribute('aria-label', label);
+        if (act) el.dataset.act = act;
         options.forEach(([v, t]) => {
           const btn = document.createElement('button');
           btn.type = 'button'; btn.textContent = t; btn.dataset.v = v;
           btn.addEventListener('click', () => { if (get() !== v) { set(v); b.refresh(); } });
           el.appendChild(btn);
         });
-        return b.place(side, el, pos);
-      });
+        return el;
+      };
+      const pair = ['w', 'e'].map(side => b.place(side, make(), pos));
+      if (act && Sim.side) { const el = make(); el.classList.remove('side-dup'); Sim.side.row(act, label, el); pair.push(el); }
       choices.push({ pair, get });
       b.refresh();
       return pair;
     };
+    Sim.onView(() => b.refresh());   // el botón de la columna dice lo del lado que se ve
     // Un componente que abre su menú al tocarlo (Sim.menu): menu(side) da { title, rows }.
     // Lo que cambia en el menú se ve en los dos lados.
     b.part = ({ pos, label, menu, cls = 'sim-hit', hidden }) => {
       const els = b.linkedButton({ cls, pos, label, hidden, onClick: (side, el) => Sim.menu.toggle(el, menu(side)) });
+      if (Sim.side) Sim.side.part({ anchor: () => els[shownSide() === 'w' ? 0 : 1], menu: () => menu(shownSide()) });
       return { els, open: () => els.some(el => Sim.menu.isOpen(el)) };
     };
     // Una perilla en cada lado, enlazadas. scale(side) da las marcas [texto, fracción]; caption(side) su nombre.
@@ -263,6 +275,7 @@
         });
         setInterval(() => el.setAttribute(menu ? 'aria-description' : 'aria-valuetext', text(get())), 500);
       });
+      if (menu && Sim.side) Sim.side.part({ anchor: () => pr.els[shownSide() === 'w' ? 0 : 1], menu: () => menu(shownSide()) });
       return pr;
     };
     // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde h: no se ven hasta
@@ -279,12 +292,13 @@
     };
     // Nombre y valor de un componente sobre el dibujo, en una línea ("resistencia 1 kΩ"). Mientras su menú
     // está abierto (pr de b.pinch o b.part) el valor va en azul, para ver a qué componente corresponde cada menú.
-    b.tag = (ctx, pr, x, y, name, value, danger) => {
+    // Con left, x es donde empieza (no el centro).
+    b.tag = (ctx, pr, x, y, name, value, danger, left) => {
       const k = Sim.compact ? 1.15 : 1, gap = 7;
       const f1 = `700 ${Math.round(15 * k)}px ${Sim.FONT}`, f2 = `600 ${Math.round(16 * k)}px ${Sim.MONO}`;
       ctx.font = f1; const w1 = ctx.measureText(name).width;
       ctx.font = f2; const w2 = value ? ctx.measureText(value).width : 0;
-      const x0 = x - (w1 + (value ? gap + w2 : 0)) / 2;
+      const x0 = left ? x : x - (w1 + (value ? gap + w2 : 0)) / 2;
       D.text(ctx, name, x0, y, danger ? C.danger : C.muted, { size: 15, align: 'left' });
       if (value) D.text(ctx, value, x0 + w1 + gap, y + 0.5, pr && pr.open && pr.open() ? C.water : C.ink, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
     };
@@ -432,10 +446,11 @@
       const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
       return [v / VMAX, Math.abs(bsg.I) / iFull];
     };
-    // Esquina de arriba a la derecha de cada lado (enlazados): un slider de tres opciones para el modo
-    // de color y, debajo, la barra de colores con lo que marca cada punta. En la electricidad, con el
-    // modo rapidez las cargas van de su color de siempre y no hay barra.
-    const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'] };
+    // Un solo selector del modo de color, en la sección Ver de la columna de controles (sirve para los
+    // dos lados). En la esquina de arriba a la derecha de cada panel queda la barra de colores con lo que
+    // marca cada punta. En la electricidad, con el modo rapidez las cargas van de su color de siempre y no
+    // hay barra.
+    const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'], both: ['rapidez', 'presión / voltaje', 'caudal / corriente'] };
     const ends = side => ({
       v: ['lento', 'rápido'],
       p: side === 'w' ? ['0 psi', VMAX * PSI_PER_V + ' psi'] : ['0 V', VMAX + ' V'],
@@ -443,30 +458,30 @@
     })[Sim.shownColorMode()];
     const pickers = ['w', 'e'].map(side => {
       const el = document.createElement('div');
-      el.className = 'sim-colors'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Color de las partículas');
-      el.innerHTML = '<input type="range" min="0" max="2" step="1" aria-label="Color de las partículas según">' +
-        '<div class="opts">' + COLOR_NAMES[side].map((t, k) => `<button type="button" tabindex="-1" data-k="${k}">${t}</button>`).join('') + '</div>' +
-        '<div class="scale"><span></span><div class="bar"></div><span></span></div>';
-      const inp = el.querySelector('input');
-      const pick = k => { Sim.setColorMode(Sim.COLOR_MODES[k]); syncColors(); };
-      Sim.snapRange(inp);
-      inp.addEventListener('input', () => pick(+inp.value));
-      el.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => pick(+bt.dataset.k)));
+      el.className = 'sim-colors'; el.setAttribute('aria-hidden', 'true');
+      el.innerHTML = '<div class="scale"><span></span><div class="bar"></div><span></span></div>';
       // Si a la derecha del dibujo hay lugar, va hasta la esquina de arriba a la derecha del panel.
       const corner = g => {
         const q = panel(side), bw = q.box.clientWidth || (q.mirror && q.mirror.box.clientWidth) || 0;
-        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(160, q.scale * 210);
+        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(150, q.scale * 190);
         return free >= wpx + 24 ? [(bw - 16 - q.ox) / q.scale, (12 - q.oy) / q.scale] : g.COL;
       };
-      return { side, el: b.place(side, el, corner), inp };
+      return { side, el: b.place(side, el, corner) };
     });
-    const syncColors = () => pickers.forEach(({ side, el, inp }) => {
-      const k = Sim.COLOR_MODES.indexOf(Sim.colorMode);
-      inp.value = k; inp.setAttribute('aria-valuetext', COLOR_NAMES[side][k]);
-      el.querySelectorAll('button').forEach((bt, j) => bt.setAttribute('aria-pressed', String(j === k)));
-      el.dataset.bar = String(side === 'w' || Sim.shownColorMode() !== 'v');
-      el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
-    });
+    const colorSeg = document.createElement('div');
+    colorSeg.className = 'sim-seg three'; colorSeg.setAttribute('role', 'group'); colorSeg.setAttribute('aria-label', 'Color de las partículas');
+    colorSeg.innerHTML = [0, 1, 2].map(k => `<button type="button" data-k="${k}"></button>`).join('');
+    colorSeg.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => { Sim.setColorMode(Sim.COLOR_MODES[+bt.dataset.k]); syncColors(); }));
+    if (Sim.side) Sim.side.row('ver', 'Color de las partículas', colorSeg);
+    const syncColors = () => {
+      const k = Sim.COLOR_MODES.indexOf(Sim.colorMode), names = COLOR_NAMES[Sim.view] || COLOR_NAMES.both;
+      colorSeg.querySelectorAll('button').forEach((bt, j) => { bt.textContent = names[j]; bt.setAttribute('aria-pressed', String(j === k)); });
+      pickers.forEach(({ side, el }) => {
+        el.dataset.bar = String(side === 'w' || Sim.shownColorMode() !== 'v');
+        el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
+      });
+    };
+    Sim.onView(() => syncColors());
     syncColors();
     // Mientras se arrastra una punta, las partículas se colorean por lo que mide (presión o caudal);
     // al soltarla vuelven al modo elegido.
@@ -503,7 +518,9 @@
     // su pantallita, sin la ruedita, las columnas o el tubo. cmp va de 0 a 1 para pasar de uno a otro
     // poco a poco. Compactado se recuerda en este navegador.
     st.mpos = {}; st.mheld = { V: false, I: false };
-    st.compact = { V: false, I: false };
+    // En el celular vertical empiezan compactados, para que el circuito se vea más grande.
+    const small = matchMedia('(max-width: 600px)').matches;
+    st.compact = { V: small, I: small };
     try { Object.assign(st.compact, JSON.parse(localStorage.getItem('sim-compact') || '{}')); } catch (e) {}
     st.cmp = { V: +st.compact.V, I: +st.compact.I };
     // Forma del medidor (sin escalar, desde su centro): abajo de la caja, la pantallita y el nombre.
@@ -726,13 +743,11 @@
       }
       r.A = A;
     };
-    // Botón "Cables" en la barra con un panelito de dos deslizadores.
-    {
-      const wrap = document.createElement('span'), btn = document.createElement('button'), pop = document.createElement('div');
-      wrap.className = 'sim-cable';
-      btn.type = 'button'; btn.className = 'sim-cable-btn'; btn.textContent = 'Cables';
-      btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-controls', 'simCablePop');
-      pop.className = 'sim-cable-pop'; pop.id = 'simCablePop'; pop.hidden = true;
+    // Rigidez e inercia de los cables, en la sección Medir de la columna (plegado, se usa poco).
+    if (Sim.side) {
+      const box = document.createElement('details');
+      box.className = 'sim-cables';
+      box.innerHTML = '<summary>Cables y mangueras</summary>';
       [['stiff', 'Rigidez', 'flojo', 'rígido'], ['inertia', 'Inercia', 'se frena', 'se desliza']].forEach(([k, name, lo, hi]) => {
         const row = document.createElement('label'), inp = document.createElement('input');
         inp.type = 'range'; inp.min = 0; inp.max = 1; inp.step = 0.05; inp.value = cable[k];
@@ -743,14 +758,38 @@
         row.innerHTML = `<span class="name">${name}</span><span class="lo">${lo}</span>`;
         row.appendChild(inp);
         row.insertAdjacentHTML('beforeend', `<span class="hi">${hi}</span>`);
-        pop.appendChild(row);
+        box.appendChild(row);
       });
-      const show = v => { pop.hidden = !v; btn.setAttribute('aria-expanded', String(v)); };
-      btn.addEventListener('click', () => show(pop.hidden));
-      document.addEventListener('pointerdown', e => { if (!wrap.contains(e.target)) show(false); });
-      document.addEventListener('keydown', e => { if (e.key === 'Escape') show(false); });
-      wrap.append(btn, pop);
-      bar.querySelector('.ctl').appendChild(wrap);
+      Sim.side.sec('med').appendChild(box);
+    }
+    // Lecturas en la sección Medir: lo que marca cada medidor conectado, de los lados que se ven (los
+    // medidores que no están conectados dicen "sin conectar"; así hay que medir para saber).
+    if (Sim.side) {
+      const tbl = document.createElement('div');
+      tbl.className = 'sim-read'; tbl.setAttribute('aria-live', 'off');
+      const ROWS = [
+        ['V', 'w', 'Manómetro', () => probeText('V', PSI_PER_V, 'psi')],
+        ['V', 'e', 'Voltímetro', () => probeText('V', 1, 'V')],
+        ['I', 'w', 'Caudalímetro', () => probeText('I', MLS_PER_MA, 'mL/s', 'L/s')],
+        ['I', 'e', 'Amperímetro', () => probeText('I', 1, 'mA', 'A')]
+      ].map(([kind, side, name, read]) => {
+        const r = document.createElement('div');
+        r.className = 'r ' + kind; r.innerHTML = `<span class="nm">${name}</span><span class="vl"></span>`;
+        tbl.appendChild(r);
+        return { r, kind, side, read, vl: r.lastChild };
+      });
+      const body = Sim.side.sec('med');
+      body.prepend(tbl);
+      tbl.after(Object.assign(document.createElement('p'), { className: 'sim-hint',
+        textContent: 'Toca un medidor para conectarlo. Toca una punta para cambiarla entre cable e indicador, o arrástrala para medir en otro lugar.' }));
+      setInterval(() => ROWS.forEach(o => {
+        if (!st.probe[o.kind]) return;   // todavía no arranca
+        o.r.hidden = !st.show[o.kind] || (Sim.view !== 'both' && Sim.view !== o.side);
+        if (o.r.hidden) return;
+        const [t, u] = o.read(), off = /-/.test(t);
+        o.vl.textContent = off ? 'sin conectar' : t.trim() + ' ' + u;
+        o.r.classList.toggle('off', off);
+      }), 200);
     }
     // Botón de recoger en cada medidor (con un conector): como una aspiradora, el medidor jala sus
     // cables (o mangueras). Las puntas conectadas se quedan donde están y su cable se tensa; las que

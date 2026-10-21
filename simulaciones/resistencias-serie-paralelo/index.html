@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021074500">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021081144">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021074500"></script>
-<script src="../../assets/banco.js?v=20261021074500"></script>
+<script src="../../assets/sim.js?v=20261021081144"></script>
+<script src="../../assets/banco.js?v=20261021081144"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -136,8 +136,9 @@
     });
   });
   // Selector Serie | Paralelo arriba del circuito: al centro en la computadora, a la izquierda en el celular.
+  // También va en Cambiar componentes; mientras la columna de controles se ve, sale del dibujo.
   b.linkedChoice({
-    pos: g => g.mode === 'ancho' ? [g.PX, g.TOP - 92] : [g.X0 + 70, g.TOP - 72], label: 'Conexión',
+    pos: g => g.mode === 'ancho' ? [g.PX, g.TOP - 92] : [g.X0 + 70, g.TOP - 72], label: 'Conexión', act: 'com',
     options: [['serie', 'Serie'], ['paralelo', 'Paralelo']],
     get: () => st.mode, set: v => { st.mode = v; }
   });
