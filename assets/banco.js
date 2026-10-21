@@ -1116,6 +1116,8 @@
       // Recoger tensa el cable de una punta conectada: el medidor jala lo que sobra poco a poco
       // (tenso, ya no deja la holgura de siempre hasta que se vuelva a mover)
       if (hk > 0 || st.lift[kind][i]) r.taut = false;
+      // con el botón de los cables encendido, el cable de una punta puesta se mantiene siempre tenso
+      else if (st.taut[kind] && st.placed[kind][i] && !st.floor[kind][i]) r.tense = Math.max(r.tense || 0, 0.1);
       const slack = r.taut || r.tense > 0 ? span * 1.005 + 2 : span * 1.04 + 12;
       if (r.tense > 0) { r.tense -= dt; r.taut = true; r.len += (slack - r.len) * (1 - Math.exp(-dt * 7)); }
       r.len = Math.max(r.len, slack);
@@ -1296,7 +1298,8 @@
     // cables (o mangueras). Las puntas conectadas se quedan donde están y su cable se tensa; las que
     // quedaron en el suelo entran al medidor. Para volver a ponerlas se toca el medidor.
     const reelBtns = [];
-    const syncReel = () => reelBtns.forEach(([el, kind]) => { el.disabled = !st.placed[kind].some(Boolean); });
+    st.taut = { a: false, b: false };   // botón de los cables encendido: siempre tensos
+    const syncReel = () => reelBtns.forEach(([el, kind]) => { el.disabled = !st.placed[kind].some(Boolean) && !st.taut[kind]; });
     const reelIn = kind => {
       if (st.placing) setPlacing(null);
       for (let i = 0; i < NP(kind); i++) {
@@ -1592,7 +1595,17 @@
         syncs.push(() => { bt.hidden = !st.show[kind]; });
         return bt;
       };
-      const rb = button(0, '', () => reelIn(kind));
+      // Interruptor: un toque deja los cables siempre tensos (y guarda los del suelo), otro los suelta.
+      // Dejándolo apretado más de medio segundo es un botón normal: los tensa una vez.
+      let downAt = 0;
+      const rb = button(0, '', e => {
+        if (e.detail && performance.now() - downAt > 500) { reelIn(kind); return; }
+        st.taut[kind] = !st.taut[kind];
+        if (st.taut[kind]) reelIn(kind);
+        syncs.forEach(f => f());
+      });
+      rb.addEventListener('pointerdown', () => { downAt = performance.now(); st.hold[kind] = true; b.pw.replace(); b.pe.replace(); });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => rb.addEventListener(t, () => { st.hold[kind] = false; }));
       reelBtns.push([rb, kind]);
       const cb = button(1, '', () => {
         st.compact[kind] = !st.compact[kind];
@@ -1600,8 +1613,8 @@
         syncs.forEach(f => f());
       });
       syncs.push(() => {
-        const label = `Recoger ${what} del ${meterName(kind, side)}: tensa lo conectado y guarda lo que está en el suelo`;
-        rb.setAttribute('aria-label', label); rb.title = label;
+        const label = st.taut[kind] ? `Soltar ${what} del ${meterName(kind, side)}` : `Tensar ${what} del ${meterName(kind, side)} (siempre); apretado medio segundo, solo una vez`;
+        rb.setAttribute('aria-label', label); rb.title = label; rb.setAttribute('aria-pressed', String(st.taut[kind]));
         const c = st.compact[kind], cl = c ? `Mostrar ${name()} completo` : `Compactar ${name()}: solo la pantallita y la perilla`;
         cb.setAttribute('aria-pressed', String(c));
         cb.setAttribute('aria-label', cl); cb.title = c ? 'Mostrar completo' : 'Compactar';
@@ -1856,13 +1869,15 @@
       ctx.restore();
     };
     // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
-    st.press = { a: [0, 0], b: [0, 0] };
+    st.press = { a: [0, 0], b: [0, 0] }; st.hold = { a: false, b: false };
     const physButton = (ctx, kind, i, [bx, by], sh) => {
-      const w = sh.bw, h = sh.bh, p = st.press[kind][i] > performance.now() ? 1 : 0, off = i === 0 && !st.placed[kind].some(Boolean);
+      const on = i === 0 && st.taut[kind];   // el de los cables se queda hundido mientras está encendido
+      const w = sh.bw, h = sh.bh, p = st.press[kind][i] > performance.now() || on || (i === 0 && st.hold[kind]) ? 1 : 0, off = i === 0 && !on && !st.placed[kind].some(Boolean);
       ctx.save();
       if (off) ctx.globalAlpha *= 0.55;
       D.roundRect(ctx, bx - w / 2, by - h / 2 + 2, w, h, 4, '#1b242c');   // la base
       D.roundRect(ctx, bx - w / 2, by - h / 2 + p * 1.5, w, h - 1.5, 4, p ? '#8e9aa4' : '#a9b4bd', '#1b242c', 1.2);
+      if (i === 0) D.circle(ctx, bx + w / 2 - 3.5, by - h / 2 + 3.5 + p * 1.5, 1.8, on ? '#22e06b' : '#5b6670');   // su lucecita
       ctx.translate(bx, by + p * 1.5 - 0.5);
       const k = h / 16, ink = '#1b242c';
       ctx.scale(k, k);
@@ -1887,11 +1902,11 @@
       const r = st.probe[kind], ok = st.show[kind] && ready(kind) && r, s = water ? PSI_PER_V : 1, u = water ? 'psi' : 'V';
       ctx.save(); ctx.globalAlpha *= 1 - sh.c;
       [[r && r.va, RED, '+'], [r && r.vb, C.neg, '−']].forEach(([v, col, t], i) => {
-        const y = sh.cmp + i * 13, f = ok ? Math.max(0, Math.min(1, v / 12)) : 0;
+        const y = sh.cmp + i * 13, f = ok ? Math.max(0, Math.min(1, v / VMAX)) : 0;
         D.circle(ctx, -58, y, 4.5, col);
         D.text(ctx, t, -58, y - 0.5, col === RED ? '#fff' : C.card, { size: 9, weight: 800 });
         D.roundRect(ctx, -50, y - 3.5, 66, 7, 3.5, C.card, C.muted, 1);
-        if (f > 0) D.roundRect(ctx, -50, y - 3.5, Math.max(7, 66 * f), 7, 3.5, MCOL.V);
+        if (ok) D.roundRect(ctx, -50, y - 3.5, Math.max(7, 66 * f), 7, 3.5, Sim.speedColor(v / VMAX));   // del color de las partículas en presión
         D.text(ctx, ok ? Sim.reading(v * s) + ' ' + u : '—', 62, y, C.ink, { size: 11, weight: 700, align: 'right' });
       });
       ctx.restore();
