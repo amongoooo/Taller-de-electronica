@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021191700">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021074500">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021191700"></script>
-<script src="../../assets/banco.js?v=20261021191700"></script>
+<script src="../../assets/sim.js?v=20261021074500"></script>
+<script src="../../assets/banco.js?v=20261021074500"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -109,7 +109,7 @@
       D.wire(ctx, g.loop);
       D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
       if (st.R) D.resistor(ctx, g.PX, g.TOP);
-      b.tag(ctx, pinch, g.PX, g.TOP - half(st.R) - 35, st.R ? 'resistencia' : 'sin resistencia', st.R ? ohm(st.R) : '0 Ω', !st.R);   // el valor, con su menú abierto
+      b.tag(ctx, pinch, g.PX, g.TOP - half(st.R) - 35, st.R ? 'resistencia' : 'sin resistencia', st.R ? ohm(st.R) : '0 Ω', !st.R);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
       D.knifeSwitch(ctx, XV, g.TOP, st.closed);
       const [jx, jy] = shake();

@@ -509,9 +509,10 @@
 
   // ---------- perilla ----------
   // el: un elemento vacío; se le agrega la tapa con su marca. Se gira arrastrando, con la rueda del ratón o con las flechas.
-  // Imán: la perilla se queda en su valor hasta que el puntero se pasa bien de la mitad hacia el
-  // siguiente, y los valores redondos (múltiplos de magnet) jalan desde más lejos; al cambiar de valor
-  // salta con un giro corto (y en el celular, una vibración mínima), como si tuviera muescas.
+  // Imán: la perilla se queda en su valor hasta que el puntero se pasa bien hacia el siguiente (mientras,
+  // solo se estira un poquito hacia él, como jalada por un imán), y los valores redondos (múltiplos de
+  // magnet) jalan desde más lejos; al cambiar de valor salta con un giro con rebote (y en el celular, una
+  // vibración mínima), como si tuviera muescas.
   Sim.knob = (el, { min, max, step, value, label, format, onInput, magnet = 0 }) => {
     el.classList.add('knob');
     el.tabIndex = 0;
@@ -522,11 +523,12 @@
     el.innerHTML = '<div class="knob-cap"><span class="knob-mark"></span></div>';
     const cap = el.firstChild;
     const k = { value: min };
+    const angle = v => -135 + 270 * (v - min) / (max - min);
     // quiet = true cambia la perilla sin avisar (para perillas enlazadas).
     k.set = (v, quiet) => {
       v = Math.min(max, Math.max(min, Math.round((v - min) / step) * step + min));
       k.value = v;
-      cap.style.transform = `rotate(${-135 + 270 * (v - min) / (max - min)}deg)`;
+      cap.style.transform = `rotate(${angle(v)}deg)`;
       el.setAttribute('aria-valuenow', v);
       el.setAttribute('aria-valuetext', format ? format(v) : String(v));
       if (!quiet && onInput) onInput(v);
@@ -536,14 +538,18 @@
       let a = Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI;
       a = Math.max(-135, Math.min(135, a));
       let v = min + (a + 135) / 270 * (max - min);
-      if (magnet) { const m = Math.round(v / magnet) * magnet; if (Math.abs(v - m) < 0.3 * magnet && m >= min && m <= max) v = m; }
-      if (Math.abs(v - k.value) < 0.8 * step) return;   // todavía pegada a su valor
+      if (magnet) { const m = Math.round(v / magnet) * magnet; if (Math.abs(v - m) < 0.38 * magnet && m >= min && m <= max) v = m; }
       const old = k.value;
-      k.set(v);
-      if (k.value !== old && e.pointerType === 'touch' && navigator.vibrate) try { navigator.vibrate(4); } catch (err) {}
+      if (Math.abs(v - k.value) >= 0.9 * step) k.set(v);   // si no, todavía pegada a su valor
+      if (k.value !== old && e.pointerType === 'touch' && navigator.vibrate) try { navigator.vibrate(6); } catch (err) {}
+      const pull = Math.max(-7, Math.min(7, 0.3 * (a - angle(k.value))));   // el estirón hacia el puntero
+      cap.style.transform = `rotate(${angle(k.value) + pull}deg)`;
     };
+    const release = () => { cap.style.transform = `rotate(${angle(k.value)}deg)`; };
     el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); el.focus(); fromPointer(e); e.preventDefault(); });
     el.addEventListener('pointermove', e => { if (el.hasPointerCapture(e.pointerId)) fromPointer(e); });
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
     el.addEventListener('wheel', e => { e.preventDefault(); k.set(k.value + (e.deltaY < 0 ? step : -step)); }, { passive: false });
     el.addEventListener('keydown', e => {
       const d = { ArrowUp: step, ArrowRight: step, ArrowDown: -step, ArrowLeft: -step, PageUp: 4 * step, PageDown: -4 * step }[e.key];
@@ -555,11 +561,40 @@
     return k;
   };
 
-  // Imán para un slider (input range): cerca de un múltiplo de every, se queda en él.
-  Sim.magnetRange = (inp, every, pull = 0.3) => inp.addEventListener('input', () => {
-    const v = +inp.value, m = Math.round(v / every) * every;
-    if (Math.abs(v - m) <= pull * every + 1e-9 && m >= +inp.min && m <= +inp.max) inp.value = m;
-  });
+  // Imán para un slider (input range): se queda pegado a su valor (solo se estira un poco hacia el dedo)
+  // hasta que el puntero se pasa bien hacia el siguiente, y entonces salta con un pequeño latido (y en el
+  // celular, una vibración mínima). Los múltiplos de magnet jalan desde más lejos. Se llama antes de
+  // agregarle al slider sus otros 'input', que solo se enteran cuando de verdad cambia de valor.
+  Sim.snapRange = (inp, { step = +inp.step || 1, magnet = 0 } = {}) => {
+    const min = +inp.min, max = +inp.max;
+    const q = v => +Math.min(max, Math.max(min, Math.round((v - min) / step) * step + min)).toFixed(6);
+    let cur = q(+inp.value), touch = false, beat = 0;
+    inp.step = 'any';
+    const grab = e => { cur = q(+inp.value); touch = e && e.pointerType === 'touch'; };
+    inp.addEventListener('pointerdown', grab);
+    inp.addEventListener('focus', () => grab());
+    inp.addEventListener('input', e => {
+      const v = +inp.value;
+      let n = Math.abs(v - cur) < 0.9 * step ? cur : q(v);
+      if (magnet) { const m = Math.round(v / magnet) * magnet; if (Math.abs(v - m) < 0.38 * magnet && m >= min && m <= max) n = q(m); }
+      if (n === cur) { inp.value = cur + 0.25 * (v - cur); e.stopImmediatePropagation(); return; }
+      cur = n; inp.value = n;
+      inp.classList.remove('snap-a', 'snap-b'); inp.classList.add(beat++ % 2 ? 'snap-a' : 'snap-b');
+      if (touch && navigator.vibrate) try { navigator.vibrate(6); } catch (err) {}
+    });
+    const settle = () => { inp.value = cur = q(+inp.value); };
+    inp.addEventListener('change', settle);
+    inp.addEventListener('pointerup', () => { inp.value = cur; });
+    // con step 'any' las flechas moverían casi nada: van de un valor al siguiente
+    inp.addEventListener('keydown', e => {
+      const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
+      if (!d) return;
+      e.preventDefault(); cur = q(+inp.value);
+      inp.value = q(cur + d * step);
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    return inp;
+  };
 
   // ---------- animación ----------
   Sim.run = fn => {
@@ -772,6 +807,7 @@
       const inp = mk('input');
       inp.type = 'range'; inp.min = 0; inp.max = r.values.length - 1; inp.step = 1;
       inp.setAttribute('aria-label', r.label);
+      Sim.snapRange(inp);
       const ticks = mk('div', 'ticks');
       r.values.forEach(() => ticks.appendChild(mk('span')));
       row.append(top, inp, ticks);
@@ -782,7 +818,7 @@
       next.addEventListener('click', () => go(index() + 1));
       const sync = () => {
         const i = index(), n = r.values.length;
-        if (document.activeElement !== inp || +inp.value !== i) inp.value = i;
+        if (document.activeElement !== inp || Math.round(+inp.value) !== i) inp.value = i;
         out.textContent = r.format(r.get());
         inp.setAttribute('aria-valuetext', out.textContent);
         prev.textContent = i > 0 ? r.format(r.values[i - 1]) : '';

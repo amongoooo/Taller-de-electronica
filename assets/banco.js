@@ -277,11 +277,16 @@
         D.arrow(ctx, x + 24, yy, sgn * Math.PI / 2, 5, col);
       }
     };
-    // Nombre de un componente sobre el dibujo; mientras su menú está abierto (pr de b.pinch o b.part)
-    // dice su valor, en azul, para ver a qué componente corresponde cada menú.
+    // Nombre y valor de un componente sobre el dibujo, en una línea ("resistencia 1 kΩ"). Mientras su menú
+    // está abierto (pr de b.pinch o b.part) el valor va en azul, para ver a qué componente corresponde cada menú.
     b.tag = (ctx, pr, x, y, name, value, danger) => {
-      if (pr && pr.open && pr.open()) D.text(ctx, value, x, y, C.water, { size: 18, font: Sim.MONO, weight: 500 });
-      else D.text(ctx, name, x, y, danger ? C.danger : C.muted, { size: 15 });
+      const k = Sim.compact ? 1.15 : 1, gap = 7;
+      const f1 = `700 ${Math.round(15 * k)}px ${Sim.FONT}`, f2 = `600 ${Math.round(16 * k)}px ${Sim.MONO}`;
+      ctx.font = f1; const w1 = ctx.measureText(name).width;
+      ctx.font = f2; const w2 = value ? ctx.measureText(value).width : 0;
+      const x0 = x - (w1 + (value ? gap + w2 : 0)) / 2;
+      D.text(ctx, name, x0, y, danger ? C.danger : C.muted, { size: 15, align: 'left' });
+      if (value) D.text(ctx, value, x0 + w1 + gap, y + 0.5, pr && pr.open && pr.open() ? C.water : C.ink, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
     };
 
     // ---------- controlador: bomba y fuente enlazadas ----------
@@ -315,7 +320,7 @@
     b.knobs.length = 0;   // las escalas de estas perillas las dibuja la caja del controlador
 
     const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
-    Sim.magnetRange(inercia, 0.5);   // se engancha en 0, 0,5, 1… s
+    Sim.snapRange(inercia, { magnet: 0.5 });   // pasa de 0,1 en 0,1 s y se engancha en 0, 0,5, 1… s
     const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
     inercia.addEventListener('input', setTau); setTau();
 
@@ -444,9 +449,16 @@
         '<div class="scale"><span></span><div class="bar"></div><span></span></div>';
       const inp = el.querySelector('input');
       const pick = k => { Sim.setColorMode(Sim.COLOR_MODES[k]); syncColors(); };
+      Sim.snapRange(inp);
       inp.addEventListener('input', () => pick(+inp.value));
       el.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => pick(+bt.dataset.k)));
-      return { side, el: b.place(side, el, g => g.COL), inp };
+      // Si a la derecha del dibujo hay lugar, va hasta la esquina de arriba a la derecha del panel.
+      const corner = g => {
+        const q = panel(side), bw = q.box.clientWidth || (q.mirror && q.mirror.box.clientWidth) || 0;
+        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(160, q.scale * 210);
+        return free >= wpx + 24 ? [(bw - 16 - q.ox) / q.scale, (12 - q.oy) / q.scale] : g.COL;
+      };
+      return { side, el: b.place(side, el, corner), inp };
     });
     const syncColors = () => pickers.forEach(({ side, el, inp }) => {
       const k = Sim.COLOR_MODES.indexOf(Sim.colorMode);

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021191700">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021074500">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021191700"></script>
-<script src="../../assets/banco.js?v=20261021191700"></script>
+<script src="../../assets/sim.js?v=20261021074500"></script>
+<script src="../../assets/banco.js?v=20261021074500"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -135,10 +135,10 @@
       const rs = st.mode === 'serie' ? [0] : [0, 1];
       rs.forEach(k => D.narrow(ctx, XR, rPos(g, k)[1], half(st.R[k])));
       keys.forEach(k => s.water[k].draw(ctx));
-      rs.forEach(k => b.grips(ctx, XR, rPos(g, k)[1], half(st.R[k]) + 5, pinch[k]));
+      rs.forEach(k => { const y = rPos(g, k)[1]; b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k]); b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), ohm(st.R[k])); });
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
-        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1), tint: `rgb(${Sim.led(st.led[i]).rgb})` });
+        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1) + ' ' + st.led[i].replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led[i]).rgb})` });
       });
     },
     drawE(ctx, g, m) {
@@ -149,11 +149,11 @@
         const y = rPos(g, k)[1];
         D.resistor(ctx, XR, y);
         b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k]);
-        b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), ohm(st.R[k]));   // el valor, con su menú abierto
+        b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), ohm(st.R[k]));
       });
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
-        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1), rgb: Sim.led(st.led[i]).rgb });
+        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1) + ' ' + st.led[i], rgb: Sim.led(st.led[i]).rgb });
       });
     }
   });

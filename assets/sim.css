@@ -135,7 +135,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   border: 2px solid var(--ink); box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
 }
 .knob:active { cursor: grabbing; }
-.knob-cap { position: absolute; inset: 0; border-radius: 50%; transition: transform .09s cubic-bezier(.3, 1.6, .6, 1); }   /* salta a cada muesca */
+.knob-cap { position: absolute; inset: 0; border-radius: 50%; transition: transform .16s cubic-bezier(.3, 2.2, .5, 1); }   /* salta a cada muesca con rebote */
 .knob-mark {
   position: absolute; left: 50%; top: 9%; width: 13%; height: 34%;
   transform: translateX(-50%); border-radius: 99px; background: var(--water);
@@ -423,7 +423,15 @@ span.sim-go { visibility: hidden; width: 38px; padding: 0; }
 .sim-seg button[aria-pressed="true"] { background: var(--water); color: var(--card); }
 
 /* Columna de menús a la derecha del dibujo, en pantallas anchas (Sim.menu). */
-.sim-dock { position: absolute; right: 16px; z-index: 5; display: grid; gap: 14px; max-height: calc(100% - 24px); overflow-y: auto; }
+.sim-dock { position: absolute; right: 0; z-index: 5; display: grid; align-content: start; gap: 14px; padding: 4px 16px 36px; max-height: calc(100% - 24px); overflow-y: auto; }
 .sim-dock:empty { display: none; }
-.sim-menu.docked { position: static; width: auto; box-shadow: none; border-color: transparent; padding: 4px 4px 8px; background: transparent; }
+.sim-menu.docked { position: static; width: auto; }   /* la misma tarjeta flotante, solo que en la columna */
 .sim-menu.docked::before { display: none; }
+
+/* Imán de los sliders (Sim.snapRange): al saltar a otro valor, el botón da un pequeño latido. */
+@keyframes sim-snap-a { 40% { transform: scale(1.35); } }
+@keyframes sim-snap-b { 40% { transform: scale(1.35); } }
+input[type="range"].snap-a::-webkit-slider-thumb { animation: sim-snap-a .2s ease-out; }
+input[type="range"].snap-b::-webkit-slider-thumb { animation: sim-snap-b .2s ease-out; }
+input[type="range"].snap-a::-moz-range-thumb { animation: sim-snap-a .2s ease-out; }
+input[type="range"].snap-b::-moz-range-thumb { animation: sim-snap-b .2s ease-out; }
