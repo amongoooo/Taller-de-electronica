@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021190025">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021190734">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021190025"></script>
-<script src="../../assets/banco.js?v=20261021190025"></script>
+<script src="../../assets/sim.js?v=20261021190734"></script>
+<script src="../../assets/banco.js?v=20261021190734"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -113,7 +113,7 @@
       D.valve(ctx, XV, g.TOP, st.closed);
       const [jx, jy] = shake();
       if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 60, 30, 46, lh.glow);
-      D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, label: 'rueda', tint: `rgb(${Sim.led(st.led).rgb})` });
+      D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, label: 'rueda ' + st.led.replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led).rgb})` });
       drawBreak(ctx, g, true);
     },
     drawE(ctx, g, m) {
@@ -129,7 +129,7 @@
       D.knifeSwitch(ctx, XV, g.TOP, st.closed);
       const [jx, jy] = shake();
       if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 230, 140, 56, lh.glow);
-      D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: m.I, broken: st.broken, rev: st.rev, rgb: Sim.led(st.led).rgb });
+      D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: m.I, broken: st.broken, rev: st.rev, label: 'LED ' + st.led, rgb: Sim.led(st.led).rgb });
       drawBreak(ctx, g, false);
     }
   });

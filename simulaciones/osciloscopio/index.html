@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021190025">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021190734">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* Botones de forma de onda del generador. */
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021190025"></script>
+<script src="../../assets/sim.js?v=20261021190734"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -520,7 +520,7 @@
     }
     // Lecturas: escalas arriba y mediciones abajo.
     // Cada lectura lleva un fondo del color de la pantalla para que la traza no la tape.
-    const k = 1, u = unitV(g.side), opt = { size: 13, font: Sim.MONO, weight: 500 };
+    const k = 1, u = unitV(g.side), opt = { size: 14, font: Sim.MONO, weight: 500 };
     const read = (t, x, y, align) => {
       D.text(ctx, t, -999, -999, txt, { ...opt, align });   // solo para fijar la letra y medir
       const tw = ctx.measureText(t).width, x0 = align === 'left' ? x : align === 'right' ? x - tw : x - tw / 2;
@@ -539,7 +539,7 @@
     D.knobScale(ctx, g.SX + 500, g.SY + 250, 36, [['1 ms', 0.1], ['10 ms', 0.4], ['1 s', 1]], TDIV.length - 1);
     D.text(ctx, 'tiempo/div', g.SX + 500, g.SY + 308, C.muted, { size: 14 });
     g.jacks.forEach(([jx, jy], k2) => D.circle(ctx, jx, jy, 8, tipColor(k2), C.ink, 1.5));
-    if (!w) D.text(ctx, 'CH1', g.SX + 44, g.SY + 396, C.muted, { size: 13, align: 'right' });
+    if (!w) D.text(ctx, 'CH1', g.SX + 44, g.SY + 396, C.muted, { size: 14, align: 'right' });
   };
 
   function drawWater() {
@@ -551,7 +551,7 @@
     if (st.led) {
       const a = clamp01((st.shut - 0.5) * 3);   // con la presión al revés: compuerta cerrada
       D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, label: a > 0.5 ? '' : 'rueda' });
-      if (a > 0.5) { ctx.globalAlpha = a; D.text(ctx, 'compuerta cerrada', g.XL, g.TOP + 48, C.danger, { size: 15 }); ctx.globalAlpha = 1; }
+      if (a > 0.5) { ctx.globalAlpha = a; D.text(ctx, 'compuerta cerrada', g.XL, g.TOP + 48, C.danger, { size: 15, bg: true }); ctx.globalAlpha = 1; }
     }
     D.speedLegend(ctx, g.X0 + 30, g.BOT - 46, 150);
     drawScope(ctx, g);
@@ -565,7 +565,7 @@
     D.wire(ctx, g.loop);
     D.flow(ctx, g.loop, st.charge, C.charge, { gap: 30, r: 4.5 });
     D.resistor(ctx, g.XR, g.TOP);
-    D.text(ctx, '470 Ω', g.XR, g.TOP - 30, C.muted, { size: 14 });
+    D.text(ctx, '470 Ω', g.XR, g.TOP - 30, C.muted, { size: 14, bg: true });
     if (st.led) D.ledSymbol(ctx, g.XL, g.TOP, { I: st.glow, label: 'LED' });
     drawScope(ctx, g);
     drawGen(ctx, g);

@@ -313,15 +313,25 @@
     };
     // Nombre y valor de un componente sobre el dibujo, en una línea ("resistencia 1 kΩ"). Mientras su menú
     // está abierto (pr de b.pinch o b.part) el valor va en azul, para ver a qué componente corresponde cada menú.
-    // Con left, x es donde empieza (no el centro).
-    b.tag = (ctx, pr, x, y, name, value, danger, left) => {
-      const k = Sim.compact ? 1.15 : 1, gap = 7;
-      const f1 = `700 ${Math.round(15 * k)}px ${Sim.FONT}`, f2 = `600 ${Math.round(16 * k)}px ${Sim.MONO}`;
+    // Con left, x es donde empieza (no el centro). Con stack, el valor va debajo del nombre (en dos
+    // renglones, para los lugares angostos). Lleva el fondo de la tarjeta, como los demás letreros (D.text bg).
+    b.tag = (ctx, pr, x, y, name, value, danger, left, stack) => {
+      const k = Sim.compact ? 1.15 : 1, gap = 7, px = Math.round(16 * k);
+      const f1 = `700 ${Math.round(15 * k)}px ${Sim.FONT}`, f2 = `600 ${px}px ${Sim.MONO}`;
       ctx.font = f1; const w1 = ctx.measureText(name).width;
       ctx.font = f2; const w2 = value ? ctx.measureText(value).width : 0;
-      const x0 = left ? x : x - (w1 + (value ? gap + w2 : 0)) / 2;
+      const vcol = pr && pr.open && pr.open() ? C.water : C.ink;
+      if (stack && value) {
+        const w = Math.max(w1, w2), cx = left ? x + w / 2 : x, dy = Math.round(9 * k);
+        D.backdrop(ctx, cx - w1 / 2, y - dy, w1, px); D.backdrop(ctx, cx - w2 / 2, y + dy, w2, px);
+        D.text(ctx, name, cx, y - dy, danger ? C.danger : C.muted, { size: 15 });
+        D.text(ctx, value, cx, y + dy + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600 });
+        return;
+      }
+      const w = w1 + (value ? gap + w2 : 0), x0 = left ? x : x - w / 2;
+      D.backdrop(ctx, x0, y, w, px);
       D.text(ctx, name, x0, y, danger ? C.danger : C.muted, { size: 15, align: 'left' });
-      if (value) D.text(ctx, value, x0 + w1 + gap, y + 0.5, pr && pr.open && pr.open() ? C.water : C.ink, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
+      if (value) D.text(ctx, value, x0 + w1 + gap, y + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
     };
 
     // ---------- controlador: bomba y fuente enlazadas ----------
@@ -788,11 +798,11 @@
       const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
       return [v / VMAX, Math.abs(bsg.I) / iFull];
     };
-    // Modo de color: en la esquina de arriba a la derecha de cada panel, la barra de colores con lo que
-    // marca cada punta y tres puntitos, uno por modo. Tocar la barra pasa al modo siguiente, deslizar el
+    // Modo de color: en la esquina de arriba a la derecha de cada panel, arriba qué colorea ("color: rapidez")
+    // con tres puntitos, uno por modo, y debajo la barra de colores con lo que marca cada punta. Tocar la barra pasa al modo siguiente, deslizar el
     // dedo hacia un lado o el otro avanza o regresa, y tocar un puntito va a ese modo. También se elige en
     // la sección Ver de Controles. En la electricidad, con el modo rapidez las cargas van de su color de
-    // siempre: en vez de la barra dice "normal".
+    // siempre: en vez de la barra dice que todas van del mismo color.
     const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'], both: ['rapidez', 'presión / voltaje', 'caudal / corriente'] };
     const ends = side => ({
       v: ['lento', 'rápido'],
@@ -802,8 +812,8 @@
     const pickers = ['w', 'e'].map(side => {
       const el = document.createElement('div');
       el.className = 'sim-colors'; el.dataset.act = 'ver'; el.tabIndex = 0; el.setAttribute('role', 'button');
-      el.innerHTML = '<div class="scale"><span></span><div class="bar"></div><span></span></div><span class="mode"></span>' +
-        '<span class="dots">' + [0, 1, 2].map(k => `<i data-k="${k}"></i>`).join('') + '</span>';
+      el.innerHTML = '<div class="hd"><span class="mode"></span><span class="dots">' + [0, 1, 2].map(k => `<i data-k="${k}"></i>`).join('') + '</span></div>' +
+        '<div class="scale"><span></span><div class="bar"></div><span></span></div><div class="plain">todas del mismo color</div>';
       const turn = d => { const k = Sim.COLOR_MODES.indexOf(Sim.colorMode); Sim.setColorMode(Sim.COLOR_MODES[(k + d + 3) % 3]); syncColors(); };
       let x0 = null;
       el.addEventListener('pointerdown', e => { x0 = e.clientX; el.setPointerCapture(e.pointerId); e.preventDefault(); });
@@ -823,7 +833,7 @@
       // Si a la derecha del dibujo hay lugar, va hasta la esquina de arriba a la derecha del panel.
       const corner = g => {
         const q = panel(side), bw = q.box.clientWidth || (q.mirror && q.mirror.box.clientWidth) || 0;
-        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(180, q.scale * 222);
+        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(210, q.scale * 240);
         return free >= wpx + 24 ? [(bw - 16 - q.ox) / q.scale, (12 - q.oy) / q.scale] : g.COL;
       };
       return { side, el: b.place(side, el, corner) };
@@ -840,7 +850,7 @@
         const m = Sim.COLOR_MODES.indexOf(Sim.shownColorMode());
         el.dataset.bar = String(side === 'w' || m > 0);
         el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
-        el.querySelector('.mode').textContent = COLOR_NAMES[side][m];
+        el.querySelector('.mode').textContent = 'color: ' + COLOR_NAMES[side][m];
         el.querySelectorAll('.dots i').forEach((d, j) => d.classList.toggle('on', j === k));
         el.setAttribute('aria-label', `Color de las partículas: ${COLOR_NAMES[side][k]}. Tocar para cambiar`);
       });
@@ -1710,9 +1720,9 @@
       // Encienden con la salida, desde 0.05 psi (0.05 V) adentro de la fuente.
       const out = st.v > 0.05;
       D.led(ctx, g.BX + 86, g.BY + 74, out && !st.cc ? 1 : 0);
-      D.text(ctx, leds[0], g.BX + 86, g.BY + 92, C.ink, { size: 10, weight: 700 });
+      D.text(ctx, leds[0], g.BX + 86, g.BY + 93, C.ink, { size: 11, weight: 700 });
       D.led(ctx, g.BX + 86, g.BY + 112, out && st.cc ? 1 : 0, '#ff4a3d');
-      D.text(ctx, leds[1], g.BX + 86, g.BY + 130, C.ink, { size: 10, weight: 700 });
+      D.text(ctx, leds[1], g.BX + 86, g.BY + 131, C.ink, { size: 11, weight: 700 });
     };
     // Tierra común: el − de la fuente es la referencia de 0 V de todo el circuito (en el agua, la salida
     // hacia la bomba es la referencia de 0 psi). Su símbolo cuelga del cable de abajo, junto a la fuente.
@@ -1721,12 +1731,12 @@
       const [x, y] = b.ground(g), y0 = y + r + ((g.side === 'w' ? RN + 5 : RN) - r) * e, yb = y0 + (27 - r) + (r - 5) * e;
       D.line(ctx, [[x, y0], [x, yb]], 3, C.ink, 'butt');
       [[13, 0], [8.5, 5], [4, 10]].forEach(([w, dy]) => D.line(ctx, [[x - w, yb + dy], [x + w, yb + dy]], 3, C.ink, 'butt'));
-      D.text(ctx, g.side === 'w' ? '0 psi' : '0 V', x + 18, yb + 6, C.muted, { size: 12, align: 'left' });
+      D.text(ctx, g.side === 'w' ? '0 psi' : '0 V', x + 18, yb + 6, C.muted, { size: 14, align: 'left', bg: true });
     };
     const knobScales = (ctx, g) => b.knobs.forEach(k => {
       const [x, y] = k.pos(g);
       D.knobScale(ctx, x, y, 36, k.scale(g.side), k.ticks);
-      if (k.caption) D.text(ctx, k.caption(g.side), x, y + 58, C.muted, { size: 14 });
+      if (k.caption) D.text(ctx, k.caption(g.side), x, y + 58, C.muted, { size: 14, bg: true });
     });
 
     // Cables (o mangueras con agua) de un medidor. Se dibujan antes que el circuito, el controlador
@@ -1857,15 +1867,15 @@
       });
       const [, cny] = rim(sh, st.jpos[kind]), ly = sh.label + Math.max(0, Math.min(1, (cny - sh.bottom) / 3)) * 16;
       if (placing) {
-        D.text(ctx, 'toca el circuito para', 0, ly, col, { size: 12 });
-        D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 16, st.placing.i ? C.neg : RED, { size: 13 });
+        D.text(ctx, 'toca el circuito para', 0, ly, col, { size: 14, bg: true });
+        D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 18, st.placing.i ? C.neg : RED, { size: 14, bg: true });
       } else if (blown) {   // en A con las puntas en dos nodos: corto
-        D.text(ctx, water ? '⚠ se cerró su válvula' : '⚠ fusible fundido', 0, ly, C.danger, { size: 13, weight: 700 });
-        D.text(ctx, 'en A va en serie', 0, ly + 16, C.danger, { size: 13 });
+        D.text(ctx, water ? '⚠ se cerró su válvula' : '⚠ fusible fundido', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
+        D.text(ctx, 'en A va en serie', 0, ly + 18, C.danger, { size: 14, bg: true });
       } else if (warn) {   // en Ω con voltaje: la lectura no sirve
-        D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 13, weight: 700 });
-        D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 16, C.danger, { size: 13 });
-      } else D.text(ctx, meterName(kind, g.side), 0, ly, col, { size: 14, font: Sim.WIDE });
+        D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 14, weight: 700, bg: true });
+        D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 18, C.danger, { size: 14, bg: true });
+      } else D.text(ctx, meterName(kind, g.side), 0, ly, col, { size: 14, font: Sim.WIDE, bg: true });
       ctx.restore();
     };
     // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
@@ -2048,15 +2058,15 @@
       st.segs.forEach((sg, k) => { if (!sg.source) D.flow(ctx, sg.pts, st.nph[k] || 0, water ? C.water : C.charge, { gap: 30, r: water ? 3.6 : 4.5 }); });
       // componentes: el dibujo de la página, movido y girado a su lugar (sin sus letreros)
       for (const c of net.comps) (water ? D.pipe : D.wire)(ctx, [c.pose.a, c.pose.b]);   // el cable sigue por debajo
-      const quiet = D.text;
+      const quiet = D.text, quietBg = D.backdrop;
       for (const c of net.comps) {
         const P = c.pose;
         ctx.save(); ctx.translate(P.x, P.y); ctx.rotate(P.ang - c.a0); ctx.translate(-c.c.at[0], -c.c.at[1]);
-        D.text = () => {};
+        D.text = D.backdrop = () => {};
         try {
           if (c.c.draw) c.c.draw(ctx, water, g, m);
           else { D.roundRect(ctx, c.c.at[0] - c.half, c.c.at[1] - 14, 2 * c.half, 28, 6, C.card, C.ink, 2.5); }
-        } finally { D.text = quiet; }
+        } finally { D.text = quiet; D.backdrop = quietBg; }
         ctx.restore();
       }
       ctx.restore();
