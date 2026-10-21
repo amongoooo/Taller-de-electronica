@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021191700">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021074500">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021191700"></script>
-<script src="../../assets/banco.js?v=20261021191700"></script>
+<script src="../../assets/sim.js?v=20261021074500"></script>
+<script src="../../assets/banco.js?v=20261021074500"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -123,7 +123,7 @@
   // Marcas arriba y abajo de cada tramo (o resistencia) y su nombre.
   function grips(ctx, x, y, h, k) {
     b.grips(ctx, x, y, h, pinch[k]);
-    b.tag(ctx, pinch[k], x, y - h - 30, 'R' + (k + 1), ohm(st.R[k]));   // el valor, con su menú abierto
+    b.tag(ctx, pinch[k], x, y - h - 30, 'R' + (k + 1), ohm(st.R[k]));
   }
   // Cada resistencia se ajusta pellizcándola o con su menú.
   const pinch = [0, 1].map(k => {
