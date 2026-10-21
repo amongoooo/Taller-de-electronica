@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=202610210926">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021093516">
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
 .sim-pinch.cap { width: max(50px, calc(var(--s, 1) * 112px)); height: max(60px, calc(var(--s, 1) * 136px)); }
@@ -39,8 +39,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=202610210926"></script>
-<script src="../../assets/banco.js?v=202610210926"></script>
+<script src="../../assets/sim.js?v=20261021093516"></script>
+<script src="../../assets/banco.js?v=20261021093516"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -146,12 +146,19 @@
       return { I: st.charge ? Ic : 0, Ic, Vin };
     },
     circuit(g, m, V) {
-      const p = paths(g), Ic = m.Ic || 0;
+      const p = paths(g), n = nodes(g), Ic = m.Ic || 0, rc = rcOf(st.C);
       return [
         { pts: p.A, I: st.charge ? Ic : 0, v0: V, comps: [] },
+        // el conmutador: une el circuito con la fuente (cargar) o con el puente (descargar)
+        st.charge ? { pts: [n.A, n.P], I: Ic, v0: V, comps: [], link: true } : { pts: [n.B, n.P], I: Ic, v0: 0, comps: [], link: true },
+        // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
         { pts: p.C, I: Ic, v0: st.charge ? V : 0, comps: [
-          { at: [XR, g.TOP], half: 46, dV: Ic * st.R / 1000 },
-          { at: [XC, g.TOP], half: rcOf(st.C), dV: st.Vc }] },
+          { at: [XR, g.TOP], half: 46, dV: Ic * st.R / 1000, pr: pinchR,
+            draw: (ctx, w) => w ? D.narrow(ctx, XR, g.TOP, half(st.R)) : D.resistor(ctx, XR, g.TOP),
+            tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(st.R)] },
+          { at: [XC, g.TOP], half: rc, dV: st.Vc, pr: pinchC, ext: rc + 4,
+            draw: (ctx, w) => w ? tank(ctx, g, rc) : capacitor(ctx, g, rc),
+            tag: w => [w ? 'tanque con membrana' : 'capacitor', uF(st.C)] }] },
         { pts: p.B, I: st.charge ? 0 : -Ic, v0: 0, comps: [] },
         { pts: p.N, I: st.charge ? Ic : 0, v0: 0, comps: [] }
       ];

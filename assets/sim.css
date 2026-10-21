@@ -548,3 +548,5 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   .sim-go .name { display: none; }
   .sim-help-btn, .sim-ctl-btn { height: 32px; }
 }
+/* Solo para lectores de pantalla (avisos que cambian). */
+.sim-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

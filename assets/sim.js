@@ -648,6 +648,7 @@
   const foot = bar && el('div', 'sim-foot');
   Sim.ORDER = [
     ['voltaje-presion', 'Voltaje y corriente'],
+    ['como-medir', 'Cómo medir'],
     ['resistencia', 'Ley de Ohm'],
     ['resistencias-serie-paralelo', 'Resistencias en serie y paralelo'],
     ['interruptor-led', 'Interruptor y LED'],

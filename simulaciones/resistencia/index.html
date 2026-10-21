@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=202610210926">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021093516">
 </head>
 <body>
 <div class="sim-page">
@@ -35,8 +35,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=202610210926"></script>
-<script src="../../assets/banco.js?v=202610210926"></script>
+<script src="../../assets/sim.js?v=20261021093516"></script>
+<script src="../../assets/banco.js?v=20261021093516"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -71,8 +71,19 @@
     model: V => ({ I: st.blown || st.burnt ? 0 : V / (st.R + RW) * 1000 }),
     // En cortocircuito la fuente llega a su límite y baja su voltaje casi a 0.
     circuit(g, m, V) {
-      const fuse = { at: fuseAt(g), half: 24, dV: st.blown ? V : 0 };
-      return [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [fuse, { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : V }] }];
+      // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
+      const fz = { at: fuseAt(g), half: 24, dV: st.blown ? V : 0, pr: fusePart, ext: w => w ? 22 : 14,
+        draw: (ctx, w) => w ? safetyValve(ctx, g) : fuse(ctx, g),
+        tag: w => st.blown ? [w ? 'válvula cerrada' : 'fusible fundido', '', true] : [w ? 'válvula de seguridad' : 'fusible', w ? mLs(st.fuse) : mA(st.fuse)] };
+      const res = { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : V, pr: pinch,
+        draw: (ctx, w) => {
+          const [jx, jy] = jitter();
+          if (w) { D.narrow(ctx, g.PX + jx, g.TOP + jy, half(st.R)); burstPipe(ctx, g); return; }
+          if (st.rheat > 0 && !st.burnt) glowAt(ctx, g.PX, g.TOP, st.rheat);
+          D.resistor(ctx, g.PX + jx, g.TOP + jy); burntResistor(ctx, g);
+        },
+        tag: w => st.burnt ? [w ? 'tubo reventado' : 'resistencia quemada', '', true] : [st.R ? (w ? 'tramo angosto' : 'resistencia') : (w ? 'sin estrechamiento' : 'cortocircuito'), rText(), !st.R] };
+      return [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [fz, res] }];
     },
     step(dt, m) {
       // Arriba de lo que aguanta (100 mA al empezar) el fusible se calienta, aunque la inercia esté en 0: la corriente llega al
