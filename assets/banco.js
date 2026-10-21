@@ -446,10 +446,11 @@
       const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
       return [v / VMAX, Math.abs(bsg.I) / iFull];
     };
-    // Un solo selector del modo de color, en la sección Ver de la columna de controles (sirve para los
-    // dos lados). En la esquina de arriba a la derecha de cada panel queda la barra de colores con lo que
-    // marca cada punta. En la electricidad, con el modo rapidez las cargas van de su color de siempre y no
-    // hay barra.
+    // Modo de color: en la esquina de arriba a la derecha de cada panel, la barra de colores con lo que
+    // marca cada punta y tres puntitos, uno por modo. Tocar la barra pasa al modo siguiente, deslizar el
+    // dedo hacia un lado o el otro avanza o regresa, y tocar un puntito va a ese modo. También se elige en
+    // la sección Ver de Controles. En la electricidad, con el modo rapidez las cargas van de su color de
+    // siempre: en vez de la barra dice "normal".
     const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'], both: ['rapidez', 'presión / voltaje', 'caudal / corriente'] };
     const ends = side => ({
       v: ['lento', 'rápido'],
@@ -458,12 +459,29 @@
     })[Sim.shownColorMode()];
     const pickers = ['w', 'e'].map(side => {
       const el = document.createElement('div');
-      el.className = 'sim-colors'; el.setAttribute('aria-hidden', 'true');
-      el.innerHTML = '<div class="scale"><span></span><div class="bar"></div><span></span></div>';
+      el.className = 'sim-colors'; el.dataset.act = 'ver'; el.tabIndex = 0; el.setAttribute('role', 'button');
+      el.innerHTML = '<div class="scale"><span></span><div class="bar"></div><span></span></div><span class="mode"></span>' +
+        '<span class="dots">' + [0, 1, 2].map(k => `<i data-k="${k}"></i>`).join('') + '</span>';
+      const turn = d => { const k = Sim.COLOR_MODES.indexOf(Sim.colorMode); Sim.setColorMode(Sim.COLOR_MODES[(k + d + 3) % 3]); syncColors(); };
+      let x0 = null;
+      el.addEventListener('pointerdown', e => { x0 = e.clientX; el.setPointerCapture(e.pointerId); e.preventDefault(); });
+      el.addEventListener('pointerup', e => {
+        if (x0 == null) return;
+        const dx = e.clientX - x0, dot = e.target.closest('i');
+        x0 = null;
+        if (Math.abs(dx) > 24) turn(dx < 0 ? 1 : -1);
+        else if (dot) { Sim.setColorMode(Sim.COLOR_MODES[+dot.dataset.k]); syncColors(); }
+        else turn(1);
+      });
+      el.addEventListener('pointercancel', () => { x0 = null; });
+      el.addEventListener('keydown', e => {
+        const d = { Enter: 1, ' ': 1, ArrowRight: 1, ArrowLeft: -1 }[e.key];
+        if (d) { turn(d); e.preventDefault(); }
+      });
       // Si a la derecha del dibujo hay lugar, va hasta la esquina de arriba a la derecha del panel.
       const corner = g => {
         const q = panel(side), bw = q.box.clientWidth || (q.mirror && q.mirror.box.clientWidth) || 0;
-        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(150, q.scale * 190);
+        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(180, q.scale * 222);
         return free >= wpx + 24 ? [(bw - 16 - q.ox) / q.scale, (12 - q.oy) / q.scale] : g.COL;
       };
       return { side, el: b.place(side, el, corner) };
@@ -477,8 +495,12 @@
       const k = Sim.COLOR_MODES.indexOf(Sim.colorMode), names = COLOR_NAMES[Sim.view] || COLOR_NAMES.both;
       colorSeg.querySelectorAll('button').forEach((bt, j) => { bt.textContent = names[j]; bt.setAttribute('aria-pressed', String(j === k)); });
       pickers.forEach(({ side, el }) => {
-        el.dataset.bar = String(side === 'w' || Sim.shownColorMode() !== 'v');
+        const m = Sim.COLOR_MODES.indexOf(Sim.shownColorMode());
+        el.dataset.bar = String(side === 'w' || m > 0);
         el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
+        el.querySelector('.mode').textContent = COLOR_NAMES[side][m];
+        el.querySelectorAll('.dots i').forEach((d, j) => d.classList.toggle('on', j === k));
+        el.setAttribute('aria-label', `Color de las partículas: ${COLOR_NAMES[side][k]}. Tocar para cambiar`);
       });
     };
     Sim.onView(() => syncColors());
@@ -780,8 +802,6 @@
       });
       const body = Sim.side.sec('med');
       body.prepend(tbl);
-      tbl.after(Object.assign(document.createElement('p'), { className: 'sim-hint',
-        textContent: 'Toca un medidor para conectarlo. Toca una punta para cambiarla entre cable e indicador, o arrástrala para medir en otro lugar.' }));
       setInterval(() => ROWS.forEach(o => {
         if (!st.probe[o.kind]) return;   // todavía no arranca
         o.r.hidden = !st.show[o.kind] || (Sim.view !== 'both' && Sim.view !== o.side);

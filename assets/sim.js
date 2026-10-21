@@ -676,7 +676,7 @@
     box.id = 'simSide'; box.setAttribute('aria-label', 'Controles');
     box.innerHTML = '<div class="sim-side-hd"><h2>Controles</h2><button type="button" class="x" aria-label="Cerrar los controles">×</button></div>';
     const secs = {};
-    ['com', 'med', 'arm', 'ver'].forEach(k => {
+    ['com', 'arm', 'ver', 'med'].forEach(k => {   // Medir al final
       const s = el('section', 'sim-sec', `<h3>${svg(Sim.ACTS[k][2])}<span>${Sim.ACTS[k][0]}</span></h3><div class="body"></div>`);
       s.dataset.act = k; s.hidden = true;
       box.appendChild(s); secs[k] = s;
@@ -796,7 +796,6 @@
       (k === 'com' ? comBody().parentNode : side.sec(k)).appendChild(r);
       return r;
     };
-    side.hint = (k, text) => side.sec(k).appendChild(el('p', 'sim-hint', text));
     return side;
   })();
 
@@ -805,9 +804,8 @@
     const ctl = bar.querySelector('.ctl');
     const inercia = ctl && ctl.querySelector('#inercia');
     if (inercia) {
-      const r = Sim.side.row('ver', null, ctl);
+      Sim.side.row('ver', null, ctl);
       ctl.className = 'sim-inercia';
-      r.appendChild(el('p', 'sim-hint', 'Cuánto tarda el agua (o la corriente) en arrancar y en detenerse.'));
     }
     bar.querySelectorAll('[data-act]').forEach(b => Sim.side.sec(b.dataset.act).appendChild(b));
     if (ctl && !ctl.children.length) ctl.remove();
@@ -832,7 +830,7 @@
       const c = e.target.closest && e.target.closest('.sim-layer > *');
       if (c === cur) return;
       hide();
-      if (!c || c.matches('.ring, .jack, .sim-colors') || !tipName(c)) return;
+      if (!c || c.matches('.ring, .jack') || !tipName(c)) return;
       cur = c;
       t = setTimeout(() => {
         if (cur !== c) return;
@@ -911,11 +909,35 @@
       segs.forEach((b, i) => { b.dataset.on = String(i <= k); b.toggleAttribute('aria-current', i === k); });
       prev.disabled = k === 0; next.disabled = k === n - 1;
       if (foot) foot.dataset.last = String(k === n - 1);
+      syncGo();
       if (push) history.replaceState(null, '', k ? `#paso-${k + 1}` : location.pathname + location.search);
       go(k);
     };
     prev.addEventListener('click', () => set(Math.max(0, k - 1), true));
     next.addEventListener('click', () => set(Math.min(n - 1, k + 1), true));
+    // Las flechas de simulación (abajo en el celular) primero recorren los pasos: mientras quede un paso
+    // de ese lado van a él, y luego a la otra simulación. Si no hay simulación anterior, la flecha solo
+    // aparece mientras haya un paso atrás.
+    const gos = foot ? ['prev', 'next'].map((cls, i) => {
+      let a = foot.querySelector('.sim-go.' + cls);
+      if (a.tagName === 'SPAN') {
+        const b = el('a', 'sim-go ' + cls + ' none', `<span class="arr">${chev(i ? 1 : -1)}</span>`);
+        b.href = '#'; a.replaceWith(b); a = b;
+      }
+      a.insertAdjacentHTML('beforeend', '<span class="stp"></span>');
+      const d = i ? 1 : -1;
+      a.addEventListener('click', e => { const j = k + d; if (j >= 0 && j < n) { e.preventDefault(); set(j, true); } else if (a.classList.contains('none')) e.preventDefault(); });
+      return { a, d, title: a.title };
+    }) : [];
+    function syncGo() {
+      gos.forEach(({ a, d, title }) => {
+        const j = k + d, step = j >= 0 && j < n;
+        a.dataset.step = String(step);
+        a.querySelector('.stp').textContent = step ? `Paso ${j + 1}` : '';
+        const t = step ? `${d > 0 ? 'Paso siguiente' : 'Paso anterior'}: ${j + 1}. ${steps[j]}` : title;
+        if (t) { a.title = t; a.setAttribute('aria-label', t); }
+      });
+    }
     window.addEventListener('hashchange', () => set(fromHash(), false));
     const h1 = bar.querySelector('h1');
     bar.insertBefore(wrap, h1.nextSibling);
