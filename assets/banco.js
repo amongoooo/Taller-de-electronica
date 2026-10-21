@@ -432,7 +432,7 @@
     // ---------- vista de nodos ----------
     // Con "Nodos" (en la sección Ver) los cables, que son ideales, se juntan: todo lo que está unido por
     // cable (o tubería) es un solo nodo con un solo voltaje (presión), y entre los nodos solo quedan los
-    // componentes. El dibujo se transforma poco a poco: primero cada cable toma el color de su nodo y
+    // componentes. El dibujo se transforma poco a poco: primero los cables se acercan y
     // luego se encoge hasta un punto. Medir voltaje es comparar dos nodos (las puntas del voltímetro se
     // pegan a ellos); medir corriente es abrir el camino entre un nodo y un componente y meter el
     // amperímetro en serie (no se puede poner encima de un nodo).
@@ -2011,23 +2011,18 @@
       drawNodes(ctx, g, m, u);
       drawCuts(ctx, g);
     };
-    // Color de un nodo: el de su voltaje (presión), con la misma escala que las partículas en ese modo.
-    const nodeColor = n => Sim.speedColor(n.v / VMAX);
     // Cuánto sobresale un componente a cada lado de su cable (ext de la página, un número o ext(water)).
     const extOf = (c, water) => typeof c.ext === 'function' ? c.ext(water) : c.ext || 22;
     const nodeText = (v, water) => Sim.fmt(Math.abs(v) < 0.005 ? 0 : v, 2) + (water ? ' psi' : ' V');
     const drawNodes = (ctx, g, m, u) => {
-      const water = g.side === 'w', kw = Math.min(1, u / 0.3), kc = Math.min(1, u / 0.5), kn = Math.max(0, (u - 0.5) / 0.5);
+      const water = g.side === 'w', kw = Math.min(1, u / 0.3), kn = Math.max(0, (u - 0.5) / 0.5);
       const c0 = [0, 0];
       net.nodes.forEach(n => { c0[0] += n.p[0] / net.nodes.length; c0[1] += n.p[1] / net.nodes.length; });
       ctx.save(); ctx.globalAlpha = kw;
-      // cables (tuberías): cada pedazo con el color de su nodo, y el de la fuente
+      // cables (tuberías): de su color de siempre; el voltaje (presión) lo muestran las partículas
       const src = st.segs.find(sg => sg.source);
       if (src) water ? D.pipe(ctx, src.pts) : D.wire(ctx, src.pts);
       for (const p of net.pieces) if (water) D.pipe(ctx, p.m); else D.wire(ctx, p.m);
-      ctx.globalAlpha = kw * kc * (water ? 0.55 : 1);
-      for (const p of net.pieces) D.line(ctx, p.m, water ? 2 * Sim.PIPE : 4, nodeColor(p.node));
-      ctx.globalAlpha = kw;
       // lo que circula, por cada tramo
       st.segs.forEach((sg, k) => { if (!sg.source) D.flow(ctx, sg.pts, st.nph[k] || 0, water ? C.water : C.charge, { gap: 30, r: water ? 3.6 : 4.5 }); });
       // componentes: el dibujo de la página, movido y girado a su lugar (sin sus letreros)
@@ -2108,18 +2103,17 @@
         const q = place(w, TH, cands);
         b.tag(ctx, c.c.pr, q.x, q.y, tg[0], tg[1], tg[2]);
       }
-      // nodos: un punto (en el agua, una cámara) del color de su voltaje, con su valor
+      // nodos: un punto de soldadura (en el agua, una cámara) del color de su cable, con su valor
       for (const n of net.nodes) {
-        const [x, y] = n.p, col = nodeColor(n);
+        const [x, y] = n.p;
         if (water) {
           D.circle(ctx, x, y, RN + 8, C.pipe);
           D.circle(ctx, x, y, RN + 3, C['water-soft']);
-          ctx.globalAlpha = kn * 0.75; D.circle(ctx, x, y, RN + 3, col); ctx.globalAlpha = kn;
-        } else D.circle(ctx, x, y, RN, col, C.ink, 2.5);
+        } else D.circle(ctx, x, y, RN, C.ink);
       }
       for (const n of net.nodes) {
         if (n.ground) continue;   // la tierra lleva su símbolo con 0 V
-        const [x, y] = n.p, col = nodeColor(n), t = nodeText(n.v, water), o = out(x, y);
+        const [x, y] = n.p, t = nodeText(n.v, water), o = out(x, y);
         ctx.font = `600 ${Sim.compact ? 18 : 16}px ${Sim.MONO}`;
         const w = ctx.measureText(t).width + 14, h = Sim.compact ? 26 : 23, cands = [];
         for (let k = 0; k < 16; k++) for (const more of [0, 28, 56]) {
@@ -2127,7 +2121,7 @@
           cands.push([x + dx * off, y + dy * off, dx * o[0] + dy * o[1] - more / 14]);
         }
         const q = place(w, h, cands);
-        D.roundRect(ctx, q.x - w / 2, q.y - h / 2, w, h, h / 2, C.card, col, 2.5);
+        D.roundRect(ctx, q.x - w / 2, q.y - h / 2, w, h, h / 2, C.card, water ? C.pipe : C.ink, 2);
         D.text(ctx, t, q.x, q.y + 0.5, C.ink, { size: 16, font: Sim.MONO, weight: 600 });
       }
       ctx.restore();
