@@ -1203,7 +1203,7 @@
     const controllerBox = (ctx, g, title, fill, scales, lcd, leds) => {
       if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 30, 28, 18); }   // cuello hacia el circuito
       D.roundRect(ctx, g.BX, g.BY, g.BW, g.BH, 14, fill, C.ink, 2.5);
-      D.text(ctx, title, g.BX + 18, g.BY + 24, C.ink, { align: 'left', size: 15 });
+      D.text(ctx, title, g.BX + 18, g.BY + 24, C.ink, { align: 'left', size: 15, font: Sim.WIDE });
       // lo que marca cada perilla, aunque esté apagada
       D.knobScale(ctx, g.BX + 148, g.BY + 100, 36, scales[0]);
       D.lcd(ctx, g.BX + 148, g.BY + 34, 88, 32, ...lcd);
@@ -1381,7 +1381,7 @@
         D.text(ctx, 'toca el circuito para', 0, ly, PROBE[kind], { size: 12 });
         if (kind === 'I') D.text(ctx, 'ponerlo en serie', 0, ly + 16, PROBE.I, { size: 13 });
         else D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 16, st.placing.i ? C.ink : RED, { size: 13 });
-      } else D.text(ctx, label, 0, ly, PROBE[kind], { size: 15 });
+      } else D.text(ctx, label, 0, ly, PROBE[kind], { size: 14, font: Sim.WIDE });
       ctx.restore();
       // bornes rojo (+) y negro (−)
       for (let j = 0; j < 2; j++) {
