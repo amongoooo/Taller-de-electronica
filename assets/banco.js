@@ -1,5 +1,5 @@
 // Banco común de las simulaciones de agua y electricidad: dos paneles con el mismo circuito,
-// bomba y fuente enlazadas (botón, LED, perilla y medidor), manómetro/voltímetro y caudal/amperímetro
+// bomba y fuente enlazadas (interruptor, LED, perilla con su pantallita y medidor), manómetro/voltímetro y caudal/amperímetro
 // abajo junto al controlador: el voltímetro con dos puntas (mangueras en el agua) entre dos puntos del
 // circuito y el amperímetro con una pinza (turbinita en el agua) en un punto, con cables que cuelgan,
 // e inercia. Cada página solo agrega su parte del circuito.
@@ -190,16 +190,18 @@
     };
 
     // ---------- controlador: bomba y fuente enlazadas ----------
+    // Interruptor ON/OFF a la izquierda, con su LED; la perilla con su pantallita arriba (lo que marca la
+    // perilla) y a la derecha el medidor de lo que en verdad sale (sube y baja con la inercia).
     const power = b.linkedButton({
-      pos: g => [g.BX + 58, g.BY + 92], cls: 'sim-power',
+      pos: g => [g.BX + 52, g.BY + 97], cls: 'sim-power',
       label: side => (st.on ? 'Apagar ' : 'Encender ') + (side === 'w' ? 'la bomba' : 'la fuente'),
       onClick: () => { st.on = !st.on; }
     });
-    const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>';
-    const syncPower = () => power.forEach(el => { el.innerHTML = icon; el.setAttribute('aria-pressed', String(st.on)); });
+    power.forEach(el => { el.innerHTML = Sim.SWITCH; });
+    const syncPower = () => power.forEach(el => el.setAttribute('aria-pressed', String(st.on)));
     power.forEach(el => el.addEventListener('click', syncPower)); syncPower();
     b.linkedKnob({
-      pos: g => [g.CX, g.BY + 80], min: 0, max: VMAX, step: 0.5, value: st.set,
+      pos: g => [g.CX, g.BY + 100], min: 0, max: VMAX, step: 0.5, value: st.set,
       label: side => side === 'w' ? 'Presión de la bomba' : 'Voltaje de la fuente',
       format: (v, side) => side === 'w' ? Math.round(v * KPA_PER_V) + ' kPa' : fmt(v) + ' V',
       scale: side => side === 'w' ? [['0', 0], ['60', 0.5], ['120', 1]] : [['0', 0], ['6', 0.5], ['12', 1]],
@@ -723,13 +725,13 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.placing) setPlacing(null); });
 
     // ---------- dibujo común ----------
-    const controllerBox = (ctx, g, title, fill, scale, caption) => {
+    const controllerBox = (ctx, g, title, fill, scale, lcd) => {
       if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 30, 28, 18); }   // cuello hacia el circuito
       D.roundRect(ctx, g.BX, g.BY, g.BW, g.BH, 14, fill, C.ink, 2.5);
       D.text(ctx, title, g.BX + 18, g.BY + 24, C.ink, { align: 'left', size: 15 });
-      D.knobScale(ctx, g.CX, g.BY + 80, 36, scale);
-      D.text(ctx, caption, g.CX, g.BY + 138, C.muted, { size: 14 });
-      D.led(ctx, g.BX + 108, g.BY + 92, st.v > 0.05 ? 1 : 0);   // detecta presión desde 0.5 kPa (0.05 V)
+      D.knobScale(ctx, g.CX, g.BY + 100, 36, scale);
+      D.lcd(ctx, g.CX, g.BY + 34, 104, 32, ...lcd);   // lo que marca la perilla, aunque esté apagada
+      D.led(ctx, g.BX + 100, g.BY + 97, st.v > 0.05 ? 1 : 0);   // detecta presión desde 0.5 kPa (0.05 V)
     };
     const knobScales = (ctx, g) => b.knobs.forEach(k => {
       const [x, y] = k.pos(g);
@@ -925,7 +927,7 @@
       o.drawW(ctx, g, m);
       knobScales(ctx, g);
       D.speedLegend(ctx, ...g.LEG);
-      controllerBox(ctx, g, 'BOMBA', C.metal, [['0', 0], ['60', 0.5], ['120', 1]], 'presión (kPa)');
+      controllerBox(ctx, g, 'BOMBA', C.metal, [['0', 0], ['120', 1]], [digits(st.set * KPA_PER_V, 3, 0), 'kPa']);
       D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: st.nS.x, color: C.water, lcdW: 104,
         text: digits(st.rpm, 4, 0), unit: 'rpm' });
       D.pump(ctx, g.PX, g.BOT, st.rotor, st.omega);
@@ -939,7 +941,7 @@
       drawCables(ctx, g, 'I'); drawCables(ctx, g, 'V');
       o.drawE(ctx, g, m);
       knobScales(ctx, g);
-      controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [['0', 0], ['6', 0.5], ['12', 1]], 'voltaje (V)');
+      controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [['0', 0], ['12', 1]], [digits(st.set, 2, 1), 'V']);
       D.meter(ctx, g.BX + g.BW - 70, g.BY + 52, { r: 30, frac: st.nV.x, color: C.charge, lcdW: 104,
         text: digits(st.v, 2, 2), unit: 'V' });
       D.source(ctx, g.PX, g.BOT);

@@ -202,11 +202,10 @@
   document.getElementById('ejemplo').addEventListener('click', example);
   document.getElementById('vaciar').addEventListener('click', clearAll);
 
-  // Botón de encendido de la bomba y de la pila, uno en cada panel.
-  const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>';
+  // Interruptor de encendido de la bomba y de la pila, uno en cada panel.
   const powers = Object.entries(panels).map(([side, p]) => {
     const el = document.createElement('button');
-    el.type = 'button'; el.className = 'sim-power'; el.innerHTML = icon;
+    el.type = 'button'; el.className = 'sim-power'; el.innerHTML = Sim.SWITCH;
     p.box.querySelector('.sim-layer').appendChild(el);
     p.at(el, () => geo(p).pt(...POWER));
     el.addEventListener('click', () => { st.on = !st.on; syncPower(); });
