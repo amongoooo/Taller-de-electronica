@@ -21,6 +21,8 @@
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
 // })
 // b.showMeters({ V, I }) muestra u oculta cada medidor con sus puntas (para las páginas que van por pasos).
+// b.halt() se llama al romperse algo (se funde el fusible, se quema o revienta una pieza): el siguiente
+// cambio del circuito no espera la inercia, el flujo se frena de golpe en un instante.
 (() => {
   const { C, draw: D, fmt, digits } = Sim;
   const VMAX = 12, KPA_PER_V = 10, MLS_PER_MA = 10, RPM_PER_MA = 100;
@@ -1165,8 +1167,12 @@
     // También los cambios bruscos del circuito (abrir una válvula, romper o cambiar una rueda, pasar a
     // paralelo): la corriente va de su valor anterior al nuevo en el tiempo de la inercia, con curva suave.
     // Los cambios por la perilla o el encendido ya vienen suaves por el voltaje y pasan sin más.
+    // Si algo se rompe (b.halt) no hay inercia que valga: el flujo se frena de golpe, en HALT segundos
+    // y desacelerando fuerte desde el principio, para que se vea que choca y no que se congela.
+    const HALT = 0.18;
     const flat = m => [m.I, ...(m.branch || [])];
-    const smooth = { raw: null, vPrev: 0, off: null, from: null, t: 0 };
+    const smooth = { raw: null, vPrev: 0, off: null, from: null, t: 0, dur: 0, sharp: false, halt: false };
+    b.halt = () => { smooth.halt = true; };
     const inertia = V => {
       const m = o.model(V), now = flat(m);
       if (smooth.raw && !o.stateful) {
@@ -1175,13 +1181,14 @@
           // hubo un cambio en el circuito: arranca desde lo que se veía
           const shown = smooth.raw.map((x, k) => x + (smooth.off ? smooth.off[k] || 0 : 0));
           smooth.from = now.map((x, k) => (shown[k] ?? shown[0]) - x);
-          smooth.t = 0;
+          smooth.t = 0; smooth.sharp = smooth.halt;
+          smooth.dur = smooth.sharp ? Math.min(HALT, st.tau) : st.tau;
         }
       }
-      smooth.raw = now; smooth.vPrev = V;
+      smooth.raw = now; smooth.vPrev = V; smooth.halt = false;
       if (smooth.from) {
-        const u = st.tau > 0 ? Math.min(1, smooth.t / st.tau) : 1;
-        const k = 1 - u * u * (3 - 2 * u);
+        const u = smooth.dur > 0 ? Math.min(1, smooth.t / smooth.dur) : 1;
+        const k = smooth.sharp ? (1 - u) * (1 - u) : 1 - u * u * (3 - 2 * u);
         smooth.off = smooth.from.map(x => x * k);
         if (u >= 1) smooth.from = smooth.off = null;
       }

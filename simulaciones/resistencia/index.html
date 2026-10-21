@@ -225,7 +225,7 @@
     }
   }
   function burn() {
-    st.burnt = true; st.rheat = 0; st.burnT = 0;
+    st.burnt = true; st.rheat = 0; st.burnT = 0; b.halt();
     st.drops = Array.from({ length: 18 }, () => {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6, v = 120 + 160 * Math.random();
       return { x: (Math.random() - 0.5) * 16, y: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v };
@@ -233,7 +233,7 @@
     b.refresh();
   }
   function blow() {
-    st.blown = true; st.heat = 0; st.breakT = 0;
+    st.blown = true; st.heat = 0; st.breakT = 0; b.halt();
     st.sparks = Array.from({ length: 16 }, () => {
       const a = Math.random() * Math.PI * 2, v = 80 + 160 * Math.random();
       return { x: 0, y: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60 };

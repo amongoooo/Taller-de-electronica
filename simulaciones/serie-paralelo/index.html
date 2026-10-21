@@ -165,7 +165,7 @@
     menu: Sim.ledMenu({
       name: String(i + 1), get: () => st.led[i], set: id => { st.led[i] = id; },
       actions: side => [{ text: () => (st.broken[i] ? 'Reparar ' : 'Romper ') + (side === 'w' ? 'la rueda' : 'el LED'), danger: true,
-        onClick: () => { st.broken[i] = !st.broken[i]; } }]
+        onClick: () => { st.broken[i] = !st.broken[i]; if (st.broken[i]) b.halt(); } }]
     })
   }));
   // Cada resistencia se ajusta pellizcándola o con su menú (en serie solo está la primera).
