@@ -72,14 +72,39 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-btn.small { font-size: max(11px, calc(var(--s, 1) * 15px)); padding: .4em .8em; }
 .sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
-/* Botón del color de las partículas: termina justo a la izquierda de la barra de colores. */
-.sim-layer > .sim-colors { transform: translate(-100%, -50%); }
-.sim-btn.sim-colors {
-  font-size: max(11px, calc(var(--s, 1) * 13px)); padding: .3em .8em; touch-action: manipulation;
-  background: var(--card); color: var(--ink); border-color: var(--line);
+/* Color de las partículas, arriba a la derecha de cada panel: slider de tres opciones y, debajo, la
+   barra de colores entre lo que marca cada punta. Su esquina de arriba a la derecha va en el punto dado. */
+.sim-layer > .sim-colors { transform: translate(-100%, 0); }
+.sim-colors {
+  width: max(160px, calc(var(--s, 1) * 210px)); touch-action: manipulation;
+  font-size: max(11px, calc(var(--s, 1) * 13px)); color: var(--muted);
 }
-.sim-btn.sim-colors::after { content: ' ▾'; color: var(--muted); }
-.sim-btn.sim-colors:hover, .sim-btn.sim-colors:focus-visible, .sim-btn.sim-colors[aria-expanded="true"] { border-color: var(--water); }
+.sim-colors input[type="range"] {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 2em; margin: 0;
+  background: transparent; cursor: pointer;
+}
+.sim-colors input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--line); }
+.sim-colors input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+.sim-colors input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 1.3em; height: 1.3em; margin-top: calc(2px - .65em); border-radius: 50%;
+  background: var(--water); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+}
+.sim-colors input[type="range"]::-moz-range-thumb {
+  width: 1.3em; height: 1.3em; border-radius: 50%; background: var(--water); border: 2px solid var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+}
+.sim-colors .opts { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: -.15em; }
+.sim-colors .opts button {
+  font: inherit; font-weight: 700; color: var(--muted); background: none; border: 0; padding: .1em 0 .3em; cursor: pointer;
+}
+.sim-colors .opts button:nth-child(1) { text-align: left; }
+.sim-colors .opts button:nth-child(3) { text-align: right; }
+.sim-colors .opts button[aria-pressed="true"] { color: var(--water); }
+.sim-colors .scale { display: flex; align-items: center; gap: .4em; margin-top: .1em; font-family: var(--font-mono); white-space: nowrap; }
+.sim-colors .bar {
+  flex: 1; height: .75em; border-radius: 2px;
+  background: linear-gradient(90deg, hsl(215 85% 50%), hsl(179 85% 50%), hsl(143 85% 50%), hsl(108 85% 50%), hsl(72 85% 50%), hsl(36 85% 50%), hsl(0 85% 50%));
+}
+.sim-colors[data-bar="false"] .scale { display: none; }
 
 /* Interruptor de encendido (bomba, fuente, pila, generador): palanca que sube a ON y baja a OFF. */
 .sim-power {

@@ -385,12 +385,15 @@
   Sim.COLOR_MODES = ['v', 'p', 'q'];
   Sim.colorMode = (() => { try { const v = localStorage.getItem('sim-color'); return Sim.COLOR_MODES.includes(v) ? v : 'v'; } catch (e) { return 'v'; } })();
   Sim.setColorMode = k => { Sim.colorMode = k; try { localStorage.setItem('sim-color', k); } catch (e) {} };
+  // Mientras se arrastra una punta el banco pone aquí el modo de lo que mide ('p' o 'q'); al soltarla, null.
+  Sim.colorOverride = null;
+  Sim.shownColorMode = () => Sim.colorOverride || Sim.colorMode;
   Sim.field = null;
-  Sim.byField = () => Sim.colorMode !== 'v' && !!Sim.field;
+  Sim.byField = () => Sim.shownColorMode() !== 'v' && !!Sim.field;
   // Color de una partícula en (x, y); speed es su rapidez de 0 a 1 (sin ella, null en modo rapidez).
   Sim.particleColor = (x, y, speed) => {
     if (!Sim.byField()) return speed == null ? null : Sim.speedColor(speed);
-    return Sim.speedColor(Sim.field(x, y)[Sim.colorMode === 'p' ? 0 : 1]);
+    return Sim.speedColor(Sim.field(x, y)[Sim.shownColorMode() === 'p' ? 0 : 1]);
   };
   // Partículas del agua: en pantallas chicas (Sim.compact) van menos y más grandes para que se distingan.
   Sim.compact = false;
