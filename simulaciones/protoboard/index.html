@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021164100">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021175300">
 <style>
 .sim-bar .ctl { gap: 8px; }
 .pb-btn {
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021164100"></script>
+<script src="../../assets/sim.js?v=20261021175300"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -339,9 +339,6 @@
         bandColors(k.R).forEach((col, i) => { ctx.fillStyle = col; ctx.fillRect(-bl / 2 + 6 + i * (bl - 12) / 3.4 + (i === 3 ? 3 : 0), -7, 3.5, 14); });
         ctx.restore();
       }
-      const f = ny > 0 ? -1 : 1;   // la etiqueta va del lado de arriba (o a la izquierda si está parada)
-      const o = 19 + 20 * Math.abs(nx);   // parada, la etiqueta necesita más espacio a un lado
-      if (!ghost) D.text(ctx, ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, C.ink, { size: 12, font: Sim.MONO, weight: 500 });
     } else if (k.type === 'led') {
       const glowK = k.burnt ? 0 : Math.min(1, k.I / 20), [cr, cg, cb] = Sim.led(k.led).rgb;
       const tone = (f, w) => `rgb(${[cr, cg, cb].map(c => Math.round((c + (255 - c) * w) * f)).join(', ')})`;   // más claro (w) o más oscuro (f)
