@@ -427,19 +427,28 @@
       if (!st.placed[kind][i]) { delete ropes[side][key]; return; }
       if (st.reel[kind][i] && ropes[side][key]) return;   // mientras se recoge el cable no se mueve solo
       const f = pose(g, kind, i), L = tipLen(side, kind);
-      const A = [f.x + f.n[0] * L, f.y + f.n[1] * L], A2 = [A[0] + f.n[0] * BOOT, A[1] + f.n[1] * BOOT];
+      // el refuerzo sale de la punta y se dobla solo un poquito (bootAng) hacia donde va el cable
+      const old = ropes[side][key], ba = Math.atan2(f.n[1], f.n[0]) + (old ? old.bootAng : 0), bd = [Math.cos(ba), Math.sin(ba)];
+      const A = [f.x + f.n[0] * L, f.y + f.n[1] * L], A2 = [A[0] + bd[0] * BOOT, A[1] + bd[1] * BOOT];
       const B = jack(g, kind, i), span = Math.hypot(B[0] - A2[0], B[1] - A2[1]);
       let r = ropes[side][key];
-      if (!r) {   // recién puesta: el cable sale del borne en línea recta
+      if (!r) {   // recién puesta: el cable sale del borne en una sola curva suave (sin ondas)
         r = ropes[side][key] = [];
+        r.len = span * 1.04 + 12; r.bootAng = 0;
+        const s = span || 1, ux = (B[0] - A2[0]) / s, uy = (B[1] - A2[1]) / s;
+        let px = -uy, py = ux;
+        if (px * f.n[0] + py * f.n[1] < 0) { px = -px; py = -py; }   // la curva se abre hacia donde mira la punta
+        const h = s * Math.sqrt(r.len / s - 1) * 2 / Math.PI;
         for (let k = 0; k < NR; k++) {
-          const u = k / (NR - 1), x = A2[0] + (B[0] - A2[0]) * u, y = A2[1] + (B[1] - A2[1]) * u;
+          const u = k / (NR - 1), o = h * Math.sin(Math.PI * u);
+          const x = A2[0] + (B[0] - A2[0]) * u + px * o, y = A2[1] + (B[1] - A2[1]) * u + py * o;
           r.push({ x, y, px: x, py: y });
         }
-        r.len = span * 1.1 + 24;
       }
       const hk = held && held.key === key ? held.k : -1;
-      if (hk > 0) r.len = Math.max(r.len, (Math.hypot(held.x - A2[0], held.y - A2[1]) + Math.hypot(B[0] - held.x, B[1] - held.y)) * 1.04);
+      // al jalarlo sale más cable del medidor: lo justo para que ningún lado quede estirado (si no,
+      // al soltarlo regresaría como una liga)
+      if (hk > 0) r.len = Math.max(r.len, Math.max(Math.hypot(held.x - A2[0], held.y - A2[1]) / hk, Math.hypot(B[0] - held.x, B[1] - held.y) / (NR - 1 - hk)) * (NR - 1) * 1.02);
       // Recoger tensa el cable de una punta conectada: el medidor jala lo que sobra poco a poco
       // (tenso, ya no deja la holgura de siempre hasta que se vuelva a mover)
       if (hk > 0 || st.lift[kind][i]) r.taut = false;
@@ -459,11 +468,10 @@
       for (let it = 0; it < 30; it++) {
         r[0].x = A2[0]; r[0].y = A2[1]; r[NR - 1].x = B[0]; r[NR - 1].y = B[1];
         if (hk > 0) { r[hk].x = held.x; r[hk].y = held.y; }
-        // después del refuerzo el cable sigue saliendo casi derecho y se va aflojando poco a poco
-        for (let k = 1; k <= 3; k++) {
-          if (k === hk) continue;
-          const w = [0.6, 0.3, 0.12][k - 1], q = r[k];
-          q.x += (A2[0] + f.n[0] * rest * k - q.x) * w; q.y += (A2[1] + f.n[1] * rest * k - q.y) * w;
+        // justo después del refuerzo el cable apenas tiende a seguir su dirección; luego es libre
+        if (hk !== 1) {
+          const q = r[1], t = Math.min(rest, 14);
+          q.x += (A2[0] + bd[0] * t - q.x) * 0.2; q.y += (A2[1] + bd[1] * t - q.y) * 0.2;
         }
         for (let k = 1; k < NR; k++) {
           const a = r[k - 1], c = r[k], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
@@ -485,13 +493,20 @@
           c.x -= dx * e * wc; c.y -= dy * e * wc;
         }
       }
-      // un cable rígido no hace ondas chicas: cada punto se acerca un poco a la línea de sus vecinos,
-      // así lo que sobra se acomoda en una sola curva amplia
-      const sm = 0.25 * cable.stiff;
-      if (sm) for (let k = 1; k < NR - 1; k++) {
+      // un cable rígido no hace ondas chicas: cada punto se acerca apenas a la línea de sus vecinos
+      // (poco, para que no se encoja como liga; el roce en reposo lo detiene)
+      const sm = 0.08 * cable.stiff;
+      if (sm) for (let k = 2; k < NR - 1; k++) {
         if (k === hk) continue;
         const q = r[k];
         q.x += ((r[k - 1].x + r[k + 1].x) / 2 - q.x) * sm; q.y += ((r[k - 1].y + r[k + 1].y) / 2 - q.y) * sm;
+      }
+      // el refuerzo sigue un poco al cable: hasta unos 17° de la dirección de la punta
+      {
+        const base = Math.atan2(f.n[1], f.n[0]), want = Math.atan2(r[2].y - A[1], r[2].x - A[0]);
+        const d = Math.atan2(Math.sin(want - base), Math.cos(want - base));
+        const target = Math.max(-0.3, Math.min(0.3, d * 0.35));
+        r.bootAng += (target - r.bootAng) * (1 - Math.exp(-dt * 12));
       }
       // roce en reposo: un punto que apenas se movería se queda quieto, como un cable pesado sobre la
       // mesa; solo se mueve si lo jalan con ganas (más rígido, más pesado)
@@ -801,7 +816,9 @@
           ctx.save(); ctx.globalAlpha = 1 - m; ctx.rotate(Math.atan2(q.n[1], q.n[0])); ctx.scale(1 - 0.4 * m, 1 - 0.4 * m);
           if (kind === 'V') (g.side === 'w' ? hoseTip : pen)(ctx, col);
           else (g.side === 'w' ? turbine : clampOn)(ctx, live);
-          boot(ctx, tipLen(g.side, kind), g.side === 'w' && kind === 'V' ? [8, 8.5] : [5, 3.2],
+          const rope = !st.reel[kind][i] && ropes[g.side][kind + i], tl = tipLen(g.side, kind);
+          if (rope) { ctx.translate(tl, 0); ctx.rotate(rope.bootAng); ctx.translate(-tl, 0); }
+          boot(ctx, tl, g.side === 'w' && kind === 'V' ? [8, 8.5] : [5, 3.2],
             g.side === 'w' && kind === 'V' ? '#9aa6af' : kind === 'I' ? PROBE.I : col);
           ctx.restore();
         }
