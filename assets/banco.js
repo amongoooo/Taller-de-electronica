@@ -180,15 +180,16 @@
     };
     // Un componente que abre su menú al tocarlo (Sim.menu): menu(side) da { title, rows }.
     // Lo que cambia en el menú se ve en los dos lados.
-    b.part = ({ pos, label, menu, cls = 'sim-hit', hidden }) => b.linkedButton({
-      cls, pos, label, hidden, onClick: (side, el) => Sim.menu.toggle(el, menu(side))
-    });
+    b.part = ({ pos, label, menu, cls = 'sim-hit', hidden }) => {
+      const els = b.linkedButton({ cls, pos, label, hidden, onClick: (side, el) => Sim.menu.toggle(el, menu(side)) });
+      return { els, open: () => els.some(el => Sim.menu.isOpen(el)) };
+    };
     // Una perilla en cada lado, enlazadas. scale(side) da las marcas [texto, fracción]; caption(side) su nombre.
-    b.linkedKnob = ({ pos, min, max, step, value, label, format, scale, caption, ticks = 12, onInput }) => {
+    b.linkedKnob = ({ pos, min, max, step, magnet, value, label, format, scale, caption, ticks = 12, onInput }) => {
       const ks = {};
       ['w', 'e'].forEach(side => {
         const el = b.place(side, document.createElement('div'), pos);
-        ks[side] = Sim.knob(el, { min, max, step, value, label: label(side), format: v => format(v, side),
+        ks[side] = Sim.knob(el, { min, max, step, magnet, value, label: label(side), format: v => format(v, side),
           onInput: v => { onInput(v); const other = ks[side === 'w' ? 'e' : 'w']; if (other) other.set(v, true); } });
       });
       b.knobs.push({ pos, scale, caption, ticks });
@@ -205,13 +206,15 @@
     // Devuelve { drag, grip } para b.grips: grip es −1 (la marca de arriba), 1 (la de abajo), 2 (las
     // dos, con dos dedos) o 0.
     b.pinch = ({ pos, get, set, half, fromHalf, label, text, menu }) => {
-      const pr = { drag: false, grip: 0 };
+      const pr = { drag: false, grip: 0, els: [] };
+      pr.open = () => pr.els.some(el => Sim.menu.isOpen(el));
       // flechas y rueda: un poco más ancho o angosto, lo justo para pasar al valor de junto
       const nudge = f => {
         for (let k = 1; k <= 120; k++) { const R = fromHalf(half(get()) + f * k * 0.05); if (R !== get()) return set(R); }
       };
       ['w', 'e'].forEach(side => {
         const el = document.createElement('div');
+        pr.els.push(el);
         el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', menu ? 'button' : 'slider');
         el.setAttribute('aria-label', label(side));
         if (menu) el.setAttribute('aria-haspopup', 'dialog');
@@ -262,16 +265,23 @@
       });
       return pr;
     };
-    // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde h: claritas, y
-    // azules la que está bajo el puntero o se arrastra. active es lo que devuelve b.pinch (o true).
+    // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde h: no se ven hasta
+    // que el puntero o el dedo está encima; entonces salen en gris clarito, un poco más fuerte la que se
+    // agarraría. active es lo que devuelve b.pinch (o true para verlas siempre).
     b.grips = (ctx, x, y, h, active) => {
+      if (!active || (active !== true && !active.grip)) return;
       for (const sgn of [-1, 1]) {
-        const on = active === true || (active && (active.grip === sgn || active.grip === 2));
-        const col = on ? C.water : '#c3cfd8';
+        const col = active !== true && (active.grip === sgn || active.grip === 2) ? '#b4c2cd' : '#dbe3e9';
         const yy = y + sgn * (h + 9);
         D.roundRect(ctx, x - 16, yy - 3, 32, 6, 3, col);
         D.arrow(ctx, x + 24, yy, sgn * Math.PI / 2, 5, col);
       }
+    };
+    // Nombre de un componente sobre el dibujo; mientras su menú está abierto (pr de b.pinch o b.part)
+    // dice su valor, en azul, para ver a qué componente corresponde cada menú.
+    b.tag = (ctx, pr, x, y, name, value, danger) => {
+      if (pr && pr.open && pr.open()) D.text(ctx, value, x, y, C.water, { size: 18, font: Sim.MONO, weight: 500 });
+      else D.text(ctx, name, x, y, danger ? C.danger : C.muted, { size: 15 });
     };
 
     // ---------- controlador: bomba y fuente enlazadas ----------
@@ -289,7 +299,7 @@
     const syncPower = () => power.forEach(el => el.setAttribute('aria-pressed', String(st.on)));
     power.forEach(el => el.addEventListener('click', syncPower)); syncPower();
     b.linkedKnob({
-      pos: g => [g.BX + 148, g.BY + 100], min: 0, max: VMAX, step: 0.5, value: st.set,
+      pos: g => [g.BX + 148, g.BY + 100], min: 0, max: VMAX, step: 0.5, magnet: 1, value: st.set,
       label: side => side === 'w' ? 'Presión de la bomba' : 'Voltaje de la fuente',
       format: (v, side) => side === 'w' ? fmt(v * PSI_PER_V) + ' psi' : fmt(v) + ' V',
       scale: () => [['0', 0], ['6', 0.5], ['12', 1]],
@@ -305,6 +315,7 @@
     b.knobs.length = 0;   // las escalas de estas perillas las dibuja la caja del controlador
 
     const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
+    Sim.magnetRange(inercia, 0.5);   // se engancha en 0, 0,5, 1… s
     const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
     inercia.addEventListener('input', setTau); setTau();
 
