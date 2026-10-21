@@ -383,3 +383,15 @@ span.sim-go { visibility: hidden; width: 38px; padding: 0; }
 .sim-menu .act.danger { border-color: var(--danger); background: var(--card); color: var(--danger); }
 /* Lo que abre un menú se marca mientras está abierto. */
 .sim-layer > [aria-expanded="true"] { border-color: var(--water); border-style: solid; }
+
+/* Selector de opciones sobre el dibujo (b.linkedChoice), por ejemplo Serie | Paralelo. */
+.sim-seg {
+  display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px;
+  border: 2px solid var(--line); background: var(--bg);
+}
+.sim-seg button {
+  font: inherit; font-weight: 700; font-size: max(12px, calc(var(--s, 1) * 15px)); cursor: pointer; white-space: nowrap;
+  padding: .3em .9em; border: 0; border-radius: 999px; background: transparent; color: var(--muted); touch-action: manipulation;
+}
+.sim-seg button:hover { color: var(--ink); }
+.sim-seg button[aria-pressed="true"] { background: var(--water); color: var(--card); }

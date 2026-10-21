@@ -153,9 +153,30 @@
         if (label) el.setAttribute('aria-label', label(side));
         if (hidden) el.hidden = hidden();
       }));
+      choices.forEach(({ pair, get }) => pair.forEach(el =>
+        el.querySelectorAll('button').forEach(btn => btn.setAttribute('aria-pressed', String(btn.dataset.v === get())))));
       b.pw.replace(); b.pe.replace();
     };
-    // Un componente que abre su menú al tocarlo (Sim.menu): menu(side) da { title, note, rows }.
+    // Selector de opciones (por ejemplo Serie | Paralelo) en cada lado, enlazados: options son
+    // [valor, texto]; get() da la opción elegida y set(valor) la cambia.
+    const choices = [];
+    b.linkedChoice = ({ pos, options, get, set, label }) => {
+      const pair = ['w', 'e'].map(side => {
+        const el = document.createElement('div');
+        el.className = 'sim-seg'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', label);
+        options.forEach(([v, t]) => {
+          const btn = document.createElement('button');
+          btn.type = 'button'; btn.textContent = t; btn.dataset.v = v;
+          btn.addEventListener('click', () => { if (get() !== v) { set(v); b.refresh(); } });
+          el.appendChild(btn);
+        });
+        return b.place(side, el, pos);
+      });
+      choices.push({ pair, get });
+      b.refresh();
+      return pair;
+    };
+    // Un componente que abre su menú al tocarlo (Sim.menu): menu(side) da { title, rows }.
     // Lo que cambia en el menú se ve en los dos lados.
     b.part = ({ pos, label, menu, cls = 'sim-hit', hidden }) => b.linkedButton({
       cls, pos, label, hidden, onClick: (side, el) => Sim.menu.toggle(el, menu(side))
