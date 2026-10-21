@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021040000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021050000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,16 +35,17 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021040000"></script>
-<script src="../../assets/banco.js?v=20261021040000"></script>
+<script src="../../assets/sim.js?v=20261021050000"></script>
+<script src="../../assets/banco.js?v=20261021050000"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
-  // Dos resistencias que se ajustan agarrando el borde del tramo angosto (o pellizcándolo con dos dedos).
-  // Más angosto = más resistencia. Van de 220 Ω a 4,7 kΩ.
+  // Dos resistencias que se ajustan agarrando el borde del tramo angosto (o pellizcándolo con dos dedos),
+  // o tocándolas para abrir su menú. Más angosto = más resistencia. Valores comunes de 220 Ω a 4,7 kΩ.
   const RMIN = 220, RMAX = 4700, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);   // aun la más baja se ve como tramo angosto
+  const RVALUES = Sim.series(RMIN, RMAX);
   const half = R => HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN;
-  const fromHalf = h => RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN);
+  const fromHalf = h => Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
   const ohm = R => R >= 1000 ? fmt(R / 1000, R >= 10000 ? 0 : 1) + ' kΩ' : Math.round(R) + ' Ω';
   const st = { mode: 'serie', R: [1000, 2200] };
   const sides = {};
@@ -124,13 +125,16 @@
     b.grips(ctx, x, y, h, pinch[k].drag);
     D.text(ctx, `R${k + 1} = ${ohm(st.R[k])}`, x, y - h - 30, C.ink, { size: 15, font: Sim.MONO, weight: 500 });
   }
-  // Cada resistencia se ajusta pellizcándola.
-  const pinch = [0, 1].map(k => b.pinch({
-    pos: g => rPos(g, k), get: () => st.R[k], half, fromHalf,
-    set: R => { st.R[k] = Math.round(Math.max(RMIN, Math.min(RMAX, R))); profiles(); },
-    label: side => (side === 'w' ? 'Ancho del tramo angosto ' : 'Resistencia ') + (k + 1),
-    text: ohm
-  }));
+  // Cada resistencia se ajusta pellizcándola o con su menú.
+  const pinch = [0, 1].map(k => {
+    const set = R => { st.R[k] = R; profiles(); };
+    return b.pinch({
+      pos: g => rPos(g, k), get: () => st.R[k], half, fromHalf, set,
+      label: side => (side === 'w' ? 'Tramo angosto ' : 'Resistencia ') + (k + 1),
+      text: ohm,
+      menu: Sim.resistorMenu({ name: 'R' + (k + 1), values: RVALUES, get: () => st.R[k], set, format: ohm })
+    });
+  });
   // Botón para cambiar entre serie y paralelo.
   b.linkedButton({
     pos: g => [290, g.BOT - 72],

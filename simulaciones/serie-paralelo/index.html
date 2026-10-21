@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261021040000">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261021050000">
 </head>
 <body>
 <div class="sim-page">
@@ -35,17 +35,22 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261021040000"></script>
-<script src="../../assets/banco.js?v=20261021040000"></script>
+<script src="../../assets/sim.js?v=20261021050000"></script>
+<script src="../../assets/banco.js?v=20261021050000"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
-  const RS = 470;                 // resistencia de cada rama, ohmios
-  const VF = 2;                   // un LED (o una rueda) necesita unos 2 V para empezar a moverse
+  // Cada resistencia (470 Ω al empezar) y cada LED (rojo, unos 2 V para empezar a moverse) se cambian
+  // tocándolos: se abre su menú. En serie solo está la primera resistencia.
+  const RMIN = 220, RMAX = 4700, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
+  const RVALUES = Sim.series(RMIN, RMAX);
+  const half = R => HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN;
+  const fromHalf = h => Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
+  const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
   const XR = 260;                 // posición de las resistencias
-  const st = { mode: 'serie', broken: [false, false], ang: [0, 0], om: [0, 0] };
+  const st = { mode: 'serie', R: [470, 470], led: ['rojo', 'rojo'], broken: [false, false], ang: [0, 0], om: [0, 0] };
   const sides = {};
-  const hn = Sim.narrowHalf(RS);
+  const vf = k => Sim.led(st.led[k]).vf;
 
   // Recorridos de cada modo. En paralelo hay un tronco común (abajo) y dos ramas: A arriba y B a media altura.
   function layout(g) {
@@ -58,15 +63,18 @@
       b: [[g.X0, YB], [g.X1, YB]]
     };
     if (g.side === 'w') {
-      const N = (dc) => Sim.narrowProfile(dc, hn);
-      s.water = {
-        loop: Sim.water(s.paths.loop, N((g.BOT - g.TOP) + (XR - g.X0))),
-        trunk: Sim.water(s.paths.trunk),
-        a: Sim.water(s.paths.a, N((YB - g.TOP) + (XR - g.X0))),
-        b: Sim.water(s.paths.b, N(XR - g.X0))
-      };
+      s.water = { loop: Sim.water(s.paths.loop), trunk: Sim.water(s.paths.trunk), a: Sim.water(s.paths.a), b: Sim.water(s.paths.b) };
+      profiles();
     }
   }
+  // Perfil del agua según el ancho de cada tramo angosto.
+  function profiles() {
+    const s = sides.w, g = s.g, N = (dc, k) => Sim.narrowProfile(dc, half(st.R[k]));
+    s.water.loop.setProfile(N((g.BOT - g.TOP) + (XR - g.X0), 0));
+    s.water.a.setProfile(N((s.YB - g.TOP) + (XR - g.X0), 0));
+    s.water.b.setProfile(N(XR - g.X0, 1));
+  }
+  const rPos = (g, k) => [XR, k ? sides[g.side].YB : g.TOP];
   // Dónde va cada LED (rueda) en el modo actual.
   const ledPos = (g, k) => {
     const s = sides[g.side];
@@ -80,10 +88,10 @@
     model(V) {
       const [b1, b2] = st.broken;
       if (st.mode === 'serie') {
-        const I = (b1 || b2) ? 0 : Math.max(0, V - 2 * VF) / RS * 1000;
+        const I = (b1 || b2) ? 0 : Math.max(0, V - vf(0) - vf(1)) / st.R[0] * 1000;
         return { I, branch: [I, I] };
       }
-      const I1 = b1 ? 0 : Math.max(0, V - VF) / RS * 1000, I2 = b2 ? 0 : Math.max(0, V - VF) / RS * 1000;
+      const I1 = b1 ? 0 : Math.max(0, V - vf(0)) / st.R[0] * 1000, I2 = b2 ? 0 : Math.max(0, V - vf(1)) / st.R[1] * 1000;
       return { I: I1 + I2, branch: [I1, I2] };
     },
     // Cómo se reparte el voltaje: un LED roto (o todos, si no alcanza para encenderlos) se queda con él.
@@ -91,14 +99,14 @@
       const [b1, b2] = st.broken, R = (x, y, dV) => ({ at: [x, y], half: 46, dV }), L = (x, y, dV) => ({ at: [x, y], half: 30, dV });
       if (st.mode === 'serie') {
         const n = b1 + b2, on = m.I > 0;
-        const led = k => n ? (st.broken[k] ? V / n : 0) : on ? VF : V / 2;
+        const led = k => n ? (st.broken[k] ? V / n : 0) : on ? vf(k) : V / 2;
         return [{ pts: b.loopPts(g), I: m.I, v0: V,
-          comps: [R(XR, g.TOP, on ? V - 2 * VF : 0), L(420, g.TOP, led(0)), L(545, g.TOP, led(1))] }];
+          comps: [R(XR, g.TOP, on ? V - vf(0) - vf(1) : 0), L(420, g.TOP, led(0)), L(545, g.TOP, led(1))] }];
       }
       const YB = sides.e.YB;
       const branch = (i, pts, y) => {
         const on = m.branch[i] > 0;
-        return { pts, I: m.branch[i], v0: V, comps: [R(XR, y, on ? V - VF : 0), L(470, y, on ? VF : V)] };
+        return { pts, I: m.branch[i], v0: V, comps: [R(XR, y, on ? V - vf(i) : 0), L(470, y, on ? vf(i) : V)] };
       };
       return [
         { pts: [[g.X1, YB], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]], I: m.I, v0: 0, comps: [] },
@@ -124,33 +132,52 @@
     drawW(ctx, g, m) {
       const s = sides.w, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
       keys.forEach(k => D.pipe(ctx, s.paths[k]));
-      if (st.mode === 'serie') D.narrow(ctx, XR, g.TOP, hn);
-      else { D.narrow(ctx, XR, g.TOP, hn); D.narrow(ctx, XR, s.YB, hn); }
+      const rs = st.mode === 'serie' ? [0] : [0, 1];
+      rs.forEach(k => D.narrow(ctx, XR, rPos(g, k)[1], half(st.R[k])));
       keys.forEach(k => s.water[k].draw(ctx));
+      rs.forEach(k => b.grips(ctx, XR, rPos(g, k)[1], half(st.R[k]) + 5, pinch[k].drag));
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
-        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1) });
+        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1), tint: `rgb(${Sim.led(st.led[i]).rgb})` });
       });
     },
     drawE(ctx, g, m) {
       const s = sides.e, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
       keys.forEach(k => D.wire(ctx, s.paths[k]));
       keys.forEach(k => D.flow(ctx, s.paths[k], s.phase[k], C.charge, { gap: 30, r: 4.5 }));
-      const ys = st.mode === 'serie' ? [g.TOP] : [g.TOP, s.YB];
-      ys.forEach(y => { D.resistor(ctx, XR, y); D.text(ctx, '470 Ω', XR, y - 30, C.muted, { size: 14 }); });
+      (st.mode === 'serie' ? [0] : [0, 1]).forEach(k => {
+        const y = rPos(g, k)[1];
+        D.resistor(ctx, XR, y);
+        b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k].drag);
+        D.text(ctx, ohm(st.R[k]), XR, y - half(st.R[k]) - 30, C.ink, { size: 15, font: Sim.MONO, weight: 500 });
+      });
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
-        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1) });
+        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1), rgb: Sim.led(st.led[i]).rgb });
       });
     }
   });
 
-  // Tocar una rueda (o un LED) lo rompe o lo repara.
-  [0, 1].forEach(i => b.linkedButton({
-    cls: 'sim-hit', pos: g => ledPos(g, i),
-    label: side => (st.broken[i] ? 'Reparar ' : 'Romper ') + (side === 'w' ? 'la rueda ' : 'el LED ') + (i + 1),
-    onClick: () => { st.broken[i] = !st.broken[i]; }
+  // Tocar una rueda (o un LED) abre su menú: su color, y romperlo o repararlo.
+  [0, 1].forEach(i => b.part({
+    pos: g => ledPos(g, i),
+    label: side => (side === 'w' ? 'Rueda ' : 'LED ') + (i + 1),
+    menu: Sim.ledMenu({
+      name: String(i + 1), get: () => st.led[i], set: id => { st.led[i] = id; },
+      actions: side => [{ text: () => (st.broken[i] ? 'Reparar ' : 'Romper ') + (side === 'w' ? 'la rueda' : 'el LED'), danger: true,
+        onClick: () => { st.broken[i] = !st.broken[i]; } }]
+    })
   }));
+  // Cada resistencia se ajusta pellizcándola o con su menú (en serie solo está la primera).
+  const pinch = [0, 1].map(k => {
+    const set = R => { st.R[k] = R; profiles(); };
+    return b.pinch({
+      pos: g => k && st.mode === 'serie' ? [-999, -999] : rPos(g, k), get: () => st.R[k], half, fromHalf, set,
+      label: side => (side === 'w' ? 'Tramo angosto ' : 'Resistencia ') + (k + 1),
+      text: ohm,
+      menu: Sim.resistorMenu({ name: String(k + 1), values: RVALUES, get: () => st.R[k], set, format: ohm })
+    });
+  });
   // Botón para cambiar entre serie y paralelo.
   b.linkedButton({
     pos: g => [290, g.BOT - 72],

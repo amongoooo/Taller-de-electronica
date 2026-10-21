@@ -310,3 +310,54 @@ span.sim-go { visibility: hidden; width: 38px; padding: 0; }
 .sim-clamp.ring { width: max(22px, calc(var(--s, 1) * 24px)); }
 /* Borne de cada medidor: de aquí también se saca su punta. */
 .sim-clamp.jack { width: max(24px, calc(var(--s, 1) * 26px)); z-index: 3; }
+
+/* Menú de un componente (Sim.menu): tarjetita junto a lo que se tocó, con sliders de valores comunes,
+   botones para escoger y acciones. La flechita apunta al componente. */
+.sim-menu {
+  position: fixed; z-index: 30; width: min(320px, calc(100vw - 16px));
+  display: grid; gap: 12px; padding: 12px 14px 14px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(21, 33, 42, 0.2);
+}
+.sim-menu[hidden] { display: none; }
+.sim-menu::before {
+  content: ""; position: absolute; left: var(--ax, 50%); width: 14px; height: 14px;
+  background: var(--card); border: 1px solid var(--line); transform: translateX(-50%) rotate(45deg);
+}
+.sim-menu[data-at="below"]::before { top: -8px; border-right: 0; border-bottom: 0; }
+.sim-menu[data-at="above"]::before { bottom: -8px; border-left: 0; border-top: 0; }
+.sim-menu .hd { display: flex; align-items: center; gap: 8px; }
+.sim-menu .ttl { flex: 1 1 auto; margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.sim-menu .x {
+  flex: none; width: 34px; height: 34px; margin: -6px -6px -6px 0; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); font-size: 24px; line-height: 1; cursor: pointer;
+}
+.sim-menu .x:hover { background: var(--bg); color: var(--ink); }
+.sim-menu .note { margin: -6px 0 0; font-size: 14px; color: var(--muted); line-height: 1.35; }
+.sim-menu .note[hidden], .sim-menu .row[hidden], .sim-menu .act[hidden] { display: none; }
+.sim-menu .row { display: grid; gap: 6px; }
+.sim-menu .top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-weight: 700; font-size: 15px; }
+.sim-menu .val { font-family: var(--font-mono); font-weight: 500; font-size: 17px; color: var(--ink); white-space: nowrap; }
+.sim-menu .ctl { display: flex; align-items: center; gap: 8px; }
+.sim-menu .step {
+  flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid var(--water); background: var(--card); color: var(--water);
+  font: inherit; font-size: 22px; font-weight: 700; line-height: 1; touch-action: manipulation;
+}
+.sim-menu .step:disabled { opacity: .3; cursor: default; }
+.sim-menu input[type="range"] { flex: 1 1 auto; min-width: 0; height: 36px; margin: 0; accent-color: var(--water); }
+.sim-menu .ends { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding: 0 44px; }
+.sim-menu .opts { display: flex; flex-wrap: wrap; gap: 10px; }
+.sim-menu .opt {
+  width: 40px; height: 40px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 3px solid var(--card); background: var(--c, var(--muted)); box-shadow: 0 0 0 2px var(--line);
+}
+.sim-menu .opt[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--ink); }
+.sim-menu .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sim-menu .act {
+  font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; padding: .45em 1em; border-radius: 999px;
+  border: 2px solid var(--ok); background: var(--ok); color: var(--card);
+}
+.sim-menu .act.danger { border-color: var(--danger); background: var(--card); color: var(--danger); }
+/* Lo que abre un menú se marca mientras está abierto. */
+.sim-layer > [aria-expanded="true"] { border-color: var(--water); border-style: solid; }
