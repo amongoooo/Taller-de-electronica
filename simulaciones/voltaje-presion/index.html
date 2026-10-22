@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022011547">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022012539">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022011547"></script>
-<script src="../../assets/banco.js?v=20261022011547"></script>
+<script src="../../assets/sim.js?v=20261022012539"></script>
+<script src="../../assets/banco.js?v=20261022012539"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -76,14 +76,13 @@
   b.start();
 
   // Va por pasos: primero solo la fuente (encender, apagar y la perilla), luego aparece el multímetro
-  // en A, en serie (sus dos puntas en el cable de abajo, que se corta entre ellas), para la corriente
-  // (caudal), y al final con la perilla en V para el voltaje (presión), con sus puntas a los dos lados de
-  // la resistencia.
-  const g = b.gw;
+  // en A para la corriente (caudal) y al final con la perilla en V para el voltaje (presión). Aparece sin
+  // conectar: se toca para poner sus puntas (en A, las dos en el mismo cable, que se corta entre ellas; en
+  // V, a los dos lados de la resistencia).
   const STEPS = [
     ['La fuente', () => b.showMeters({ a: false })],
-    ['La corriente', () => { b.showMeters({ a: true }); b.setDial('a', 'A', [[g.X1 - 30, g.BOT], [g.X1 - 120, g.BOT]]); }],
-    ['El voltaje', () => { b.showMeters({ a: true }); b.setDial('a', 'V', [[g.X0, g.MY], [g.X1, g.MY]]); }]
+    ['La corriente', () => { b.showMeters({ a: true }); b.setDial('a', 'A'); }],
+    ['El voltaje', () => { b.showMeters({ a: true }); b.setDial('a', 'V'); }]
   ];
   Sim.steps(STEPS.map(s => s[0]), k => STEPS[k][1]());
 })();

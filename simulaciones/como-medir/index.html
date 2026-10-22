@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022011547">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022012539">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -37,8 +37,8 @@
   <p class="sim-sr" id="aviso" aria-live="polite"></p>
 </div>
 
-<script src="../../assets/sim.js?v=20261022011547"></script>
-<script src="../../assets/banco.js?v=20261022011547"></script>
+<script src="../../assets/sim.js?v=20261022012539"></script>
+<script src="../../assets/banco.js?v=20261022012539"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -130,7 +130,7 @@
       const m = pick('V');
       if (!m) { r.push([turn('V'), C.muted]); return r; }
       const [A, B] = m.nodes;
-      if (!A || !B) r.push([`Pon las dos ${tips} de ${meter} en dos nodos.`, C.muted]);
+      if (!A || !B) r.push([`Toca ${meter} y pon sus dos ${tips} en dos nodos.`, C.muted]);
       else if (A === B) r.push([`Las dos ${tips} en el mismo nodo: marca 0${V_(w)}, no hay diferencia.`, C.muted]);
       else r.push([`Roja en ${val(A.v, w)} − negra en ${val(B.v, w)} = ${val(A.v - B.v, w)}`, '#8b5cf6']);
       return r;
