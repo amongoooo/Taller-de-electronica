@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Diodo 1N4007 · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022175407">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Diodo 1N4007</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Bomba de vaivén que empuja el agua por un tramo angosto y una válvula de retención, y un registrador de presión de dos plumas que dibuja la presión en el tiempo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Generador de funciones con una resistencia y un diodo 1N4007 a tierra, y un osciloscopio de dos canales que muestra el voltaje en el tiempo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261022175407"></script>
+<script src="../../assets/osciloscopio.js?v=20261022175407"></script>
+<script>
+// Diodo 1N4007 (D3): generador → R → diodo a tierra. El generador y el osciloscopio están en assets/osciloscopio.js.
+(() => {
+  const { X0, X1, TOP, BOT, XR, XL, PATH, VF, RD } = Sim.scope;
+  Sim.scope({
+    // 5 V de corriente directa (offset, sin amplitud) con 1 kΩ: en el diodo caen 0,7 V con 4,3 mA.
+    preset: { wave: 'sine', fi: 10, amp: 0, off: 5, R: 1000, vi: 1, ti: 4, ch2: false, probe: [640, 980, 300], side: [1, -1, -1] },
+    places: { R: [XR, TOP, 'h'], D: [XL, TOP, 'h'] },
+    wires: [{ pts: PATH, seq: ['a', 'R', 'b', 'D', 'g'] }],
+    branches: () => [{ pts: Sim.draw.rect(X0, TOP, X1, BOT), br: 's', dc: (BOT - TOP) + (XR - X0) }],
+    // Caída fija de 0,7 V más su resistencia interna; girado (o con el voltaje al revés) no conduce y todo el
+    // voltaje queda en él.
+    solve: (e, h, st) => {
+      const s = st.drev ? -1 : 1;
+      if (s * e <= VF) return { I: 0, i: { s: 0 }, v: { a: e, b: e, g: 0 }, VR: 0, diodes: { D: [e, 0] } };
+      const i = (e - s * VF) / (st.R + RD), vd = s * VF + i * RD, I = i * 1000;
+      return { I, i: { s: I }, v: { a: e, b: vd, g: 0 }, VR: i * st.R, diodes: { D: [vd, I] } };
+    },
+    ifull: 5, rValues: Sim.series(1000, 10000)
+  });
+})();
+</script>
+</body>
+</html>

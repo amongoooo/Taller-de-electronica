@@ -89,11 +89,18 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     `setPlacing`), cables con física (`ropeStep`, `leadStep`), `measure` / `ohms` (V, A, Ω).
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
   - Vista de nodos: `analyze`, `morph`, `drawNodes`. Inercia: `inertia`. Regulación CV/CC: `regulate`.
+- `assets/osciloscopio.js` (`Sim.scope(o)`), el generador de funciones y el osciloscopio que usan las páginas 9 a 13:
+  dos canales y caimán de tierra, disparo con la sincronía del generador, puntas en cualquier cable (`wires`), `frames`
+  (cada cuadro integra el circuito y guarda lo que marca cada canal), color de las partículas (`Sim.field`, `st.avg`),
+  tarjetas y dibujo de los componentes (R tramo angosto, L rueda, D válvula de retención, C tanque; la clase es la
+  primera letra de la clave: `D1`…`D4` son diodos). La página da `preset`, `places`, `wires` (nodos y componentes en
+  orden), `branches` (ramas del agua con su corriente), `dots`, `solve(e, h, st)` → corriente, voltaje de cada nodo
+  y corriente de cada rama, `ifull`, `rValues`, `burn` y `filter` (el capacitor se pone y se quita en su tarjeta).
+  `Sim.oscNow` da su estado para probar.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
-  `protoboard` y `osciloscopio` no usan el banco: tienen su propio dibujo, puntas, botones y tarjetas.
-  `osciloscopio` tiene cuatro circuitos (`PLACES`, `PRESET`, `solve`: LED, RC, diodo 1N4007, rectificador de media onda),
-  dos canales y disparo con la sincronía del generador; cada cuadro integra el circuito y guarda lo que marca cada canal
-  (`frames`); `Sim.oscNow` da su estado para probar.
+  `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  `osciloscopio-rc`, `osciloscopio-diodo`, `osciloscopio-rectificador` (media onda) y `osciloscopio-onda-completa`
+  (puente de cuatro diodos) solo dan su circuito a `Sim.scope`.
   `agua-electricidad` es la versión vieja (no está en `Sim.ORDER`).
 
 ## Pendiente

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rectificador de media onda · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022175407">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Rectificador de media onda</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Bomba de vaivén que empuja el agua por una válvula de retención y un tramo angosto, con un tanque con membrana que se pone en paralelo, y un registrador de presión de dos plumas que dibuja la presión en el tiempo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Generador de funciones con un diodo 1N4007 y una resistencia de carga, con un capacitor de filtro que se pone en paralelo, y un osciloscopio de dos canales que muestra el voltaje en el tiempo"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261022175407"></script>
+<script src="../../assets/osciloscopio.js?v=20261022175407"></script>
+<script>
+// Rectificador de media onda (D4): generador → 1N4007 → R de carga, con o sin el capacitor de filtro en
+// paralelo. El generador y el osciloscopio están en assets/osciloscopio.js.
+(() => {
+  const { X0, X1, TOP, BOT, XR, MIDY, PATH, VF, RD, rcOf } = Sim.scope;
+  const XP = 400;   // rama del capacitor (parada, entre el cable de arriba y el de abajo)
+  Sim.scope({
+    // Senoidal de 5 Vp a 100 Hz y 1 kΩ: el canal 1 ve la entrada y el canal 2 la salida, de 4,3 Vp y solo los
+    // semiciclos positivos. Con el capacitor de 100 µF la salida queda casi fija, con un rizado de unos 0,4 V.
+    preset: { wave: 'sine', fi: 30, amp: 5, off: 0, R: 1000, Cap: 100, filt: false, vi: 2, ti: 2, ch2: true, probe: [300, 1050, 800], side: [-1, -1, 1] },
+    // Las etiquetas de los parados a su izquierda: la del capacitor hasta la orilla, la de la resistencia hasta el tanque.
+    places: { D: [XR, TOP, 'h'], R: [X1, MIDY, 'v', { lim: st => XP + rcOf(st.Cap) + 14 }], C: [XP, MIDY, 'v', { lim: () => X0 + 20 }] },
+    wires: [{ pts: PATH, seq: ['a', 'D', 'b', 'R', 'g'] },
+      { pts: [[XP, TOP], [XP, BOT]], seq: ['b', 'C', 'g'], probe: false, when: st => st.filt, half: { C: st => rcOf(st.Cap) } }],
+    // La rama del generador y el diodo, la de la resistencia de carga y la del capacitor.
+    branches: st => [{ pts: [[XP, BOT], [X0, BOT], [X0, TOP], [XP, TOP]], br: 's' },
+      { pts: [[XP, TOP], [X1, TOP], [X1, BOT], [XP, BOT]], br: 'r', dc: (X1 - XP) + (MIDY - TOP) },
+      ...(st.filt ? [{ pts: [[XP, TOP], [XP, BOT]], br: 'c' }] : [])],
+    dots: st => st.filt ? [[XP, TOP], [XP, BOT]] : [],
+    solve: (e, h, st) => {
+      const R = st.R, s = st.drev ? -1 : 1;
+      // Sin capacitor la salida es e − 0,7 V mientras el diodo conduce, y 0 si no.
+      if (!st.filt) {
+        const out = s * e > VF ? (e - s * VF) * R / (R + RD) : 0, I = out / R * 1000;
+        return { I, i: { s: I, r: I }, v: { a: e, b: out, g: 0 }, VR: out, diodes: { D: [e - out, I] } };
+      }
+      // Con el capacitor en paralelo: si el diodo conduce, la salida sigue a e − 0,7 V (τ = C·(R ∥ RD), casi
+      // nada); si no, el capacitor se descarga por R (τ = R·C) y la salida baja poco a poco: el rizado.
+      const Cf = st.Cap * 1e-6, v0 = st.vc, on = s * (e - v0) > VF;
+      const vi = on ? (e - s * VF) * R / (R + RD) : 0, tau = on ? Cf * R * RD / (R + RD) : R * Cf;
+      const x = Math.exp(-h / tau), v1 = vi + (v0 - vi) * x;
+      st.vc = v1;
+      const iR = (vi * h + (v0 - vi) * tau * (1 - x)) / h / R * 1000, iC = Cf * (v1 - v0) / h * 1000, I = iR + iC;
+      return { I, i: { s: I, r: iR, c: iC }, v: { a: e, b: v1, g: 0 }, VR: v1, diodes: { D: [on ? e - v1 : 0, I] } };
+    },
+    ifull: 5, rValues: Sim.series(1000, 10000), filter: true
+  });
+})();
+</script>
+</body>
+</html>

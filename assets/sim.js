@@ -992,7 +992,11 @@
     ['serie-paralelo', 'LEDs en serie y paralelo'],
     ['protoboard', 'Protoboard'],
     ['capacitores', 'Capacitores'],
-    ['osciloscopio', 'Osciloscopio']
+    ['osciloscopio', 'LED y osciloscopio'],
+    ['osciloscopio-rc', 'Carga y descarga RC'],
+    ['osciloscopio-diodo', 'Diodo 1N4007'],
+    ['osciloscopio-rectificador', 'Rectificador de media onda'],
+    ['osciloscopio-onda-completa', 'Rectificador de onda completa']
   ];
   if (foot) {
     const m = /\/simulaciones\/([^/]+)\//.exec(location.pathname);
