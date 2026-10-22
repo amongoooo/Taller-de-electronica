@@ -347,11 +347,11 @@ input[type="range"].snap-b::-moz-range-thumb { animation: sim-snap-b .2s ease-ou
 
 /* ---------- barra de arriba ----------
    Tres zonas: dónde estoy (← · título con «Simulación N de 9» · pasos con nombre),
-   qué miro (vista · ¿Qué se toca? · Controles) y a dónde voy (‹ · un solo botón principal que dice a dónde lleva). */
+   qué miro (vista · Controles) y a dónde voy (‹ · un solo botón principal que dice a dónde lleva). */
 .sim-title { flex: none; min-width: 0; display: grid; line-height: 1.15; }
 .sim-title .of { font-size: 12px; color: var(--muted); white-space: nowrap; letter-spacing: .02em; }
-.sim-bar > .sim-viewseg, .sim-bar > .sim-help-btn { margin-left: auto; }
-.sim-bar > .sim-viewseg + .sim-help-btn { margin-left: 0; }
+.sim-bar > .sim-viewseg, .sim-bar > .sim-ctl-btn { margin-left: auto; }
+.sim-bar > .sim-viewseg + .sim-ctl-btn { margin-left: 0; }
 
 .sim-foot { flex: none; display: flex; align-items: center; gap: 8px; padding-left: 14px; border-left: 1px solid var(--line); align-self: stretch; }
 .sim-where { display: none; }
@@ -402,20 +402,14 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-steps .seg:not([data-on="true"]):hover i { background: var(--muted); }
 .sim-steps .seg:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; border-radius: 4px; }
 
-/* Botones de la barra: ¿Qué se toca? y Controles (secundarios: sin color propio). */
-.sim-help-btn, .sim-ctl-btn, .sim-side-help {
+/* Botón de la barra: Controles (secundario: sin color propio). */
+.sim-ctl-btn {
   flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; cursor: pointer;
   font: inherit; font-size: 14px; font-weight: 700; border-radius: 999px; border: 2px solid var(--line); background: var(--bg); color: var(--ink);
   touch-action: manipulation;
 }
-.sim-help-btn .q, .sim-side-help .q {
-  display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
-  background: var(--muted); color: var(--card); font-size: 13px;
-}
-.sim-help-btn[aria-pressed="true"] { border-color: var(--ink); }
 .sim-ctl-btn svg { width: 20px; height: 20px; }
 .sim-ctl-btn[aria-expanded="true"] { border-color: var(--water); color: var(--water); }
-.sim-side-help { display: none; margin-left: auto; height: 32px; font-size: 13px; }
 /* Lo que se recorta al angostar, en este orden; el título y «Simulación N de 9» no se recortan. */
 @media (max-width: 1500px) {
   .sim-bar .back { font-size: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--line); }
@@ -423,7 +417,6 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   .sim-bar .back:hover { text-decoration: none; border-color: var(--water); background: var(--water-soft); }
 }
 @media (max-width: 1360px) { .sim-go.next .name, .sim-steps .seg:not([aria-current]) .name { display: none; } }
-@media (max-width: 1300px) { .sim-help-btn .t { display: none; } .sim-help-btn { padding: 0 6px; } }
 @media (max-width: 1200px) { .sim-ctl-btn .t { display: none; } .sim-ctl-btn { padding: 0 8px; } .sim-bar { column-gap: 10px; } .sim-foot { padding-left: 10px; } }
 
 /* ---------- columna de controles ----------
@@ -563,22 +556,6 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-tip.on { opacity: 1; }
 .sim-tip.warm { transition: none; }
 
-/* ¿Qué se toca?: todo lo que se toca, marcado con el color de su acción y el nombre de la acción. */
-.sim-page.show-acts .sim-layer > :not([hidden]):not(.ring):not(.jack):not(.shy):not(.pb-anchor) {
-  outline: 3px solid var(--act); outline-offset: 3px; border-radius: 12px; animation: sim-acts 1.1s ease-in-out infinite alternate;
-  background-color: color-mix(in srgb, var(--act) 10%, transparent);
-}
-.sim-page.show-acts .sim-layer > .knob, .sim-page.show-acts .sim-layer > .sim-clamp { border-radius: 50% !important; }
-.sim-page.show-acts .sim-layer > [data-act-name]:not([hidden]):not(.ring):not(.jack):not(.shy):not(.pb-anchor)::after {
-  content: attr(data-act-name); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
-  padding: 1px 7px; border-radius: 999px; background: var(--act); color: #fff;
-  font: 700 14px/1.4 var(--font-body); letter-spacing: .02em; white-space: nowrap; pointer-events: none; z-index: 3;
-}
-.sim-page.show-acts .sim-sec { animation: sim-acts-sec 1.1s ease-in-out infinite alternate; }
-@keyframes sim-acts { from { outline-offset: 3px; } to { outline-offset: 7px; } }
-@keyframes sim-acts-sec { to { box-shadow: 0 0 0 3px var(--act); } }
-@media (prefers-reduced-motion: reduce) { .sim-page.show-acts .sim-layer > *, .sim-page.show-acts .sim-sec { animation: none; } }
-
 /* Menú de un componente en el celular: hoja que sube desde abajo, sin tapar el circuito de arriba. */
 .sim-menu.sheet {
   left: 0; right: 0; bottom: 0; top: auto; width: auto; z-index: 45;
@@ -598,8 +575,8 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   .sim-bar .back::before { content: "←"; font-size: 24px; line-height: 1; }
   .sim-bar h1 { font-size: 17px; }
   .sim-title .of { display: none; }
-  .sim-help-btn, .sim-ctl-btn { height: 34px; padding: 0 6px; }
-  .sim-ctl-btn .t, .sim-help-btn .t { display: none; }
+  .sim-ctl-btn { height: 34px; padding: 0 6px; }
+  .sim-ctl-btn .t { display: none; }
   .sim-go { height: 38px; font-size: 14px; }
   .sim-go.prev { width: 38px; }
   .sim-go.next { padding: 0 6px 0 14px; }
@@ -627,8 +604,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 @media (max-width: 600px) {
   .sim-bar { flex-wrap: wrap; }
   .sim-title { flex: 1 1 0; }
-  .sim-steps, .sim-bar > .sim-help-btn { display: none; }
-  .sim-side-help { display: inline-flex; }
+  .sim-steps { display: none; }
   .sim-bar > .sim-viewseg {
     order: 10; flex: 1 0 100%; display: flex; gap: 0; padding: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: var(--card);
     margin: 0 calc(-1 * max(16px, env(safe-area-inset-right, 0px))) -6px calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
@@ -662,7 +638,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   .sim-foot { padding-left: 8px; }
   .sim-steps { flex: 1 1 160px; min-width: 90px; }
   .sim-steps .seg:not([aria-current]) .name { display: none; }
-  .sim-help-btn, .sim-ctl-btn { height: 32px; }
+  .sim-ctl-btn { height: 32px; }
 }
 /* Solo para lectores de pantalla (avisos que cambian). */
 .sim-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -678,12 +654,12 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
    colores) ni los que ya se hunden a su manera (botones físicos del multímetro, la palanca). */
 :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
 .sim-go, .sim-seg button, .sim-viewseg button, .sim-steps .seg, .sim-btn, .sim-side-btn, .sim-sec .pb-btn, .sim-part,
-.sim-help-btn, .sim-ctl-btn, .sim-side-help, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x {
+.sim-ctl-btn, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x {
   transition: scale .16s var(--ease-out);
 }
 .sim-go { transition: scale .16s var(--ease-out), background .15s, border-color .15s, box-shadow .15s, filter .15s; }
 :is(.sim-go, .sim-seg button, .sim-viewseg button, .sim-steps .seg, .sim-btn, .sim-side-btn, .sim-sec .pb-btn, .sim-part,
-.sim-help-btn, .sim-ctl-btn, .sim-side-help, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x):active:not(:disabled) {
+.sim-ctl-btn, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x):active:not(:disabled) {
   scale: .97; transition-duration: .1s;   /* se hunde rápido; regresa con calma */
 }
 /* La perilla y la palanca saltan con rebote, como muescas de verdad; con «reducir movimiento», sin rebote. */
@@ -691,5 +667,5 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   .knob-cap { transition-timing-function: var(--ease-out); }
   .sw-thumb { transition-timing-function: var(--ease-out); }
   :is(.sim-go, .sim-seg button, .sim-viewseg button, .sim-steps .seg, .sim-btn, .sim-side-btn, .sim-sec .pb-btn, .sim-part,
-  .sim-help-btn, .sim-ctl-btn, .sim-side-help, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x):active { scale: none; }
+  .sim-ctl-btn, .sim-menu .act, .sim-menu .opt, .sim-menu .adj, .sim-menu .x, .sim-side-hd .x):active { scale: none; }
 }
