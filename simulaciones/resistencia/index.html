@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022012539">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022013556">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022012539"></script>
-<script src="../../assets/banco.js?v=20261022012539"></script>
+<script src="../../assets/sim.js?v=20261022013556"></script>
+<script src="../../assets/banco.js?v=20261022013556"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -129,7 +129,7 @@
   const rText = () => st.R ? ohm(st.R) : '0 Ω';
   // Cables al rojo: brillan más cuanto más se pasa la corriente de lo que aguanta el fusible.
   function hot(ctx, path, m) {
-    const k = Math.max(fh.glow, Math.min(1, Math.max(0, (m.I - st.fuse) / (2 * st.fuse))));
+    const k = Math.max(fh.glow, Math.min(1, Math.max(0, (Math.abs(m.I) - st.fuse) / (2 * st.fuse))));
     if (!k) return;
     ctx.globalAlpha = 0.35 * k; D.line(ctx, path, 16, '#ff5a1f'); ctx.globalAlpha = 1;
     D.line(ctx, path, 4, `rgba(255, ${Math.round(110 - 60 * k)}, 30, ${0.4 + 0.6 * k})`);
