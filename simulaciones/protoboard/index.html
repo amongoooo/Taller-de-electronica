@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022053632">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022044050"></script>
+<script src="../../assets/sim.js?v=20261022053632"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -272,7 +272,10 @@
       for (const u of [-0.6, N - 0.4]) D.text(ctx, ROWNAME[r], ...g.pt(u, v), r === 0 || r === 12 ? REDW : C.neg, { size: 18 });
     }
     for (let r = 2; r < 12; r++) for (const u of [-0.6, N - 0.4]) D.text(ctx, ROWNAME[r], ...g.pt(u, ROWV[r]), C.muted, { size: 14, weight: 400 });
-    for (let c = 0; c < N; c++) for (const v of [1.9, 12.6]) D.text(ctx, String(c + 1), ...g.pt(c, v), C.muted, { size: 14, font: Sim.MONO, weight: 500 });
+    // los números de las columnas; si con la letra mínima no caben todos, como en una protoboard real: 1, 5, 10, 15
+    D.font(ctx, 14, Sim.MONO, 500);
+    const all = ctx.measureText('16').width + 6 < Math.hypot(...[0, 1].map(i => g.pt(1, 0)[i] - g.pt(0, 0)[i]));
+    for (let c = 0; c < N; c++) if (all || !c || (c + 1) % 5 === 0) for (const v of [1.9, 12.6]) D.text(ctx, String(c + 1), ...g.pt(c, v), C.muted, { size: 14, font: Sim.MONO, weight: 500 });
     // por dentro: tiras de metal (o canales de agua) que unen los agujeros
     for (const gr of GROUPS) {
       const sel = st.sel === gr;
@@ -357,7 +360,9 @@
       }
       const f = ny > 0 ? -1 : 1;   // el valor va del lado de arriba (o a la izquierda si está parada)
       const o = 19 + 20 * Math.abs(nx);   // parada, la etiqueta necesita más espacio a un lado
-      if (!ghost) D.text(ctx, k.burnt ? (water ? 'reventado' : 'quemada') : ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, k.burnt ? C.danger : k === menuK && selOpen() ? C.sel : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
+      const lx = M[0] + f * nx * o, ly = M[1] + f * ny * o;
+      if (!ghost && k.burnt) D.pill(ctx, water ? 'reventado' : 'quemada', lx, ly, C.danger, true);   // su estado, en una pastilla
+      else if (!ghost) D.text(ctx, ohm(k.R), lx, ly, k === menuK && selOpen() ? C.sel : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
       if (k.burnt && !water) D.smoke(ctx, M[0], M[1] - 8, k.breakT);
     } else if (k.type === 'led') {
       const glowK = k.burnt ? 0 : Math.min(1, k.I / 20), [cr, cg, cb] = Sim.led(k.led).rgb;
@@ -443,8 +448,7 @@
     if (st.fuse) return;
     // en vertical no cabe arriba de la bomba: va entre la bomba y la protoboard
     const [x, y] = g === GEO.h ? [g.pt(-3.9, 3)[0], g.pt(-3.9, 3)[1] - 62] : g.pt(-1.75, 3);
-    D.roundRect(ctx, x - 70, y - 18, 140, 36, 8, C.card, C.danger, 1.5);
-    D.text(ctx, 'válvula de seguridad', x, y - 9, C.danger, { size: 14, bg: true }); D.text(ctx, 'cerrada', x, y + 9, C.danger, { size: 14, bg: true });
+    D.tag(ctx, x, y, ['válvula de seguridad', 'válvula'], '', { danger: true, state: 'cerrada', max: 190 });
   }
   function trayComp(type, vy) {
     const span = type === 'led' ? 1 : 2.4, u0 = -3.9 - span / 2;
@@ -464,10 +468,9 @@
     const [x, y] = g.pt(...st.selAt);
     const has = st.reach.has(st.sel), v = st.V[st.sel] ?? 0;
     const t = !has ? 'sin conexión' : side === 'w' ? fmt(v) + ' psi' : fmt(v) + ' V';
-    ctx.font = `700 15px ${Sim.MONO}`;
-    const w = ctx.measureText(t).width + 18;
+    const px = D.font(ctx, 15, Sim.MONO, 500), w = ctx.measureText(t).width + 18, h = Math.round(px * 1.7);
     const ly = y - 30 < 14 ? y + 30 : y - 30;
-    D.roundRect(ctx, x - w / 2, ly - 13, w, 26, 13, C.card, VIOLET, 2);
+    D.roundRect(ctx, x - w / 2, ly - h / 2, w, h, h / 2, C.card, VIOLET, 2);
     D.text(ctx, t, x, ly, has ? VIOLET : C.muted, { size: 15, font: Sim.MONO, weight: 500 });
   }
 

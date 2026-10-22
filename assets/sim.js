@@ -117,10 +117,26 @@
   };
   // bg: los letreros del dibujo llevan detrás un fondo del color de la tarjeta, para que una tubería,
   // un cable o una manguera que pase por ahí no los tape (se ve como si pasara por debajo).
-  D.text = (ctx, t, x, y, col, { align = 'center', size = 16, font = Sim.FONT, weight = 700, bg = false } = {}) => {
-    const px = Sim.compact ? Math.round(size * 1.15) : size;   // en el celular, letra un poco más grande
+  // Letra de size en unidades del dibujo: en el celular un poco más grande y nunca menos de 14 px en pantalla
+  // (Sim.S es la escala del panel que se dibuja). Si un rótulo así ya no cabe, se acorta (ver D.text max).
+  // Con ctx se toma la escala con la que se dibuja de verdad (un instrumento chico se dibuja escalado).
+  Sim.MIN_PX = 14;
+  Sim.px = (size, ctx) => {
+    let k = Sim.S;
+    if (ctx) { const m = ctx.getTransform(); k = Math.hypot(m.a, m.b) / (window.devicePixelRatio || 1); }
+    return Math.max(Sim.compact ? Math.round(size * 1.15) : size, Sim.MIN_PX / k);
+  };
+  D.font = (ctx, size = 16, font = Sim.FONT, weight = 700) => {
+    const px = Sim.px(size, ctx);
     ctx.font = `${weight} ${px}px ${font}`;
     ctx.fontStretch = font === Sim.WIDE ? 'expanded' : 'normal';
+    return px;
+  };
+  // t puede ser una lista de rótulos, del más largo al más corto: se usa el primero que cabe en max (ancho
+  // en el dibujo), o el último.
+  D.text = (ctx, t, x, y, col, { align = 'center', size = 16, font = Sim.FONT, weight = 700, bg = false, max = 0 } = {}) => {
+    const px = D.font(ctx, size, font, weight);
+    if (Array.isArray(t)) t = t.find(s => !max || ctx.measureText(s).width <= max) ?? t[t.length - 1];
     ctx.textAlign = align; ctx.textBaseline = 'middle';
     if (bg && t) {
       const w = ctx.measureText(t).width, x0 = align === 'left' ? x : align === 'right' ? x - w : x - w / 2;
@@ -132,6 +148,70 @@
   D.backdrop = (ctx, x, y, w, px) => {
     const h = Math.round(px * 1.3);
     D.roundRect(ctx, x - 5, y - h / 2, w + 10, h, h / 2, C.card);
+  };
+  // Etiqueta de un componente, en una línea: «nombre valor», el nombre en gris y el valor en tinta (los dos en
+  // azul si está seleccionado; el nombre en rojo con danger). Su estado («cerrado», «quemada») va en una
+  // pastilla al lado, roja con danger. align 'center' (x es el centro) o 'left' (x es donde empieza).
+  const TAG_GAP = 7;
+  const tagParts = (ctx, name, value, state) => {
+    D.font(ctx, 15); const w1 = ctx.measureText(name).width;
+    D.font(ctx, 16, Sim.MONO, 600); const w2 = value ? ctx.measureText(value).width : 0;
+    const px = D.font(ctx, 14), w3 = state ? ctx.measureText(state).width + 16 : 0;
+    const w = w1 + (value ? TAG_GAP + w2 : 0);
+    return { w1, w2, w3, w, all: w + (state ? (w ? TAG_GAP + 6 : 0) + w3 : 0), px };
+  };
+  D.tagWidth = (ctx, name, value, state) => tagParts(ctx, name, value, state).all;
+  // name puede ser una lista, del más largo al más corto: se usa el primero con el que todo cabe en max.
+  D.tag = (ctx, x, y, name, value, { sel = false, danger = false, state = '', align = 'center', max = 0 } = {}) => {
+    if (Array.isArray(name)) name = name.find(n => !max || D.tagWidth(ctx, n, value, state) <= max) ?? name[name.length - 1];
+    const q = tagParts(ctx, name, value, state), x0 = align === 'left' ? x : x - q.all / 2;
+    const vcol = sel ? C.sel : C.ink, ncol = danger && !state ? C.danger : sel ? C.sel : C.muted;
+    if (q.w) {
+      D.backdrop(ctx, x0, y, q.w, Sim.px(16, ctx));
+      D.text(ctx, name, x0, y, ncol, { size: 15, align: 'left' });
+      if (value) D.text(ctx, value, x0 + q.w1 + TAG_GAP, y + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
+    }
+    if (state) D.pill(ctx, state, x0 + q.all - q.w3 / 2, y, danger ? C.danger : sel ? C.sel : C.ink, danger);
+    return q.all;
+  };
+  // Varias etiquetas en un renglón a la altura y, cada una centrada sobre su componente (x). Si se enciman se
+  // separan un poco (sin salirse de [x0, x1]); si para eso alguna tendría que alejarse más de SLIDE de su
+  // componente, el nombre se acorta (name puede ser una lista, del más largo al más corto) y se prueba otra vez.
+  // Cada una es { x, name, value, sel, danger, state }.
+  D.tagRow = (ctx, y, items, x0 = -Infinity, x1 = Infinity) => {
+    const G = 12, SLIDE = 24, L = items.map(it => ({ ...it, names: [].concat(it.name), k: 0 })).sort((a, b) => a.x - b.x);
+    const width = t => D.tagWidth(ctx, t.names[t.k], t.value, t.state);
+    L.forEach(t => { t.w = width(t); });
+    const spread = () => {
+      const cx = L.map(t => t.x);
+      for (let n = 0; n < 60; n++) {
+        let moved = false;
+        for (let i = 1; i < L.length; i++) {
+          const d = cx[i - 1] + L[i - 1].w / 2 + G - (cx[i] - L[i].w / 2);
+          if (d > 0.5) { cx[i - 1] -= d / 2; cx[i] += d / 2; moved = true; }
+        }
+        L.forEach((t, i) => { cx[i] = Math.max(x0 + t.w / 2, Math.min(x1 - t.w / 2, cx[i])); });
+        if (!moved) break;
+      }
+      return cx;
+    };
+    let cx = spread();
+    for (;;) {
+      const far = L.map((t, i) => [Math.abs(cx[i] - t.x), i]).filter(([d, i]) => d > SLIDE);
+      if (!far.length) break;
+      // se acorta la más ancha de las que se movieron de más o de sus vecinas
+      const near = new Set(far.flatMap(([, i]) => [i - 1, i, i + 1]));
+      const c = L.filter((t, i) => near.has(i) && t.k < t.names.length - 1).sort((a, b) => b.w - a.w)[0];
+      if (!c) break;
+      c.k++; c.w = width(c); cx = spread();
+    }
+    L.forEach((t, i) => D.tag(ctx, cx[i], y, t.names[t.k], t.value, t));
+  };
+  // Pastilla pequeña con un estado, centrada en (x, y).
+  D.pill = (ctx, t, x, y, col, strong = false) => {
+    const px = D.font(ctx, 14), w = ctx.measureText(t).width + 16, h = Math.round(px * 1.4);
+    D.roundRect(ctx, x - w / 2, y - h / 2, w, h, h / 2, strong ? C.card : C.bg, strong ? col : C.line, 1.5 / Sim.S);
+    D.text(ctx, t, x, y + 0.5, col, { size: 14 });
   };
   D.arrow = (ctx, x, y, angle, size, col) => {
     ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.fillStyle = col;
@@ -295,6 +375,8 @@
     D.circle(ctx, x, y, 4, C.ink);
     if (letter) D.text(ctx, letter, x, y + r * 0.5, C.muted, { size: 14, font: Sim.MONO, weight: 500 });
   };
+  // Cuánto se aleja del centro de un letrero (de medio ancho hw y medio alto hh) su orilla en la dirección (c, s).
+  D.reach = (c, s, hw, hh) => Math.min(Math.abs(c) > 1e-3 ? hw / Math.abs(c) : Infinity, Math.abs(s) > 1e-3 ? hh / Math.abs(s) : Infinity);
   // Escala alrededor de una perilla (de −135° a +135°, 0° arriba).
   D.knobScale = (ctx, x, y, r, labels, ticks = 12) => {
     ctx.lineWidth = 2; ctx.strokeStyle = C.muted;
@@ -303,11 +385,21 @@
       ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
       ctx.lineTo(x + Math.cos(a) * (r + l), y + Math.sin(a) * (r + l)); ctx.stroke();
     }
+    // cada número afuera de su raya, a una distancia que depende de su tamaño (la letra nunca baja de 14 px);
+    // los de abajo (los extremos), justo debajo de su raya, para no acercarse a la perilla de junto.
+    // Devuelve la y de abajo de los números (para poner debajo el nombre de la perilla).
+    let low = y + r + 9;
     labels.forEach(([t, frac]) => {
-      const a = (-135 + frac * 270 - 90) * Math.PI / 180;
-      D.text(ctx, t, x + Math.cos(a) * (r + 20), y + Math.sin(a) * (r + 20), C.muted, { size: 14, font: Sim.MONO, weight: 500 });
+      const a = (-135 + frac * 270 - 90) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      const px = D.font(ctx, 14, Sim.MONO, 500), w = ctx.measureText(t).width;
+      const [lx, ly] = s > 0.5 ? [c * (r + 8), s * (r + 8) + px * 0.55] : [c, s].map(k => k * (r + 11 + D.reach(c, s, w / 2, px * 0.4)));
+      D.text(ctx, t, x + lx, y + ly, C.muted, { size: 14, font: Sim.MONO, weight: 500 });
+      low = Math.max(low, y + ly + px * 0.5);
     });
+    return low;
   };
+  // El nombre de una perilla debajo de sus números (low, lo que devuelve D.knobScale); t como en D.text.
+  D.knobCaption = (ctx, t, x, low, max = 0) => D.text(ctx, t, x, low + 2 + Sim.px(14, ctx) * 0.55, C.muted, { size: 14, max });
 
   // LED indicador pequeño; on de 0 a 1 (brillo).
   D.led = (ctx, x, y, on, col = '#22e05a', r = 7) => {
@@ -359,7 +451,7 @@
   // Rueda de molino dentro de la tubería (el LED del lado del agua). Gira con la corriente y tiene
   // una compuerta que solo deja pasar el agua hacia la derecha; rev = al revés, broken = rota.
   // tint: el color del LED que representa (un punto en el eje). sel: seleccionada (su nombre en azul).
-  D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '', tint = null, sel = false } = {}) => {
+  D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '', tint = null, sel = false, tag = true } = {}) => {
     D.circle(ctx, x, y, 30, C.metal, broken ? C.danger : C.ink, 2.5);
     D.circle(ctx, x, y, 24, C['water-soft']);
     if (broken) D.rotor(ctx, x, y, 7, 0.5, 0, 4, C.muted);   // solo quedan los muñones de las aspas
@@ -371,10 +463,10 @@
       D.line(ctx, [[x + 15, y - 15], [x - 15, y + 15]], 4, C.danger);
     }
     const t = broken ? 'rueda rota' : rev ? 'compuerta cerrada' : label;
-    if (t) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : sel ? C.sel : C.muted, { size: 15, bg: true });
+    if (t && tag) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : sel ? C.sel : C.muted, { size: 15, bg: true });
   };
   // LED en un cable horizontal; I en mA decide el brillo. La corriente entra por la izquierda.
-  D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED', rgb = null, sel = false } = {}) => {
+  D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED', rgb = null, sel = false, tag = true } = {}) => {
     const dir = rev ? -1 : 1, [cr, cg, cb] = rgb || [255, 70, 50];   // rgb: el color de su luz (Sim.LEDS); apagado se ve un poco de ese color
     ctx.fillStyle = C.card; ctx.fillRect(x - 26, y - 26, 52, 52);
     const glow = broken ? 0 : Math.min(1, I / 30);   // brilla más con más corriente, hasta los 30 mA que aguanta
@@ -391,23 +483,23 @@
     D.line(ctx, [[x + 3, y - 17], [x + 12, y - 26]], 2, C.muted); D.line(ctx, [[x + 11, y - 14], [x + 20, y - 23]], 2, C.muted);
     if (broken) { D.line(ctx, [[x - 13, y - 13], [x + 13, y + 13]], 4, C.danger); D.line(ctx, [[x + 13, y - 13], [x - 13, y + 13]], 4, C.danger); }
     const t = broken ? label + ' quemado' : rev ? label + ' al revés' : label;
-    D.text(ctx, t, x, y + 48, broken || rev ? C.danger : sel ? C.sel : C.muted, { size: 15, bg: true });
+    if (tag) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : sel ? C.sel : C.muted, { size: 15, bg: true });
   };
-  // Válvula en una tubería horizontal.
-  D.valve = (ctx, x, y, open) => {
+  // Válvula en una tubería horizontal (tag: false, sin su letrero; la página pone su etiqueta).
+  D.valve = (ctx, x, y, open, tag = true) => {
     D.circle(ctx, x, y, 19, C.metal, C.ink, 2.5);
     if (open) { ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 16, y - 7, 32, 14); }
     else { ctx.fillStyle = C.danger; ctx.fillRect(x - 4, y - 17, 8, 34); }
     D.line(ctx, [[x, y - 19], [x, y - 32]], 4, C.ink);
     D.line(ctx, open ? [[x, y - 32], [x, y - 44]] : [[x - 13, y - 32], [x + 13, y - 32]], 6, C.ink);
-    D.text(ctx, open ? 'válvula abierta' : 'válvula cerrada', x, y + 48, open ? C.muted : C.danger, { size: 15, bg: true });
+    if (tag) D.text(ctx, open ? 'válvula abierta' : 'válvula cerrada', x, y + 48, open ? C.muted : C.danger, { size: 15, bg: true });
   };
   // Interruptor de cuchilla en un cable horizontal.
-  D.knifeSwitch = (ctx, x, y, closed) => {
+  D.knifeSwitch = (ctx, x, y, closed, tag = true) => {
     ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 30, 56, 40);
     D.circle(ctx, x - 22, y, 5, C.card, C.ink, 2.5); D.circle(ctx, x + 22, y, 5, C.card, C.ink, 2.5);
     D.line(ctx, closed ? [[x - 18, y], [x + 18, y]] : [[x - 18, y - 3], [x + 16, y - 26]], 3.5, C.ink);
-    D.text(ctx, closed ? 'interruptor cerrado' : 'interruptor abierto', x, y + 48, closed ? C.muted : C.danger, { size: 15, bg: true });
+    if (tag) D.text(ctx, closed ? 'interruptor cerrado' : 'interruptor abierto', x, y + 48, closed ? C.muted : C.danger, { size: 15, bg: true });
   };
 
   // ---------- medidores: ruedita con aguja y pantallita de siete segmentos ----------
@@ -440,7 +532,8 @@
   // Pantallita: rectángulo oscuro con el número y la unidad. (x, y) es el centro.
   D.lcd = (ctx, x, y, w, h, text, unit) => {
     D.roundRect(ctx, x - w / 2, y - h / 2, w, h, 5, Sim.LCD.bg, C.ink, 1.5);
-    const uw = unit ? unit.length * (Sim.compact ? 8 : 7) + 6 : 0;
+    if (unit) D.font(ctx, 12, Sim.MONO, 500);
+    const uw = unit ? ctx.measureText(unit).width + 6 : 0;
     // Si el número no cabe (un caudal o una corriente grande), los dígitos se achican para caber.
     const n = [...text.replace(/(.)\./g, '$1')].length, room = w - 14 - uw;
     D.segments(ctx, text, x + w / 2 - 8 - uw, y, Math.min(h * 0.58, room / (n * 0.84 - 0.32)));
@@ -593,10 +686,11 @@
   D.speedLegend = (ctx, x, y, w, lo = 'lento', hi = 'rápido', title = 'color: rapidez') => {
     const g = ctx.createLinearGradient(x, 0, x + w, 0);
     for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, Sim.speedColor(i / 6));
-    if (title) D.text(ctx, title, x, y - 18, C.muted, { align: 'left', size: 14, bg: true });
+    const dy = 7 + Sim.px(14, ctx) * 0.6;
+    if (title) D.text(ctx, title, x, y - dy, C.muted, { align: 'left', size: 14, bg: true });
     ctx.fillStyle = g; ctx.fillRect(x, y - 5, w, 10);
-    D.text(ctx, lo, x, y + 17, C.muted, { align: 'left', size: 14, weight: 400 });
-    D.text(ctx, hi, x + w, y + 17, C.muted, { align: 'right', size: 14, weight: 400 });
+    D.text(ctx, lo, x, y + dy, C.muted, { align: 'left', size: 14, weight: 400, bg: true });
+    D.text(ctx, hi, x + w, y + dy, C.muted, { align: 'right', size: 14, weight: 400, bg: true });
   };
 
   // ---------- inercia ----------
@@ -986,21 +1080,38 @@
     }
     bar.querySelectorAll('[data-act]').forEach(b => Sim.side.sec(b.dataset.act).appendChild(b));
     if (ctl && !ctl.children.length) ctl.remove();
+    // Tema y pantalla completa: dos iconos junto a Controles en la barra (en el celular, en la cabecera de la
+    // hoja de controles, junto a la ×).
+    const tools = el('div', 'sim-tools');
+    tools.setAttribute('role', 'group'); tools.setAttribute('aria-label', 'Tema y pantalla');
+    const icon = (d, label) => { const b = el('button', 'sim-icon-btn', svg(d)); b.type = 'button'; b.setAttribute('aria-label', label); b.title = label; tools.appendChild(b); return b; };
+    // Tema claro (el de siempre, para proyectar) u oscuro; se recuerda en todo el sitio (sim-theme).
+    const MOON = '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>';
+    const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>';
+    const theme = icon(MOON, 'Tema oscuro');
+    const syncTheme = () => {
+      const dark = Sim.theme() === 'dark', t = dark ? 'Tema claro' : 'Tema oscuro';
+      theme.innerHTML = svg(dark ? SUN : MOON); theme.setAttribute('aria-label', t); theme.title = t;
+      theme.setAttribute('aria-pressed', String(dark));
+    };
+    theme.addEventListener('click', () => { Sim.setTheme(Sim.theme() === 'dark' ? 'light' : 'dark'); syncTheme(); });
+    syncTheme();
     // Pantalla completa (para proyectar), si el navegador la tiene.
     if (document.documentElement.requestFullscreen) {
-      const fs = Sim.side.button('ver', 'Pantalla completa', () => {
+      const GROW = '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>', SHRINK = '<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/>';
+      const fs = icon(GROW, 'Pantalla completa');
+      fs.addEventListener('click', () => {
         if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {});
       });
-      document.addEventListener('fullscreenchange', () => { fs.textContent = document.fullscreenElement ? 'Salir de pantalla completa' : 'Pantalla completa'; });
+      document.addEventListener('fullscreenchange', () => {
+        const on = !!document.fullscreenElement, t = on ? 'Salir de pantalla completa' : 'Pantalla completa';
+        fs.innerHTML = svg(on ? SHRINK : GROW); fs.setAttribute('aria-label', t); fs.title = t;
+      });
     }
-    // Tema claro (el de siempre, para proyectar) u oscuro; se recuerda en todo el sitio (sim-theme).
-    const theme = el('div', 'sim-seg');
-    theme.setAttribute('role', 'group'); theme.setAttribute('aria-label', 'Tema');
-    theme.innerHTML = '<button type="button" data-v="light">Claro</button><button type="button" data-v="dark">Oscuro</button>';
-    const syncTheme = () => theme.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === Sim.theme())));
-    theme.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { Sim.setTheme(b.dataset.v); syncTheme(); }));
-    syncTheme();
-    Sim.side.row('ver', 'Tema', theme).classList.add('sim-theme');
+    const hd = Sim.side.el.querySelector('.sim-side-hd'), ctlBtn = bar.querySelector('.sim-ctl-btn');
+    const placeTools = () => { if (phoneQ.matches) hd.insertBefore(tools, hd.querySelector('.x')); else bar.insertBefore(tools, ctlBtn); };
+    phoneQ.addEventListener('change', placeTools);
+    placeTools();
   }
 
   // Globito al pasar el ratón sobre algo del dibujo: su acción y su nombre ("Cambiar · Resistencia").
@@ -1039,8 +1150,10 @@
   }
 
   // ---------- vista: Agua · Ambos · Electricidad ----------
-  // Un solo selector de tres opciones, en la barra (abajo en el celular) y en la sección Ver. Se recuerda en
-  // este navegador; el celular recuerda aparte (sim-view-cel) y empieza con un solo lado, que se ve grande.
+  // Un solo selector de tres opciones, en la barra (en el celular vertical, las pestañas de abajo del título).
+  // Se recuerda en este navegador; el celular recuerda aparte (sim-view-cel) y empieza con un solo lado, que
+  // se ve grande. Al cambiar, el panel que queda se estira a su ancho nuevo y el otro se desvanece (240 ms,
+  // con document.startViewTransition; sin ella o con movimiento reducido, de golpe).
   Sim.view = 'both';
   const viewFns = [];
   Sim.onView = f => { viewFns.push(f); f(Sim.view); };
@@ -1048,28 +1161,45 @@
     const key = Sim.phone ? 'sim-view-cel' : 'sim-view';
     let view = store.get(key, ['w', 'e', 'both'], Sim.phone ? store.get('sim-side', ['w', 'e'], 'w') : 'both');
     const OPTS = [['w', 'Agua'], ['both', 'Ambos'], ['e', 'Electricidad']];
-    const make = () => {
-      const g = el('div', 'sim-viewseg');
-      g.setAttribute('role', 'group'); g.setAttribute('aria-label', 'Qué se ve');
-      OPTS.forEach(([v, t]) => {
-        const b = el('button', '', t);
-        b.type = 'button'; b.dataset.v = v;
-        b.addEventListener('click', () => { view = v; update(); });
-        g.appendChild(b);
-      });
-      return g;
-    };
-    const segs = [make()];
-    if (bar) bar.insertBefore(segs[0], bar.querySelector('.sim-ctl-btn') || (foot && foot.parentNode === bar ? foot : null));
-    if (Sim.side) segs.push(Sim.side.row('ver', 'Qué se ve', make()).lastChild);
+    const seg = el('div', 'sim-viewseg');
+    seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Qué se ve');
+    OPTS.forEach(([v, t]) => {
+      const b = el('button', '', t);
+      b.type = 'button'; b.dataset.v = v;
+      b.addEventListener('click', () => choose(v));
+      seg.appendChild(b);
+    });
+    if (bar) bar.insertBefore(seg, bar.querySelector(':scope > .sim-tools') || bar.querySelector('.sim-ctl-btn') || (foot && foot.parentNode === bar ? foot : null));
     const update = () => {
       stage.dataset.view = view; Sim.view = view;
-      segs.forEach(g => { g.dataset.view = view; g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === view))); });
+      seg.dataset.view = view; seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === view)));
       store.set(key, view);
       if (view !== 'both') store.set('sim-side', view);
       viewFns.forEach(f => f(view));
     };
+    const choose = v => {
+      if (v === view) return;
+      const root = document.documentElement;
+      if (!document.startViewTransition || Sim.REDUCE.matches) { view = v; update(); return; }
+      root.classList.add('sim-vt-view');   // con esta clase los paneles llevan su nombre de transición (sim.css)
+      const t = document.startViewTransition(() => { view = v; update(); Sim.panels.forEach(p => p.refit()); });
+      t.finished.finally(() => root.classList.remove('sim-vt-view'));
+    };
     update();
+  };
+
+  // El botón Siguiente late una vez, para avisar que ya se puede seguir. Sim.steps lo hace al llegar al último
+  // paso, una sola vez por sesión en cada página; una página también lo puede llamar cuando se cumplió lo que
+  // pedía un paso. Con movimiento reducido no late.
+  Sim.pulseNext = () => {
+    const a = foot && foot.querySelector('.sim-go.next');
+    if (!a || Sim.REDUCE.matches) return;
+    a.classList.remove('pulse'); void a.offsetWidth; a.classList.add('pulse');
+  };
+  const pulseOnce = () => {
+    const key = 'sim-pulse:' + location.pathname;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) {}
+    Sim.pulseNext();
   };
 
   // Para las páginas que van apareciendo de a poco: steps es una lista de nombres y go(k) se llama
@@ -1097,6 +1227,7 @@
       segs.forEach((b, i) => { b.dataset.on = String(i <= k); b.toggleAttribute('aria-current', i === k); });
       if (where) { where.querySelector('.k').textContent = `Paso ${k + 1} de ${n}`; where.querySelector('.nm').textContent = steps[k]; }
       if (foot) foot.dataset.last = String(k === n - 1);
+      if (k === n - 1) pulseOnce();
       syncGo();
       if (push) history.replaceState(null, '', k ? `#paso-${k + 1}` : location.pathname + location.search);
       go(k);
@@ -1250,19 +1381,32 @@
       return d;
     };
     // Al abrir, la tarjeta crece un poquito desde su flechita (desde el componente); la hoja del celular sube
-    // desde abajo; la de la columna baja apenas. Al cerrar se va más rápido de lo que llegó. Si se cambia de
-    // un componente a otro con la tarjeta abierta, la nueva solo aparece (sin crecer otra vez).
+    // desde abajo. Al cerrar se va más rápido de lo que llegó. Si se cambia de un componente a otro con la
+    // tarjeta abierta, la nueva solo aparece (sin crecer otra vez). La acoplada va en una fila de cuadrícula
+    // (.sim-fold) que se abre de 0fr a 1fr en 200 ms y se cierra en 120 ms: lo de abajo se recorre, no salta.
     const lying = matchMedia('(max-height: 500px)');   // celular acostado: la hoja sale de la derecha
     const enter = (card, quick) => {
       const el = card.el, sheet = el.classList.contains('sheet'), still = quick || Sim.REDUCE.matches;
-      const kf = still ? [{ opacity: 0 }, { opacity: 1 }]
+      if (card.box) {
+        if (!Sim.REDUCE.matches) void card.box.offsetHeight;   // que empiece cerrada
+        card.box.classList.add('open');
+      }
+      const kf = still || card.box ? [{ opacity: 0 }, { opacity: 1 }]
         : sheet ? [{ transform: lying.matches ? 'translateX(100%)' : 'translateY(100%)' }, { transform: 'none' }]
-        : card.docked ? [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }]
         : [{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }];
       el.animate(kf, { duration: still ? 120 : sheet ? 320 : 180, easing: sheet && !still ? Sim.EASE.drawer : Sim.EASE.out });
     };
-    const leave = (el, instant, from) => {
-      if (instant || el.classList.contains('docked')) return el.remove();   // en la columna, las demás suben enseguida
+    const leave = (card, instant, from) => {
+      const el = card.el;
+      if (card.box) {   // acoplada: su fila se cierra y lo de abajo sube con ella
+        if (instant || Sim.REDUCE.matches) return card.box.remove();
+        el.classList.add('leaving'); el.setAttribute('aria-hidden', 'true');
+        card.box.classList.remove('open');
+        el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: Sim.EASE.out, fill: 'forwards' });
+        setTimeout(() => card.box.remove(), 140);
+        return;
+      }
+      if (instant) return el.remove();
       const sheet = el.classList.contains('sheet');
       el.classList.add('leaving'); el.setAttribute('aria-hidden', 'true');
       const kf = Sim.REDUCE.matches ? [{ opacity: 1 }, { opacity: 0 }]
@@ -1273,7 +1417,7 @@
     const close = (card, focusBack = false, instant = false, from = '') => {
       if (!card) return;
       cards = cards.filter(c => c !== card);
-      leave(card.el, instant, from);
+      leave(card, instant, from);
       card.anchor.removeAttribute('aria-expanded');
       if (focusBack) card.anchor.focus();
     };
@@ -1460,13 +1604,15 @@
       el.append(hd);
       const parts = o.rows.map(r => r.values ? slider(r) : r.options ? choice(r) : r.heat ? heatRow(r) : r.seg ? seg(r) : r.range ? range(r) : actions(r));
       parts.forEach(q => el.appendChild(q.row));
-      const card = { anchor, o, el, title, parts, docked: p };
+      const card = { anchor, o, el, title, parts, docked: p, box: null };
       x.addEventListener('click', () => close(card, true));
       Sim.swipeClose(hd, el, () => lying.matches ? 'x' : 'y', () => el.classList.contains('sheet') && cards.includes(card), from => close(card, false, false, from));
       if (p) {
-        const d = dockEl(p);
-        d.prepend(el);
-        while (d.children.length > 4) { const last = cards.find(c => c.el === d.lastElementChild); if (last) close(last); else d.lastElementChild.remove(); }
+        const d = dockEl(p), inner = mk('div');
+        card.box = mk('div', 'sim-fold');
+        inner.appendChild(el); card.box.appendChild(inner);
+        d.prepend(card.box);
+        while (d.children.length > 4) { const last = cards.find(c => c.box === d.lastElementChild); if (last) close(last, false, true); else d.lastElementChild.remove(); }
       } else document.body.appendChild(el);
       cards.push(card);
       anchor.setAttribute('aria-expanded', 'true');

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022053632">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022044050"></script>
-<script src="../../assets/banco.js?v=20261022044050"></script>
+<script src="../../assets/sim.js?v=20261022053632"></script>
+<script src="../../assets/banco.js?v=20261022053632"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -105,11 +105,11 @@
       const [b1, b2] = st.broken;
       const R = (x, y, dV, k = 0) => ({ at: [x, y], half: 46, dV, R: st.rb[k] ? Infinity : st.R[k], pr: pinch[k],
         draw: (ctx, w) => w ? D.narrow(ctx, x, y, half(st.R[k])) : D.resistor(ctx, x, y),
-        tag: w => st.rb[k] ? ['R' + (k + 1), w ? 'reventado' : 'quemada', true] : ['R' + (k + 1), ohm(st.R[k])] });
-      const L = (x, y, dV, i = 0) => ({ at: [x, y], half: 30, dV, pr: ledParts[i], ext: w => w ? 52 : 28,
+        tag: w => rTag(w, k) });
+      const L = (x, y, dV, i = 0) => ({ at: [x, y], half: 30, dV, pr: ledParts[i], ext: w => w ? 46 : 28,
         draw: (ctx, w) => w ? D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], tint: `rgb(${Sim.led(st.led[i]).rgb})` })
           : D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], rgb: Sim.led(st.led[i]).rgb }),
-        tag: w => [(w ? 'rueda ' : 'LED ') + (i + 1), st.broken[i] ? (w ? 'rota' : 'quemado') : st.led[i], st.broken[i]] });
+        tag: w => ledTag(w, i) });
       if (st.mode === 'serie') {
         const n = st.rb[0] ? 0 : b1 + b2, on = m.I > 0;
         const led = k => st.rb[0] ? 0 : n ? (st.broken[k] ? V / n : 0) : on ? vf(k) : V / 2;
@@ -157,12 +157,13 @@
       rs.forEach(k => D.narrow(ctx, XR, rPos(g, k)[1], half(st.R[k])));
       keys.forEach(k => s.water[k].draw(ctx));
       rs.forEach(k => D.burstPipe(ctx, XR, rPos(g, k)[1], half(st.R[k]), st.burnT[k], st.rb[k], rh[k].glow, ''));
-      rs.forEach(k => { const y = rPos(g, k)[1]; b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k]); b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), st.rb[k] ? (g.side === 'w' ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]); });
+      rs.forEach(k => b.grips(ctx, XR, rPos(g, k)[1], half(st.R[k]) + 5, pinch[k]));
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
         if (!st.broken[i]) D.heatGlow(ctx, x, y, lh[i].glow, 46);
-        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1) + ' ' + st.led[i].replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led[i]).rgb})`, sel: ledParts[i].open() });
+        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], tint: `rgb(${Sim.led(st.led[i]).rgb})`, tag: false });
       });
+      tags(ctx, g, true);
     },
     drawE(ctx, g, m) {
       const s = sides.e, keys = st.mode === 'serie' ? ['loop'] : ['trunk', 'a', 'b'];
@@ -174,15 +175,27 @@
         D.resistor(ctx, XR, y);
         if (st.rb[k]) D.burntResistor(ctx, XR, y, st.burnT[k], '');
         b.grips(ctx, XR, y, half(st.R[k]) + 5, pinch[k]);
-        b.tag(ctx, pinch[k], XR, y - half(st.R[k]) - 30, 'R' + (k + 1), st.rb[k] ? (g.side === 'w' ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]);
       });
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
         if (!st.broken[i]) D.heatGlow(ctx, x, y, lh[i].glow, 56);
-        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1) + ' ' + st.led[i], rgb: Sim.led(st.led[i]).rgb, sel: ledParts[i].open() });
+        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], rgb: Sim.led(st.led[i]).rgb, tag: false });
       });
+      tags(ctx, g, false);
     }
   });
+  // Etiquetas en una línea arriba de cada componente («nombre valor» y su estado en una pastilla), las de un
+  // mismo cable a la misma altura: en el agua más arriba, sobre la flecha de la rueda.
+  const rTag = (w, k) => ['R' + (k + 1), ohm(st.R[k]), st.rb[k], st.rb[k] ? (w ? 'reventado' : 'quemada') : ''];
+  const ledTag = (w, i) => [(w ? 'rueda ' : 'LED ') + (i + 1), w ? st.led[i].replace(/o$/, 'a') : st.led[i], st.broken[i], st.broken[i] ? (w ? 'rota' : 'quemado') : ''];
+  function tags(ctx, g, w) {
+    const rows = st.mode === 'serie' ? [[0, 1]] : [[0], [1]];
+    rows.forEach(ls => {
+      const k = ls.length > 1 ? 0 : ls[0], y = rPos(g, k)[1] - (w ? 68 : 44);
+      b.tagRow(ctx, g, y, [[rTag(w, k), XR, pinch[k]], ...ls.map(i => [ledTag(w, i), ledPos(g, i)[0], ledParts[i]])]
+        .map(([t, x, pr]) => ({ x, pr, name: t[0], value: t[1], danger: t[2], state: t[3] })));
+    });
+  }
 
   // Tocar una rueda (o un LED) abre su menú: su color, y romperlo o repararlo.
   const ledParts = [0, 1].map(i => b.part({
@@ -207,9 +220,9 @@
   });
   function renewR(k) { st.rb[k] = false; rh[k].reset(); st.burnT[k] = 9; }
   // Selector Serie | Paralelo arriba del circuito: al centro en la computadora, a la izquierda en el celular.
-  // También va en Cambiar componentes; mientras la columna de controles se ve, sale del dibujo.
+  // También va en la sección Armar de los controles.
   b.linkedChoice({
-    pos: g => g.mode === 'ancho' ? [g.PX, g.TOP - 92] : [g.X0 + 70, g.TOP - 72], label: 'Conexión', act: 'com',
+    pos: g => g.mode === 'ancho' ? [g.PX, g.TOP - 104] : [g.X0 + 70, g.TOP - 104], label: 'Conexión', act: 'arm',
     options: [['serie', 'Serie'], ['paralelo', 'Paralelo']],
     get: () => st.mode, set: v => { st.mode = v; }
   });
