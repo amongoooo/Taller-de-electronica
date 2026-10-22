@@ -582,7 +582,7 @@
   // solo se estira un poquito hacia él, como jalada por un imán), y los valores redondos (múltiplos de
   // magnet) jalan desde más lejos; al cambiar de valor salta con un giro con rebote (y en el celular, una
   // vibración mínima), como si tuviera muescas. Cerca de su valor hay una zona muerta: ahí ni se estira.
-  Sim.DEAD = { knob: 4, range: 0.2 };   // perillas: grados; sliders: fracción de un paso
+  Sim.DEAD = { knob: 4, range: 0.2, drag: 6 };   // perillas: grados; sliders: fracción de un paso; arrastrar: px
   const dead = (d, z) => Math.sign(d) * Math.max(0, Math.abs(d) - z);
   Sim.knob = (el, { min, max, step, value, label, format, onInput, magnet = 0 }) => {
     el.classList.add('knob');
