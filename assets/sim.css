@@ -196,6 +196,20 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-meter-hit:hover, .sim-meter-hit:focus-visible { border-color: var(--act, var(--muted)); }
 .sim-meter-hit.held { cursor: grabbing; }
+/* Zonas para agarrar la fuente (o la bomba) y moverla: su caja y su símbolo. Van debajo de los demás
+   controles; su tamaño lo pone banco.js. */
+.sim-src-hit {
+  padding: 0; touch-action: none; background: transparent; cursor: grab;
+  border-radius: 16px; border: 2px dashed transparent;
+}
+.sim-src-hit.sym { border-radius: 50%; }
+.sim-src-hit:hover, .sim-src-hit:focus-visible { border-color: var(--act, var(--muted)); }
+.sim-src-hit.held { cursor: grabbing; }
+/* El bloque de la fuente se dibuja encima de los medidores: sus controles también van encima de ellos,
+   y las puntas encima de todo. */
+.sim-layer > .sim-src-hit { z-index: 1; }
+.sim-layer > .sim-src-ctl { z-index: 2; }
+.sim-layer > .sim-clamp { z-index: 3; }
 /* Perilla de cada multímetro: tocar una posición la gira ahí; el centro pasa a la siguiente. */
 .sim-dial {
   width: 60px; height: 60px; padding: 0; border-radius: 50%; z-index: 2; cursor: pointer; touch-action: manipulation;

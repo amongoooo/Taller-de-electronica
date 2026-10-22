@@ -334,6 +334,89 @@
       if (value) D.text(ctx, value, x0 + w1 + gap, y + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
     };
 
+    // ---------- la fuente se mueve ----------
+    // La bomba (o la fuente) y su controlador son un solo bloque, como una fuente de laboratorio: se
+    // arrastra (de la caja o del símbolo) a donde se quiera y dos cables, rojo del + y negro del − (en el
+    // agua, dos mangueras), la siguen conectada a sus dos puntos del circuito. El circuito es el mismo:
+    // solo cambia por dónde van los cables. Soltada cerca de su lugar, un imán la regresa ahí y los
+    // cables desaparecen. En el celular horizontal el controlador ya está aparte: solo se mueve la caja.
+    // spos: cuánto se movió en cada acomodo.
+    const SNAP = 30;   // radio del imán de su lugar
+    st.spos = {}; st.sheld = false; st.svel = null;
+    const unitLimits = g => {
+      const lat = g.mode === 'lateral', top = lat ? g.BY : g.BOT - 46, bot = g.BY + g.BH;
+      return [g.VX + 4 - g.BX, g.VX + g.W - 4 - g.BX - g.BW, 4 - top, g.H - 4 - bot];
+    };
+    const unitOff = g => {
+      const o = st.spos[g.mode];
+      if (!o) return [0, 0];
+      const [x0, x1, y0, y1] = unitLimits(g);
+      let dx = Math.max(x0, Math.min(x1, o[0])), dy = Math.max(y0, Math.min(y1, o[1]));
+      // arrastrándola cerca de su lugar el imán la jala: se estira poco a poco hacia el dedo
+      const d = Math.hypot(dx, dy);
+      if (st.sheld && d < SNAP) { const k = Math.max(0, (d - Sim.DEAD.drag) / (SNAP - Sim.DEAD.drag)) ** 2; dx *= k; dy *= k; }
+      return [dx, dy];
+    };
+    const boxAt = g => { const [dx, dy] = unitOff(g); return [g.BX + dx, g.BY + dy]; };
+    // El símbolo (la bomba o la pila) va con la caja, salvo en el celular horizontal.
+    const symAt = g => { if (g.mode === 'lateral') return [g.PX, g.BOT]; const [dx, dy] = unitOff(g); return [g.PX + dx, g.BOT + dy]; };
+    // Qué tan afuera de su lugar está el símbolo (0 en su lugar, 1 ya con sus cables a la vista).
+    const awayK = g => { const [x, y] = symAt(g); return Math.min(1, Math.hypot(x - g.PX, y - g.BOT) / 16); };
+    const moveUnit = (g, x, y) => {
+      const [x0, x1, y0, y1] = unitLimits(g);
+      st.spos[g.mode] = [Math.max(x0, Math.min(x1, x - g.BX)), Math.max(y0, Math.min(y1, y - g.BY))];
+      st.svel = null;
+      b.pw.replace(); b.pe.replace();
+    };
+    // Zonas para agarrarla: la caja y el símbolo. Van debajo de los demás controles (el interruptor y
+    // las perillas siguen funcionando).
+    ['w', 'e'].forEach(side => {
+      const name = side === 'w' ? 'la bomba' : 'la fuente';
+      const grab = (cls, pos, size) => {
+        const el = document.createElement('button');
+        el.type = 'button'; el.className = 'sim-src-hit ' + cls; el.dataset.act = 'ali';
+        el.setAttribute('aria-label', `Mover ${name}: arrástrala (o usa las flechas) y sus cables la siguen; cerca de su lugar se regresa sola`);
+        panel(side).box.querySelector('.sim-layer').prepend(el);
+        panel(side).at(el, () => {
+          const g = geo(side), s = panel(side).scale, [w, h] = size(g);
+          el.style.width = w * s + 'px'; el.style.height = h * s + 'px';
+          el.hidden = cls === 'sym' && g.mode === 'lateral';
+          return pos(g);
+        });
+        let down = null, from = null;
+        el.addEventListener('pointerdown', e => {
+          el.setPointerCapture(e.pointerId); down = [e.clientX, e.clientY]; from = boxAt(geo(side)); e.preventDefault();
+        });
+        el.addEventListener('pointermove', e => {
+          if (!down || !el.hasPointerCapture(e.pointerId)) return;
+          if (!st.sheld && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 6) return;
+          if (!st.sheld && !st.spos[geo(side).mode]) st.spos[geo(side).mode] = [0, 0];
+          st.sheld = true; el.classList.add('held');
+          const s = panel(side).scale;
+          moveUnit(geo(side), from[0] + (e.clientX - down[0]) / s, from[1] + (e.clientY - down[1]) / s);
+        });
+        const up = () => {
+          if (!down) return;
+          down = null; el.classList.remove('held');
+          if (!st.sheld) return;
+          // cerca de su lugar: sale de donde se ve (ya jalada por el imán) y regresa con un rebote
+          const g = geo(side), shown = unitOff(g);
+          st.sheld = false;
+          if (Math.hypot(...shown) < SNAP) { st.spos[g.mode] = shown; st.svel = [0, 0]; }
+        };
+        el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+        el.addEventListener('keydown', e => {
+          const step = { ArrowUp: [0, -12], ArrowDown: [0, 12], ArrowLeft: [-12, 0], ArrowRight: [12, 0] }[e.key];
+          if (!step) return;
+          const g = geo(side), [x, y] = boxAt(g);
+          moveUnit(g, x + step[0], y + step[1]);
+          e.preventDefault();
+        });
+      };
+      grab('box', g => { const [x, y] = boxAt(g); return [x + g.BW / 2, y + g.BH / 2]; }, g => [g.BW, g.BH]);
+      grab('sym', g => symAt(g), () => [84, 84]);
+    });
+
     // ---------- controlador: bomba y fuente enlazadas ----------
     // Como una fuente de laboratorio: interruptor ON/OFF a la izquierda con los LEDs CV y CC; la perilla del
     // voltaje y la del límite de corriente (en el agua, presión y caudal máximo), cada una con su pantallita
@@ -341,15 +424,15 @@
     // la inercia). La fuente da el voltaje de la perilla mientras la corriente no pase del límite (CV); si
     // se pasaría, sostiene la corriente en el límite y baja el voltaje lo necesario (CC).
     const power = b.linkedButton({
-      pos: g => [g.BX + 44, g.BY + 97], cls: 'sim-power',
+      pos: g => { const [x, y] = boxAt(g); return [x + 44, y + 97]; }, cls: 'sim-power',
       label: side => (st.on ? 'Apagar ' : 'Encender ') + (side === 'w' ? 'la bomba' : 'la fuente'),
       onClick: () => { st.on = !st.on; }
     });
-    power.forEach(el => { el.innerHTML = Sim.SWITCH; });
+    power.forEach(el => { el.innerHTML = Sim.SWITCH; el.classList.add('sim-src-ctl'); });
     const syncPower = () => power.forEach(el => el.setAttribute('aria-pressed', String(st.on)));
     power.forEach(el => el.addEventListener('click', syncPower)); syncPower();
     b.linkedKnob({
-      pos: g => [g.BX + 148, g.BY + 100], min: 0, max: VMAX, step: 0.5, magnet: 1, value: st.set,
+      pos: g => { const [x, y] = boxAt(g); return [x + 148, y + 100]; }, min: 0, max: VMAX, step: 0.5, magnet: 1, value: st.set,
       label: side => side === 'w' ? 'Presión de la bomba' : 'Voltaje de la fuente',
       format: (v, side) => side === 'w' ? fmt(v * PSI_PER_V) + ' psi' : fmt(v) + ' V',
       scale: () => [['0', 0], ['6', 0.5], ['12', 1]],
@@ -357,12 +440,13 @@
       onInput: v => { st.set = v; }
     });
     b.linkedKnob({
-      pos: g => [g.BX + 256, g.BY + 100], min: 0, max: LIMS.length - 1, step: 1, value: LIMS.indexOf(st.lim),
+      pos: g => { const [x, y] = boxAt(g); return [x + 256, y + 100]; }, min: 0, max: LIMS.length - 1, step: 1, value: LIMS.indexOf(st.lim),
       label: side => side === 'w' ? 'Caudal máximo de la bomba' : 'Límite de corriente de la fuente',
       format: (k, side) => limText(LIMS[k], side).join(' '),
       onInput: k => { st.lim = LIMS[k]; }
     });
     b.knobs.length = 0;   // las escalas de estas perillas las dibuja la caja del controlador
+    ['pw', 'pe'].forEach(k => b[k].box.querySelectorAll('.sim-layer > .knob').forEach(el => el.classList.add('sim-src-ctl')));
 
     const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
     Sim.snapRange(inercia, { magnet: 0.5 });   // pasa de 0,1 en 0,1 s y se engancha en 0, 0,5, 1… s
@@ -794,6 +878,13 @@
         const p = project(sg.pts, x, y);
         if (!best || p.dist < best.dist) { best = p; bsg = sg; }
       }
+      // en los cables de la fuente: el rojo lleva lo que sale y el negro está en 0
+      for (let j = 0; j < 2; j++) {
+        const r = ropes.e['s' + j];
+        if (!r || !r.pts) continue;
+        const p = project(r.pts, x, y);
+        if (!best || p.dist < best.dist) return [j ? 0 : st.vo / VMAX, Math.abs(st.m.I) / iFull];
+      }
       if (!best) return [0, 0];
       const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
       return [v / VMAX, Math.abs(bsg.I) / iFull];
@@ -1193,6 +1284,65 @@
       }
       r.A = A;
     };
+    // Cables de la fuente (o mangueras de la bomba), con la misma física: j = 0 el rojo, del + del bloque
+    // al + del circuito; j = 1 el negro, del − al −. Van del circuito (r[0]) al bloque (último punto) y
+    // salen derecho de sus bornes. Solo jalándolos sale más cable; al acercar el bloque, el que sobra
+    // se recoge. En su lugar no hay cables.
+    const NL = 16;
+    const leadEnds = (g, j) => {
+      const s = j ? 1 : -1, [x, y] = symAt(g);
+      return [[g.PX + s * SRC, g.BOT], [x + s * SRC, y], s];
+    };
+    const leadStep = (side, g, j, dt) => {
+      const key = 's' + j;
+      if (!awayK(g)) { delete ropes[side][key]; return; }
+      const [A, B, sx] = leadEnds(g, j), span = Math.hypot(B[0] - A[0], B[1] - A[1]);
+      let r = ropes[side][key];
+      if (!r) {
+        r = ropes[side][key] = [];
+        r.len = span;
+        for (let k = 0; k < NL; k++) { const u = k / (NL - 1), x = A[0] + (B[0] - A[0]) * u, y = A[1] + (B[1] - A[1]) * u; r.push({ x, y, px: x, py: y }); }
+      }
+      const hk = held && held.key === key ? held.k : -1;
+      const slack = span * 1.04 + Math.min(14, span * 0.2);
+      if (hk > 0) r.len = Math.max(r.len, Math.max(Math.hypot(held.x - A[0], held.y - A[1]) / hk, Math.hypot(B[0] - held.x, B[1] - held.y) / (NL - 1 - hk)) * (NL - 1) * 1.02);
+      else if (st.sheld || st.svel) r.len += (slack - r.len) * (1 - Math.exp(-dt * 6));
+      r.len = Math.max(r.len, slack);
+      const rest = r.len / (NL - 1);
+      const fr = Math.pow(Math.exp(Math.log(1e-4) * (1 - cable.inertia) + Math.log(0.6) * cable.inertia), Math.min(dt, 1 / 30)) * (1 - 0.5 * cable.stiff);
+      const bend = 2 * rest * Math.max(0.5, cable.stiff) * 0.97;
+      for (const q of r) { const vx = (q.x - q.px) * fr, vy = (q.y - q.py) * fr; q.px = q.x; q.py = q.y; q.x += vx; q.y += vy; }
+      const fixed = k => k === 0 || k === NL - 1 || k === hk;
+      for (let it = 0; it < 30; it++) {
+        r[0].x = A[0]; r[0].y = A[1]; r[NL - 1].x = B[0]; r[NL - 1].y = B[1];
+        if (hk > 0) { r[hk].x = held.x; r[hk].y = held.y; }
+        // del bloque sale derecho hacia su lado, como de un borne
+        if (hk !== NL - 2) { const q = r[NL - 2], t = Math.min(rest, 14); q.x += (B[0] + sx * t - q.x) * 0.25; q.y += (B[1] - q.y) * 0.25; }
+        for (let k = 1; k < NL; k++) {
+          const a = r[k - 1], c = r[k], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
+          if (d <= rest) continue;
+          const wa = fixed(k - 1) ? 0 : 1, wc = fixed(k) ? 0 : 1;
+          if (!wa && !wc) continue;
+          const e = (d - rest) / d / (wa + wc);
+          a.x += dx * e * wa; a.y += dy * e * wa; c.x -= dx * e * wc; c.y -= dy * e * wc;
+        }
+        for (let k = 2; k < NL; k++) {
+          const a = r[k - 2], c = r[k], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy) || 1;
+          if (d >= bend) continue;
+          const wa = fixed(k - 2) ? 0 : 1, wc = fixed(k) ? 0 : 1;
+          if (!wa && !wc) continue;
+          const e = 0.5 * (d - bend) / d / (wa + wc);
+          a.x += dx * e * wa; a.y += dy * e * wa; c.x -= dx * e * wc; c.y -= dy * e * wc;
+        }
+      }
+      const still = 0.15 + 0.35 * cable.stiff;
+      for (let k = 1; k < NL - 1; k++) {
+        const q = r[k];
+        if (k !== hk && !st.sheld && !st.svel && Math.hypot(q.x - q.px, q.y - q.py) < still) { q.x = q.px; q.y = q.py; }
+      }
+      r.A = A;
+      r.pts = ropePoints(r);
+    };
     // Rigidez e inercia de los cables, en la sección Medir de la columna (plegado, se usa poco).
     if (Sim.side) {
       const box = document.createElement('details');
@@ -1323,9 +1473,10 @@
     const nearRope = (side, x, y) => {
       let best = null;
       for (const key in ropes[side]) {
-        if (!st.show[key[0]] || !shown(key[0], probeOf(key[0], +key[1]))) continue;
+        if (key[0] !== 's' && (!st.show[key[0]] || !shown(key[0], probeOf(key[0], +key[1])))) continue;
+        const n = ropes[side][key].length;
         ropes[side][key].forEach((q, k) => {
-          if (k < 2 || k > NR - 2) return;
+          if (k < 2 || k > n - 2) return;
           const d = Math.hypot(q.x - x, q.y - y);
           if (d < 16 && (!best || d < best.d)) best = { key, k, d };
         });
@@ -1354,7 +1505,7 @@
     });
     // El mismo recorrido como lista de puntos (las curvas en pasos cortos), para la raya de la manguera.
     const ropePoints = r => {
-      const q = [r.A, [r[0].x, r[0].y]];
+      const q = [r.A, [r[0].x, r[0].y]], NR = r.length;
       let p0 = q[1];
       for (let k = 1; k < NR - 1; k++) {
         const c = [r[k].x, r[k].y], p1 = [(r[k].x + r[k + 1].x) / 2, (r[k].y + r[k + 1].y) / 2];
@@ -1368,6 +1519,7 @@
       return q;
     };
     const ropePath = (ctx, r) => {
+      const NR = r.length;
       ctx.beginPath(); ctx.moveTo(r.A[0], r.A[1]); ctx.lineTo(r[0].x, r[0].y);
       for (let k = 1; k < NR - 1; k++) ctx.quadraticCurveTo(r[k].x, r[k].y, (r[k].x + r[k + 1].x) / 2, (r[k].y + r[k + 1].y) / 2);
       ctx.lineTo(r[NR - 1].x, r[NR - 1].y);
@@ -1708,21 +1860,88 @@
 
     // ---------- dibujo común ----------
     const controllerBox = (ctx, g, title, fill, scales, lcd, leds) => {
-      if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 30, 28, 18); }   // cuello hacia el circuito
-      D.roundRect(ctx, g.BX, g.BY, g.BW, g.BH, 14, fill, C.ink, 2.5);
-      D.text(ctx, title, g.BX + 18, g.BY + 24, C.ink, { align: 'left', size: 15, font: Sim.WIDE });
+      const [X, Y] = boxAt(g), [sx, sy] = symAt(g);
+      if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(sx - 14, sy + 30, 28, 18); }   // cuello hacia el símbolo
+      D.roundRect(ctx, X, Y, g.BW, g.BH, 14, fill, C.ink, 2.5);
+      D.text(ctx, title, X + 18, Y + 24, C.ink, { align: 'left', size: 15, font: Sim.WIDE });
       // lo que marca cada perilla, aunque esté apagada
-      D.knobScale(ctx, g.BX + 148, g.BY + 100, 36, scales[0]);
-      D.lcd(ctx, g.BX + 148, g.BY + 34, 88, 32, ...lcd);
-      D.knobScale(ctx, g.BX + 256, g.BY + 100, 36, scales[1], 6);
-      D.lcd(ctx, g.BX + 256, g.BY + 34, 88, 32, ...limText(st.lim, g.side));
+      D.knobScale(ctx, X + 148, Y + 100, 36, scales[0]);
+      D.lcd(ctx, X + 148, Y + 34, 88, 32, ...lcd);
+      D.knobScale(ctx, X + 256, Y + 100, 36, scales[1], 6);
+      D.lcd(ctx, X + 256, Y + 34, 88, 32, ...limText(st.lim, g.side));
       // CV (verde): sale el voltaje de la perilla. CC (rojo): llegó al límite y sostiene la corriente.
       // Encienden con la salida, desde 0.05 psi (0.05 V) adentro de la fuente.
       const out = st.v > 0.05;
-      D.led(ctx, g.BX + 86, g.BY + 74, out && !st.cc ? 1 : 0);
-      D.text(ctx, leds[0], g.BX + 86, g.BY + 93, C.ink, { size: 11, weight: 700 });
-      D.led(ctx, g.BX + 86, g.BY + 112, out && st.cc ? 1 : 0, '#ff4a3d');
-      D.text(ctx, leds[1], g.BX + 86, g.BY + 131, C.ink, { size: 11, weight: 700 });
+      D.led(ctx, X + 86, Y + 74, out && !st.cc ? 1 : 0);
+      D.text(ctx, leds[0], X + 86, Y + 93, C.ink, { size: 11, weight: 700 });
+      D.led(ctx, X + 86, Y + 112, out && st.cc ? 1 : 0, '#ff4a3d');
+      D.text(ctx, leds[1], X + 86, Y + 131, C.ink, { size: 11, weight: 700 });
+    };
+    // Cables de la fuente (mangueras de la bomba) fuera de su lugar: rojo el del +, negro el del −, con
+    // lo que circula por ellos (sale por el + y regresa por el −). Van debajo del circuito, como los de
+    // los multímetros.
+    st.lph = 0;
+    const leadCol = j => j ? C.neg : RED;
+    const drawLeads = (ctx, g) => {
+      const k = awayK(g), water = g.side === 'w';
+      if (!k) return;
+      ctx.save(); ctx.globalAlpha = k;
+      for (let j = 0; j < 2; j++) {
+        const r = ropes[g.side]['s' + j];
+        if (!r || !r.pts) continue;
+        const pts = r.pts, path = () => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); };
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        path();
+        if (water) {
+          ctx.lineWidth = 30; ctx.strokeStyle = C.card; ctx.stroke();
+          ctx.lineWidth = 26; ctx.strokeStyle = C.pipe; ctx.stroke();
+          ctx.lineWidth = 18; ctx.strokeStyle = C['water-soft']; ctx.stroke();
+          // la raya de su color por el borde de la manguera
+          const edge = pts.map((p, i) => {
+            const a = pts[Math.max(0, i - 1)], c = pts[Math.min(pts.length - 1, i + 1)], dx = c[0] - a[0], dy = c[1] - a[1], d = Math.hypot(dx, dy) || 1;
+            return [p[0] - dy / d * 11, p[1] + dx / d * 11];
+          });
+          ctx.beginPath(); edge.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+          ctx.lineWidth = 3; ctx.strokeStyle = leadCol(j); ctx.stroke();
+        } else {
+          ctx.lineWidth = 8; ctx.strokeStyle = C.card; ctx.stroke();
+          ctx.lineWidth = 4; ctx.strokeStyle = leadCol(j); ctx.stroke();
+        }
+        // por el rojo sale (del bloque al circuito) y por el negro regresa
+        D.flow(ctx, j ? pts : pts.slice().reverse(), st.lph, water ? C.water : C.charge, { gap: water ? 18 : 30, r: water ? 3.6 : 4.5 });
+      }
+      ctx.restore();
+    };
+    // Donde estaba la fuente el circuito queda abierto entre sus dos puntos, que es donde llegan sus cables
+    // (en el agua, dos bocas de la tubería).
+    const drawPorts = (ctx, g) => {
+      const k = awayK(g), water = g.side === 'w';
+      if (!k) return;
+      const x0 = g.PX - SRC, x1 = g.PX + SRC, y = g.BOT, h = water ? Sim.PIPE + 9 : 9, e = water ? 4 : 5;
+      ctx.save(); ctx.globalAlpha = k;
+      ctx.fillStyle = C.card; ctx.fillRect(x0 + e, y - h, x1 - x0 - 2 * e, 2 * h);
+      // el pedazo de cable que pasa por el hueco, encima de lo que se borró
+      ctx.save(); ctx.beginPath(); ctx.rect(x0 + e, y - h, x1 - x0 - 2 * e, 2 * h); ctx.clip(); drawLeads(ctx, g); ctx.restore();
+      if (water) for (const x of [x0, x1]) D.roundRect(ctx, x - 6, y - Sim.PIPE - 9, 12, 2 * Sim.PIPE + 18, 3, C.metal, C.ink, 2);
+      else {
+        for (const x of [x0, x1]) D.circle(ctx, x, y, 5.5, C.ink);
+        D.text(ctx, '+', x0 + 14, y - 20, C.ink, { size: 20 });
+        D.text(ctx, '−', x1 - 14, y - 20, C.ink, { size: 20 });
+      }
+      ctx.restore();
+    };
+    // Los bornes del bloque, rojo (+) y negro (−), a los lados del símbolo, de donde salen sus cables.
+    const drawPosts = (ctx, g) => {
+      const k = awayK(g), water = g.side === 'w';
+      if (!k) return;
+      const [x, y] = symAt(g);
+      ctx.save(); ctx.globalAlpha = k;
+      for (let j = 0; j < 2; j++) {
+        const s = j ? 1 : -1, px = x + s * SRC;
+        if (water) D.roundRect(ctx, px - 5, y - Sim.PIPE - 4, 10, 2 * Sim.PIPE + 8, 3, leadCol(j), C.ink, 2);
+        else { D.line(ctx, [[x + s * 22, y], [px, y]], 4, C.ink); D.circle(ctx, px, y, 7, leadCol(j), C.ink, 2); }
+      }
+      ctx.restore();
     };
     // Tierra común: el − de la fuente es la referencia de 0 V de todo el circuito (en el agua, la salida
     // hacia la bomba es la referencia de 0 psi). Su símbolo cuelga del cable de abajo, junto a la fuente.
@@ -2033,13 +2252,15 @@
     // medidores siempre pasan por debajo del circuito.
     const circuitAndCables = (ctx, g, m, drawPage) => {
       const u = net ? st.nodes.u : 0;
-      if (!u) { MS.forEach(k => drawCables(ctx, g, k)); drawPage(ctx, g, m); drawCuts(ctx, g); return; }
+      if (!u) { MS.forEach(k => drawCables(ctx, g, k)); drawLeads(ctx, g); drawPage(ctx, g, m); drawPorts(ctx, g); drawCuts(ctx, g); return; }
       if (u < 1) {
         drawPage(ctx, g, m);
         ctx.save(); ctx.globalAlpha = Math.min(1, u / 0.3); ctx.fillStyle = C.card; ctx.fillRect(-4000, -4000, 8000, 8000); ctx.restore();
       }
       MS.forEach(k => drawCables(ctx, g, k));
+      drawLeads(ctx, g);
       drawNodes(ctx, g, m, u);
+      drawPorts(ctx, g);
       drawCuts(ctx, g);
     };
     // Cuánto sobresale un componente a cada lado de su cable (ext de la página, un número o ext(water)).
@@ -2163,10 +2384,12 @@
       circuitAndCables(ctx, g, m, o.drawW);
       drawGround(ctx, g);
       knobScales(ctx, g);
+      // el bloque de la bomba va encima de los medidores: es lo que se arrastra a donde haya lugar
+      MS.forEach(k => drawMeter(ctx, g, k));
       controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set * PSI_PER_V, 2, 1), 'psi'], ['presión', 'caudal']);
-      D.pump(ctx, g.PX, g.BOT, st.rotor, st.omega);
-      MS.forEach(k => drawMeter(ctx, g, k));
+      D.pump(ctx, ...symAt(g), st.rotor, st.omega);
+      drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
       o.overlay && o.overlay(ctx, g, m);
     }
@@ -2175,10 +2398,11 @@
       circuitAndCables(ctx, g, m, o.drawE);
       drawGround(ctx, g);
       knobScales(ctx, g);
+      MS.forEach(k => drawMeter(ctx, g, k));
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set, 2, 1), 'V'], ['CV', 'CC']);
-      D.source(ctx, g.PX, g.BOT);
-      MS.forEach(k => drawMeter(ctx, g, k));
+      D.source(ctx, ...symAt(g));
+      drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
       o.overlay && o.overlay(ctx, g, m);
     }
@@ -2270,6 +2494,17 @@
           moved = true;
         } else if (a0 !== to) { st.dang[kind] = to; st.dvel[kind] = 0; moved = true; }
       }
+      // la fuente soltada cerca de su lugar regresa como jalada por un imán, con un rebote
+      const sk = b.ge.mode, so = st.spos[sk];
+      if (st.svel && so) {
+        const h = dt / 4;
+        for (let i = 0; i < 4; i++) for (let c = 0; c < 2; c++) {
+          st.svel[c] += (-260 * so[c] - 18 * st.svel[c]) * h;
+          so[c] += st.svel[c] * h;
+        }
+        if (Math.hypot(...so) < 0.3 && Math.hypot(...st.svel) < 4) { delete st.spos[sk]; st.svel = null; }
+        moved = true;
+      } else if (st.svel) st.svel = null;
       if (moved) { b.pw.replace(); b.pe.replace(); }
     };
     // Voltaje que sale con el de adentro Vs: el mismo si la corriente no pasa del límite; si pasaría,
@@ -2294,6 +2529,8 @@
       animate(dt);
       colorWhileDragging();
       for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (const kind of MS) for (let j = 0; j < 2; j++) ropeStep(side, g, kind, j, dt);
+      for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (let j = 0; j < 2; j++) leadStep(side, g, j, dt);
+      st.lph = (st.lph + Math.min(st.m.I, 60) * 6 * dt) % 1e4;
       st.rpm = st.m.I * RPM_PER_MA;                                // 100 rpm por cada mL/s
       st.omega = -st.rpm / 60 * 2 * Math.PI;                       // rad/s, a la velocidad real
       st.rotor += st.omega * dt;
