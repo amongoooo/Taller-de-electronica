@@ -7,17 +7,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022040617">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
-/* Botones de forma de onda del generador. */
-.sim-wave {
-  width: max(26px, calc(var(--s, 1) * 40px)); aspect-ratio: 1; border-radius: 10px; padding: 0; cursor: pointer;
-  display: grid; place-items: center; background: var(--card); color: var(--muted); border: 2px solid var(--line);
+/* Teclas de forma de onda del generador y TRIG del osciloscopio: se dibujan en el canvas (Sim.draw.key);
+   aquí solo queda la zona para tocarlas. */
+.sim-wave, .sim-trig {
+  width: max(30px, calc(var(--s, 1) * 44px)); height: max(26px, calc(var(--s, 1) * 34px)); padding: 0; cursor: pointer;
+  border-radius: 6px; background: transparent; border: 0; touch-action: manipulation;
 }
-.sim-wave svg { width: 72%; height: 72%; }
-#pw .sim-wave[aria-checked="true"] { background: var(--water-soft); color: var(--water); border-color: var(--water); }
-#pe .sim-wave[aria-checked="true"] { background: var(--card); color: var(--charge); border-color: var(--charge); }
+.sim-wave:focus-visible, .sim-trig:focus-visible { outline: 2px solid var(--water); outline-offset: 1px; }
 </style>
 </head>
 <body>
@@ -46,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022040617"></script>
+<script src="../../assets/sim.js?v=20261022044050"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -330,10 +329,11 @@
     square: 'M2 17V7h5v10h5V7h5v10h5',
     tri: 'M2 12l5-7 10 14 5-7'
   };
-  [['sine', 'Senoidal'], ['square', 'Cuadrada'], ['tri', 'Triangular']].forEach(([w, name], k) => linkedButton({
-    pos: g => [g.GX + 125, g.GY + 66 + 44 * k], cls: 'sim-wave',
-    html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="${ICON[w]}"/></svg>`,
-    label: () => 'Onda ' + name.toLowerCase(),
+  // Teclas de la forma de onda: la elegida se queda hundida, con su lucecita.
+  const WAVEK = ['sine', 'square', 'tri'], waveAt = (g, k) => [g.GX + 125, g.GY + 66 + 44 * k];
+  WAVEK.forEach((w, k) => linkedButton({
+    pos: g => waveAt(g, k), cls: 'sim-wave',
+    label: () => 'Onda ' + ['senoidal', 'cuadrada', 'triangular'][k],
     attrs: () => ({ role: 'radio', 'aria-checked': String(st.wave === w) }),
     onClick: () => { st.wave = w; }
   }));
@@ -381,10 +381,12 @@
     label: () => 'Tiempo por división', format: v => tText(TDIV[v]) + ' por división',
     onInput: v => { st.ti = v; resetSweep(); }
   });
+  // Tecla TRIG (disparo): hundida y con su lucecita mientras la imagen se queda quieta.
+  const trigAt = g => [g.SX + 500, g.SY + 362];
   linkedButton({
-    pos: g => [g.SX + 500, g.SY + 360], act: 'med',
-    text: () => st.trig ? 'Disparo: sí' : 'Disparo: no',
-    label: () => st.trig ? 'Quitar el disparo: la imagen deja de quedarse quieta' : 'Poner el disparo para que la imagen se quede quieta',
+    pos: trigAt, act: 'med', cls: 'sim-trig',
+    label: () => st.trig ? 'Disparo (TRIG): quitarlo; la imagen deja de quedarse quieta' : 'Disparo (TRIG): ponerlo para que la imagen se quede quieta',
+    attrs: () => ({ 'aria-pressed': String(st.trig) }),
     onClick: () => { st.trig = !st.trig; }
   });
   refresh();
@@ -489,8 +491,14 @@
   const drawGen = (ctx, g) => {
     const w = g.side === 'w', x = g.GX, y = g.GY;
     ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 26, 28, 22);   // cuello hacia el circuito
-    D.roundRect(ctx, x, y, g.GW, g.GH, 14, w ? C.metal : C['charge-soft'], C.ink, 2.5);
-    D.text(ctx, w ? 'BOMBA DE VAIVÉN' : 'GENERADOR DE FUNCIONES', x + 18, y + 24, C.ink, { align: 'left', size: 14, font: Sim.WIDE });
+    D.chassis(ctx, x, y, g.GW, g.GH, w, w ? 'BOMBA DE VAIVÉN' : 'GENERADOR DE FUNCIONES');
+    WAVEK.forEach((wv, k) => {   // teclas de la forma de onda, con su dibujo
+      const [kx, ky] = waveAt(g, k), on = st.wave === wv ? 1 : 0;
+      D.key(ctx, kx, ky, 40, 30, on, false, on);
+      ctx.save(); ctx.translate(kx - 10, ky - 10 + on * 1.5); ctx.scale(20 / 24, 20 / 24);
+      ctx.lineWidth = 2.4; ctx.strokeStyle = '#1b242c'; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(new Path2D(ICON[wv]));
+      ctx.restore();
+    });
     D.led(ctx, x + 84, y + 110, st.level > 0.02 ? 1 : 0);
     const f = freqAt(st.fi), txt = f < 10 ? f.toFixed(2) : f < 100 ? f.toFixed(1) : f.toFixed(0);
     D.lcd(ctx, x + 470, y + 28, 150, 30, txt.padStart(5, ' '), 'Hz');
@@ -507,8 +515,10 @@
   };
   const drawScope = (ctx, g) => {
     const w = g.side === 'w', [sx, sy, sw, sh] = g.scr, cy = sy + sh / 2, vdiv = VDIV[st.vi];
-    D.roundRect(ctx, g.SX, g.SY, g.SW, g.SH, 14, C.metal, C.ink, 2.5);
-    D.text(ctx, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO', g.SX + 20, g.SY + 24, C.ink, { align: 'left', size: 14, font: Sim.WIDE });
+    D.chassis(ctx, g.SX, g.SY, g.SW, g.SH, w, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO');
+    { const [tx, ty] = trigAt(g), on = st.trig ? 1 : 0;   // tecla TRIG
+      D.key(ctx, tx, ty, 44, 28, on, false, on);
+      D.text(ctx, 'TRIG', tx, ty + 0.5 + on * 1.5, '#1b242c', { size: 12, weight: 800 }); }
     // Pantalla (en el agua, papel cuadriculado)
     const ink = w ? PURPLE : '#c4b0ff', txt = w ? C.muted : Sim.LCD.on;
     D.roundRect(ctx, sx - 4, sy - 4, sw + 8, sh + 8, 6, w ? paper() : Sim.LCD.bg, C.ink, 2);
@@ -585,8 +595,14 @@
     D.select(ctx, g.XR - 54, g.TOP - 26, 108, 52, Sim.fadeSel('oR', parts.R.open()));
     D.select(ctx, g.XL - 40, g.TOP - 40, 80, 80, Sim.fadeSel('oL', parts.L.open()));
   };
+  // La mesa de trabajo: en vertical, el generador y el osciloscopio van en una franja de otro tono abajo.
+  const drawDesk = (ctx, g) => {
+    if (!g.mode.startsWith('alto')) return;
+    ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = C.bg; ctx.fillRect(-2000, g.GY - 18, 4000, 4000); ctx.restore();
+  };
   function drawWater() {
     const g = geos.w, ctx = pw.begin();
+    drawDesk(ctx, g);
     drawCables(ctx, g);   // las mangueras pasan siempre por debajo del dibujo
     D.pipe(ctx, g.loop);
     D.narrow(ctx, g.XR, g.TOP, HN());
@@ -607,6 +623,7 @@
   }
   function drawElectric() {
     const g = geos.e, ctx = pe.begin();
+    drawDesk(ctx, g);
     drawCables(ctx, g);   // los cables pasan siempre por debajo del dibujo
     D.wire(ctx, g.loop);
     D.flow(ctx, g.loop, st.charge, C.charge, { gap: 30, r: 4.5 });

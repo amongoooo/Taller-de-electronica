@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022040617">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -26,7 +26,7 @@
     <a class="back" href="../../">← Simulaciones</a>
     <h1>Protoboard</h1>
     <div class="ctl">
-      <button type="button" class="pb-btn" id="dentro" aria-pressed="true" data-act="ver">Por dentro</button>
+      <div class="sim-seg" id="dentro" role="group" aria-label="Protoboard" data-act="ver"><button type="button" data-v="0">Por fuera</button><button type="button" data-v="1">Por dentro</button></div>
       <button type="button" class="pb-btn" id="ejemplo" data-act="arm">Ejemplo</button>
       <button type="button" class="pb-btn" id="vaciar" data-act="arm">Vaciar</button>
     </div>
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022040617"></script>
+<script src="../../assets/sim.js?v=20261022044050"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -59,8 +59,9 @@
   const ROWNAME = ['+', '−', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', '+', '−'];
   const BOARD = [-1, -0.8, N, 15.3];          // u0, v0, u1, v1
   const TERM = { '+': [-2.3, 1.6], '-': [-2.3, 4.4] };
-  const BAT = [-5.5, 0.3, -2.3, 5.7];
-  const POWER = [-3.9, 6.75];
+  // La pila (en el agua, la bomba) es un instrumento: su chasis (CH) lleva el nombre arriba, la pila adentro
+  // y su palanca ON/OFF; el lugar de la pila (bat) y de la palanca (power) cambia con la orientación (ver GEO).
+  const CH = [-5.9, -0.5, -2.3, 7.6];
   const TRAY = [-5.6, 7.7, -2.2, 14.6];
   const TRAYITEMS = [['wire', 8.7], ['res', 11.05], ['led', 13.4]];
   const V0 = 9, RINT = 1, FUSE = 1, RD = 15, IMAX = Sim.LED_IMAX;
@@ -70,8 +71,8 @@
   const COLORS = ['#1f9d55', '#e0a400', '#2563eb', '#ea7a1a', '#d6392b', '#15212a'];
 
   const GEO = {
-    h: { W: 765, H: 581, pt: (u, v) => [(u + 6.2) * P, (v + 1.3) * P], uv: (x, y) => [x / P - 6.2, y / P - 1.3] },
-    v: { W: 581, H: 765, pt: (u, v) => [(v + 1.3) * P, (u + 6.2) * P], uv: (x, y) => [y / P - 6.2, x / P - 1.3] }
+    h: { W: 765, H: 581, pt: (u, v) => [(u + 6.2) * P, (v + 1.3) * P], uv: (x, y) => [x / P - 6.2, y / P - 1.3], bat: [-5.6, 0.7, -2.95, 3.8], power: [-3.9, 5.7] },
+    v: { W: 581, H: 765, pt: (u, v) => [(v + 1.3) * P, (u + 6.2) * P], uv: (x, y) => [y / P - 6.2, x / P - 1.3], bat: [-5.6, 1.6, -2.95, 5.2], power: [-3.9, 6.3] }
   };
   const group = (c, r) => r === 0 ? 'R0p' : r === 1 ? 'R0n' : r === 12 ? 'R1p' : r === 13 ? 'R1n' : (r < 7 ? 'T' : 'B') + c;
   const groupHoles = g => {
@@ -201,8 +202,10 @@
   Sim.viewSwitch();
 
   const dentro = document.getElementById('dentro');
-  const syncDentro = () => dentro.setAttribute('aria-pressed', String(st.inside));
-  dentro.addEventListener('click', () => { st.inside = !st.inside; syncDentro(); try { localStorage.setItem('pb-dentro', st.inside ? '1' : '0'); } catch (e) {} });
+  const syncDentro = () => dentro.querySelectorAll('button').forEach(bt => bt.setAttribute('aria-pressed', String(bt.dataset.v === (st.inside ? '1' : '0'))));
+  dentro.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => {
+    st.inside = bt.dataset.v === '1'; syncDentro(); try { localStorage.setItem('pb-dentro', st.inside ? '1' : '0'); } catch (e) {}
+  }));
   syncDentro();
   document.getElementById('ejemplo').addEventListener('click', example);
   document.getElementById('vaciar').addEventListener('click', clearAll);
@@ -212,7 +215,7 @@
     const el = document.createElement('button');
     el.type = 'button'; el.className = 'sim-power'; el.innerHTML = Sim.SWITCH;
     p.box.querySelector('.sim-layer').appendChild(el);
-    p.at(el, () => geo(p).pt(...POWER));
+    p.at(el, () => geo(p).pt(...geo(p).power));
     el.addEventListener('click', () => { st.on = !st.on; syncPower(); });
     return [side, el];
   });
@@ -409,23 +412,24 @@
 
   function drawBattery(ctx, g, side) {
     const water = side === 'w';
-    const [cx, cy] = g.pt((BAT[0] + BAT[2]) / 2, 3), tp = g.pt(...TERM['+']), tn = g.pt(...TERM['-']);
+    const B = g.bat, [cx, cy] = g.pt((B[0] + B[2]) / 2, (B[1] + B[3]) / 2), tp = g.pt(...TERM['+']), tn = g.pt(...TERM['-']);
+    const sel = selOpen() && menuK === BATK;
+    D.chassis(ctx, ...rectW(g, ...CH), water, water ? 'BOMBA' : 'PILA', sel);
     if (water) {
       D.line(ctx, [[cx, cy], tp], 16, C.pipe); D.line(ctx, [[cx, cy], tp], 10, C['water-soft']);
       D.line(ctx, [[cx, cy], tn], 16, C.pipe); D.line(ctx, [[cx, cy], tn], 10, C['water-soft']);
       D.pump(ctx, cx, cy, st.pump, st.on && st.fuse ? Math.min(40, st.Ibat * 0.6) : 0);
       D.circle(ctx, ...tp, 7, REDW); D.circle(ctx, ...tn, 7, C.neg);
-      if (g === GEO.h) D.text(ctx, 'bomba', cx, cy + 56, C.muted, { size: 14 });
     } else {
-      const R = rectW(g, ...BAT);
+      const R = rectW(g, ...B);
       D.roundRect(ctx, ...R, 8, '#2b3640', C.ink, 2);
       // la franja de color de la pila; con el fusible fundido se pone gris y lo dice
       D.roundRect(ctx, R[0] + 6, R[1] + 6, R[2] - 12, R[3] * 0.32, 4, st.fuse ? '#c77d00' : '#5b6670');
       if (!st.fuse) D.text(ctx, 'fusible fundido', R[0] + R[2] / 2, R[1] + 6 + R[3] * 0.16, '#ffb3a8', { size: 14 });
       D.text(ctx, '9 V', cx, cy + 6, '#fff', { size: 22 });
       D.circle(ctx, ...tp, 7, '#d8dde1', C.ink, 2); D.circle(ctx, ...tn, 7, '#d8dde1', C.ink, 2);
-      const [lx, ly] = g.pt(TERM['+'][0] - 0.55, TERM['+'][1]), [mx, my] = g.pt(TERM['-'][0] - 0.55, TERM['-'][1]);
-      D.text(ctx, '+', lx, ly, '#ff8a7a', { size: 20 }); D.text(ctx, '−', mx, my, '#fff', { size: 20 });
+      const [lx, ly] = g.pt(TERM['+'][0] - 0.3, TERM['+'][1] - 0.55), [mx, my] = g.pt(TERM['-'][0] - 0.3, TERM['-'][1] - 0.55);
+      D.text(ctx, '+', lx, ly, REDW, { size: 20 }); D.text(ctx, '−', mx, my, C.neg, { size: 20 });
     }
     if (st.fuseHeat > 0 && st.fuse) {
       const gr = ctx.createRadialGradient(cx, cy, 5, cx, cy, 70);
@@ -491,7 +495,7 @@
     // lo que tiene su tarjeta abierta: contorno azul a lo largo de él (o alrededor de la pila)
     const sa = Sim.fadeSel('pb', selOpen());
     if (sa && menuK) {
-      if (menuK === BATK) { const R = rectW(g, ...BAT); D.select(ctx, R[0] - 7, R[1] - 7, R[2] + 14, R[3] + 14, sa, 14); }
+      if (menuK === BATK) { const R = rectW(g, ...CH); D.select(ctx, R[0] - 7, R[1] - 7, R[2] + 14, R[3] + 14, sa, 16); }
       else {
         const A = g.pt(...legUV(menuK.a)), B = g.pt(...legUV(menuK.b)), M = lerp(A, B, 0.5);
         const hh = menuK.type === 'led' ? 21 : menuK.type === 'res' ? 15 : 12;
@@ -508,7 +512,7 @@
   const anchors = {};
   let menuK = null;
   const BATK = { type: 'bat' };
-  const centerUV = k => k === BATK ? [(BAT[0] + BAT[2]) / 2, (BAT[1] + BAT[3]) / 2] : lerp(legUV(k.a), legUV(k.b), 0.5);
+  const centerUV = k => k === BATK ? [(CH[0] + CH[2]) / 2, (CH[1] + CH[3]) / 2] : lerp(legUV(k.a), legUV(k.b), 0.5);
   Object.entries(panels).forEach(([side, p]) => {
     const el = document.createElement('div');
     el.className = 'pb-anchor';
@@ -611,7 +615,7 @@
           Object.assign(d, { kind: 'body', k, isNew: true, orig: [copyLeg(k.a), copyLeg(k.b)], o: [legUV(k.a), legUV(k.b)] }); break;
         }
       }
-      if (!d.kind && q[0] > BAT[0] && q[0] < BAT[2] && q[1] > BAT[1] && q[1] < BAT[3]) d.kind = 'battery';
+      if (!d.kind && q[0] > CH[0] && q[0] < CH[2] && q[1] > CH[1] && q[1] < CH[3]) d.kind = 'battery';
       if (!d.kind) d.kind = 'tap';
       st.drag = d;
       cv.setPointerCapture(e.pointerId);
