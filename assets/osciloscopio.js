@@ -732,7 +732,8 @@
         s2.pos = m.pp > 0.02 ? Math.max(-4, Math.min(4, -(m.mn + m.mx) / 2 / VDIV[s2.vi])) : 0;
       });
       const src = [0, 1].find(c => st.chs[c].on && ms[c] && ms[c].freq) ?? 0, f = ms[src] && ms[src].freq;
-      if (f) { st.ti = TDIV.findIndex(t => t >= 250 / f * 0.999);   // dos ciclos y medio en la pantalla if (st.ti < 0) st.ti = TDIV.length - 1; }
+      // dos ciclos y medio en la pantalla
+      if (f) { st.ti = TDIV.findIndex(t => t >= 250 / f * 0.999); if (st.ti < 0) st.ti = TDIV.length - 1; }
       Object.assign(st.trg, { src, slope: 1, mode: 'auto', level: ms[src] ? (ms[src].mn + ms[src].mx) / 2 : 0 });
       st.hpos = 0;
       syncKnobs(); resetSweep();
