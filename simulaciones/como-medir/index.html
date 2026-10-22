@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022012539">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022013556">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -37,8 +37,8 @@
   <p class="sim-sr" id="aviso" aria-live="polite"></p>
 </div>
 
-<script src="../../assets/sim.js?v=20261022012539"></script>
-<script src="../../assets/banco.js?v=20261022012539"></script>
+<script src="../../assets/sim.js?v=20261022013556"></script>
+<script src="../../assets/banco.js?v=20261022013556"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -95,7 +95,7 @@
   const done = { V: null, I: null };
   // Renglones del aviso: [texto, color] (el primero va en negritas). ok: true/false pone ✓ o ✗.
   const lines = w => {
-    const at = b.where(), on = b.st.on && b.st.vo > 0.5;
+    const at = b.where(), on = b.st.on && Math.abs(b.st.vo) > 0.5;
     const nodes = b.nodesOn(), r = [];
     const meter = w ? 'el medidor' : 'el multímetro', tips = w ? 'mangueras' : 'puntas';
     const ms = Object.values(at.meters).filter(Boolean), pick = d => ms.find(m => m.dial === d);
@@ -113,11 +113,11 @@
       r.push(['La resistencia se mide con todo apagado']);
       const m = pick('R');
       if (!m) { r.push([turn('R'), C.muted]); return r; }
-      if (b.st.on || b.st.vo > 0.05) r.push(['Apaga la ' + (w ? 'bomba' : 'fuente') + `: con ${w ? 'presión' : 'voltaje'} la lectura no sirve.`, C.danger]);
+      if (b.st.on || Math.abs(b.st.vo) > 0.05) r.push(['Apaga la ' + (w ? 'bomba' : 'fuente') + `: con ${w ? 'presión' : 'voltaje'} la lectura no sirve.`, C.danger]);
       const [A, B] = m.nodes;
       if (!A || !B) r.push([`Pon las ${tips} a los dos lados de una resistencia.`, C.muted]);
       else if (A === B) r.push([`Las dos ${tips} en el mismo nodo: marca 0 Ω, es puro ${w ? 'tubo' : 'cable'}.`, C.muted]);
-      else if (!b.st.on && b.st.vo <= 0.05) {
+      else if (!b.st.on && Math.abs(b.st.vo) <= 0.05) {
         const c = at.comps.find(c => across(m, c));
         if (c) r.push([`${c.c.id}: ${kohm(c.c.R)}`, '#1d6fd1']);
         else r.push([`Entre esos dos nodos: ${isFinite(m.value) ? kohm(m.value) : 'OL'} (R1 y R2 en serie)`, '#1d6fd1']);
@@ -139,11 +139,13 @@
       r.push([(w ? 'El caudal' : 'La corriente') + ' se mide abriendo el camino']);
       const m = pick('A');
       if (!m) { r.push([turn('A') + ' Va en serie: todo pasa por él.', C.muted]); return r; }
-      if (m.fuse) r.push([w ? 'Se cerró la válvula del medidor: con las mangueras en dos nodos distintos el agua se fue toda por él. Ábrela en Medir.'
-        : 'Se fundió el fusible: en A el multímetro es casi un cable y con las puntas en dos nodos distintos hizo un corto. Cámbialo en Medir.', C.danger]);
+      if (m.trip) r.push([w ? 'Se cerró la válvula del medidor: con las mangueras en dos nodos distintos el agua se fue toda por él. Quítalas de ahí y toca su botón rojo.'
+        : 'Se botó la protección: en A el multímetro es casi un cable y con las puntas en dos nodos distintos hizo un corto. Quítalas de ahí y toca su botón rojo.', C.danger]);
+      else if (m.fuse) r.push([w ? 'Se rompió la válvula del medidor: la bomba daba más caudal del que aguanta. Cámbiala en Medir.'
+        : 'Se fundió el fusible: la fuente daba más corriente de la que aguanta su protección. Cámbialo en Medir.', C.danger]);
       else if (!m.cut) r.push([`Pon las dos ${tips} en el mismo ${w ? 'tubo' : 'cable'}, junto a un componente: ${w ? 'el tubo' : 'el cable'} se corta entre ellas y todo pasa por ${meter}.`, C.muted]);
       else r.push([`En serie: pasa${w ? 'n' : ''} ${fmt(Math.abs(m.I), 2)}${w ? ' mL/s' : ' mA'} por ${meter}`, '#0ea371']);
-      if (nodes && !m.fuse) r.push(['Las dos en el mismo pedazo entre un nodo y un componente: en el nodo no hay camino que abrir.', C.muted]);
+      if (nodes && !m.fuse && !m.trip) r.push(['Las dos en el mismo pedazo entre un nodo y un componente: en el nodo no hay camino que abrir.', C.muted]);
       return r;
     }
     // reto
@@ -160,7 +162,7 @@
     else msgV = 'Esos dos nodos no son los de R2.';
     r.push([(done.V != null ? '✓ ' : '✗ ') + msgV, done.V != null ? C.ok : C.danger]);
     const okI = done.I != null;
-    r.push([(okI ? '✓ ' : '✗ ') + (okI ? `${w ? 'Caudal' : 'Corriente'}: ${fmt(Math.abs(done.I), 2)}${w ? ' mL/s' : ' mA'}` : pick('A') ? (pick('A').fuse ? 'Fusible fundido: cámbialo en Medir.' : `Mete ${meter} en serie.`) : turn('A')), okI ? C.ok : C.danger]);
+    r.push([(okI ? '✓ ' : '✗ ') + (okI ? `${w ? 'Caudal' : 'Corriente'}: ${fmt(Math.abs(done.I), 2)}${w ? ' mL/s' : ' mA'}` : pick('A') ? (pick('A').trip ? 'Se botó su protección: toca su botón rojo.' : pick('A').fuse ? 'Fusible fundido: cámbialo en Medir.' : `Mete ${meter} en serie.`) : turn('A')), okI ? C.ok : C.danger]);
     if (done.V != null && okI) r.push(['¡Muy bien! Así se mide en un circuito de verdad.', C.ink]);
     else r.push([`Puedes girar la perilla y medir una cosa y luego la otra, o sacar un segundo ${w ? 'medidor' : 'multímetro'} en Medir.`, C.muted]);
     return r;

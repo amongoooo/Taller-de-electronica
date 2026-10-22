@@ -56,6 +56,7 @@
   const DANG = { off: -105, V: -35, A: 35, R: 105 };   // ángulo de cada posición (grados, 0 arriba)
   const MS = ['a', 'b'];                                // los dos multímetros
   const RED = '#d6392b';
+  const TRIP_MAX = 500;   // mA: hasta aquí la protección del multímetro en A se bota; arriba se funde su fusible
   // Pasos de la perilla del límite de corriente (mA), de 1 mA a 1 A: diez por cada década.
   const LIMS = [1, 10, 100].flatMap(d => [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8].map(x => Math.round(x * d * 10) / 10)).concat(1000);
   // Lo que marca la perilla del límite: en mA (o A) en la fuente, en mL/s (o L/s) en la bomba.
@@ -71,7 +72,9 @@
     const st = { on: false, set: o.v0 ?? 6, lim: Sim.nearest(LIMS, o.lim0 ?? 100), v: 0, vo: 0, cc: false, tau: 1, level: Sim.ramp(), m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, segs: [], probe: { a: null, b: null }, pinned: { a: false, b: false }, show: { a: true, b: false },
       // la perilla de cada multímetro y su fusible (se funde al hacer un corto en A)
-      dial: { a: 'V', b: 'A' }, fuse: { a: false, b: false } };
+      dial: { a: 'V', b: 'A' }, fuse: { a: false, b: false },
+      // su protección en A: se bota con un corto y se rearma tocando su botón (pop: qué tanto salió)
+      trip: { a: false, b: false }, pop: { a: 0, b: 0 }, popv: { a: 0, b: 0 } };
     const b = { st, VMAX, PSI_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
     // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual):
@@ -423,6 +426,28 @@
     const SK = [26, 18];   // tamaño de la tecla
     st.staut = true; st.spress = 0; st.shold = false;
     const srcKey = g => { const [x, y] = boxAt(g); return [x + 327, y + 100]; };
+    // Arriba de él, el de la polaridad: invierte la salida (el + y el − cambian de lugar). Se queda hundido,
+    // con su lucecita roja, mientras está invertida.
+    st.rev = false; st.rpress = 0;
+    const polKey = g => { const [x, y] = boxAt(g); return [x + 327, y + 62]; };
+    const sgn = () => st.rev ? -1 : 1;
+    const polKeys = ['w', 'e'].map(side => {
+      const bt = document.createElement('button');
+      bt.type = 'button'; bt.className = 'sim-meter-btn phys sim-src-ctl'; bt.dataset.act = 'ali';
+      b.place(side, bt, g => {
+        const s = panel(side).scale;
+        bt.style.width = Math.max(30, (SK[0] + 6) * s) + 'px'; bt.style.height = Math.max(26, (SK[1] + 6) * s) + 'px';
+        return polKey(g);
+      });
+      bt.addEventListener('click', () => { st.rpress = performance.now() + 140; st.rev = !st.rev; syncPol(); });
+      return [bt, side];
+    });
+    const syncPol = () => polKeys.forEach(([bt, side]) => {
+      const what = side === 'w' ? 'la bomba' : 'la fuente';
+      const l = st.rev ? `Regresar ${what} a su polaridad normal` : `Invertir la polaridad de ${what}: el + y el − cambian de lugar`;
+      bt.setAttribute('aria-label', l); bt.title = l; bt.setAttribute('aria-pressed', String(st.rev));
+    });
+    syncPol();
     const tenseLeads = () => ['w', 'e'].forEach(side => [0, 1].forEach(j => { const r = ropes[side]['s' + j]; if (r) r.tense = 0.8; }));
     const srcKeys = ['w', 'e'].map(side => {
       const bt = document.createElement('button');
@@ -771,7 +796,7 @@
         if (!st.show[k]) { meters[k] = null; continue; }
         const r = st.probe[k], value = r && ready(k) ? r.value : null;
         meters[k] = { dial: st.dial[k], value, nodes: [0, 1].map(i => { const p = pieceAt(n, k, i); return p ? p.node : null; }) };
-        if (series(k)) Object.assign(meters[k], { cut: !!(r && r.cut), I: r && r.cut && ready(k) ? r.value : null, fuse: st.fuse[k] });
+        if (series(k)) Object.assign(meters[k], { cut: !!(r && r.cut), I: r && r.cut && ready(k) ? r.value : null, fuse: st.fuse[k], trip: st.trip[k] });
       }
       return { comps: n.comps, nodes: n.nodes, meters };
     };
@@ -823,7 +848,9 @@
     // componente ni un nodo entre ellas) el cable se corta entre las dos (cut) y toda la corriente entra
     // por la roja y sale por la negra; positiva si la roja está del lado de donde viene. Con las puntas en
     // dos nodos con voltaje distinto el multímetro, que por dentro es casi un cable, hace un corto y se
-    // funde su fusible. En Ω, la resistencia entre sus puntas (ver ohms).
+    // bota su protección (un botón que sale y se rearma tocándolo); si la fuente puede dar más de TRIP_MAX
+    // (su límite de corriente) no alcanza a protegerlo y se funde su fusible, que se cambia en Medir.
+    // En Ω, la resistencia entre sus puntas (ver ohms).
     const measure = segs => {
       const out = {};
       for (const k of MS) {
@@ -837,8 +864,11 @@
         const clear = A.k === B.k && !sg.source && d1 - d0 > 6 && !sg.comps.some(c => c.d1 > d0 && c.d0 < d1);
         out[k].value = 0;
         if (clear) { out[k].value = (A.d < B.d ? 1 : -1) * sg.I; out[k].cut = { k: A.k, d0, d1 }; }
-        else if (st.show[k] && ready(k) && Math.abs(va - vb) > 0.05 && !st.fuse[k]) { st.fuse[k] = true; syncs.forEach(f => f()); }
-        if (st.fuse[k]) { out[k].value = 0; out[k].cut = null; }
+        else if (st.show[k] && ready(k) && Math.abs(va - vb) > 0.05 && !st.fuse[k] && !st.trip[k]) {
+          if (st.lim > TRIP_MAX) st.fuse[k] = true; else st.trip[k] = true;
+          syncs.forEach(f => f());
+        }
+        if (st.fuse[k] || st.trip[k]) { out[k].value = 0; out[k].cut = null; }
       }
       return out;
     };
@@ -910,13 +940,6 @@
       for (const sg of st.segs) {
         const p = project(sg.pts, x, y);
         if (!best || p.dist < best.dist) { best = p; bsg = sg; }
-      }
-      // en los cables de la fuente: el rojo lleva lo que sale y el negro está en 0
-      for (let j = 0; j < 2; j++) {
-        const r = ropes.e['s' + j];
-        if (!r || !r.pts) continue;
-        const p = project(r.pts, x, y);
-        if (!best || p.dist < best.dist) return [j ? 0 : st.vo / VMAX, Math.abs(st.m.I) / iFull];
       }
       if (!best) return [0, 0];
       const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
@@ -1035,8 +1058,9 @@
       const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c;
       return { bottom: mix(132, 6), hw: mix(76, 92), lcd: mix(-8, -14), lh: mix(34, 30), lx: mix(0, -6), lw: mix(112, 104), cmp: 20, kx: mix(0, 66), ky: mix(86, -14), kr: mix(27, 12), label: mix(148, 22), c,
         // botones físicos: recoger (0) y compactar (1); extendido a los lados de la rueda, compactado uno
-        // sobre otro a la izquierda de la pantallita
-        btn: [[mix(-52, -74), mix(54, -24)], [mix(52, -74), mix(54, -7)]], bw: mix(24, 17), bh: mix(16, 13) };
+        // sobre otro a la izquierda de la pantallita. Invertir (2), abajo a la izquierda de la rueda, solo
+        // extendido (compactado está en Medir).
+        btn: [[mix(-52, -74), mix(54, -24)], [mix(52, -74), mix(54, -7)], [-52, 116]], bw: mix(24, 17), bh: mix(16, 13) };
     };
     const meterAt = (g, kind) => {
       const [x0, y0] = g.meters[kind], o = st.mpos[g.mode + kind], k = g.MK;
@@ -1075,6 +1099,19 @@
       return [...parts[0][1](0), total, parts];
     };
     const jackGap = sh => 26 - 6 * sh.c;   // de la placa a cada borne
+    // Centro del botón de la protección (ver tripButton) y n, hacia afuera de la funda.
+    // Va a la mitad del lado izquierdo de la funda; del derecho si ahí están los bornes o si a la izquierda
+    // no cabe (el multímetro junto a la orilla).
+    const tripU = kind => {
+      const sh = shape(kind), [, , , , total, parts] = rim(sh, 0), at = i => parts.slice(0, i).reduce((t, p) => t + p[0], 0);
+      const g = b.ge, tight = g && meterAt(g, kind)[0] - g.VX < (sh.hw + 34) * g.MK;
+      const right = st.jedge[kind] === 'L' || (tight && st.jedge[kind] !== 'R');
+      return (at(right ? 2 : 6) + parts[2][0] / 2) / total;
+    };
+    const tripAt = kind => {
+      const sh = shape(kind), [x, y, tx, ty] = rim(sh, tripU(kind)), n = [ty, -tx], o = 6 + 7 * Math.max(0, st.pop[kind]);
+      return { x: x + n[0] * o, y: y + n[1] * o, n };
+    };
     // Borne j en coordenadas del multímetro (sin escalar): VΩA antes y COM después, en el sentido del reloj.
     const jackLocal = (kind, j) => {
       const sh = shape(kind), [, , , , total] = rim(sh, 0);
@@ -1322,8 +1359,10 @@
     // salen derecho de sus bornes. Solo jalándolos sale más cable; al acercar el bloque, el que sobra
     // se recoge. En su lugar no hay cables.
     const NL = 16;
+    // Con la polaridad invertida el símbolo se voltea: el + queda a la derecha y su cable rojo va al punto
+    // de la derecha del circuito.
     const leadEnds = (g, j) => {
-      const s = j ? 1 : -1, [x, y] = symAt(g);
+      const s = (j ? 1 : -1) * sgn(), [x, y] = symAt(g);
       return [[g.PX + s * SRC, g.BOT], [x + s * SRC, y], s];
     };
     const leadStep = (side, g, j, dt) => {
@@ -1469,8 +1508,8 @@
           inv.title = `Cambia de lugar la ${w ? 'manguera' : 'punta'} roja (+) y la negra (−) del ${name}: la lectura cambia de signo`;
           inv.setAttribute('aria-label', 'Invertir el ' + name);
           fz.hidden = !st.fuse[kind];
-          fz.textContent = w ? '↻ Abrir su válvula' : '↻ Cambiar su fusible';
-          fz.title = `En A el ${name} es casi un ${w ? 'tubo' : 'cable'}: con las puntas en dos nodos distintos hizo un corto y ${w ? 'se cerró su válvula de seguridad' : 'se fundió su fusible'}`;
+          fz.textContent = w ? '↻ Cambiar su válvula' : '↻ Cambiar su fusible';
+          fz.title = `En A el ${name} es casi un ${w ? 'tubo' : 'cable'}: con las puntas en dos nodos distintos hizo un corto, y con la ${w ? 'bomba' : 'fuente'} dando más de ${TRIP_MAX} ${w ? 'mL/s' : 'mA'} ${w ? 'se rompió su válvula de seguridad' : 'se fundió su fusible'}`;
           gnd.textContent = w ? '⏚ Negra a 0 psi' : '⏚ Negra a tierra';
           gnd.title = `Lleva la ${w ? 'manguera' : 'punta'} negra del ${name} a la tierra común (el − de la ${w ? 'bomba, 0 psi' : 'fuente, 0 V'}): la roja mide ${w ? 'la presión' : 'el voltaje'} de cada punto`;
           gnd.hidden = series(kind);
@@ -1487,8 +1526,9 @@
         o.r.hidden = Sim.view !== 'both' && Sim.view !== o.side;
         if (o.r.hidden) return;
         const md = st.dial[kind], [t, u] = meterText(kind, o.side), off = md !== 'off' && !ready(kind);
-        o.vl.textContent = md === 'off' ? 'apagado' : md === 'A' && st.fuse[kind] ? (o.side === 'w' ? 'válvula cerrada' : 'fusible fundido') : off ? 'sin conectar' : t.trim() + ' ' + u + (live(kind) ? ' ⚠ hay voltaje' : '');
-        o.r.className = 'r ' + md + (off || md === 'off' ? ' off' : '') + (live(kind) || (md === 'A' && st.fuse[kind]) ? ' warn' : '');
+        o.vl.textContent = md === 'off' ? 'apagado' : md === 'A' && st.fuse[kind] ? (o.side === 'w' ? 'válvula rota' : 'fusible fundido')
+          : md === 'A' && st.trip[kind] ? (o.side === 'w' ? 'válvula cerrada' : 'protección botada') : off ? 'sin conectar' : t.trim() + ' ' + u + (live(kind) ? ' ⚠ hay voltaje' : '');
+        o.r.className = 'r ' + md + (off || md === 'off' ? ' off' : '') + (live(kind) || (md === 'A' && (st.fuse[kind] || st.trip[kind])) ? ' warn' : '');
       })), 200);
     }
     // Botón de recoger en cada medidor (con un conector): como una aspiradora, el medidor jala sus
@@ -1806,10 +1846,31 @@
       rb.addEventListener('pointerdown', () => { downAt = performance.now(); st.hold[kind] = true; b.pw.replace(); b.pe.replace(); });
       ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => rb.addEventListener(t, () => { st.hold[kind] = false; }));
       reelBtns.push([rb, kind]);
+      // Botón de la protección: sale de la funda cuando se bota; tocarlo la rearma.
+      const tb = document.createElement('button');
+      tb.type = 'button'; tb.className = 'sim-meter-btn phys';
+      tb.addEventListener('click', () => { b.resetTrip(kind); b.pw.replace(); b.pe.replace(); });
+      b.place(side, tb, g => {
+        const s = panel(side).scale * g.MK, [x, y] = meterAt(g, kind), q = tripAt(kind);
+        tb.style.width = Math.max(44, 50 * s) + 'px'; tb.style.height = Math.max(32, 26 * s) + 'px';
+        return [x + q.x * g.MK, y + q.y * g.MK];
+      });
+      syncs.push(() => {
+        tb.hidden = !st.show[kind] || !st.trip[kind];
+        const l = `Rearmar la protección del ${meterName(kind, side)}`;
+        tb.setAttribute('aria-label', l); tb.title = l;
+      });
       const cb = button(1, '', () => {
         st.compact[kind] = !st.compact[kind];
         try { localStorage.setItem('sim-compact', JSON.stringify(st.compact)); } catch (e) {}
         syncs.forEach(f => f());
+      });
+      // Invertir: la punta roja y la negra cambian de lugar (solo extendido; compactado está en Medir).
+      const ib = button(2, '', () => b.invert(kind));
+      syncs.push(() => {
+        ib.hidden = !st.show[kind] || st.compact[kind];
+        const l = `Invertir ${what} del ${meterName(kind, side)}: la roja va donde estaba la negra`;
+        ib.setAttribute('aria-label', l); ib.title = l;
       });
       syncs.push(() => {
         const label = st.taut[kind] ? `Soltar ${what} del ${meterName(kind, side)}` : `Tensar ${what} del ${meterName(kind, side)} (siempre); apretado medio segundo, solo una vez`;
@@ -1845,7 +1906,9 @@
       b.pw.replace(); b.pe.replace();
     };
     // Fusible nuevo (en el agua, abrir otra vez su válvula de seguridad).
-    b.newFuse = (kind = 'a') => { st.fuse[kind] = false; syncs.forEach(f => f()); };
+    b.newFuse = (kind = 'a') => { st.fuse[kind] = st.trip[kind] = false; syncs.forEach(f => f()); };
+    // Rearmar la protección: el botón que se botó se vuelve a meter.
+    b.resetTrip = (kind = 'a') => { st.trip[kind] = false; syncs.forEach(f => f()); };
     // Invertir la polaridad de un multímetro, como al cambiar de lugar sus puntas: la roja va a donde
     // estaba la negra y la negra a donde estaba la roja (se levantan y caen ahí).
     b.invert = (kind = 'a') => {
@@ -1917,39 +1980,27 @@
       const [kx, ky] = srcKey(g), p = st.spress > performance.now() || st.staut || st.shold ? 1 : 0;
       keycap(ctx, kx, ky, SK[0], SK[1], p, !st.staut && !awayK(g), st.staut);
       ctx.save(); ctx.translate(kx, ky + p * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); plug(ctx); ctx.restore();
+      const [qx, qy] = polKey(g), q = st.rpress > performance.now() || st.rev ? 1 : 0;
+      keycap(ctx, qx, qy, SK[0], SK[1], q, false, null);
+      if (st.rev) D.circle(ctx, qx + SK[0] / 2 - 3.5, qy - SK[1] / 2 + 5, 1.8, '#ff4a3d');   // su lucecita roja
+      ctx.save(); ctx.translate(qx, qy + q * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); swap(ctx); ctx.restore();
     };
-    // Cables de la fuente (mangueras de la bomba) fuera de su lugar: rojo el del +, negro el del −, con
-    // lo que circula por ellos (sale por el + y regresa por el −). Van debajo del circuito, como los de
-    // los multímetros.
-    st.lph = 0;
+    // Cables de la fuente (mangueras de la bomba) fuera de su lugar: rojo el del +, negro el del −. Son
+    // cerrados, de su color: no se ve lo que circula por ellos. Van debajo del circuito, como los de los
+    // multímetros.
     const leadCol = j => j ? C.neg : RED;
     const drawLeads = (ctx, g) => {
       const k = awayK(g), water = g.side === 'w';
       if (!k) return;
       ctx.save(); ctx.globalAlpha = k;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       for (let j = 0; j < 2; j++) {
         const r = ropes[g.side]['s' + j];
         if (!r || !r.pts) continue;
-        const pts = r.pts, path = () => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); };
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        path();
-        if (water) {
-          ctx.lineWidth = 30; ctx.strokeStyle = C.card; ctx.stroke();
-          ctx.lineWidth = 26; ctx.strokeStyle = C.pipe; ctx.stroke();
-          ctx.lineWidth = 18; ctx.strokeStyle = C['water-soft']; ctx.stroke();
-          // la raya de su color por el borde de la manguera
-          const edge = pts.map((p, i) => {
-            const a = pts[Math.max(0, i - 1)], c = pts[Math.min(pts.length - 1, i + 1)], dx = c[0] - a[0], dy = c[1] - a[1], d = Math.hypot(dx, dy) || 1;
-            return [p[0] - dy / d * 11, p[1] + dx / d * 11];
-          });
-          ctx.beginPath(); edge.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
-          ctx.lineWidth = 3; ctx.strokeStyle = leadCol(j); ctx.stroke();
-        } else {
-          ctx.lineWidth = 8; ctx.strokeStyle = C.card; ctx.stroke();
-          ctx.lineWidth = 4; ctx.strokeStyle = leadCol(j); ctx.stroke();
-        }
-        // por el rojo sale (del bloque al circuito) y por el negro regresa
-        D.flow(ctx, j ? pts : pts.slice().reverse(), st.lph, water ? C.water : C.charge, { gap: water ? 18 : 30, r: water ? 3.6 : 4.5 });
+        ctx.beginPath(); r.pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+        const ln = (w, c) => { ctx.lineWidth = w; ctx.strokeStyle = c; ctx.stroke(); };
+        if (water) { ln(28, C.card); ln(24, C.ink); ln(20, leadCol(j)); ctx.globalAlpha = k * 0.25; ln(6, '#ffffff'); ctx.globalAlpha = k; }   // con su brillo
+        else { ln(8, C.card); ln(4, leadCol(j)); }
       }
       ctx.restore();
     };
@@ -1966,8 +2017,8 @@
       if (water) for (const x of [x0, x1]) D.roundRect(ctx, x - 6, y - Sim.PIPE - 9, 12, 2 * Sim.PIPE + 18, 3, C.metal, C.ink, 2);
       else {
         for (const x of [x0, x1]) D.circle(ctx, x, y, 5.5, C.ink);
-        D.text(ctx, '+', x0 + 14, y - 20, C.ink, { size: 20 });
-        D.text(ctx, '−', x1 - 14, y - 20, C.ink, { size: 20 });
+        D.text(ctx, st.rev ? '−' : '+', x0 + 14, y - 20, C.ink, { size: 20 });
+        D.text(ctx, st.rev ? '+' : '−', x1 - 14, y - 20, C.ink, { size: 20 });
       }
       ctx.restore();
     };
@@ -1978,7 +2029,7 @@
       const [x, y] = symAt(g);
       ctx.save(); ctx.globalAlpha = k;
       for (let j = 0; j < 2; j++) {
-        const s = j ? 1 : -1, px = x + s * SRC;
+        const s = (j ? 1 : -1) * sgn(), px = x + s * SRC;
         if (water) D.roundRect(ctx, px - 5, y - Sim.PIPE - 4, 10, 2 * Sim.PIPE + 8, 3, leadCol(j), C.ink, 2);
         else { D.line(ctx, [[x + s * 22, y], [px, y]], 4, C.ink); D.circle(ctx, px, y, 7, leadCol(j), C.ink, 2); }
       }
@@ -2094,7 +2145,7 @@
       if (!st.show[kind]) return;
       const water = g.side === 'w', [x, y] = meterAt(g, kind), sh = shape(kind), md = st.dial[kind], col = MCOL[md];
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
-      const placing = st.placing && st.placing.kind === kind, warn = live(kind), blown = md === 'A' && st.fuse[kind];
+      const placing = st.placing && st.placing.kind === kind, warn = live(kind), blown = md === 'A' && st.fuse[kind], tripped = md === 'A' && st.trip[kind];
       const H = sh.bottom + 48;
       if (placing) {   // borde del color de lo que mide mientras espera dónde conectarse
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
@@ -2125,21 +2176,41 @@
         const [lx, ly] = rim(sh, st.jpos[kind] + (j ? 1 : -1) * (gap - 16) / total);   // su nombre, en la placa entre los dos
         if (sh.c < 0.5) D.text(ctx, t, lx, ly, '#e8eef2', { size: 8, weight: 800 });   // compactado no caben: los distingue el color
       });
+      tripButton(ctx, kind);
       const [, cny] = rim(sh, st.jpos[kind]), ly = sh.label + Math.max(0, Math.min(1, (cny - sh.bottom) / 3)) * 16;
       if (placing) {
         D.text(ctx, 'toca el circuito para', 0, ly, col, { size: 14, bg: true });
         D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 18, st.placing.i ? C.neg : RED, { size: 14, bg: true });
-      } else if (blown) {   // en A con las puntas en dos nodos: corto
-        D.text(ctx, water ? '⚠ se cerró su válvula' : '⚠ fusible fundido', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
-        D.text(ctx, 'en A va en serie', 0, ly + 18, C.danger, { size: 14, bg: true });
+      } else if (blown) {   // en A con las puntas en dos nodos: corto, y la fuente daba de más
+        D.text(ctx, water ? '⚠ se rompió su válvula' : '⚠ fusible fundido', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
+        D.text(ctx, 'cámbialo en Medir', 0, ly + 18, C.danger, { size: 14, bg: true });
+      } else if (tripped) {   // corto, pero su protección alcanzó: se botó su botón
+        D.text(ctx, water ? '⚠ se cerró su válvula' : '⚠ se botó la protección', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
+        D.text(ctx, 'en A va en serie · toca el botón', 0, ly + 18, C.danger, { size: 14, bg: true });
       } else if (warn) {   // en Ω con voltaje: la lectura no sirve
         D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 14, weight: 700, bg: true });
         D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 18, C.danger, { size: 14, bg: true });
       } else D.text(ctx, meterName(kind, g.side), 0, ly, col, { size: 14, font: Sim.WIDE, bg: true });
       ctx.restore();
     };
+    // Botón de la protección: en la orilla de la funda, del lado contrario a los bornes. Sale (pop de 0 a 1,
+    // con un rebote) cuando se bota y regresa al rearmarla.
+    const tripButton = (ctx, kind) => {
+      const p = st.pop[kind];
+      if (p <= 0.01) return;
+      const sh = shape(kind), [x, y, tx, ty] = rim(sh, tripU(kind)), a = Math.atan2(-ty, -tx);   // gira para que salga hacia afuera
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      const out = 14 * Math.max(0, p);   // cuánto sobresale
+      D.roundRect(ctx, -17, -3, 34, 6 + out, 4, '#1b242c');   // su tallo
+      D.roundRect(ctx, -21, out - 2, 42, 12, 5, RED, '#1b242c', 1.5);   // la tapa roja
+      if (p > 0.6) {   // su nombre, a lo largo de la tapa
+        ctx.globalAlpha *= Math.min(1, (p - 0.6) / 0.3);
+        D.text(ctx, 'RESET', 0, out + 4.5, '#ffffff', { size: 8, weight: 800 });
+      }
+      ctx.restore();
+    };
     // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
-    st.press = { a: [0, 0], b: [0, 0] }; st.hold = { a: false, b: false };
+    st.press = { a: [0, 0, 0], b: [0, 0, 0] }; st.hold = { a: false, b: false };
     // Tecla física: su base, la tapa (hundida con p = 1) y, si lleva, su lucecita (led: encendida o no).
     const keycap = (ctx, bx, by, w, h, p, off, led) => {
       ctx.save();
@@ -2156,15 +2227,22 @@
       D.line(ctx, [[-5, -3], [5, -3], [5, 0], [0, 4], [-5, 0], [-5, -3]], 1.6, ink);
       D.line(ctx, [[0, 4], [0, 7]], 1.6, ink);
     };
+    // Ícono de invertir: dos flechas, una hacia cada lado.
+    const swap = (ctx, col = '#1b242c') => {
+      D.line(ctx, [[-6, -2.5], [5, -2.5]], 1.6, col); D.line(ctx, [[2.5, -5], [5.5, -2.5], [2.5, 0]], 1.6, col);
+      D.line(ctx, [[6, 2.5], [-5, 2.5]], 1.6, col); D.line(ctx, [[-2.5, 0], [-5.5, 2.5], [-2.5, 5]], 1.6, col);
+    };
     const physButton = (ctx, kind, i, [bx, by], sh) => {
       const on = i === 0 && st.taut[kind];   // el de los cables se queda hundido mientras está encendido
       const p = st.press[kind][i] > performance.now() || on || (i === 0 && st.hold[kind]) ? 1 : 0, off = i === 0 && !on && !st.placed[kind].some(Boolean);
-      keycap(ctx, bx, by, sh.bw, sh.bh, p, off, i === 0 ? on : null);
       ctx.save();
+      if (i === 2) { if (sh.c >= 1) { ctx.restore(); return; } ctx.globalAlpha *= 1 - sh.c; }
+      keycap(ctx, bx, by, sh.bw, sh.bh, p, off, i === 0 ? on : null);
       ctx.translate(bx, by + p * 1.5 - 0.5);
       const k = sh.bh / 16, ink = '#1b242c';
       ctx.scale(k, k);
       if (i === 0) plug(ctx);   // enchufe: los cables
+      else if (i === 2) swap(ctx);   // invertir
       else {   // compactar (flechas hacia adentro) o mostrar completo (hacia afuera)
         const o = st.compact[kind] ? 1 : -1;
         [[-1, -1], [1, 1]].forEach(([sx, sy]) => {
@@ -2452,7 +2530,7 @@
       MS.forEach(k => drawMeter(ctx, g, k));
       controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set, 2, 1), 'V'], ['CV', 'CC']);
-      D.source(ctx, ...symAt(g));
+      { const [x, y] = symAt(g); ctx.save(); ctx.translate(x, y); ctx.scale(sgn(), 1); D.source(ctx, 0, 0); ctx.restore(); }   // invertida, al revés
       drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
       o.overlay && o.overlay(ctx, g, m);
@@ -2489,8 +2567,9 @@
         if (u >= 1) smooth.from = smooth.off = null;
       }
       if (!smooth.off) return m;
-      const out = { ...m, I: Math.max(0, m.I + smooth.off[0]) };
-      if (m.branch) out.branch = m.branch.map((x, k) => Math.max(0, x + smooth.off[k + 1]));
+      // de lo que se veía a lo nuevo (pasa por cero si cambió de sentido, como al invertir la polaridad)
+      const out = { ...m, I: m.I + smooth.off[0] };
+      if (m.branch) out.branch = m.branch.map((x, k) => x + smooth.off[k + 1]);
       return out;
     };
     // Transiciones de las puntas: cable ⇄ indicador, recoger o sacar el cable y la caída al conectarse.
@@ -2528,6 +2607,17 @@
         const c0 = st.cmp[kind];
         st.cmp[kind] = st.compact[kind] ? Math.min(1, c0 + dt / 0.3) : Math.max(0, c0 - dt / 0.3);
         if (st.cmp[kind] !== c0) moved = true;
+        // el botón de la protección sale de golpe con un rebote, o se mete al rearmarla
+        const pt = st.trip[kind] ? 1 : 0;
+        if (Math.abs(pt - st.pop[kind]) > 0.002 || Math.abs(st.popv[kind]) > 0.02) {
+          const h = dt / 4;
+          for (let i = 0; i < 4; i++) {
+            st.popv[kind] += (pt ? 700 * (pt - st.pop[kind]) - 18 * st.popv[kind] : 900 * (pt - st.pop[kind]) - 60 * st.popv[kind]) * h;
+            st.pop[kind] += st.popv[kind] * h;
+          }
+          if (Sim.REDUCE.matches) { st.pop[kind] = pt; st.popv[kind] = 0; }
+          moved = true;
+        } else if (st.pop[kind] !== pt) { st.pop[kind] = pt; st.popv[kind] = 0; moved = true; }
         // la placa de los bornes se recorre por la orilla hacia donde van los cables
         const jt = jackTarget(b.ge, kind);
         if (jt != null) {
@@ -2561,7 +2651,7 @@
     // Voltaje que sale con el de adentro Vs: el mismo si la corriente no pasa del límite; si pasaría,
     // el que da justo el límite (la corriente crece con el voltaje, así que se busca partiendo a la mitad).
     const regulate = Vs => {
-      const over = V => o.model(V).I > st.lim;
+      const over = V => Math.abs(o.model(sgn() * V).I) > st.lim;
       if (Vs <= 0 || !over(Vs)) return [Math.max(0, Vs), false];
       let lo = 0, hi = Vs;
       for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (over(mid)) hi = mid; else lo = mid; }
@@ -2570,6 +2660,7 @@
     b.start = () => Sim.run(dt => {
       st.v = st.level.step(st.on ? st.set : 0, st.tau, dt);
       [st.vo, st.cc] = regulate(st.v);
+      st.vo *= sgn();   // con la polaridad invertida sale al revés
       smooth.t += dt;
       st.m = inertia(st.vo);
       st.segs = buildSegs(nodeView(circuitList(b.gw, st.m, st.vo), dt));
@@ -2581,7 +2672,6 @@
       colorWhileDragging();
       for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (const kind of MS) for (let j = 0; j < 2; j++) ropeStep(side, g, kind, j, dt);
       for (const [side, g] of [['w', b.gw], ['e', b.ge]]) for (let j = 0; j < 2; j++) leadStep(side, g, j, dt);
-      st.lph = (st.lph + Math.min(st.m.I, 60) * 6 * dt) % 1e4;
       st.rpm = st.m.I * RPM_PER_MA;                                // 100 rpm por cada mL/s
       st.omega = -st.rpm / 60 * 2 * Math.PI;                       // rad/s, a la velocidad real
       st.rotor += st.omega * dt;
