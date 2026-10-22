@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022211438">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022220920">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022211438"></script>
-<script src="../../assets/banco.js?v=20261022211438"></script>
+<script src="../../assets/sim.js?v=20261022220920"></script>
+<script src="../../assets/banco.js?v=20261022220920"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -64,7 +64,7 @@
 
   const b = Sim.bench({
     iFull: 30,
-    iMax: 1000,   // en cortocircuito sale justo el límite de la fuente, que llega hasta 1 A
+    iMax: 3000,   // en cortocircuito sale justo el límite del canal A, que llega hasta 3 A
     v0: 9, lim0: 500,
     layout(g) {
       const s = sides[g.side] = { phase: 0, g };

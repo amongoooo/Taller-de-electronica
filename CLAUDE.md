@@ -81,17 +81,21 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
   - Acomodos `ancho` (PC), `medio` (PC con los dos paneles), `alto` (celular vertical) y `lateral` (celular
-    acostado) (`MODES`, `geometry`): circuito de x 180 a 640 y la mesa en `g.DESK`; controlador en `g.BX, g.BY`
-    (`g.slim`: la caja compacta, ver `CL`), multímetros en `g.meters` = [centro, base] (`homeAt`, `meterAt`).
-    En `alto` y `lateral` la caja va aparte del símbolo (`apart`).
+    acostado) (`MODES`, `geometry`): circuito de x 180 a 640 y la mesa en `g.DESK`; la fuente en `g.BX, g.BY`,
+    dibujada en sus coordenadas (`SL`: `wide` B · POWER · A, o `stack` A sobre B en `medio`; `g.FL` cuál y `g.FK` su
+    escala; `at`/`chAt` las pasan al dibujo), multímetros en `g.meters` = [centro, base] (`homeAt`, `meterAt`).
+    En `alto` y `lateral` la caja va aparte del símbolo (`apart`); si no, un cuello va del símbolo al canal A.
   - `b.pinch` (resistencias y capacitores: asas solo con la tarjeta abierta), `b.part` (componente con
     tarjeta), `b.grips` (asas), `b.tag` y `b.tagRow` (etiquetas, ver `D.tag`), `b.linkedButton`, `b.linkedChoice`,
     `b.linkedKnob`, `b.place`.
-  - Fuente/bomba: `srcMenu` (tarjeta), `controllerBox` (dibujo), teclas físicas (polaridad y cables).
+  - Fuente/bomba, como la BK 1761: dos canales en `st.ch` (A con el circuito, B sin nada; `co` COARSE, `fi` FINE,
+    `lim` CURRENT de `LIMS`, `disp` V/A, `peek`), `setOf`, `KNOBS`, POWER (`st.on`), `srcMenu` (tarjeta),
+    `drawSource` y `lcdText` (dibujo), teclas físicas (V/A, polaridad y cables). `b.st.set`/`st.lim` son los del
+    canal A; `b.vScale()` el tope de la escala de colores del voltaje (12, 24 o 35 V).
   - Multímetro: `meterMenu`, `tipMenu`, `drawMeter`, `shape` (extendido/compactado), puntas (`pose`, `grab`,
     `setPlacing`), cables con física (`ropeStep`, `leadStep`), `measure` / `ohms` (V, A, Ω).
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
-  - Vista de nodos: `analyze`, `morph`, `drawNodes`. Inercia: `inertia`. Regulación CV/CC: `regulate`.
+  - Vista de nodos: `analyze`, `morph`, `drawNodes`. Inercia: `inertia`. Regulación CV/CC de cada canal: `regulate`.
 - `assets/osciloscopio.js` (`Sim.scope(o)`), el generador de funciones y el osciloscopio que usan las páginas 9 a 13:
   dos canales y caimán de tierra, puntas en cualquier cable (`wires`), `frames` (cada cuadro integra el circuito y guarda
   lo que marca cada canal, ya con su acoplamiento), disparo por nivel (`scan`, `updateScope`), `measure` (MEASURE,
@@ -153,7 +157,8 @@ Fase 4 · Instrumentos como los del taller (boceto aprobado; un PR por instrumen
 - [x] Generador como el JDS-2900: una perilla con FREQ · AMPL · OFFS · DUTY · PHAS y ◀ ▶ para el dígito, WAVE
   (senoidal, cuadrada, triangular, DC), tecla CH1 con su luz en vez de la palanca, AMPL en Vpp. Pendiente: la salida
   de 50 Ω.
-- [ ] Fuente como la BK 1761: canales A y B de 0–35 V y 0–3 A, COARSE y FINE, CURRENT, CV/CC, una pantallita por canal
-  con su tecla V/A, POWER y bornes − ⏚ + (el circuito en el A).
+- [x] Fuente como la BK 1761: canales A y B de 0–35 V y 0–3 A, COARSE y FINE, CURRENT, CV/CC, una pantallita por canal
+  con su tecla V/A, POWER y bornes − ⏚ + (el circuito en el A). Pendiente: la salida fija de 5 A y los modos serie y
+  paralelo de los canales; una página que use el canal B.
 
 Al terminar una fase, marca sus casillas aquí en el mismo PR.
