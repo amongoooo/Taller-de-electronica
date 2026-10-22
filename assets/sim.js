@@ -758,7 +758,7 @@
   const tipName = e => (e.getAttribute('aria-label') || e.textContent || '').split(':')[0].trim();
 
   // Barra en tres zonas: dónde estoy (← · título con «Simulación N de 9» · pasos con nombre), qué miro
-  // (vista · ¿Qué se toca? · Controles) y a dónde voy ([‹ · Siguiente ›], un solo botón principal que dice
+  // (vista · Controles) y a dónde voy ([‹ · Siguiente ›], un solo botón principal que dice
   // a dónde lleva). En el celular vertical, [‹ · dónde estoy · Siguiente ›] baja a una barra pegada abajo,
   // al alcance del pulgar, y la vista queda como pestañas Agua | Electricidad debajo del título.
   const foot = bar && el('div', 'sim-foot');
@@ -814,19 +814,10 @@
     });
     const scrim = el('div', 'sim-scrim');
     page.append(box, scrim);
-    // Botones de la barra: ¿Qué se toca? y Controles.
-    const help = el('button', 'sim-help-btn', '<span class="q">?</span><span class="t">¿Qué se toca?</span>');
-    help.type = 'button'; help.title = 'Marca por un momento todo lo que se puede tocar, con el color de su acción';
-    help.setAttribute('aria-label', '¿Qué se toca? Marca todo lo que se puede tocar');
+    // Botón de la barra: Controles.
     const btn = el('button', 'sim-ctl-btn', svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>') + '<span class="t">Controles</span>');
     btn.type = 'button'; btn.setAttribute('aria-controls', 'simSide'); btn.setAttribute('aria-label', 'Controles');
-    bar.insertBefore(help, foot && foot.parentNode === bar ? foot : null);
     bar.insertBefore(btn, foot && foot.parentNode === bar ? foot : null);
-    // En el celular, ¿Qué se toca? va dentro de la hoja de controles (arriba hay poco lugar).
-    const help2 = el('button', 'sim-side-help', '<span class="q">?</span> ¿Qué se toca?');
-    help2.type = 'button';
-    box.querySelector('.sim-side-hd').insertBefore(help2, box.querySelector('.sim-side-hd .x'));
-    help2.addEventListener('click', () => { setSheet(false); help.click(); });
 
     // col: columna fija (se puede esconder, y se recuerda); sheet: hoja que se abre y se cierra.
     let open = store.get('sim-side', ['0', '1'], '1') === '1';
@@ -851,17 +842,6 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetOpen) setSheet(false); });
     colQ.addEventListener('change', sync);
     sync();
-
-    // ¿Qué se toca?: por unos segundos, todo lo que se toca se marca con el color de su acción.
-    let helpT = 0;
-    help.addEventListener('click', () => {
-      const on = !page.classList.contains('show-acts');
-      clearTimeout(helpT);
-      page.querySelectorAll('.sim-layer > *').forEach(e => { e.dataset.actName = Sim.ACTS[Sim.actOf(e)][1]; });
-      page.classList.toggle('show-acts', on);
-      help.setAttribute('aria-pressed', String(on));
-      if (on) helpT = setTimeout(() => { page.classList.remove('show-acts'); help.setAttribute('aria-pressed', 'false'); }, 4500);
-    });
 
     const side = {
       el: box,
@@ -1021,7 +1001,7 @@
       return g;
     };
     const segs = [make()];
-    if (bar) bar.insertBefore(segs[0], bar.querySelector('.sim-help-btn') || (foot && foot.parentNode === bar ? foot : null));
+    if (bar) bar.insertBefore(segs[0], bar.querySelector('.sim-ctl-btn') || (foot && foot.parentNode === bar ? foot : null));
     if (Sim.side) segs.push(Sim.side.row('ver', 'Qué se ve', make()).lastChild);
     const update = () => {
       stage.dataset.view = view; Sim.view = view;

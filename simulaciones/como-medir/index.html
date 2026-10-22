@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022013556">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022025258">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -34,24 +34,22 @@
       <div class="sim-layer"></div>
     </div>
   </main>
-  <p class="sim-sr" id="aviso" aria-live="polite"></p>
 </div>
 
-<script src="../../assets/sim.js?v=20261022013556"></script>
-<script src="../../assets/banco.js?v=20261022013556"></script>
+<script src="../../assets/sim.js?v=20261022025258"></script>
+<script src="../../assets/banco.js?v=20261022025258"></script>
 <script>
 (() => {
-  const { C, draw: D, fmt } = Sim;
+  const { C, draw: D } = Sim;
   // Fuente de 9 V con dos resistencias en serie: R1 de 1 kΩ y R2 de 2 kΩ. Quedan tres nodos: 9 V,
   // 6 V y la tierra (0 V), y pasan 3 mA. Por pasos: los cables se juntan en nodos, luego se mide el
   // voltaje con el multímetro en V (comparar dos nodos), la corriente en A (abrir el camino y meterlo en
-  // serie), la resistencia en Ω (con la fuente apagada) y al final un reto que avisa si se conectó bien.
+  // serie), la resistencia en Ω (con la fuente apagada) y al final un reto: medir las dos cosas.
   const RS = [1000, 2000], XR = [300, 500];
   const hn = RS.map(R => Sim.narrowHalf(R));
   const sides = {};
   const ohm = R => (R / 1000).toLocaleString('es-MX') + ' kΩ';
   const prof = g => Sim.profile(...[0, 1].map(k => Sim.narrowProfile((g.BOT - g.TOP) + (XR[k] - g.X0), hn[k])));
-  let step = 0;
 
   const b = Sim.bench({
     iFull: 12, v0: 9,
@@ -79,124 +77,8 @@
       D.wire(ctx, g.loop);
       D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
       [0, 1].forEach(k => { D.resistor(ctx, XR[k], g.TOP); b.tag(ctx, null, XR[k], g.TOP - 42, 'R' + (k + 1), ohm(RS[k])); });
-    },
-    overlay: (ctx, g) => note(ctx, g)
+    }
   });
-
-  // ---------- lo que dice arriba del circuito en cada paso ----------
-  const V_ = w => w ? ' psi' : ' V';
-  const val = (v, w) => fmt(Math.abs(v) < 0.005 ? 0 : v, 2) + V_(w);
-  const kohm = R => fmt(R / 1000, 2) + ' kΩ';
-  // Lo que dice la perilla en cada posición, de cada lado.
-  const DIAL = { V: ['V', 'psi'], A: ['A', 'mL/s'], R: ['Ω', 'kΩ'] };
-  const dialName = (d, w) => DIAL[d][w ? 1 : 0];
-  // En el reto cada medición queda palomeada en cuanto se hace bien (se puede girar la perilla y medir
-  // una después de la otra, o sacar un segundo multímetro y medir las dos a la vez).
-  const done = { V: null, I: null };
-  // Renglones del aviso: [texto, color] (el primero va en negritas). ok: true/false pone ✓ o ✗.
-  const lines = w => {
-    const at = b.where(), on = b.st.on && Math.abs(b.st.vo) > 0.5;
-    const nodes = b.nodesOn(), r = [];
-    const meter = w ? 'el medidor' : 'el multímetro', tips = w ? 'mangueras' : 'puntas';
-    const ms = Object.values(at.meters).filter(Boolean), pick = d => ms.find(m => m.dial === d);
-    const turn = d => `Gira la perilla ${w ? "del medidor" : "del multímetro"} a ${dialName(d, w)}.`;
-    const R2 = at.comps.find(c => c.c.id === 'R2');
-    const across = (m, c) => m && m.nodes && m.nodes[0] && m.nodes[1] && ((m.nodes[0] === c.A && m.nodes[1] === c.B) || (m.nodes[0] === c.B && m.nodes[1] === c.A));
-    if (step === 0) {
-      r.push([nodes ? (w ? 'Cada nodo es una sola presión' : 'Cada nodo es un solo voltaje') : (w ? 'Las tuberías no gastan presión' : 'Los cables no gastan voltaje')]);
-      r.push([nodes ? 'La tierra es 0' + V_(w) + '. Solo quedan los componentes entre los nodos.'
-        : (w ? 'Todo lo unido por tubería tiene la misma presión: es un nodo.' : 'Todo lo unido por cable tiene el mismo voltaje: es un nodo.')]);
-      if (!on) r.push(['Enciende la ' + (w ? 'bomba' : 'fuente') + ' para ver el valor de cada nodo.', C.muted]);
-      return r;
-    }
-    if (step === 3) {
-      r.push(['La resistencia se mide con todo apagado']);
-      const m = pick('R');
-      if (!m) { r.push([turn('R'), C.muted]); return r; }
-      if (b.st.on || Math.abs(b.st.vo) > 0.05) r.push(['Apaga la ' + (w ? 'bomba' : 'fuente') + `: con ${w ? 'presión' : 'voltaje'} la lectura no sirve.`, C.danger]);
-      const [A, B] = m.nodes;
-      if (!A || !B) r.push([`Pon las ${tips} a los dos lados de una resistencia.`, C.muted]);
-      else if (A === B) r.push([`Las dos ${tips} en el mismo nodo: marca 0 Ω, es puro ${w ? 'tubo' : 'cable'}.`, C.muted]);
-      else if (!b.st.on && Math.abs(b.st.vo) <= 0.05) {
-        const c = at.comps.find(c => across(m, c));
-        if (c) r.push([`${c.c.id}: ${kohm(c.c.R)}`, '#1d6fd1']);
-        else r.push([`Entre esos dos nodos: ${isFinite(m.value) ? kohm(m.value) : 'OL'} (R1 y R2 en serie)`, '#1d6fd1']);
-      }
-      return r;
-    }
-    if (!on) return [['Enciende la ' + (w ? 'bomba' : 'fuente')], ['Con ella apagada todo está en 0' + V_(w) + '.', C.muted]];
-    if (step === 1) {
-      r.push([(w ? 'La presión' : 'El voltaje') + ' se mide entre dos nodos']);
-      const m = pick('V');
-      if (!m) { r.push([turn('V'), C.muted]); return r; }
-      const [A, B] = m.nodes;
-      if (!A || !B) r.push([`Toca ${meter} y pon sus dos ${tips} en dos nodos.`, C.muted]);
-      else if (A === B) r.push([`Las dos ${tips} en el mismo nodo: marca 0${V_(w)}, no hay diferencia.`, C.muted]);
-      else r.push([`Roja en ${val(A.v, w)} − negra en ${val(B.v, w)} = ${val(A.v - B.v, w)}`, '#8b5cf6']);
-      return r;
-    }
-    if (step === 2) {
-      r.push([(w ? 'El caudal' : 'La corriente') + ' se mide abriendo el camino']);
-      const m = pick('A');
-      if (!m) { r.push([turn('A') + ' Va en serie: todo pasa por él.', C.muted]); return r; }
-      if (m.trip) r.push([w ? 'Se cerró la válvula del medidor: con las mangueras en dos nodos distintos el agua se fue toda por él. Quítalas de ahí y toca su botón rojo.'
-        : 'Se botó la protección: en A el multímetro es casi un cable y con las puntas en dos nodos distintos hizo un corto. Quítalas de ahí y toca su botón rojo.', C.danger]);
-      else if (m.fuse) r.push([w ? 'Se rompió la válvula del medidor: la bomba daba más caudal del que aguanta. Cámbiala en Medir.'
-        : 'Se fundió el fusible: la fuente daba más corriente de la que aguanta su protección. Cámbialo en Medir.', C.danger]);
-      else if (!m.cut) r.push([`Pon las dos ${tips} en el mismo ${w ? 'tubo' : 'cable'}, junto a un componente: ${w ? 'el tubo' : 'el cable'} se corta entre ellas y todo pasa por ${meter}.`, C.muted]);
-      else r.push([`En serie: pasa${w ? 'n' : ''} ${fmt(Math.abs(m.I), 2)}${w ? ' mL/s' : ' mA'} por ${meter}`, '#0ea371']);
-      if (nodes && !m.fuse && !m.trip) r.push(['Las dos en el mismo pedazo entre un nodo y un componente: en el nodo no hay camino que abrir.', C.muted]);
-      return r;
-    }
-    // reto
-    r.push(['Reto: mide ' + (w ? 'la presión' : 'el voltaje') + ' de R2 y ' + (w ? 'el caudal' : 'la corriente')]);
-    const mV = ms.find(m => m.dial === 'V' && across(m, R2)), mI = ms.find(m => m.dial === 'A' && m.cut);
-    if (mV && mV.value != null) done.V = mV.value;
-    if (mI && mI.I != null) done.I = mI.I;
-    const mv = pick('V');
-    let msgV;
-    if (done.V != null) msgV = `R2: ${val(Math.abs(done.V), w)}` + (done.V < 0 ? ' (marcó negativo: las ' + tips + ' iban al revés)' : '');
-    else if (!mv) msgV = turn('V');
-    else if (!mv.nodes[0] || !mv.nodes[1]) msgV = `Pon las ${tips} de ${meter}.`;
-    else if (mv.nodes[0] === mv.nodes[1]) msgV = 'Las dos en el mismo nodo: marca 0.';
-    else msgV = 'Esos dos nodos no son los de R2.';
-    r.push([(done.V != null ? '✓ ' : '✗ ') + msgV, done.V != null ? C.ok : C.danger]);
-    const okI = done.I != null;
-    r.push([(okI ? '✓ ' : '✗ ') + (okI ? `${w ? 'Caudal' : 'Corriente'}: ${fmt(Math.abs(done.I), 2)}${w ? ' mL/s' : ' mA'}` : pick('A') ? (pick('A').trip ? 'Se botó su protección: toca su botón rojo.' : pick('A').fuse ? 'Fusible fundido: cámbialo en Medir.' : `Mete ${meter} en serie.`) : turn('A')), okI ? C.ok : C.danger]);
-    if (done.V != null && okI) r.push(['¡Muy bien! Así se mide en un circuito de verdad.', C.ink]);
-    else r.push([`Puedes girar la perilla y medir una cosa y luego la otra, o sacar un segundo ${w ? 'medidor' : 'multímetro'} en Medir.`, C.muted]);
-    return r;
-  };
-  // Aviso centrado arriba del circuito, partido en renglones que caben.
-  const wrap = (ctx, t, max) => {
-    const out = [];
-    let cur = '';
-    for (const w of t.split(' ')) {
-      const nx = cur ? cur + ' ' + w : w;
-      if (cur && ctx.measureText(nx).width > max) { out.push(cur); cur = w; } else cur = nx;
-    }
-    if (cur) out.push(cur);
-    return out;
-  };
-  const said = {};
-  function note(ctx, g) {
-    const w = g.side === 'w', ls = lines(w), k = Sim.compact ? 1.15 : 1, max = Math.min(560, g.W - 40);
-    const rows = [];
-    ls.forEach(([t, col], j) => {
-      ctx.font = `${j ? 400 : 700} ${Math.round((j ? 15 : 17) * k)}px ${Sim.FONT}`;
-      wrap(ctx, t, max).forEach(s => rows.push([s, col || C.ink, j]));
-    });
-    const lh = 21 * k, cx = g.VX + g.W / 2;
-    let y = Math.max(46, g.TOP - 62 - (rows.length - 1) * lh);   // abajo de la escala de colores
-    rows.forEach(([s, col, j]) => {
-      D.text(ctx, s, cx, y, col, { size: j ? 15 : 17, weight: j ? 400 : 700 });
-      y += lh;
-    });
-    b.labelTop[g.side] = y - lh / 2 + 4;   // las etiquetas de los nodos van abajo del aviso
-    // para los lectores de pantalla, el aviso del lado que se ve
-    const text = ls.map(l => l[0]).join('. ');
-    if (g.side === (Sim.view === 'w' ? 'w' : 'e') && said.t !== text) { said.t = text; document.getElementById('aviso').textContent = text; }
-  }
 
   // Un botón para ver otra vez cómo se juntan los cables (o separarlos).
   b.linkedButton({
@@ -216,10 +98,9 @@
   const STEPS = ['Los nodos', 'Medir voltaje', 'Medir corriente', 'Medir resistencia', 'Reto'];
   let timer = 0;
   Sim.steps(STEPS, k => {
-    step = k;
     b.showMeters({ a: k > 0 });
     if (k === 1) b.setDial('a', 'V');
-    if (k === 4) { done.V = done.I = null; if (!b.st.on) document.querySelector('#pe .sim-power').click(); }
+    if (k === 4 && !b.st.on) document.querySelector('#pe .sim-power').click();
     clearTimeout(timer);
     if (k === 0) { b.setNodes(false); timer = setTimeout(() => b.setNodes(true), 900); } else b.setNodes(true);
   });
