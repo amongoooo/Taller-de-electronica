@@ -15,7 +15,7 @@ description: Probar las simulaciones con Playwright y capturas en PC (1440 y 136
    las asas sigan a la vista con una tarjeta abierta en el celular acostado.
 4. Para probar un gesto, pasa una acción: `--accion tools/acciones/tocar-componente.js` (o una propia que
    exporte `async (page, { p, sz, th }) => {}`), con `--paginas`, `--tamaños` y `--temas` para acotar.
-   Para comprobar valores, lee el estado desde la página: `Sim.benchNow.st` en las páginas del banco, o el
+   Para comprobar valores, lee el estado desde la página: `Sim.benchNow.st` en las páginas del banco, `Sim.oscNow.st` en el osciloscopio (y `Sim.oscNow.setCirc('rc')`), o el
    texto de los renglones de Componentes (`.sim-part .vl`).
 5. Al terminar una fase, junta las capturas más claras (una tarjeta abierta, PC y celular, claro y oscuro) en
    una carpeta y mándalas a la persona.

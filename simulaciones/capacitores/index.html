@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022053632">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022090217">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022053632"></script>
-<script src="../../assets/banco.js?v=20261022053632"></script>
+<script src="../../assets/sim.js?v=20261022090217"></script>
+<script src="../../assets/banco.js?v=20261022090217"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -96,40 +96,7 @@
     return { C1: [p[0], p[1], [XC - gap, g.TOP]], C2: [[XC + gap, g.TOP], p[2], p[3], p[4]] };
   };
 
-  // Agua en un tramo abierto: partículas en carriles (las del centro más rápidas), que avanzan según el
-  // volumen que pasa y salen por un extremo mientras entran por el otro. ph es lo que ha avanzado el agua
-  // (en px de tubería normal); como el capacitor no deja pasar el agua, al cargarse todo se detiene.
-  const stream = (pts, halfAt = () => Sim.PIPE) => {
-    const L = D.len(pts), N = Math.max(2, Math.ceil(L / 2)), ds = L / N;
-    const Hs = new Float32Array(N + 1), Vs = new Float32Array(N + 1);
-    for (let i = 0; i <= N; i++) { Hs[i] = halfAt(i * ds); if (i) Vs[i] = Vs[i - 1] + (Hs[i] + Hs[i - 1]) / 2 * ds; }
-    const VT = Vs[N];
-    const locate = v => {
-      let lo = 0, hi = N;
-      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (Vs[m] <= v) lo = m; else hi = m; }
-      const span = Vs[hi] - Vs[lo];
-      return [lo * ds + (span ? (v - Vs[lo]) / span : 0) * ds, Hs[lo]];
-    };
-    return {
-      draw(ctx, ph, flow) {
-        const lanes = Sim.compact ? [-0.6, 0, 0.6] : [-0.72, -0.36, 0, 0.36, 0.72];
-        const sp = (Sim.compact ? 21 : 14) * Sim.PIPE, r = Sim.compact ? 3.8 : 2.8;
-        const mean = lanes.reduce((a, f) => a + 1 - f * f, 0) / lanes.length;
-        const n = Math.max(1, Math.round(VT / sp)), s = VT / n;
-        let i = 0;
-        lanes.forEach((f, j) => {
-          const u = (1 - f * f) / mean, shift = ph * Sim.PIPE * u;
-          for (let k = 0; k < n; k++, i++) {
-            let v = ((k + (j % 2) * 0.5) * s + shift) % VT; if (v < 0) v += VT;
-            const [d, h] = locate(v), [x, y, tx, ty] = D.frameAt(pts, d), off = f * h;
-            const [jx, jy, js] = Sim.jitter(x, y, i);
-            ctx.fillStyle = Sim.particleColor(x, y, Math.max(Math.abs(flow * Sim.PIPE * u / h), js) / 200);
-            ctx.beginPath(); ctx.arc(x - ty * off + jx, y + tx * off + jy, r, 0, Math.PI * 2); ctx.fill();
-          }
-        });
-      }
-    };
-  };
+  const stream = Sim.stream;   // agua en un tramo abierto (ver sim.js)
   const build = side => {
     const s = sides[side];
     if (!s) return;
