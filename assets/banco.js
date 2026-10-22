@@ -77,13 +77,18 @@
       trip: { a: false, b: false }, pop: { a: 0, b: 0 }, popv: { a: 0, b: 0 } };
     const b = { st, VMAX, PSI_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
 
-    // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual):
-    //   ancho:   la computadora; medidores a los lados del controlador, abajo del circuito.
-    //   alto:    celular vertical; controlador abajo y los dos medidores, más grandes, en una fila debajo.
-    //   lateral: celular horizontal; medidores y controlador en una columna a la derecha del circuito.
+    // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual). El
+    // panel tiene dos franjas: el circuito y la mesa de trabajo, donde van los instrumentos alineados por
+    // su base, centrados y con el mismo espacio entre ellos (si se arrastran, quedan donde se dejen):
+    //   ancho:   la computadora; la mesa abajo: multímetro · fuente · lugar del segundo multímetro.
+    //   medio:   la computadora con los dos paneles (angostos y altos): igual, con la fuente compacta.
+    //   alto:    celular vertical; la mesa abajo: la fuente y el multímetro compactos, lado a lado (el
+    //            segundo multímetro, encima del primero).
+    //   lateral: celular horizontal; la mesa a la derecha: los multímetros arriba y la fuente abajo.
     // En el celular solo se ve de x0 a x0 + W, sin márgenes de sobra, para que todo salga más grande.
     const MODES = {
-      ancho: { W: 800, x0: 0, hMin: 610, hMax: 1060 },
+      ancho: { W: 800, x0: 0, hMin: 650, hMax: 1060 },
+      medio: { W: 630, x0: 85, hMin: 840, hMax: 1300 },
       alto: { W: 540, x0: 130, hMin: 840, hMax: 1300 },
       lateral: { W: 1040, x0: 110, hMin: 450, hMax: 620 }
     };
@@ -94,34 +99,48 @@
       };
       let mode = 'ancho', best = fit(MODES.ancho);
       // solo si en el acomodo ancho todo se vería chico
-      if (best.s < 0.75) for (const k of ['alto', 'lateral']) {
+      if (best.s < 0.75) for (const k of [Sim.phone ? 'alto' : 'medio', 'lateral']) {
         const f = fit(MODES[k]);
         if (f.s > best.s * 1.08) { mode = k; best = f; }
       }
       return [MODES[mode].W, best.H, MODES[mode].x0, mode];
     };
+    // Medidas de un multímetro sin escalar (ver shape): extendido y compactado.
+    const MW = { full: 152, small: 184, h: 194, hs: 70 };
+    // g.meters[k] = [x del centro, y de su base]; g.DESK es dónde empieza la mesa (y, o x en el lateral).
     const geometry = (side, W, H, mode = 'ancho') => {
       const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, BW: 350, BH: 152, MK: 1 };
       if (mode === 'lateral') {
+        g.MK = 1.15; g.BX = 700;
+        g.BY = H - 12 - g.BH;
+        const base = g.BY - 16, d = (MW.full * g.MK + 24) / 2;
+        g.meters = { a: [g.BX + g.BW / 2 - d, base], b: [g.BX + g.BW / 2 + d, base] };
+        g.DESK = 668;
         g.BOT = H - 64;
-        g.BX = 700; g.MK = 1.25;
-        const my = 40 + 48 * g.MK;
-        g.meters = { a: [g.BX + 55, my], b: [g.BX + g.BW - 55, my] };
-        g.BY = my + 158 * g.MK;
-        g.COL = [650, 10];   // arriba de la columna de medidores no cabe: va arriba a la derecha del circuito
+        g.COL = [650, 10];   // arriba de la mesa no cabe: va arriba a la derecha del circuito
         g.TOP = 170;         // y el circuito baja un poco para dejarle lugar
       } else if (mode === 'alto') {
-        g.BOT = H - 504;
-        g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46; g.MK = 1.35;
-        const my = g.BY + g.BH + 28 + 48 * g.MK;
-        g.meters = { a: [g.PX - 135, my], b: [g.PX + 135, my] };
+        // la fuente compacta (slim) y el multímetro compacto, lado a lado
+        g.slim = true; g.BW = 272; g.BH = 186; g.MK = 1.2;
+        const base = H - 18, gap = 22, mw = MW.small * g.MK, x0 = g.PX - (g.BW + gap + mw) / 2;
+        g.BX = x0; g.BY = base - g.BH;
+        g.meters = { a: [x0 + g.BW + gap + mw / 2, base], b: [x0 + g.BW + gap + mw / 2, base] };
+        g.stack = true;   // el segundo multímetro va encima del primero
+        g.DESK = g.BY - 18;
+        g.BOT = g.DESK - 56;
         g.COL = [660, 10];
         g.TOP = 170;
       } else {
-        g.BOT = H - 214;
-        g.BX = g.PX - g.BW / 2; g.BY = g.BOT + 46;
-        g.meters = { a: [g.BX / 2, g.BY + 4], b: [(g.BX + g.BW + W) / 2, g.BY + 4] };
+        // multímetro · fuente · segundo multímetro (en medio, con la fuente compacta y más juntos)
+        if (mode === 'medio') { g.slim = true; g.BW = 272; g.BH = 186; }
+        const base = H - 20, slot = mode === 'medio' ? MW.full : MW.small - 14, gap = mode === 'medio' ? 16 : 36;
+        const x0 = g.PX - (2 * slot + g.BW + 2 * gap) / 2;
+        g.BX = x0 + slot + gap; g.BY = base - g.BH;
+        g.meters = { a: [x0 + slot / 2, base], b: [g.BX + g.BW + gap + slot / 2, base] };
+        g.DESK = base - MW.h - 24;
+        g.BOT = g.DESK - 26;
         g.COL = [W - 12, 10];
+        if (mode === 'medio') { g.COL = [705, 10]; g.TOP = 170; }   // angosto: el circuito baja para dejarle lugar
       }
       g.CX = g.BX + g.BW / 2;   // centro del controlador (perilla)
       g.MIDY = (g.TOP + g.BOT) / 2;
@@ -351,7 +370,7 @@
     const SNAP = 30;   // radio del imán de su lugar
     st.spos = {}; st.sheld = false; st.svel = null;
     const unitLimits = g => {
-      const lat = g.mode === 'lateral', top = lat ? g.BY : g.BOT - 46, bot = g.BY + g.BH;
+      const top = apart(g) ? g.BY : g.BOT - 46, bot = g.BY + g.BH;
       return [g.VX + 4 - g.BX, g.VX + g.W - 4 - g.BX - g.BW, 4 - top, g.H - 4 - bot];
     };
     const unitOff = g => {
@@ -365,8 +384,10 @@
       return [dx, dy];
     };
     const boxAt = g => { const [dx, dy] = unitOff(g); return [g.BX + dx, g.BY + dy]; };
-    // El símbolo (la bomba o la pila) va con la caja, salvo en el celular horizontal.
-    const symAt = g => { if (g.mode === 'lateral') return [g.PX, g.BOT]; const [dx, dy] = unitOff(g); return [g.PX + dx, g.BOT + dy]; };
+    // El símbolo (la bomba o la pila) va con la caja, salvo en el celular, donde la caja está en la mesa
+    // aparte del circuito.
+    const apart = g => g.mode === 'alto' || g.mode === 'lateral';
+    const symAt = g => { if (apart(g)) return [g.PX, g.BOT]; const [dx, dy] = unitOff(g); return [g.PX + dx, g.BOT + dy]; };
     // Qué tan afuera de su lugar está el símbolo (0 en su lugar, 1 ya con sus cables a la vista).
     const awayK = g => { const [x, y] = symAt(g); return Math.min(1, Math.hypot(x - g.PX, y - g.BOT) / 16); };
     const moveUnit = (g, x, y) => {
@@ -401,7 +422,7 @@
         panel(side).at(el, () => {
           const g = geo(side), s = panel(side).scale, [w, h] = size(g);
           el.style.width = w * s + 'px'; el.style.height = h * s + 'px';
-          el.hidden = cls === 'sym' && g.mode === 'lateral';
+          el.hidden = cls === 'sym' && apart(g);
           return pos(g);
         });
         let down = null, from = null, moved = false;
@@ -445,11 +466,20 @@
     // sola vez está en la tarjeta de la fuente.
     const SK = [26, 18];   // tamaño de la tecla
     st.staut = true; st.spress = 0;
-    const srcKey = g => { const [x, y] = boxAt(g); return [x + 327, y + 100]; };
+    // Dónde va cada cosa en la caja: completa (350 × 152) o compacta (272 × 186; con los paneles angostos).
+    //   name: el nombre; pow: la palanca; leds: CV y CC (y de su nombre, ltx/lty); lcd: alto, ancho y y de las
+    //   pantallitas; kv y ki: las perillas de voltaje y del límite; key y pol: las teclas de cables y polaridad.
+    const CL = {
+      full: { pow: [44, 97], leds: [[86, 74], [86, 112]], lab: [0, 19, 'center'], lcd: [32, 88, 34], kv: [148, 100], ki: [256, 100], key: [327, 100], pol: [327, 62] },
+      slim: { pow: [34, 134], leds: [[24, 44], [24, 64]], lab: [12, 0, 'left'], lcd: [30, 80, 52], kv: [118, 128], ki: [214, 128], key: [244, 23], pol: [208, 23] }
+    };
+    const cl = g => g.slim ? CL.slim : CL.full;
+    const inBox = (g, k) => { const [x, y] = boxAt(g), [dx, dy] = cl(g)[k]; return [x + dx, y + dy]; };
+    const srcKey = g => inBox(g, 'key');
     // Arriba de él, el de la polaridad: invierte la salida (el + y el − cambian de lugar). Se queda hundido,
     // con su lucecita roja, mientras está invertida.
     st.rev = false; st.rpress = 0;
-    const polKey = g => { const [x, y] = boxAt(g); return [x + 327, y + 62]; };
+    const polKey = g => inBox(g, 'pol');
     const sgn = () => st.rev ? -1 : 1;
     const polKeys = ['w', 'e'].map(side => {
       const bt = document.createElement('button');
@@ -498,7 +528,7 @@
     // la inercia). La fuente da el voltaje de la perilla mientras la corriente no pase del límite (CV); si
     // se pasaría, sostiene la corriente en el límite y baja el voltaje lo necesario (CC).
     const power = b.linkedButton({
-      pos: g => { const [x, y] = boxAt(g); return [x + 44, y + 97]; }, cls: 'sim-power',
+      pos: g => inBox(g, 'pow'), cls: 'sim-power',
       label: side => (st.on ? 'Apagar ' : 'Encender ') + (side === 'w' ? 'la bomba' : 'la fuente'),
       onClick: () => { st.on = !st.on; }
     });
@@ -506,7 +536,7 @@
     const syncPower = () => power.forEach(el => el.setAttribute('aria-pressed', String(st.on)));
     power.forEach(el => el.addEventListener('click', syncPower)); syncPower();
     b.linkedKnob({
-      pos: g => { const [x, y] = boxAt(g); return [x + 148, y + 100]; }, min: 0, max: VMAX, step: 0.5, magnet: 1, value: st.set,
+      pos: g => inBox(g, 'kv'), min: 0, max: VMAX, step: 0.5, magnet: 1, value: st.set,
       label: side => side === 'w' ? 'Presión de la bomba' : 'Voltaje de la fuente',
       format: (v, side) => side === 'w' ? fmt(v * PSI_PER_V) + ' psi' : fmt(v) + ' V',
       scale: () => [['0', 0], ['6', 0.5], ['12', 1]],
@@ -514,7 +544,7 @@
       onInput: v => { st.set = v; }
     });
     b.linkedKnob({
-      pos: g => { const [x, y] = boxAt(g); return [x + 256, y + 100]; }, min: 0, max: LIMS.length - 1, step: 1, value: LIMS.indexOf(st.lim),
+      pos: g => inBox(g, 'ki'), min: 0, max: LIMS.length - 1, step: 1, value: LIMS.indexOf(st.lim),
       label: side => side === 'w' ? 'Caudal máximo de la bomba' : 'Límite de corriente de la fuente',
       format: (k, side) => limText(LIMS[k], side).join(' '),
       onInput: k => { st.lim = LIMS[k]; }
@@ -1043,26 +1073,34 @@
     st.compact = { a: small, b: small };
     try { const c = JSON.parse(localStorage.getItem('sim-compact') || '{}'); MS.forEach(k => { if (typeof c[k] === 'boolean') st.compact[k] = c[k]; }); } catch (e) {}
     st.cmp = { a: +st.compact.a, b: +st.compact.b };
-    // Forma del multímetro (sin escalar, desde su centro): abajo de la caja, la pantallita (lcd, lx, su
-    // ancho lw y su alto lh), la comparación de sus dos puntas (cmp), la rueda (kx, ky, kr) y el nombre.
-    // Compactado, la rueda se achica y va a la derecha de la pantallita y la comparación se esconde.
+    // Forma del multímetro (sin escalar, desde su centro): el chasis de top a bottom (con su nombre arriba a
+    // la izquierda), la pantallita (lcd, lx, su ancho lw y su alto lh), la comparación de sus dos puntas
+    // (cmp) y la rueda (kx, ky, kr). Compactado, la rueda se achica y va a la derecha de la pantallita y la
+    // comparación se esconde.
     const shape = kind => {
       const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c;
-      return { bottom: mix(132, 6), hw: mix(76, 92), lcd: mix(-8, -14), lh: mix(34, 30), lx: mix(0, -6), lw: mix(112, 104), cmp: 20, kx: mix(0, 66), ky: mix(86, -14), kr: mix(27, 12), label: mix(148, 22), c,
+      return { top: mix(-62, -58), bottom: mix(132, 12), hw: mix(76, 92), lcd: mix(-8, -8), lh: mix(34, 30), lx: mix(0, -6), lw: mix(112, 104), cmp: 20, kx: mix(0, 66), ky: mix(86, -8), kr: mix(27, 12), c,
         // botones físicos: recoger (0) y compactar (1); extendido a los lados de la rueda, compactado uno
         // sobre otro a la izquierda de la pantallita. Invertir (2), abajo a la izquierda de la rueda, solo
         // extendido (compactado está en Medir).
-        btn: [[mix(-52, -74), mix(54, -24)], [mix(52, -74), mix(54, -7)], [-52, 116]], bw: mix(24, 17), bh: mix(16, 13) };
+        btn: [[mix(-52, -74), mix(54, -18)], [mix(52, -74), mix(54, -1)], [-52, 116]], bw: mix(24, 17), bh: mix(16, 13) };
+    };
+    // Su lugar en la mesa: g.meters da el centro y la base, así que al compactarlo o extenderlo la base se
+    // queda donde está. En el celular vertical el segundo va encima del primero.
+    const homeAt = (g, kind) => {
+      const [x0, base] = g.meters[kind], k = g.MK, sh = shape(kind);
+      if (kind === 'b' && g.stack) { const sa = shape('a'); return [x0, base - (sa.bottom - sa.top + 26) * k - sh.bottom * k]; }
+      return [x0, base - sh.bottom * k];
     };
     const meterAt = (g, kind) => {
-      const [x0, y0] = g.meters[kind], o = st.mpos[g.mode + kind], k = g.MK;
+      const [x0, y0] = homeAt(g, kind), o = st.mpos[g.mode + kind], k = g.MK, sh = shape(kind);
       if (!o) return [x0, y0];
       // sin salirse de lo que se ve (con sus botones a los lados y sus bornes arriba)
       return [Math.max(g.VX + 90 * k, Math.min(g.VX + g.W - 90 * k, x0 + o[0])),
-        Math.max(54 * k, Math.min(g.H - (shape(kind).label + 26) * k, y0 + o[1]))];
+        Math.max((10 - sh.top) * k, Math.min(g.H - (sh.bottom + 6) * k, y0 + o[1]))];
     };
     const moveMeter = (g, kind, x, y) => {
-      const [x0, y0] = g.meters[kind];
+      const [x0, y0] = homeAt(g, kind);
       st.mpos[g.mode + kind] = [x - x0, y - y0];
       b.pw.replace(); b.pe.replace();
     };
@@ -1074,7 +1112,7 @@
     // Contorno por donde corre la placa: la funda un poco hacia afuera, con esquinas redondas. rim(sh, u)
     // da el punto, la dirección (en el sentido del reloj) y el largo total; u en [0, 1).
     const rim = (sh, u) => {
-      const L = -sh.hw - 3, R = sh.hw + 3, T = -51, B = sh.bottom + 3, rc = 17, w = R - L - 2 * rc, h = B - T - 2 * rc, q = Math.PI * rc / 2;
+      const L = -sh.hw - 3, R = sh.hw + 3, T = sh.top - 3, B = sh.bottom + 3, rc = 13, w = R - L - 2 * rc, h = B - T - 2 * rc, q = Math.PI * rc / 2;
       const parts = [
         [w, s => [L + rc + s, T, 1, 0]],
         [q, s => { const a = -Math.PI / 2 + s / rc; return [R - rc + rc * Math.cos(a), T + rc + rc * Math.sin(a), -Math.sin(a), Math.cos(a)]; }],
@@ -1121,7 +1159,7 @@
       const [mx, my] = meterAt(g, kind), sh = shape(kind);
       const tx = out.reduce((t, i) => t + st.clamps[kind][i][0], 0) / out.length, ty = out.reduce((t, i) => t + st.clamps[kind][i][1], 0) / out.length;
       const lx = (tx - mx) / g.MK, ly = (ty - my) / g.MK;
-      const L = -sh.hw - 3, R = sh.hw + 3, T = -51, B = sh.bottom + 3, rc = 17, cy = (T + B) / 2;
+      const L = -sh.hw - 3, R = sh.hw + 3, T = sh.top - 3, B = sh.bottom + 3, rc = 13, cy = (T + B) / 2;
       const dx = lx, dy = ly - cy, hw = R, hh = (B - T) / 2;
       const [, , , , total, parts] = rim(sh, 0), start = i => parts.slice(0, i).reduce((t, p) => t + p[0], 0);
       const cur = st.jedge[kind];
@@ -1424,6 +1462,31 @@
     // no están conectados dicen "sin conectar"; así hay que medir para saber), y al final sacar otro. Su
     // rueda, invertir, la tierra y los cables están en el multímetro y en su tarjeta.
     let syncMed = () => {};
+    // Sacar otro multímetro (desde Medir o tocando su lugar punteado en la mesa).
+    b.addMeter = () => {
+      const kind = MS.find(k => !st.show[k]);
+      if (!kind) return;
+      b.showMeters({ [kind]: true });
+      st.placed[kind] = [false, false];   // sale guardado: se toca el circuito para ponerlo
+      syncs.forEach(f => f()); syncReel();
+      setPlacing({ kind, i: 0 });
+    };
+    // Su lugar en la mesa, punteado, mientras solo está el primero.
+    const slotOpen = () => st.show.a && !st.show.b;
+    ['w', 'e'].forEach(side => {
+      const el = document.createElement('button');
+      el.type = 'button'; el.className = 'sim-slot'; el.dataset.act = 'med';
+      b.place(side, el, g => {
+        const [x, y] = homeAt(g, 'b'), sh = shape('b'), s = panel(side).scale * g.MK;
+        el.style.width = 2 * sh.hw * s + 'px'; el.style.height = (sh.bottom - sh.top) * s + 'px';
+        return [x, y + (sh.top + sh.bottom) / 2 * g.MK];
+      });
+      el.addEventListener('click', () => b.addMeter());
+      syncs.push(() => {
+        el.hidden = !slotOpen();
+        el.setAttribute('aria-label', side === 'w' ? 'Sacar otro medidor' : 'Sacar otro multímetro');
+      });
+    });
     if (Sim.side) {
       const wrap = document.createElement('div');
       wrap.className = 'sim-mms';
@@ -1441,14 +1504,7 @@
       });
       const add = document.createElement('button');
       add.type = 'button'; add.className = 'sim-side-btn sim-add';
-      add.addEventListener('click', () => {
-        const kind = MS.find(k => !st.show[k]);
-        if (!kind) return;
-        b.showMeters({ [kind]: true });
-        st.placed[kind] = [false, false];   // sale guardado: se toca el circuito para ponerlo
-        syncs.forEach(f => f()); syncReel();
-        setPlacing({ kind, i: 0 });
-      });
+      add.addEventListener('click', () => b.addMeter());
       wrap.appendChild(add);
       Sim.side.sec('med').prepend(wrap);
       syncMed = () => {
@@ -1687,10 +1743,10 @@
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'sim-meter-hit';
       const name = () => 'el ' + meterName(kind, side);
-      // cubre la caja y su nombre (cambia de tamaño al compactar)
+      // cubre el chasis (cambia de tamaño al compactar)
       b.place(side, el, g => {
-        const [x, y] = meterAt(g, kind), s = panel(side).scale * g.MK, top = -50, bot = shape(kind).label + 8;
-        el.style.width = Math.max(60, 160 * s) + 'px'; el.style.height = Math.max(40, (bot - top) * s) + 'px';
+        const [x, y] = meterAt(g, kind), s = panel(side).scale * g.MK, sh = shape(kind), top = sh.top, bot = sh.bottom;
+        el.style.width = Math.max(60, (2 * sh.hw + 8) * s) + 'px'; el.style.height = Math.max(40, (bot - top + 8) * s) + 'px';
         return [x, y + (top + bot) / 2 * g.MK];
       });
       // tocarlo abre su tarjeta; arrastrarlo (o las flechas) lo cambia de lugar
@@ -1957,31 +2013,31 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.placing) setPlacing(null); });
 
     // ---------- dibujo común ----------
-    const controllerBox = (ctx, g, title, fill, scales, lcd, leds) => {
-      const [X, Y] = boxAt(g), [sx, sy] = symAt(g);
-      if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(sx - 14, sy + 30, 28, 18); }   // cuello hacia el símbolo
+    const controllerBox = (ctx, g, title, scales, lcd, leds) => {
+      const [X, Y] = boxAt(g), [sx, sy] = symAt(g), L = cl(g);
+      if (!apart(g)) { ctx.fillStyle = C.ink; ctx.fillRect(sx - 14, sy + 30, 28, Y - sy - 28); }   // cuello hacia el símbolo
       const sel = Sim.fadeSel('src', srcOpen());
-      D.roundRect(ctx, X, Y, g.BW, g.BH, 14, fill, C.ink, 2.5);
-      D.select(ctx, X - 6, Y - 6, g.BW + 12, g.BH + 12, sel, 18);
-      D.text(ctx, title, X + 18, Y + 24, sel > 0.5 ? C.sel : C.ink, { align: 'left', size: 15, font: Sim.WIDE });
+      D.chassis(ctx, X, Y, g.BW, g.BH, g.side === 'w', title, sel > 0.5);
+      D.select(ctx, X - 6, Y - 6, g.BW + 12, g.BH + 12, sel, 16);
       // lo que marca cada perilla, aunque esté apagada
-      D.knobScale(ctx, X + 148, Y + 100, 36, scales[0]);
-      D.lcd(ctx, X + 148, Y + 34, 88, 32, ...lcd);
-      D.knobScale(ctx, X + 256, Y + 100, 36, scales[1], 6);
-      D.lcd(ctx, X + 256, Y + 34, 88, 32, ...limText(st.lim, g.side));
+      const [[vx, vy], [ix, iy]] = [inBox(g, 'kv'), inBox(g, 'ki')], [lh, lw, ly] = L.lcd;
+      D.knobScale(ctx, vx, vy, 36, scales[0]);
+      D.lcd(ctx, vx, Y + ly, lw, lh, ...lcd);
+      D.knobScale(ctx, ix, iy, 36, scales[1], 6);
+      D.lcd(ctx, ix, Y + ly, lw, lh, ...limText(st.lim, g.side));
       // CV (verde): sale el voltaje de la perilla. CC (rojo): llegó al límite y sostiene la corriente.
       // Encienden con la salida, desde 0.05 psi (0.05 V) adentro de la fuente.
-      const out = st.v > 0.05;
-      D.led(ctx, X + 86, Y + 74, out && !st.cc ? 1 : 0);
-      D.text(ctx, leds[0], X + 86, Y + 93, C.ink, { size: 11, weight: 700 });
-      D.led(ctx, X + 86, Y + 112, out && st.cc ? 1 : 0, '#ff4a3d');
-      D.text(ctx, leds[1], X + 86, Y + 131, C.ink, { size: 11, weight: 700 });
-      // botón de los cables, a la derecha, como el de los multímetros
+      const out = st.v > 0.05, [ldx, ldy, la] = L.lab;
+      L.leds.forEach(([lx, ly2], k) => {
+        D.led(ctx, X + lx, Y + ly2, out && (k ? st.cc : !st.cc) ? 1 : 0, k ? '#ff4a3d' : undefined);
+        D.text(ctx, leds[k], X + lx + ldx, Y + ly2 + ldy, C.ink, { size: 11, weight: 700, align: la });
+      });
+      // teclas de los cables y de la polaridad, las mismas que las de los multímetros
       const [kx, ky] = srcKey(g), p = st.spress > performance.now() || st.staut ? 1 : 0;
-      keycap(ctx, kx, ky, SK[0], SK[1], p, !st.staut && !awayK(g), st.staut);
+      D.key(ctx, kx, ky, SK[0], SK[1], p, !st.staut && !awayK(g), st.staut);
       ctx.save(); ctx.translate(kx, ky + p * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); plug(ctx); ctx.restore();
       const [qx, qy] = polKey(g), q = st.rpress > performance.now() || st.rev ? 1 : 0;
-      keycap(ctx, qx, qy, SK[0], SK[1], q, false, null);
+      D.key(ctx, qx, qy, SK[0], SK[1], q, false, null);
       if (st.rev) D.circle(ctx, qx + SK[0] / 2 - 3.5, qy - SK[1] / 2 + 5, 1.8, '#ff4a3d');   // su lucecita roja
       ctx.save(); ctx.translate(qx, qy + q * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); swap(ctx); ctx.restore();
     };
@@ -2145,27 +2201,25 @@
     };
     // Multímetro: dentro de su funda de hule (ámbar; en el agua, azul), los dos bornes arriba (VΩA y COM),
     // la pantallita y la rueda grande. Compactado solo quedan la pantallita y una rueda chica.
-    const HOLSTER = { e: '#e8a317', w: '#2f86c9' };
     const KNOB = { body: '#2a3540', bar: '#3d4b58' };
     const drawMeter = (ctx, g, kind) => {
       if (!st.show[kind]) return;
       const water = g.side === 'w', [x, y] = meterAt(g, kind), sh = shape(kind), md = st.dial[kind], col = MCOL[md];
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
       const placing = st.placing && st.placing.kind === kind, warn = live(kind), blown = md === 'A' && st.fuse[kind], tripped = md === 'A' && st.trip[kind];
-      const H = sh.bottom + 48;
+      const T = sh.top, H = sh.bottom - T;
       if (placing) {   // borde del color de lo que mide mientras espera dónde conectarse
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
         ctx.globalAlpha = 0.35 + 0.4 * pulse;
-        D.roundRect(ctx, -sh.hw - 6, -56, 2 * sh.hw + 12, H + 16, 18, null, col, 6);
+        D.roundRect(ctx, -sh.hw - 6, T - 6, 2 * sh.hw + 12, H + 12, 15, null, col, 6);
         ctx.globalAlpha = 1;
       }
       ctx.save();
-      if (st.mheld[kind]) { ctx.shadowColor = 'rgba(21,33,42,0.35)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; }   // levantado mientras se mueve
-      D.roundRect(ctx, -sh.hw, -48, 2 * sh.hw, H, 14, HOLSTER[g.side], C.ink, 2);
+      if (st.mheld[kind]) { ctx.shadowColor = 'rgba(21,33,42,0.35)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; D.roundRect(ctx, -sh.hw, T, 2 * sh.hw, H, Sim.CHASSIS.r, C.inst); }   // levantado mientras se mueve
       ctx.restore();
       const sel = Sim.fadeSel('m' + kind, meterOpen(kind));
-      if (!placing) D.select(ctx, -sh.hw - 7, -55, 2 * sh.hw + 14, Math.max(H + 14, sh.label + 66), sel, 20);   // con su nombre
-      D.roundRect(ctx, -sh.hw + 8, -32, 2 * sh.hw - 16, H - 22, 8, C.metal, C.ink, 1.5);
+      D.chassis(ctx, -sh.hw, T, 2 * sh.hw, H, water, meterName(kind, g.side).toUpperCase(), sel > 0.5);
+      if (!placing) D.select(ctx, -sh.hw - 7, T - 7, 2 * sh.hw + 14, H + 14, sel, 16);
       D.lcd(ctx, sh.lx, sh.lcd, sh.lw, sh.lh, ...meterText(kind, g.side));
       compare(ctx, kind, sh, water);
       dialKnob(ctx, kind, sh, water);
@@ -2185,7 +2239,9 @@
         if (sh.c < 0.5) D.text(ctx, t, lx, ly, '#e8eef2', { size: 8, weight: 800 });   // compactado no caben: los distingue el color
       });
       tripButton(ctx, kind);
-      const [, cny] = rim(sh, st.jpos[kind]), ly = sh.label + Math.max(0, Math.min(1, (cny - sh.bottom) / 3)) * 16;
+      // avisos arriba del multímetro (abajo si arriba no hay lugar), más arriba si ahí está la placa
+      const [, cny] = rim(sh, st.jpos[kind]), up = y + (T - 52) * g.MK > 4;
+      const ly = up ? T - 40 - (cny < T ? 6 : 0) : sh.bottom + 22 + (cny > sh.bottom ? 8 : 0);
       if (placing) {
         D.text(ctx, 'toca el circuito para', 0, ly, col, { size: 14, bg: true });
         D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 18, st.placing.i ? C.neg : RED, { size: 14, bg: true });
@@ -2198,7 +2254,7 @@
       } else if (warn) {   // en Ω con voltaje: la lectura no sirve
         D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 14, weight: 700, bg: true });
         D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 18, C.danger, { size: 14, bg: true });
-      } else D.text(ctx, meterName(kind, g.side), 0, ly, meterOpen(kind) ? C.sel : col, { size: 14, font: Sim.WIDE, bg: true });
+      }
       ctx.restore();
     };
     // Botón de la protección: en la orilla de la funda, del lado contrario a los bornes. Sale (pop de 0 a 1,
@@ -2219,15 +2275,6 @@
     };
     // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
     st.press = { a: [0, 0, 0], b: [0, 0, 0] };
-    // Tecla física: su base, la tapa (hundida con p = 1) y, si lleva, su lucecita (led: encendida o no).
-    const keycap = (ctx, bx, by, w, h, p, off, led) => {
-      ctx.save();
-      if (off) ctx.globalAlpha *= 0.55;
-      D.roundRect(ctx, bx - w / 2, by - h / 2 + 2, w, h, 4, '#1b242c');   // la base
-      D.roundRect(ctx, bx - w / 2, by - h / 2 + p * 1.5, w, h - 1.5, 4, p ? '#8e9aa4' : '#a9b4bd', '#1b242c', 1.2);
-      if (led != null) D.circle(ctx, bx + w / 2 - 3.5, by - h / 2 + 3.5 + p * 1.5, 1.8, led ? '#22e06b' : '#5b6670');
-      ctx.restore();
-    };
     // Ícono de enchufe (el botón de los cables), centrado, en una tecla de 16 de alto.
     const plug = ctx => {
       const ink = '#1b242c';
@@ -2245,7 +2292,7 @@
       const p = st.press[kind][i] > performance.now() || on ? 1 : 0, off = i === 0 && !on && !st.placed[kind].some(Boolean);
       ctx.save();
       if (i === 2) { if (sh.c >= 1) { ctx.restore(); return; } ctx.globalAlpha *= 1 - sh.c; }
-      keycap(ctx, bx, by, sh.bw, sh.bh, p, off, i === 0 ? on : null);
+      D.key(ctx, bx, by, sh.bw, sh.bh, p, off, i === 0 ? on : null);
       ctx.translate(bx, by + p * 1.5 - 0.5);
       const k = sh.bh / 16, ink = '#1b242c';
       ctx.scale(k, k);
@@ -2392,7 +2439,9 @@
       if (!u) { MS.forEach(k => drawCables(ctx, g, k)); drawLeads(ctx, g); drawPage(ctx, g, m); drawPorts(ctx, g); drawCuts(ctx, g); drawSel(ctx, g); return; }
       if (u < 1) {
         drawPage(ctx, g, m);
-        ctx.save(); ctx.globalAlpha = Math.min(1, u / 0.3); ctx.fillStyle = C.card; ctx.fillRect(-4000, -4000, 8000, 8000); ctx.restore();
+        ctx.save(); ctx.globalAlpha = Math.min(1, u / 0.3); ctx.fillStyle = C.card;   // hasta la mesa
+        if (g.mode === 'lateral') ctx.fillRect(-4000, -4000, 4000 + g.DESK, 8000); else ctx.fillRect(-4000, -4000, 8000, 4000 + g.DESK);
+        ctx.restore();
       }
       MS.forEach(k => drawCables(ctx, g, k));
       drawLeads(ctx, g);
@@ -2532,14 +2581,28 @@
       ctx.restore();
     };
 
+    // La mesa de trabajo: una franja de otro tono debajo del circuito (a la derecha en el celular acostado),
+    // con el lugar punteado del segundo multímetro.
+    const drawDesk = (ctx, g) => {
+      ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = C.bg;
+      if (g.mode === 'lateral') ctx.fillRect(g.DESK, -2000, 4000, 4000);
+      else ctx.fillRect(-2000, g.DESK, 4000, 4000);
+      ctx.restore();
+      if (!slotOpen()) return;
+      const [x, y] = homeAt(g, 'b'), sh = shape('b'), k = g.MK;
+      ctx.save(); ctx.setLineDash([7, 6]);
+      D.roundRect(ctx, x - sh.hw * k, y + sh.top * k, 2 * sh.hw * k, (sh.bottom - sh.top) * k, Sim.CHASSIS.r, null, C.muted, 2);
+      ctx.restore();
+    };
     function drawWater() {
       const g = b.gw, m = st.m, ctx = b.pw.begin();
+      drawDesk(ctx, g);
       circuitAndCables(ctx, g, m, o.drawW);
       drawGround(ctx, g);
       knobScales(ctx, g);
       // el bloque de la bomba va encima de los medidores: es lo que se arrastra a donde haya lugar
       MS.forEach(k => drawMeter(ctx, g, k));
-      controllerBox(ctx, g, 'BOMBA', C.metal, [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
+      controllerBox(ctx, g, 'BOMBA', [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set * PSI_PER_V, 2, 1), 'psi'], ['presión', 'caudal']);
       D.pump(ctx, ...symAt(g), st.rotor, st.omega);
       drawPosts(ctx, g);
@@ -2548,11 +2611,12 @@
     }
     function drawElectric() {
       const g = b.ge, m = st.m, ctx = b.pe.begin();
+      drawDesk(ctx, g);
       circuitAndCables(ctx, g, m, o.drawE);
       drawGround(ctx, g);
       knobScales(ctx, g);
       MS.forEach(k => drawMeter(ctx, g, k));
-      controllerBox(ctx, g, 'FUENTE', C['charge-soft'], [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
+      controllerBox(ctx, g, 'FUENTE', [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
         [digits(st.set, 2, 1), 'V'], ['CV', 'CC']);
       { const [x, y] = symAt(g); ctx.save(); ctx.translate(x, y); ctx.scale(sgn(), 1); D.source(ctx, 0, 0); ctx.restore(); }   // invertida, al revés
       drawPosts(ctx, g);

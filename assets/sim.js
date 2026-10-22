@@ -11,7 +11,7 @@
 
   Sim.readColors = () => {
     const cs = getComputedStyle(document.documentElement);
-    ['bg', 'card', 'ink', 'muted', 'line', 'pipe', 'water-soft', 'water', 'charge', 'charge-soft', 'danger', 'ok', 'metal', 'neg', 'sel']
+    ['bg', 'card', 'ink', 'muted', 'line', 'pipe', 'water-soft', 'water', 'charge', 'charge-soft', 'danger', 'ok', 'metal', 'inst', 'neg', 'sel']
       .forEach(k => C[k] = cs.getPropertyValue('--' + k).trim());
     C.dark = document.documentElement.dataset.theme === 'dark';
   };
@@ -470,6 +470,30 @@
     else D.lcd(ctx, x, y + r + 24, lcdW, 30, text, unit);
     if (label) D.text(ctx, label, box[0] + box[2] / 2, box[1] + box[3] + 16, C.muted, { size: 15, bg: true });
     return box;
+  };
+
+  // ---------- instrumentos: una sola familia ----------
+  // Chasis común de todos los instrumentos (bomba, fuente, multímetros, generador, osciloscopio, pila):
+  // gris claro (gris pizarra en oscuro), borde de 2 px, radio 10, una banda de 6 px arriba azul (agua) o
+  // ámbar (electricidad) y su nombre en Saira arriba a la izquierda (en azul si su tarjeta está abierta).
+  Sim.CHASSIS = { r: 10, band: 6, name: 23 };   // radio, alto de la banda, altura del nombre desde arriba
+  D.chassis = (ctx, x, y, w, h, water, name, sel = false) => {
+    D.roundRect(ctx, x, y, w, h, Sim.CHASSIS.r, C.inst);
+    ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, w, h, Sim.CHASSIS.r); ctx.clip();
+    ctx.fillStyle = water ? C.water : C.charge; ctx.fillRect(x, y, w, Sim.CHASSIS.band);
+    ctx.restore();
+    D.roundRect(ctx, x, y, w, h, Sim.CHASSIS.r, null, C.ink, 2);
+    if (name) D.text(ctx, name, x + 14, y + Sim.CHASSIS.name, sel ? C.sel : C.ink, { align: 'left', size: 14, font: Sim.WIDE });
+  };
+  // Tecla física (la misma en todos los instrumentos): su base, la tapa (hundida con p = 1) y, si lleva,
+  // su lucecita (led: encendida o no). off la deja tenue (no hace nada por ahora).
+  D.key = (ctx, bx, by, w, h, p, off, led) => {
+    ctx.save();
+    if (off) ctx.globalAlpha *= 0.55;
+    D.roundRect(ctx, bx - w / 2, by - h / 2 + 2, w, h, 4, '#1b242c');   // la base
+    D.roundRect(ctx, bx - w / 2, by - h / 2 + p * 1.5, w, h - 1.5, 4, p ? '#8e9aa4' : '#a9b4bd', '#1b242c', 1.2);
+    if (led != null) D.circle(ctx, bx + w / 2 - 3.5, by - h / 2 + 3.5 + p * 1.5, 1.8, led ? '#22e06b' : '#5b6670');
+    ctx.restore();
   };
 
   // ---------- agua como partículas ----------

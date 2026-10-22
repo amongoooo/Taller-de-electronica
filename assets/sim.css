@@ -14,6 +14,7 @@
   --danger: #c23b2c;
   --ok: #217a4b;
   --metal: #dfe6eb;
+  --inst: #e4e9ed;  /* chasis de los instrumentos (Sim.draw.chassis) */
   --neg: #15212a;   /* punta, cable y borne negativos (−) */
   --sel: #1d6fd1;   /* azul principal: lo seleccionado y la acción principal */
   color-scheme: light;
@@ -38,6 +39,7 @@
   --danger: #f2685a;
   --ok: #3fc47f;
   --metal: #2b3742;
+  --inst: #364350;  /* gris pizarra */
   --neg: #aab6bf;
   --sel: #5d9ff2;
   --a-com: #3fc47f; --a-med: #a487f2; --a-ali: #f0a830; --a-ver: #5d9ff2; --a-arm: #4fa6e6;
@@ -100,11 +102,13 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-layer { position: absolute; inset: 0; pointer-events: none; }
 .sim-layer > * { position: absolute; transform: translate(-50%, -50%); pointer-events: auto; }
 
+/* Tres tipos de botón: lleno azul (solo Siguiente y la acción principal de una tarjeta), segmentado
+   (.sim-seg, para elegir) y de contorno (acciones, como este). */
 .sim-btn {
   font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap;
   font-size: max(14px, calc(var(--s, 1) * 19px));
   padding: .45em 1em; border-radius: 999px;
-  border: 2px solid var(--ok); background: var(--ok); color: var(--card);
+  border: 2px solid var(--act, var(--sel)); background: var(--card); color: var(--act, var(--sel));
 }
 .sim-btn.small { font-size: max(14px, calc(var(--s, 1) * 15px)); padding: .4em .8em; }
 .sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
@@ -202,6 +206,10 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-src-hit.sym { border-radius: 50%; }
 .sim-src-hit:hover, .sim-src-hit:focus-visible { border-color: var(--act, var(--muted)); }
 .sim-src-hit.held { cursor: grabbing; }
+/* Lugar punteado del segundo multímetro en la mesa: tocarlo lo saca. */
+.sim-slot { padding: 0; background: transparent; border: 2px solid transparent; border-radius: 12px; cursor: pointer; }
+.sim-slot[hidden] { display: none; }
+.sim-slot:hover, .sim-slot:focus-visible { border-color: var(--act, var(--muted)); }
 /* El bloque de la fuente se dibuja encima de los medidores: sus controles también van encima de ellos,
    y las puntas encima de todo. */
 .sim-layer > .sim-src-hit { z-index: 1; }
@@ -338,7 +346,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   padding: .3em .9em; border: 0; border-radius: 999px; background: transparent; color: var(--muted); touch-action: manipulation;
 }
 .sim-seg button:hover { color: var(--ink); }
-.sim-seg button[aria-pressed="true"] { background: var(--water); color: var(--card); }
+.sim-seg button[aria-pressed="true"] { background: var(--sel); color: var(--card); }
 
 /* Columna de menús a la derecha del dibujo, en pantallas anchas (Sim.menu). */
 .sim-dock { position: absolute; right: 0; z-index: 5; display: grid; align-content: start; gap: 14px; padding: 4px 16px 36px; max-height: calc(100% - 24px); overflow-y: auto; }
@@ -375,7 +383,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-go.prev { width: 40px; border: 2px solid var(--line); background: var(--card); color: var(--water); }
 .sim-go.prev:hover { border-color: var(--water); background: var(--water-soft); }
 /* El botón principal: relleno, con texto («Paso 2 · La fuente» o «Siguiente · 4 Resistencias…»). */
-.sim-go.next { max-width: 360px; padding: 0 7px 0 16px; background: var(--water); color: var(--card); }
+.sim-go.next { max-width: 360px; padding: 0 7px 0 16px; background: var(--sel); color: var(--card); }
 .sim-go.next:hover { filter: brightness(.9); }
 .sim-go.next .arr { width: 26px; height: 26px; border-radius: 50%; background: color-mix(in srgb, var(--card) 24%, transparent); }
 .sim-go .lbl { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

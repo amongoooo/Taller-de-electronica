@@ -55,7 +55,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `Sim.panel(box, size)`: canvas escalado; `p.at(el, pos)` coloca controles HTML en coordenadas del dibujo;
     `p.begin()` limpia y deja `Sim.S` = escala del panel (para gruesos en px de pantalla).
   - `Sim.draw` (`D`): `D.text`, `D.pipe`, `D.wire`, `D.narrow`, `D.resistor`, `D.wheel`, `D.ledSymbol`,
-    `D.lcd`, `D.knobScale`, `D.select` / `D.selectRot` (contorno de seleccionado).
+    `D.lcd`, `D.knobScale`, `D.select` / `D.selectRot` (contorno de seleccionado), `D.chassis` (chasis común de
+    los instrumentos: `--inst`, banda agua/ámbar, nombre) y `D.key` (tecla física común).
   - `Sim.fadeSel(key, on)`: 0→1 en 120 ms (aparece y se va el contorno).
   - `Sim.knob`, `Sim.snapRange` (imán, zona muerta, rueda del ratón), `Sim.ramp`, `Sim.needle`, `Sim.heat`.
   - `Sim.menu`: tarjetas. `Sim.menu.toggle(anchor, { title, rows, float, ignore })`. Filas: `values` (deslizador
@@ -68,8 +69,10 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `Sim.ORDER` (orden de las simulaciones), barra (`Sim.steps`, `Sim.viewSwitch`, botón Siguiente), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
-  - Acomodos `ancho` / `alto` / `lateral` (`MODES`, `geometry`): circuito de x 180 a 640, controlador en
-    `g.BX, g.BY`, multímetros en `g.meters`.
+  - Acomodos `ancho` (PC), `medio` (PC con los dos paneles), `alto` (celular vertical) y `lateral` (celular
+    acostado) (`MODES`, `geometry`): circuito de x 180 a 640 y la mesa en `g.DESK`; controlador en `g.BX, g.BY`
+    (`g.slim`: la caja compacta, ver `CL`), multímetros en `g.meters` = [centro, base] (`homeAt`, `meterAt`).
+    En `alto` y `lateral` la caja va aparte del símbolo (`apart`).
   - `b.pinch` (resistencias y capacitores: asas solo con la tarjeta abierta), `b.part` (componente con
     tarjeta), `b.grips` (asas), `b.tag` (etiqueta «nombre valor»), `b.linkedButton`, `b.linkedChoice`,
     `b.linkedKnob`, `b.place`.
@@ -85,16 +88,16 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 ## Pendiente
 
 Fase 2 · Instrumentos y mesa (un PR):
-- [ ] E1 Una familia de instrumentos: chasis común gris claro, borde 2 px, radio 10, nombre en Saira arriba a la
+- [x] E1 Una familia de instrumentos: chasis común gris claro, borde 2 px, radio 10, nombre en Saira arriba a la
   izquierda, LCD idéntico, teclas idénticas; banda de 6 px arriba azul (agua) o ámbar (electricidad). Hoy: bomba
   gris, fuente crema, multímetros azul/naranja saturados con nombre morado abajo, generador crema, osciloscopio
   gris, pila negra con palanca suelta. La pila del protoboard lleva su palanca dentro del chasis. En oscuro todos
   gris pizarra con su banda.
-- [ ] E2 Tres tipos de botón: lleno azul (solo Siguiente y la acción principal de una tarjeta), segmentado
+- [x] E2 Tres tipos de botón: lleno azul (solo Siguiente y la acción principal de una tarjeta), segmentado
   (elegir), contorno (acciones). Nada suelto en el dibujo: «Disparo: sí» → tecla física TRIG del osciloscopio;
   «Por dentro» del protoboard → segmentado Por fuera · Por dentro; formas de onda sin contorno naranja; el botón
   «Juntar los cables en nodos» de Cómo medir sale del dibujo (ya está Dibujo: Circuito | Nodos en Ver).
-- [ ] E4 Mesa de trabajo: panel en dos franjas, circuito arriba y mesa abajo; instrumentos alineados por su
+- [x] E4 Mesa de trabajo: panel en dos franjas, circuito arriba y mesa abajo; instrumentos alineados por su
   base, centrados, mismo espacio entre ellos; lugar punteado para el segundo multímetro. Si se arrastran siguen
   libres. Celular: fuente y multímetro compactos lado a lado bajo el circuito.
 

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022040617">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022040617"></script>
-<script src="../../assets/banco.js?v=20261022040617"></script>
+<script src="../../assets/sim.js?v=20261022044050"></script>
+<script src="../../assets/banco.js?v=20261022044050"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -79,14 +79,6 @@
       [0, 1].forEach(k => { D.resistor(ctx, XR[k], g.TOP); b.tag(ctx, null, XR[k], g.TOP - 42, 'R' + (k + 1), ohm(RS[k])); });
     }
   });
-
-  // Un botón para ver otra vez cómo se juntan los cables (o separarlos).
-  b.linkedButton({
-    pos: g => [g.PX, (g.TOP + g.BOT) / 2 + 20], act: 'ver',
-    text: side => b.nodesOn() ? (side === 'w' ? 'Separar las tuberías' : 'Separar los cables') : (side === 'w' ? 'Juntar las tuberías en nodos' : 'Juntar los cables en nodos'),
-    onClick: () => b.setNodes(!b.nodesOn())
-  });
-  setInterval(() => b.refresh(), 400);
 
   // La bomba y la fuente empiezan encendidas.
   document.querySelector('#pe .sim-power').click();
