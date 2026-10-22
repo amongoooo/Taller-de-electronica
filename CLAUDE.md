@@ -61,6 +61,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     los instrumentos: `--inst`, banda agua/ámbar, nombre) y `D.key` (tecla física común).
   - `Sim.fadeSel(key, on)`: 0→1 en 120 ms (aparece y se va el contorno).
   - `Sim.knob`, `Sim.snapRange` (imán, zona muerta, rueda del ratón), `Sim.ramp`, `Sim.needle`, `Sim.heat`.
+  - `Sim.water` (agua en una vuelta cerrada) y `Sim.stream` (agua en un tramo abierto: una rama con su corriente).
   - `Sim.menu`: tarjetas. `Sim.menu.toggle(anchor, { title, rows, float, ignore })`. Filas: `values` (deslizador
     de valores comunes), `options` (colores), `seg` (segmentado), `range` (deslizador corto), `heat`
     (potencia y calor), `actions` (botones de contorno; `primary` = el lleno azul, uno por tarjeta, arriba).
@@ -86,6 +87,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - Vista de nodos: `analyze`, `morph`, `drawNodes`. Inercia: `inertia`. Regulación CV/CC: `regulate`.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
   `protoboard` y `osciloscopio` no usan el banco: tienen su propio dibujo, puntas, botones y tarjetas.
+  `osciloscopio` tiene cuatro circuitos (`PLACES`, `PRESET`, `solve`: LED, RC, diodo 1N4007, rectificador de media onda),
+  dos canales y disparo con la sincronía del generador; cada cuadro integra el circuito y guarda lo que marca cada canal
+  (`frames`); `Sim.oscNow` da su estado para probar.
   `agua-electricidad` es la versión vieja (no está en `Sim.ORDER`).
 
 ## Pendiente
