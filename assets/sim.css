@@ -552,8 +552,6 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-mms { display: grid; gap: 14px; }
 .sim-mm { display: grid; gap: 6px; }
 .sim-mm[hidden] { display: none; }
-.sim-side .sim-seg.four { display: grid; grid-template-columns: repeat(4, 1fr); justify-self: stretch; border-radius: 14px; }
-.sim-side .sim-seg.four button { font-size: 14px; padding: .35em .2em; white-space: nowrap; border-radius: 10px; }
 .sim-add { justify-self: start; }
 /* Polaridad y tierra: botones para invertir cada medidor y llevar la punta negra a tierra. */
 .sim-pol { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -727,3 +725,12 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   @view-transition { navigation: none; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* ---------- osciloscopio ---------- */
+/* Teclas de forma de onda del generador y TRIG y CH2 del osciloscopio: se dibujan en el canvas (Sim.draw.key);
+   aquí solo queda la zona para tocarlas. */
+.sim-wave, .sim-trig {
+  width: max(30px, calc(var(--s, 1) * 44px)); height: max(26px, calc(var(--s, 1) * 34px)); padding: 0; cursor: pointer;
+  border-radius: 6px; background: transparent; border: 0; touch-action: manipulation;
+}
+.sim-wave:focus-visible, .sim-trig:focus-visible { outline: 2px solid var(--water); outline-offset: 1px; }
