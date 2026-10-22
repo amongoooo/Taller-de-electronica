@@ -45,13 +45,14 @@
       // un panel oculto se acomoda igual que el otro, para que los dos compartan el mismo dibujo
       if ((!w || !h) && p.mirror) { w = p.mirror.box.clientWidth; h = p.mirror.box.clientHeight; }
       if (!w || !h) return;
-      // [W, H, x0, modo]: x0 es la x del dibujo que queda en el borde izquierdo
-      const [W, H, x0 = 0, mode = ''] = typeof size === 'function' ? size(w, h) : size;
-      const changed = W !== p.W || H !== p.H || x0 !== p.x0 || mode !== p.mode;
-      p.W = W; p.H = H; p.x0 = x0; p.mode = mode;
+      // [W, H, x0, modo, y0]: x0 es la x del dibujo que queda en el borde izquierdo y y0 la y que queda arriba
+      // (negativa: una franja libre arriba del dibujo)
+      const [W, H, x0 = 0, mode = '', y0 = 0] = typeof size === 'function' ? size(w, h) : size;
+      const changed = W !== p.W || H !== p.H || x0 !== p.x0 || y0 !== p.y0 || mode !== p.mode;
+      p.W = W; p.H = H; p.x0 = x0; p.y0 = y0; p.mode = mode;
       p.scale = Math.min(w / W, h / H);
       p.ox = (w - W * p.scale) / 2 - x0 * p.scale;
-      p.oy = (h - H * p.scale) / 2;
+      p.oy = (h - H * p.scale) / 2 - y0 * p.scale;
       p.dpr = window.devicePixelRatio || 1;
       canvas.width = Math.round(w * p.dpr);
       canvas.height = Math.round(h * p.dpr);
@@ -716,16 +717,46 @@
       }
     };
   };
-  // Barra de colores para leer la rapidez del agua (o lo que marque el modo de color: lo, hi en las puntas).
-  // Arriba dice qué colorea (title).
-  D.speedLegend = (ctx, x, y, w, lo = 'lento', hi = 'rápido', title = 'color: rapidez') => {
-    const g = ctx.createLinearGradient(x, 0, x + w, 0);
-    for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, Sim.speedColor(i / 6));
-    const dy = 7 + Sim.px(14, ctx) * 0.6;
-    if (title) D.text(ctx, title, x, y - dy, C.muted, { align: 'left', size: 14, bg: true });
-    ctx.fillStyle = g; ctx.fillRect(x, y - 5, w, 10);
-    D.text(ctx, lo, x, y + dy, C.muted, { align: 'left', size: 14, weight: 400, bg: true });
-    D.text(ctx, hi, x + w, y + dy, C.muted, { align: 'right', size: 14, weight: 400, bg: true });
+
+  // Selector del color de las partículas, en cada panel: un selector pequeño con el nombre de cada modo
+  // (rapidez · presión · caudal; en la electricidad normal · voltaje · corriente) y debajo la escala de colores,
+  // que solo es información (no se toca). En la electricidad, con el modo normal las cargas van de su color de
+  // siempre: en vez de la barra dice que todas van del mismo color. panels: { w, e } (Sim.panel).
+  //   ends(side) → [lo, hi]: lo que dicen las puntas de la escala en el modo que se ve
+  //   spot(side) → [x, y]: en el dibujo, dónde va su esquina de arriba a la derecha
+  //   top: deja que use el lugar libre arriba del dibujo si a la derecha no hay (true, o un número: cuánto de
+  //        arriba del dibujo también está libre, en unidades del dibujo)
+  // Si a la derecha del dibujo hay lugar, va hasta la esquina de arriba a la derecha del panel. Devuelve
+  // sync(), que vuelve a marcar el modo y las puntas de la escala (llamarla si cambian).
+  const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'] };
+  Sim.colorPicker = (panels, { ends, spot, top = false }) => {
+    const els = ['w', 'e'].map(side => {
+      const el = document.createElement('div'), q = panels[side];
+      el.className = 'sim-colors'; el.dataset.act = 'ver';
+      el.innerHTML = '<div class="sim-seg mini" role="group" aria-label="Color de las partículas">' +
+        COLOR_NAMES[side].map((t, k) => `<button type="button" data-k="${k}">${t}</button>`).join('') + '</div>' +
+        '<div class="scale" aria-hidden="true"><span></span><div class="bar"></div><span></span></div><div class="plain">todas del mismo color</div>';
+      el.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => { Sim.setColorMode(Sim.COLOR_MODES[+bt.dataset.k]); sync(); }));
+      const corner = () => {
+        const bw = q.box.clientWidth || (q.mirror && q.mirror.box.clientWidth) || 0;
+        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(210, q.scale * 240);
+        const room = free >= wpx + 24 || (top !== false && q.oy + (+top || 0) * q.scale >= (el.offsetHeight || 60) + 16);
+        return room ? [(bw - 16 - q.ox) / q.scale, (12 - q.oy) / q.scale] : spot(side);
+      };
+      q.box.querySelector('.sim-layer').appendChild(el);
+      q.at(el, corner);
+      return { side, el };
+    });
+    const sync = () => {
+      const k = Sim.COLOR_MODES.indexOf(Sim.colorMode), m = Sim.COLOR_MODES.indexOf(Sim.shownColorMode());
+      els.forEach(({ side, el }) => {
+        el.dataset.bar = String(side === 'w' || m > 0);
+        el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
+        el.querySelectorAll('button').forEach((bt, j) => bt.setAttribute('aria-pressed', String(j === k)));
+      });
+    };
+    sync();
+    return sync;
   };
 
   // ---------- inercia ----------

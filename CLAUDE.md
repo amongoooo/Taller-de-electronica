@@ -52,7 +52,8 @@ Medir solo lee.
 Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http.server 8123` en la raíz.
 
 - `assets/sim.js` (`window.Sim`), lo común a todas las páginas:
-  - `Sim.panel(box, size)`: canvas escalado; `p.at(el, pos)` coloca controles HTML en coordenadas del dibujo;
+  - `Sim.panel(box, size)`: canvas escalado (`size` → `[W, H, x0, modo, y0]`; `y0` negativo deja una franja libre arriba);
+    `p.at(el, pos)` coloca controles HTML en coordenadas del dibujo;
     `p.begin()` limpia y deja `Sim.S` = escala del panel (para gruesos en px de pantalla).
   - `Sim.draw` (`D`): `D.text` (letra mínima de 14 px en pantalla con `Sim.px`; `t` puede ser una lista de
     rótulos y `max` elige el que cabe), `D.tag` / `D.tagRow` (etiqueta «nombre valor» y estado en `D.pill`),
@@ -62,6 +63,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `Sim.fadeSel(key, on)`: 0→1 en 120 ms (aparece y se va el contorno).
   - `Sim.knob`, `Sim.snapRange` (imán, zona muerta, rueda del ratón), `Sim.ramp`, `Sim.needle`, `Sim.heat`.
   - `Sim.water` (agua en una vuelta cerrada) y `Sim.stream` (agua en un tramo abierto: una rama con su corriente).
+  - Color de las partículas: `Sim.colorMode` (rapidez/normal, presión/voltaje, caudal/corriente), `Sim.field(x, y)` →
+    [presión, caudal] de 0 a 1 que pone cada página (o el banco), y `Sim.colorPicker(panels, { ends, spot, top })`: el
+    selector con su escala arriba a la derecha de cada panel. Lo usan el banco, la protoboard y el osciloscopio.
   - `Sim.menu`: tarjetas. `Sim.menu.toggle(anchor, { title, rows, float, ignore })`. Filas: `values` (deslizador
     de valores comunes), `options` (colores), `seg` (segmentado), `range` (deslizador corto), `heat`
     (potencia y calor), `actions` (botones de contorno; `primary` = el lleno azul, uno por tarjeta, arriba).

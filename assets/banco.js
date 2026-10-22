@@ -983,36 +983,12 @@
     // escala de colores, que solo es información (no se toca). En la electricidad, con el modo normal las
     // cargas van de su color de siempre: en vez de la barra dice que todas van del mismo color. La rueda del
     // multímetro también lo elige.
-    const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'] };
     const ends = side => ({
       v: ['lento', 'rápido'],
       p: side === 'w' ? ['0 psi', VMAX * PSI_PER_V + ' psi'] : ['0 V', VMAX + ' V'],
       q: ['0', side === 'w' ? iFull * MLS_PER_MA + ' mL/s' : iFull + ' mA']
     })[Sim.shownColorMode()];
-    const pickers = ['w', 'e'].map(side => {
-      const el = document.createElement('div');
-      el.className = 'sim-colors'; el.dataset.act = 'ver';
-      el.innerHTML = '<div class="sim-seg mini" role="group" aria-label="Color de las partículas">' +
-        COLOR_NAMES[side].map((t, k) => `<button type="button" data-k="${k}">${t}</button>`).join('') + '</div>' +
-        '<div class="scale" aria-hidden="true"><span></span><div class="bar"></div><span></span></div><div class="plain">todas del mismo color</div>';
-      el.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => { Sim.setColorMode(Sim.COLOR_MODES[+bt.dataset.k]); syncColors(); }));
-      // Si a la derecha del dibujo hay lugar, va hasta la esquina de arriba a la derecha del panel.
-      const corner = g => {
-        const q = panel(side), bw = q.box.clientWidth || (q.mirror && q.mirror.box.clientWidth) || 0;
-        const free = bw - (q.ox + (q.x0 + q.W) * q.scale), wpx = Math.max(210, q.scale * 240);
-        return free >= wpx + 24 ? [(bw - 16 - q.ox) / q.scale, (12 - q.oy) / q.scale] : g.COL;
-      };
-      return { side, el: b.place(side, el, corner) };
-    });
-    const syncColors = () => {
-      const k = Sim.COLOR_MODES.indexOf(Sim.colorMode), m = Sim.COLOR_MODES.indexOf(Sim.shownColorMode());
-      pickers.forEach(({ side, el }) => {
-        el.dataset.bar = String(side === 'w' || m > 0);
-        el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
-        el.querySelectorAll('button').forEach((bt, j) => bt.setAttribute('aria-pressed', String(j === k)));
-      });
-    };
-    syncColors();
+    const syncColors = Sim.colorPicker({ w: b.pw, e: b.pe }, { ends, spot: side => geo(side).COL });
     // La perilla del multímetro elige el color: en V por presión (voltaje), en A por caudal (corriente),
     // en Ω u OFF el de siempre. Mientras se arrastra una punta, las partículas se colorean por lo que mide
     // su multímetro; al soltarla vuelven al modo elegido.

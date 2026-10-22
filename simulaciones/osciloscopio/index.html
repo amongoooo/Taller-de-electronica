@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022090217">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022093353">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* Teclas de forma de onda del generador y TRIG del osciloscopio: se dibujan en el canvas (Sim.draw.key);
@@ -48,7 +48,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022090217"></script>
+<script src="../../assets/sim.js?v=20261022093353"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -122,14 +122,19 @@
   // El circuito y el generador siempre en el mismo lugar; el osciloscopio abajo (alto) o a la derecha (ancho).
   const CIRC = { X0: 80, X1: 560, PX: 320, TOP: 80, BOT: 280, XR: 230, XL: 410 };
   const MODES = { alto: { W: 640, H: 1000 }, ancho: { W: 1250, H: 570 } };
+  // Lugar para el selector del color de las partículas y su escala: en el alto, una franja de BAND arriba del
+  // circuito (el dibujo empieza en y = −BAND); en el ancho, arriba del osciloscopio, que baja un poco.
+  const BAND = 110;
+  const bandOf = k => k === 'alto' ? BAND : 0;
   const size = (w, h) => {
     let best = null;
-    for (const k in MODES) { const s = Math.min(w / MODES[k].W, h / MODES[k].H); if (!best || s > best.s) best = { k, s }; }
-    return [MODES[best.k].W, MODES[best.k].H, 0, best.k + (best.s < 0.75 ? '-c' : '')];
+    for (const k in MODES) { const s = Math.min(w / MODES[k].W, h / (MODES[k].H + bandOf(k))); if (!best || s > best.s) best = { k, s }; }
+    const { W, H } = MODES[best.k], c = Math.min(w / W, h / H) < 0.75 ? '-c' : '';
+    return [W, H + bandOf(best.k), 0, best.k + c, -bandOf(best.k)];
   };
   const geometry = (side, mode) => {
     const g = { side, mode, ...CIRC, GX: 40, GY: CIRC.BOT + 46, GW: 560, GH: 200, SW: 580, SH: 420 };
-    if (mode.startsWith('alto')) { g.SX = 30; g.SY = g.GY + g.GH + 30; } else { g.SX = 640; g.SY = 70; }
+    if (mode.startsWith('alto')) { g.SX = 30; g.SY = g.GY + g.GH + 30; } else { g.SX = 640; g.SY = 150; }
     g.MIDY = (g.TOP + g.BOT) / 2;
     g.loop = D.rect(g.X0, g.TOP, g.X1, g.BOT);
     g.scr = [g.SX + 20, g.SY + 46, 10 * DIV, 8 * DIV];
@@ -334,10 +339,13 @@
     const a = new Float32Array(n + 1), b = new Float32Array(n + 1);
     a[0] = st.last[0]; b[0] = st.last[1];
     let qs = 0, qr = 0, qc = 0, qa = 0, peak = 0, last = 0, back = 0, on = 0, ER = 0, ED = 0;
+    let se = 0, ar = 0, ac = 0;
+    const sd = [0, 0];
     for (let k = 0; k < n; k++) {
       const e = st.level * (st.amp * WAVES[st.wave](st.ph + f * h * (k + 1)) + st.off);
       const m = solve(e, h), iR = m.iR ?? m.I, iC = m.iC ?? 0;
       qs += m.I * h; qr += iR * h; qc += iC * h; qa += Math.abs(m.I) * h; peak = Math.max(peak, Math.abs(m.I)); last = m.I;
+      se += e * h; sd[0] += m.drops[0] * h; sd[1] += m.drops[1] * h; ar += Math.abs(iR) * h; ac += Math.abs(iC) * h;
       if (e < -0.05) back += h;
       if (m.I > 1e-3 || m.I < -1e-3) on += h;
       ER += m.VR * m.VR / st.R * h; ED += m.VD * m.I / 1000 * h;
@@ -372,6 +380,13 @@
     const sgn = last < 0 ? -1 : 1, rad = RPM_PER_MA / 60 * 2 * Math.PI, wrad = Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI;
     st.q.s += qs * KW; st.q.r += qr * KW; st.q.c += qc * KW;
     st.flow = { s: qa / dt * KW, r: Math.abs(qr) / dt * KW, c: Math.abs(qc) / dt * KW };
+    // Para el color de las partículas: lo de este cuadro en promedio y, si la señal va rápido (FAST Hz o más),
+    // el promedio de los últimos ciclos (una constante de tiempo de un cuarto de segundo), porque el ojo ya no
+    // sigue el cambio. La corriente, sin signo (el color es cuánta pasa).
+    const av = st.avg, ta = f >= FAST ? 0.25 : 0, lag = (x, y) => Sim.lag(x, y, ta, dt);
+    av.on = f >= FAST;
+    av.e = lag(av.e, se / dt); av.d = av.d.map((x, k) => lag(x, sd[k] / dt));
+    av.i = { s: lag(av.i.s, qa / dt), r: lag(av.i.r, ar / dt), c: lag(av.i.c, ac / dt) };
     st.rotor -= qs * rad; st.rotorOm = -sgn * qa / dt * rad;
     st.wheel -= qs * wrad; st.wheelOm = -qa / dt * wrad;
     st.glow = qa / dt;   // el ojo ve el promedio: arriba de unos 20 Hz el LED ya no parpadea
@@ -380,6 +395,24 @@
     st.shake = vib * Math.min(1, peak / 8) * 2.2;
   };
   Sim.shake = () => st.shake;
+
+  // ---------- color de las partículas ----------
+  // Presión (voltaje) en cada punto, de −10 a 10 V (la señal va y viene: 0 V queda a la mitad de la escala), y
+  // caudal (corriente) de la rama, de 0 a lo más que pasa en cada circuito con los valores del taller.
+  const FAST = 5, VS = 10, IFULL = { led: 20, rc: 1, diodo: 5, rect: 5 };
+  st.avg = { on: false, e: 0, d: [0, 0], i: { s: 0, r: 0, c: 0 } };
+  Sim.field = (x, y) => {
+    let best = null;
+    for (const b of branches) { const p = project(b.pts, x, y); if (!best || p.dist < best.dist) best = { ...p, b }; }
+    if (!best) return [0.5, 0];
+    const av = st.avg, comps = onPath(), at = d => vAt(d, av.e, comps, av.d);
+    let v;
+    if (best.b.br === 'c') {   // la rama del capacitor: arriba el voltaje del nodo, abajo la tierra; cambia en el capacitor
+      const rc = rcOf(st.Cap), u = clamp01((y - (MIDY - rc)) / (2 * rc));
+      v = at(dOf([XP, TOP, 'h'])) * (1 - u);
+    } else v = at(project(PATH, x, y).d);
+    return [(v + VS) / (2 * VS), av.i[best.b.br] / IFULL[st.circ]];
+  };
 
   // ---------- paneles ----------
   // El agua va por tramos (Sim.stream), uno por rama: en serie, toda la vuelta; en el rectificador, la rama
@@ -408,6 +441,15 @@
 
   // Switch arriba: agua o electricidad, o ambos (se recuerda en este navegador).
   Sim.viewSwitch();
+  // Color de las partículas: el selector con su escala, arriba a la derecha del circuito (en el ancho, arriba del
+  // osciloscopio). Con la señal rápida la escala dice que el color es el promedio.
+  const colorEnds = side => {
+    const [v, i] = side === 'w' ? ['psi', 'mL/s'] : ['V', 'mA'], pre = st.avg.on ? 'prom. ' : '';
+    return { v: ['lento', 'rápido'], p: [pre + '−' + VS + ' ' + v, VS + ' ' + v], q: [pre + '0', IFULL[st.circ] + ' ' + i] }[Sim.shownColorMode()];
+  };
+  const syncColors = Sim.colorPicker(panels, { top: true, ends: colorEnds,
+    spot: side => { const g = geos[side]; return g.mode.startsWith('alto') ? [g.X1 + 50, 4 - BAND] : [g.SX + g.SW, 4]; } });
+  let colorKey = '';
   const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
   Sim.snapRange(inercia, { magnet: 0.5 });   // pasa de 0,1 en 0,1 s y se engancha en 0, 0,5, 1… s
   const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
@@ -918,7 +960,6 @@
     if (L.C && capOn()) tank(ctx, L.C[0], L.C[1], L.C[2]);
     tags(ctx, g, true);
     marks(ctx, g);
-    D.speedLegend(ctx, g.X0 + 30, g.BOT - 29 - 1.1 * Sim.px(14, ctx), 150);   // lo de abajo de la escala, sin tocar el tubo
     drawScope(ctx, g);
     drawGen(ctx, g);
     D.pump(ctx, g.PX, g.BOT, st.rotor, st.rotorOm);
@@ -955,6 +996,8 @@
 
   Sim.run(dt => {
     advance(dt);
+    const ck = st.circ + st.avg.on;
+    if (ck !== colorKey) { colorKey = ck; syncColors(); }
     updateScope();
     drawWater(); drawElectric();
   });
