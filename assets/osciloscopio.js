@@ -992,11 +992,14 @@
       const tcol = st.menu === 'ch0' ? ink(0, w) : st.menu === 'ch1' ? ink(1, w) : txt;
       if (title) D.text(ctx, title, mx + mw / 2, ty, tcol, { size: 14, font: Sim.MONO, weight: 700, max: mw - 4 });
       const bh = boxH(L), rows = menuRows(g.side);
+      // el mismo largo de rótulo en todas las casillas (el más largo que quepa en todas)
+      D.font(ctx, 14, Sim.MONO, 600);
+      const pick = Math.max(0, ...rows.map(r => r ? r[0].findIndex(t => ctx.measureText(t).width <= mw - 14) : 0).map((k, i, a) => k < 0 ? rows[i][0].length - 1 : k));
       rows.forEach((r, i) => {
         const y0 = my + L.top + i * bh;
         if (!r) return;
         D.roundRect(ctx, mx + 2, y0 + 2, mw - 4, bh - 4, 4, w ? (C.dark ? '#2f2c26' : '#f1e9d2') : '#122230', w ? grid(true) : '#3b4855', 1);
-        D.text(ctx, r[0], mx + 8, y0 + bh * 0.32, r[2] || dim, { size: 14, align: 'left', font: Sim.MONO, weight: 600, max: mw - 14 });
+        D.text(ctx, r[0][Math.min(pick, r[0].length - 1)], mx + 8, y0 + bh * 0.32, r[2] || dim, { size: 14, align: 'left', font: Sim.MONO, weight: 600, max: mw - 14 });
         D.text(ctx, r[1], mx + 8, y0 + bh * 0.7, txt, { size: 15, align: 'left', font: Sim.MONO, weight: 700, max: mw - 14 });
       });
     };
