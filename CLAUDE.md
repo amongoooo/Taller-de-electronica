@@ -92,13 +92,15 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
   - Vista de nodos: `analyze`, `morph`, `drawNodes`. Inercia: `inertia`. Regulación CV/CC: `regulate`.
 - `assets/osciloscopio.js` (`Sim.scope(o)`), el generador de funciones y el osciloscopio que usan las páginas 9 a 13:
-  dos canales y caimán de tierra, disparo con la sincronía del generador, puntas en cualquier cable (`wires`), `frames`
-  (cada cuadro integra el circuito y guarda lo que marca cada canal), color de las partículas (`Sim.field`, `st.avg`),
+  dos canales y caimán de tierra, puntas en cualquier cable (`wires`), `frames` (cada cuadro integra el circuito y guarda
+  lo que marca cada canal, ya con su acoplamiento), disparo por nivel (`scan`, `updateScope`), `measure` (MEASURE,
+  AUTOSET, SET TO 50%), los acomodos del osciloscopio (`LAYOUTS`: `wide` completo, `tall` de frente en la mesa angosta,
+  `compact`; modos del dibujo `pc`, `ancho`, `solo` y `alto` en `size`), color de las partículas (`Sim.field`, `st.avg`),
   tarjetas y dibujo de los componentes (R tramo angosto, L rueda, D válvula de retención, C tanque; la clase es la
   primera letra de la clave: `D1`…`D4` son diodos). La página da `preset`, `places`, `wires` (nodos y componentes en
   orden), `branches` (ramas del agua con su corriente), `dots`, `solve(e, h, st)` → corriente, voltaje de cada nodo
   y corriente de cada rama, `ifull`, `rValues`, `burn` y `filter` (el capacitor se pone y se quita en su tarjeta).
-  `Sim.oscNow` da su estado para probar.
+  `Sim.oscNow` da su estado para probar (`st.chs`, `st.trg`, `st.m`: las medidas del último barrido).
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
   `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc`, `osciloscopio-diodo`, `osciloscopio-rectificador` (media onda) y `osciloscopio-onda-completa`
@@ -140,5 +142,14 @@ Fase 3 · Pulido (otro PR):
 - [x] M4 Palanca ON/OFF: 160 ms con salida rápida sin sobrepaso (hoy `cubic-bezier(.3, 2.2, .5, 1)`).
 - [x] M5 Tarjetas acopladas en la columna: envolverlas en una fila de cuadrícula 0fr→1fr en 200 ms (cerrar
   120 ms) para que lo de abajo no salte.
+
+Fase 4 · Instrumentos como los del taller (boceto aprobado; un PR por instrumento):
+- [x] Osciloscopio como el Tektronix TDS 2022B: VOLTS/DIV y POSITION por canal, CH MENU (CC · CA · Tierra, invertir),
+  SEC/DIV y POSITION horizontal, disparo por nivel (LEVEL, TRIG MENU, SET TO 50%), MEASURE, AUTOSET, RUN/STOP; CH1
+  amarillo y CH2 azul; compacto en la mesa angosta con su tecla de frente.
+- [ ] Generador como el JDS-2900: una perilla con FREQ · AMPL · OFFS · DUTY · PHAS y ◀ ▶ para el dígito, WAVE
+  (senoidal, cuadrada, triangular, DC), tecla CH1 con su luz en vez de la palanca, AMPL en Vpp.
+- [ ] Fuente como la BK 1761: canales A y B de 0–35 V y 0–3 A, COARSE y FINE, CURRENT, CV/CC, una pantallita por canal
+  con su tecla V/A, POWER y bornes − ⏚ + (el circuito en el A).
 
 Al terminar una fase, marca sus casillas aquí en el mismo PR.

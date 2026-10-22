@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022175407">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022200938">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,15 +36,15 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022175407"></script>
-<script src="../../assets/osciloscopio.js?v=20261022175407"></script>
+<script src="../../assets/sim.js?v=20261022200938"></script>
+<script src="../../assets/osciloscopio.js?v=20261022200938"></script>
 <script>
 // Diodo 1N4007 (D3): generador → R → diodo a tierra. El generador y el osciloscopio están en assets/osciloscopio.js.
 (() => {
   const { X0, X1, TOP, BOT, XR, XL, PATH, VF, RD } = Sim.scope;
   Sim.scope({
     // 5 V de corriente directa (offset, sin amplitud) con 1 kΩ: en el diodo caen 0,7 V con 4,3 mA.
-    preset: { wave: 'sine', fi: 10, amp: 0, off: 5, R: 1000, vi: 1, ti: 4, ch2: false, probe: [640, 980, 300], side: [1, -1, -1] },
+    preset: { wave: 'sine', fi: 10, amp: 0, off: 5, R: 1000, vd: [1, 1], td: 10, ch2: false, pos: [-3, 0], probe: [640, 980, 300], side: [1, -1, -1] },
     places: { R: [XR, TOP, 'h'], D: [XL, TOP, 'h'] },
     wires: [{ pts: PATH, seq: ['a', 'R', 'b', 'D', 'g'] }],
     branches: () => [{ pts: Sim.draw.rect(X0, TOP, X1, BOT), br: 's', dc: (BOT - TOP) + (XR - X0) }],
