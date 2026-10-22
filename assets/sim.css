@@ -166,6 +166,19 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   transform: translateX(-50%); border-radius: 99px; background: var(--water);
 }
 
+/* Codificador sin fin (Sim.encoder, el del generador): moleteado alrededor y un hoyuelo para el dedo en vez de la
+   marca; gira todo junto. */
+.knob.encoder { background: var(--metal); }
+.encoder .knob-cap { background: repeating-conic-gradient(var(--metal) 0 5deg, var(--card) 5deg 10deg); }
+.knob-face {
+  position: absolute; inset: 13%; border-radius: 50%; border: 1.5px solid var(--ink);
+  background: radial-gradient(circle at 35% 30%, var(--card), var(--metal) 75%);
+}
+.knob-dimple {
+  position: absolute; left: 50%; top: 12%; width: 22%; aspect-ratio: 1; transform: translateX(-50%);
+  border-radius: 50%; background: var(--metal); border: 1.5px solid var(--muted); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5);
+}
+
 /* Zona que se puede tocar sobre un componente del dibujo (por ejemplo, para fundir un LED). */
 .sim-hit {
   width: max(36px, calc(var(--s, 1) * 66px)); aspect-ratio: 1; border-radius: 50%; padding: 0;

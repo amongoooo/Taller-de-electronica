@@ -844,6 +844,47 @@
     k.set(value, true);
     return k;
   };
+  // Codificador sin fin (la perilla del generador): no tiene tope ni escala; cada muesca (det grados) es un
+  // paso, a la derecha sube y a la izquierda baja. Se gira arrastrando alrededor de su centro, con la rueda del
+  // ratón o con las flechas; entre muesca y muesca solo se estira un poco (con su zona muerta), como la perilla.
+  // turn(n) recibe los pasos; label() y text() lo que dice al lector de pantalla. e.sync() los actualiza.
+  Sim.encoder = (el, { label, text, turn, det = 18 }) => {
+    el.classList.add('knob', 'encoder');
+    el.tabIndex = 0;
+    el.setAttribute('role', 'spinbutton');
+    el.innerHTML = '<div class="knob-cap"><span class="knob-face"><span class="knob-dimple"></span></span></div>';
+    const cap = el.firstChild;
+    let rot = 0, last = null, acc = 0;
+    const show = (pull = 0) => { cap.style.transform = `rotate(${rot + pull}deg)`; };
+    const e = { sync: () => { el.setAttribute('aria-label', label()); el.setAttribute('aria-valuetext', text()); } };
+    const step = (n, touch) => {
+      rot += n * det; show(); turn(n); e.sync();
+      if (touch && navigator.vibrate) try { navigator.vibrate(6); } catch (err) {}
+    };
+    const angle = ev => {
+      const r = el.getBoundingClientRect();
+      return Math.atan2(ev.clientX - (r.left + r.width / 2), -(ev.clientY - (r.top + r.height / 2))) * 180 / Math.PI;
+    };
+    el.addEventListener('pointerdown', ev => { el.setPointerCapture(ev.pointerId); el.focus(); last = angle(ev); acc = 0; ev.preventDefault(); });
+    el.addEventListener('pointermove', ev => {
+      if (!el.hasPointerCapture(ev.pointerId)) return;
+      const a = angle(ev);
+      acc += ((a - last + 540) % 360) - 180; last = a;
+      while (acc >= det) { acc -= det; step(1, ev.pointerType === 'touch'); }
+      while (acc <= -det) { acc += det; step(-1, ev.pointerType === 'touch'); }
+      show(Math.max(-7, Math.min(7, 0.3 * dead(acc, Sim.DEAD.knob))));
+    });
+    const release = () => { acc = 0; show(); };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('wheel', ev => { ev.preventDefault(); step(ev.deltaY < 0 ? 1 : -1); }, { passive: false });
+    el.addEventListener('keydown', ev => {
+      const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[ev.key];
+      if (d) { step(d); ev.preventDefault(); }
+    });
+    show(); e.sync();
+    return e;
+  };
 
   // Imán para un slider (input range): se queda pegado a su valor (solo se estira un poco hacia el dedo)
   // hasta que el puntero se pasa bien hacia el siguiente, y entonces salta con un pequeño latido (y en el
