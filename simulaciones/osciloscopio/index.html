@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022025258">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022040617">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* Botones de forma de onda del generador. */
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022025258"></script>
+<script src="../../assets/sim.js?v=20261022040617"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -55,10 +55,13 @@
 (() => {
   const { C, draw: D, fmt } = Sim;
   const RPM_PER_MA = 100;
-  const R = 0.47, VF = 2;            // resistencia (kΩ) y voltaje que necesita el LED para encender
+  // La resistencia (470 Ω al empezar) y el LED (rojo) se cambian en su tarjeta: tocarlos la abre. Con 470 Ω o
+  // más, el LED nunca pasa de los 30 mA que aguanta (lo más que da el generador son 15 V).
+  const RVALUES = Sim.series(470, 10000);
   const SRC = 40, DIV = 40;          // medio ancho del generador sobre el cable; tamaño de una división
   const KW = 20;                     // rapidez del agua (y de las cargas) por cada mA
-  const HN = 8;                      // medio ancho del tramo angosto
+  const HN = () => 8 - 5 * Math.log(st.R / 470) / Math.log(10000 / 470);   // medio ancho del tramo angosto: más angosto, más resistencia
+  const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.XR - g.X0), HN());
   const RED = '#d6392b', PURPLE = '#8b5cf6';
   // Frecuencias de 0.1 Hz a 1 kHz, diez pasos por década.
   const E10 = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8];
@@ -73,15 +76,22 @@
     tri: p => 4 * Math.abs(frac(p + 0.75) - 0.5) - 1
   };
 
-  const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, fi: 10, amp: 6, off: 0, wave: 'sine', led: true,
+  const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, fi: 10, amp: 6, off: 0, wave: 'sine', led: true, R: 470, color: 'rojo', rev: false,
     ph: 0, T: 0, vi: 2, ti: 8, trig: true, probe: [300, 980], side: [-1, -1],
     rotor: 0, rotorOm: 0, wheel: 0, wheelOm: 0, glow: 0, shut: 0, charge: 0, shake: 0,
     recs: [], sweep: { ts: 0, done: [] }, traces: [], beam: null };
 
-  // Circuito: el generador empuja la corriente por la resistencia y el LED (si está puesto).
-  const model = (e, led) => led
-    ? (e > VF ? { I: (e - VF) / R, VR: e - VF, VL: VF } : { I: 0, VR: 0, VL: e })
-    : { I: e / R, VR: e, VL: 0 };
+  // Circuito: el generador empuja la corriente por la resistencia y el LED (si está puesto). El LED solo
+  // conduce en su sentido (girado, cuando el generador empuja al revés) y necesita el voltaje de su color.
+  // c: { led, R (Ω), vf, rev }; I en mA.
+  const model = (e, c) => {
+    const R = c.R / 1000;
+    if (!c.led) return { I: e / R, VR: e, VL: 0 };
+    const s = c.rev ? -1 : 1;
+    return s * e > c.vf ? { I: (e - s * c.vf) / R, VR: e - s * c.vf, VL: s * c.vf } : { I: 0, VR: 0, VL: e };
+  };
+  const circ = () => ({ led: st.led, R: st.R, vf: Sim.led(st.color).vf, rev: st.rev });
+  const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
 
   // ---------- acomodo ----------
   // El circuito y el generador siempre en el mismo lugar; el osciloscopio abajo (alto) o a la derecha (ancho).
@@ -137,7 +147,7 @@
     return r[lo];
   };
   const sigPh = (r, p) => {
-    const e = r.lvl * (r.amp * WAVES[r.wave](p) + r.off), m = model(e, r.led);
+    const e = r.lvl * (r.amp * WAVES[r.wave](p) + r.off), m = model(e, r.c);
     return vAt(r.dA, e, m) - vAt(r.dB, e, m);
   };
   const sig = (r, t) => sigPh(r, r.ph + r.f * (t - r.t));
@@ -207,11 +217,11 @@
   // aunque la señal vaya y venga muchas veces entre un cuadro y otro.
   const advance = dt => {
     st.level = st.ramp.step(st.on ? 1 : 0, st.tau, dt);
-    const f = freqAt(st.fi), n = Math.max(1, Math.min(4000, Math.ceil(dt * f * 32))), h = dt / n;
+    const f = freqAt(st.fi), n = Math.max(1, Math.min(4000, Math.ceil(dt * f * 32))), h = dt / n, c = circ();
     let q = 0, qa = 0, peak = 0, last = 0, back = 0;
     for (let k = 0; k < n; k++) {
       const e = st.level * (st.amp * WAVES[st.wave](st.ph + f * h * (k + 0.5)) + st.off);
-      const I = model(e, st.led).I;
+      const I = model(e, c).I;
       q += I * h; qa += Math.abs(I) * h; peak = Math.max(peak, Math.abs(I)); last = I;
       if (e < -0.05) back += h;
     }
@@ -228,7 +238,7 @@
     // Si la señal va y viene muy rápido el agua casi no avanza: solo vibra.
     const vib = clamp01((f - 3) / 9);
     st.shake = vib * Math.min(1, peak / 8) * 2.2;
-    st.recs.push({ t: st.T, ph: st.ph, f, wave: st.wave, amp: st.amp, off: st.off, lvl: st.level, led: st.led,
+    st.recs.push({ t: st.T, ph: st.ph, f, wave: st.wave, amp: st.amp, off: st.off, lvl: st.level, c,
       dA: st.probe[0], dB: st.probe[1] });
     while (st.recs.length > 2 && st.recs[1].t < st.T - 25) st.recs.shift();
   };
@@ -242,7 +252,7 @@
   const relayout = (side, mode) => {
     const g = geos[side] = geometry(side, mode);
     Sim.compact = mode.endsWith('-c');
-    if (side === 'w') water = Sim.water(g.loop, Sim.narrowProfile((g.BOT - g.TOP) + (g.XR - g.X0), HN));
+    if (side === 'w') water = Sim.water(g.loop, profile(g));
   };
   pw.onLayout = (W, H, mode) => relayout('w', mode);
   pe.onLayout = (W, H, mode) => relayout('e', mode);
@@ -340,12 +350,26 @@
     pos: g => [g.GX + 485, g.GY + 112], min: -5, max: 5, step: 0.5, magnet: 1, value: st.off,
     label: side => side === 'w' ? 'Presión base (offset)' : 'Offset', format: val, onInput: v => { st.off = v; }
   });
-  // LED (rueda) que se quita o se pone
-  linkedButton({
-    pos: g => [g.PX, g.MIDY + 10], act: 'com', side: true,
-    text: side => (st.led ? 'Quitar ' : 'Poner ') + (side === 'w' ? 'rueda' : 'LED'),
-    onClick: () => { st.led = !st.led; st.probe = st.probe.map(snapD); }
-  });
+  // La resistencia y el LED (rueda): tocarlos abre su tarjeta, como en las demás páginas. En la del LED se
+  // escoge su color, se gira y se quita (o se pone otra vez: donde iba queda su lugar punteado).
+  const setR = R => { st.R = R; if (water) water.setProfile(profile(geos.w)); };
+  const parts = {
+    R: { pos: g => [g.XR, g.TOP], label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia',
+      menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: ohm }) },
+    L: { pos: g => [g.XL, g.TOP], label: side => side === 'w' ? 'Rueda' : 'LED',
+      menu: Sim.ledMenu({ get: () => st.color, set: id => { st.color = id; }, actions: side => [
+        { text: side === 'w' ? 'Girar la rueda' : 'Girar el LED', hidden: () => !st.led, onClick: () => { st.rev = !st.rev; } },
+        { text: () => (st.led ? 'Quitar ' : 'Poner ') + (side === 'w' ? 'la rueda' : 'el LED'), danger: true,
+          onClick: () => { st.led = !st.led; st.probe = st.probe.map(snapD); } }] }) }
+  };
+  for (const k in parts) {
+    const pt = parts[k];
+    pt.els = linkedButton({ cls: 'sim-hit', pos: pt.pos, label: pt.label, attrs: () => ({ 'aria-haspopup': 'dialog' }),
+      onClick: () => {} });
+    pt.els.forEach((el, i) => el.addEventListener('click', () => Sim.menu.toggle(el, pt.menu(i ? 'e' : 'w'))));
+    pt.open = () => pt.els.some(el => Sim.menu.isOpen(el));
+    if (Sim.side) Sim.side.part({ anchor: () => pt.els[shownSide() === 'w' ? 0 : 1], menu: () => pt.menu(shownSide()) });
+  }
   // Osciloscopio
   linkedKnob({
     pos: g => [g.SX + 500, g.SY + 110], min: 0, max: VDIV.length - 1, step: 1, value: st.vi, act: 'med',
@@ -542,17 +566,39 @@
     if (!w) D.text(ctx, 'CH1', g.SX + 44, g.SY + 396, C.muted, { size: 14, align: 'right' });
   };
 
+  // Nombre y valor de un componente en una línea (en azul mientras su tarjeta está abierta).
+  const tag = (ctx, x, y, name, value, sel) => {
+    ctx.font = `700 ${Sim.compact ? 17 : 15}px ${Sim.FONT}`;
+    const w1 = ctx.measureText(name).width;
+    ctx.font = `600 ${Sim.compact ? 18 : 16}px ${Sim.MONO}`;
+    const w2 = ctx.measureText(value).width, x0 = x - (w1 + 7 + w2) / 2;
+    D.backdrop(ctx, x0, y, w1 + 7 + w2, Sim.compact ? 18 : 16);
+    D.text(ctx, name, x0, y, sel ? C.sel : C.muted, { size: 15, align: 'left' });
+    D.text(ctx, value, x0 + w1 + 7, y + 0.5, sel ? C.sel : C.ink, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
+  };
+  // Contorno de lo seleccionado y, sin LED, su lugar punteado (se toca para ponerlo otra vez).
+  const marks = (ctx, g, w) => {
+    if (!st.led) {
+      ctx.setLineDash([5, 5]); D.roundRect(ctx, g.XL - 30, g.TOP - 30, 60, 60, 12, null, C.muted, 2); ctx.setLineDash([]);
+      D.text(ctx, w ? 'sin rueda' : 'sin LED', g.XL, g.TOP + 48, C.muted, { size: 15, bg: true });
+    }
+    D.select(ctx, g.XR - 54, g.TOP - 26, 108, 52, Sim.fadeSel('oR', parts.R.open()));
+    D.select(ctx, g.XL - 40, g.TOP - 40, 80, 80, Sim.fadeSel('oL', parts.L.open()));
+  };
   function drawWater() {
     const g = geos.w, ctx = pw.begin();
     drawCables(ctx, g);   // las mangueras pasan siempre por debajo del dibujo
     D.pipe(ctx, g.loop);
-    D.narrow(ctx, g.XR, g.TOP, HN);
+    D.narrow(ctx, g.XR, g.TOP, HN());
     water.draw(ctx);
+    tag(ctx, g.XR, g.TOP - 40, 'tramo angosto', ohm(st.R), parts.R.open());
     if (st.led) {
       const a = clamp01((st.shut - 0.5) * 3);   // con la presión al revés: compuerta cerrada
-      D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, label: a > 0.5 ? '' : 'rueda' });
+      D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, rev: st.rev, label: a > 0.5 ? '' : 'rueda ' + st.color.replace(/o$/, 'a'),
+        tint: `rgb(${Sim.led(st.color).rgb})`, sel: parts.L.open() });
       if (a > 0.5) { ctx.globalAlpha = a; D.text(ctx, 'compuerta cerrada', g.XL, g.TOP + 48, C.danger, { size: 15, bg: true }); ctx.globalAlpha = 1; }
     }
+    marks(ctx, g, true);
     D.speedLegend(ctx, g.X0 + 30, g.BOT - 46, 150);
     drawScope(ctx, g);
     drawGen(ctx, g);
@@ -565,8 +611,9 @@
     D.wire(ctx, g.loop);
     D.flow(ctx, g.loop, st.charge, C.charge, { gap: 30, r: 4.5 });
     D.resistor(ctx, g.XR, g.TOP);
-    D.text(ctx, '470 Ω', g.XR, g.TOP - 30, C.muted, { size: 14, bg: true });
-    if (st.led) D.ledSymbol(ctx, g.XL, g.TOP, { I: st.glow, label: 'LED' });
+    tag(ctx, g.XR, g.TOP - 40, 'resistencia', ohm(st.R), parts.R.open());
+    if (st.led) D.ledSymbol(ctx, g.XL, g.TOP, { I: st.glow, rev: st.rev, label: 'LED ' + st.color, rgb: Sim.led(st.color).rgb, sel: parts.L.open() });
+    marks(ctx, g, false);
     drawScope(ctx, g);
     drawGen(ctx, g);
     genSymbol(ctx, g.PX, g.BOT);

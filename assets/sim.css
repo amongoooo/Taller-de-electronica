@@ -15,6 +15,7 @@
   --ok: #217a4b;
   --metal: #dfe6eb;
   --neg: #15212a;   /* punta, cable y borne negativos (−) */
+  --sel: #1d6fd1;   /* azul principal: lo seleccionado y la acción principal */
   color-scheme: light;
   --font-display: "Saira", "Segoe UI", sans-serif;
   --font-body: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
@@ -38,6 +39,7 @@
   --ok: #3fc47f;
   --metal: #2b3742;
   --neg: #aab6bf;
+  --sel: #5d9ff2;
   --a-com: #3fc47f; --a-med: #a487f2; --a-ali: #f0a830; --a-ver: #5d9ff2; --a-arm: #4fa6e6;
   color-scheme: dark;
 }
@@ -106,29 +108,24 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 }
 .sim-btn.small { font-size: max(14px, calc(var(--s, 1) * 15px)); padding: .4em .8em; }
 .sim-btn[aria-pressed="true"] { background: var(--card); color: var(--danger); border-color: var(--danger); }
-/* Barra de colores de las partículas, arriba a la derecha de cada panel, entre lo que marca cada punta
-   (el modo se elige en la sección Ver). Su esquina de arriba a la derecha va en el punto dado. */
+/* Color de las partículas, arriba a la derecha de cada panel: un selector pequeño con el nombre de cada modo
+   y debajo la escala, que solo es información. Su esquina de arriba a la derecha va en el punto dado. */
 .sim-layer > .sim-colors { transform: translate(-100%, 0); }
 .sim-colors {
-  display: flex; flex-direction: column; gap: .2em; width: max(210px, calc(var(--s, 1) * 240px));
-  padding: .3em .45em; border-radius: 8px; cursor: pointer; touch-action: none; user-select: none;
+  display: flex; flex-direction: column; align-items: stretch; gap: .35em; width: max-content; min-width: max(210px, calc(var(--s, 1) * 230px));
+  padding: .3em .45em; border-radius: 8px; user-select: none;
   font-size: max(14px, calc(var(--s, 1) * 15px)); line-height: 1.25; color: var(--muted);
 }
-.sim-colors .hd { display: flex; align-items: center; justify-content: space-between; gap: .6em; }
-.sim-colors:hover { background: var(--bg); }
-.sim-colors .scale { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .4em; font-family: var(--font-mono); white-space: nowrap; }
+.sim-colors .sim-seg.mini { align-self: flex-end; padding: 2px; border-width: 1.5px; }
+.sim-colors .sim-seg.mini button { font-size: 14px; padding: .15em .7em; }
+.sim-colors .scale { display: flex; align-items: center; gap: .4em; font-family: var(--font-mono); white-space: nowrap; pointer-events: none; }
 .sim-colors .bar {
   flex: 1; height: .75em; border-radius: 2px;
   background: linear-gradient(90deg, hsl(215 85% 50%), hsl(179 85% 50%), hsl(143 85% 50%), hsl(108 85% 50%), hsl(72 85% 50%), hsl(36 85% 50%), hsl(0 85% 50%));
 }
-.sim-colors .mode { font-weight: 700; color: var(--ink); white-space: nowrap; }
-.sim-colors .plain { display: none; }
+.sim-colors .plain { display: none; text-align: right; pointer-events: none; }
 .sim-colors[data-bar="false"] .scale { display: none; }
 .sim-colors[data-bar="false"] .plain { display: block; }
-/* Un puntito por modo: lleno el elegido. Se pueden tocar. */
-.sim-colors .dots { flex: none; display: flex; gap: .35em; }
-.sim-colors .dots i { width: .7em; height: .7em; border-radius: 50%; border: 1.5px solid var(--muted); }
-.sim-colors .dots i.on { background: var(--water); border-color: var(--water); }
 
 /* Interruptor de encendido (bomba, fuente, pila, generador): palanca que sube a ON y baja a OFF. */
 .sim-power {
@@ -310,14 +307,26 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-menu .heat .bl .end { margin-left: auto; }
 .sim-menu .heat.burnt .bl b { color: var(--danger); }
 .sim-menu .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Acciones de contorno; la principal (una por tarjeta, arriba) va llena de azul y a todo lo ancho. */
 .sim-menu .act {
-  font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; padding: .45em 1em; border-radius: 999px;
-  border: 2px solid var(--ok); background: var(--ok); color: var(--card);
+  font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; padding: .4em .95em; border-radius: 999px;
+  border: 2px solid var(--sel); background: var(--card); color: var(--sel);
 }
-.sim-menu .act.danger { border-color: var(--danger); background: var(--card); color: var(--danger); }
-/* Lo que abre un menú se marca mientras está abierto. */
-/* (las resistencias y capacitores lo dicen con su valor en azul; ver b.tag) */
-.sim-layer > .sim-hit[aria-expanded="true"], .sim-layer > .pb-anchor[aria-expanded="true"] { border-color: var(--water); border-style: solid; }
+.sim-menu .act:hover { background: color-mix(in srgb, var(--sel) 10%, var(--card)); }
+.sim-menu .act.danger { border-color: var(--danger); color: var(--danger); }
+.sim-menu .act.danger:hover { background: color-mix(in srgb, var(--danger) 10%, var(--card)); }
+.sim-menu .act.primary { flex: 1 1 100%; background: var(--sel); color: var(--card); padding: .55em 1em; }
+.sim-menu .act.primary:hover { filter: brightness(.92); }
+.sim-menu .sim-seg { justify-self: start; }
+.sim-menu .row > .lbl { font-size: 14px; font-weight: 700; color: var(--muted); }
+/* Deslizador corto (rigidez de los cables): nombre · extremo · deslizador · extremo. */
+.sim-menu .rng { display: grid; grid-template-columns: 4.6em auto minmax(60px, 1fr) auto; align-items: center; gap: 6px; font-size: 14px; }
+.sim-menu .rng .nm { font-weight: 700; }
+.sim-menu .rng .lo, .sim-menu .rng .hi { color: var(--muted); }
+.sim-menu .rng input[type="range"] { height: 28px; }
+/* Lo que abre una tarjeta queda seleccionado: el dibujo lo marca con un contorno azul (Sim.draw.select)
+   y su nombre y valor en azul; la zona para tocarlo ya no se marca. */
+.sim-layer > [aria-expanded="true"] { border-color: transparent !important; }
 
 /* Selector de opciones sobre el dibujo (b.linkedChoice), por ejemplo Serie | Paralelo. */
 .sim-seg {
@@ -499,23 +508,25 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-part .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sim-part .vl { flex: none; font-family: var(--font-mono); font-weight: 500; font-size: 15px; }
 .sim-part:hover { border-color: var(--act); }
-.sim-part[aria-expanded="true"] { border-color: var(--act); box-shadow: inset 0 0 0 1px var(--act); }
-.sim-part[aria-expanded="true"] .vl { color: var(--water); }
+.sim-part[aria-expanded="true"] { border-color: var(--sel); box-shadow: inset 0 0 0 1px var(--sel); }
+.sim-part[aria-expanded="true"] :is(.nm, .vl) { color: var(--sel); }
 .sim-side-cards { display: grid; gap: 10px; }
 .sim-side-cards:empty { display: none; }
 .sim-side .sim-menu.docked { box-shadow: 0 4px 14px rgba(21, 33, 42, .12); padding: 10px 12px 12px; }
 
-/* Lecturas de los medidores conectados. */
+/* Lecturas de los medidores: Medir solo lee, en grande. */
 .sim-read { display: grid; gap: 4px; }
-.sim-read .r { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--card); }
+.sim-read[hidden] { display: none; }
+.sim-read .r { display: grid; gap: 0; padding: 6px 12px 8px; border-radius: 8px; background: var(--card); }
 .sim-read .r[hidden] { display: none; }
 .sim-read .nm { font-weight: 700; font-size: 14px; }
 .sim-read .r.V .nm { color: var(--a-med); }
 .sim-read .r.A .nm { color: var(--ok); }
 .sim-read .r.R .nm { color: var(--a-ver); }
 .sim-read .r.warn .vl { color: var(--danger); }
-.sim-read .vl { font-family: var(--font-mono); font-size: 16px; white-space: nowrap; }
-.sim-read .r.off .vl { font-family: var(--font-body); font-size: 14px; color: var(--muted); }
+.sim-read .vl { font-family: var(--font-mono); font-size: 30px; font-weight: 600; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sim-read .r.off .vl { font-family: var(--font-body); font-size: 16px; font-weight: 500; color: var(--muted); }
+.sim-read .r.warn .vl { font-size: 20px; white-space: normal; }
 /* Cada multímetro en Medir: su lectura, su perilla y sus botones; al final, sacar el segundo. */
 .sim-mms { display: grid; gap: 14px; }
 .sim-mm { display: grid; gap: 6px; }
@@ -562,6 +573,15 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   border-radius: 16px 16px 0 0; border-bottom: 0;
   padding: 12px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   box-shadow: 0 -8px 30px rgba(21, 33, 42, .2);
+}
+.sim-menu.sheet { max-height: 72dvh; overflow-y: auto; overscroll-behavior: contain; }
+/* Celular acostado: la tarjeta sale de la derecha, para que el dibujo (y las asas) sigan a la vista. */
+@media (max-height: 500px) {
+  .sim-menu.sheet {
+    left: auto; top: 0; width: min(360px, 46vw); max-height: none; border-radius: 16px 0 0 16px; border-bottom: 1px solid var(--line); border-right: 0;
+    padding: 12px max(14px, env(safe-area-inset-right, 0px)) 14px 14px; box-shadow: -8px 0 30px rgba(21, 33, 42, .2);
+  }
+  .sim-menu.sheet::before { display: none; }
 }
 /* agarradera: la hoja se cierra deslizándola hacia abajo (Sim.swipeClose) */
 .sim-menu.sheet::before {

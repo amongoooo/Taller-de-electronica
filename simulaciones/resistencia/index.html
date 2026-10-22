@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022025258">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022040617">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022025258"></script>
-<script src="../../assets/banco.js?v=20261022025258"></script>
+<script src="../../assets/sim.js?v=20261022040617"></script>
+<script src="../../assets/banco.js?v=20261022040617"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -263,13 +263,8 @@
     })(side)
   });
   function setR(R) { st.R = R; sides.w.water.setProfile(profile(sides.w.g)); }
-  // Botón para poner una resistencia (o un tubo) nueva.
+  // Poner una resistencia (o un tubo) nueva, desde su tarjeta.
   const renew = () => { st.burnt = false; rh.reset(); st.burnT = 9; };
-  b.linkedButton({
-    pos: g => [g.PX, g.TOP + 78], hidden: () => !st.burnt,
-    text: side => side === 'w' ? 'Tubo nuevo' : 'Resistencia nueva',
-    onClick: renew
-  });
   // Tocar el fusible (o la válvula) abre su menú: cuánta corriente aguanta, y ponerlo nuevo si se fundió.
   const repair = () => { st.blown = false; fh.reset(); st.breakT = 9; };
   const fusePart = b.part({
@@ -289,10 +284,6 @@
         { actions: [{ text: side === 'w' ? 'Abrir la válvula' : 'Poner un fusible nuevo', hidden: () => !st.blown, onClick: repair }] }
       ]
     })
-  });
-  b.linkedButton({
-    pos: g => [fuseAt(g)[0], g.BOT - 80], hidden: () => !st.blown,
-    text: side => side === 'w' ? 'Abrir la válvula' : 'Fusible nuevo', onClick: repair
   });
   // La punta roja empieza más arriba en el tubo de la izquierda, para no taparle el nombre a la válvula.
   b.st.clamps.a[0] = [b.gw.X0, b.gw.TOP + 0.4 * (b.gw.BOT - b.gw.TOP)];

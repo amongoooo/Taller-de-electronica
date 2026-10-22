@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022025258">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022040617">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022025258"></script>
-<script src="../../assets/banco.js?v=20261022025258"></script>
+<script src="../../assets/sim.js?v=20261022040617"></script>
+<script src="../../assets/banco.js?v=20261022040617"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -115,7 +115,7 @@
       D.valve(ctx, XV, g.TOP, st.closed);
       const [jx, jy] = shake();
       if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 60, 30, 46, lh.glow);
-      D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, label: 'rueda ' + st.led.replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led).rgb})` });
+      D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, label: 'rueda ' + st.led.replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led).rgb})`, sel: ledPart.open() });
       drawBreak(ctx, g, true);
     },
     drawE(ctx, g, m) {
@@ -131,7 +131,7 @@
       D.knifeSwitch(ctx, XV, g.TOP, st.closed);
       const [jx, jy] = shake();
       if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 230, 140, 56, lh.glow);
-      D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: Math.abs(m.I), broken: st.broken, rev: st.rev, label: 'LED ' + st.led, rgb: Sim.led(st.led).rgb });
+      D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: Math.abs(m.I), broken: st.broken, rev: st.rev, label: 'LED ' + st.led, rgb: Sim.led(st.led).rgb, sel: ledPart.open() });
       drawBreak(ctx, g, false);
     }
   });
@@ -192,11 +192,6 @@
     label: side => (st.closed ? (side === 'w' ? 'Cerrar la válvula' : 'Abrir el interruptor') : (side === 'w' ? 'Abrir la válvula' : 'Cerrar el interruptor')),
     onClick: () => { st.closed = !st.closed; }
   });
-  b.linkedButton({
-    pos: g => [XL, g.TOP + 88], act: 'com',
-    text: side => side === 'w' ? 'Girar la rueda' : 'Girar el LED',
-    onClick: () => { st.rev = !st.rev; }
-  });
   // Tocar la rueda (o el LED) abre su menú: su color, girarlo y romperlo o poner uno nuevo.
   const ledPart = b.part({
     pos: g => [XL, g.TOP],
@@ -218,10 +213,6 @@
     menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: R => R ? ohm(R) : '0 Ω (sin resistencia)',
       heat: rh, broken: () => st.rburnt,
       actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rburnt, onClick: renewR }] })
-  });
-  b.linkedButton({
-    pos: g => [g.PX, g.TOP + 78], hidden: () => !st.rburnt,
-    text: side => side === 'w' ? 'Tubo nuevo' : 'Resistencia nueva', onClick: renewR
   });
   b.start();
 })();
