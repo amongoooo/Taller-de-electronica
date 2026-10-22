@@ -9,6 +9,8 @@ https://amongoooo.github.io/Taller-de-electronica/
 - `assets/sim.css` y `assets/sim.js`: el formato común que comparten todas las simulaciones.
 - `assets/banco.js`: el banco de agua y electricidad (bomba y fuente enlazadas, medidores con puntas, mangueras, pinza e inercia); cada simulación solo dibuja su parte del circuito.
 - `simulaciones/<nombre>/index.html`: cada simulación en su propia carpeta, sin dependencias de compilación.
+- `CLAUDE.md`: reglas de trabajo, sistema de diseño, mapa del código y lo pendiente, para las sesiones de Claude Code (lo lee solo al empezar).
+- `tools/capturas.js`: capturas con Playwright en PC y celular, claro y oscuro, con aviso de errores de JavaScript; la skill `.claude/skills/probar/` dice cómo usarlo.
 
 ## Gestos
 
