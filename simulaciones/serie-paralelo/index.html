@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022025258">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022040617">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022025258"></script>
-<script src="../../assets/banco.js?v=20261022025258"></script>
+<script src="../../assets/sim.js?v=20261022040617"></script>
+<script src="../../assets/banco.js?v=20261022040617"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -161,7 +161,7 @@
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
         if (!st.broken[i]) D.heatGlow(ctx, x, y, lh[i].glow, 46);
-        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1) + ' ' + st.led[i].replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led[i]).rgb})` });
+        D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], label: 'rueda ' + (i + 1) + ' ' + st.led[i].replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led[i]).rgb})`, sel: ledParts[i].open() });
       });
     },
     drawE(ctx, g, m) {
@@ -179,7 +179,7 @@
       [0, 1].forEach(i => {
         const [x, y] = ledPos(g, i);
         if (!st.broken[i]) D.heatGlow(ctx, x, y, lh[i].glow, 56);
-        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1) + ' ' + st.led[i], rgb: Sim.led(st.led[i]).rgb });
+        D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], label: 'LED ' + (i + 1) + ' ' + st.led[i], rgb: Sim.led(st.led[i]).rgb, sel: ledParts[i].open() });
       });
     }
   });

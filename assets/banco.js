@@ -232,13 +232,13 @@
       return ks;
     };
 
-    // Una resistencia que se ajusta pellizcando: agarrando el borde del tramo angosto (o las marcas de
-    // la resistencia) con un dedo o el ratón el borde sigue al puntero; con dos dedos, el ancho es la
-    // separación entre ellos. Más angosto = más resistencia. half(R) da el medio ancho del tramo y
-    // fromHalf(h) la resistencia para un medio ancho; set(R) la cambia. Con menu(side), tocarla sin
-    // arrastrar abre su menú (con Enter o Espacio también). Cada marca (la de arriba o la de abajo) se
-    // resalta al pasar el puntero o el dedo; con la rueda del ratón, girar hacia arriba sobre la de
-    // arriba ensancha el tubo y sobre la de abajo lo angosta (como si se arrastrara esa marca).
+    // Una resistencia que se ajusta pellizcando. Tocarla abre su tarjeta (con Enter o Espacio también) y
+    // la deja seleccionada: entonces aparecen sus asas, arriba y abajo del tramo angosto (o de la
+    // resistencia), y arrastrando una el borde sigue al puntero; con dos dedos, el ancho es la separación
+    // entre ellos. Sin la tarjeta abierta no hay asas y arrastrarla no la cambia. Más angosto = más
+    // resistencia. half(R) da el medio ancho del tramo y fromHalf(h) la resistencia para un medio ancho;
+    // set(R) la cambia. La rueda del ratón siempre la cambia: girar hacia arriba sobre la mitad de arriba
+    // ensancha el tubo y sobre la de abajo lo angosta (como si se arrastrara esa asa).
     // Devuelve { drag, grip } para b.grips: grip es −1 (la marca de arriba), 1 (la de abajo), 2 (las
     // dos, con dos dedos) o 0.
     b.pinch = ({ pos, get, set, half, fromHalf, label, text, menu }) => {
@@ -265,17 +265,19 @@
           const h = ys.length > 1 ? Math.abs(ys[0] - ys[1]) / 2 - 9 : (pr.grip || 1) * (ys[0] - pos(geo(side))[1]) - 14;
           set(fromHalf(h));
         };
-        // Con menú, el borde empieza a seguir al puntero solo cuando se arrastra: un toque abre el menú.
-        const grab = () => { moved = true; pr.drag = true; if (menu) Sim.menu.close(); update(); };
+        // Con menú, el borde sigue al puntero solo si su tarjeta está abierta (las asas a la vista) y se
+        // arrastra: un toque abre o cierra la tarjeta.
+        const can = () => !menu || pr.open();
+        const grab = () => { moved = true; if (!can()) return; pr.drag = true; update(); };
         el.addEventListener('pointerdown', e => {
           el.setPointerCapture(e.pointerId); pts.set(e.pointerId, toY(e)); e.preventDefault();
           if (pts.size === 1) { start = e.clientY; moved = false; pr.grip = gripAt(toY(e)); } else pr.grip = 2;
-          if (!menu || pts.size > 1) grab();
+          if (!menu || (pts.size > 1 && can())) grab();
         });
         el.addEventListener('pointermove', e => {
           if (!pts.has(e.pointerId)) { if (!pts.size) pr.grip = gripAt(toY(e)); return; }
           pts.set(e.pointerId, toY(e));
-          if (moved) update(); else if (Math.abs(e.clientY - start) > 6) grab();
+          if (moved) { if (pr.drag) update(); } else if (Math.abs(e.clientY - start) > Sim.DEAD.drag) grab();
         });
         const up = e => {
           if (!pts.has(e.pointerId)) return;
@@ -302,20 +304,22 @@
       if (menu && Sim.side) Sim.side.part({ anchor: () => pr.els[shownSide() === 'w' ? 0 : 1], menu: () => menu(shownSide()) });
       return pr;
     };
-    // Marcas arriba y abajo del tramo (o de la resistencia), a la distancia del borde h: no se ven hasta
-    // que el puntero o el dedo está encima; entonces salen en gris clarito, un poco más fuerte la que se
-    // agarraría. active es lo que devuelve b.pinch (o true para verlas siempre).
+    // Asas arriba y abajo del tramo (o de la resistencia), a la distancia del borde h: solo se ven con su
+    // tarjeta abierta (el componente seleccionado), en azul, y aparecen y se van con el contorno. La que se
+    // agarra va llena. active es lo que devuelve b.pinch (o true para verlas siempre).
     b.grips = (ctx, x, y, h, active) => {
-      if (!active || (active !== true && !active.grip)) return;
+      const a = active === true ? 1 : active ? Sim.fadeSel(active, active.open()) : 0;
+      if (!a) return;
+      ctx.save(); ctx.globalAlpha *= a;
       for (const sgn of [-1, 1]) {
-        const col = active !== true && (active.grip === sgn || active.grip === 2) ? '#b4c2cd' : '#dbe3e9';
-        const yy = y + sgn * (h + 9);
-        D.roundRect(ctx, x - 16, yy - 3, 32, 6, 3, col);
-        D.arrow(ctx, x + 24, yy, sgn * Math.PI / 2, 5, col);
+        const on = active !== true && active.drag && (active.grip === sgn || active.grip === 2), yy = y + sgn * (h + 9);
+        D.roundRect(ctx, x - 16, yy - 4, 32, 8, 4, on ? C.sel : C.card, C.sel, 2);
+        D.arrow(ctx, x + 25, yy, sgn * Math.PI / 2, 5, C.sel);
       }
+      ctx.restore();
     };
-    // Nombre y valor de un componente sobre el dibujo, en una línea ("resistencia 1 kΩ"). Mientras su menú
-    // está abierto (pr de b.pinch o b.part) el valor va en azul, para ver a qué componente corresponde cada menú.
+    // Nombre y valor de un componente sobre el dibujo, en una línea ("resistencia 1 kΩ"). Mientras su tarjeta
+    // está abierta (pr de b.pinch o b.part) el nombre y el valor van en azul, como su contorno.
     // Con left, x es donde empieza (no el centro). Con stack, el valor va debajo del nombre (en dos
     // renglones, para los lugares angostos). Lleva el fondo de la tarjeta, como los demás letreros (D.text bg).
     b.tag = (ctx, pr, x, y, name, value, danger, left, stack) => {
@@ -323,17 +327,17 @@
       const f1 = `700 ${Math.round(15 * k)}px ${Sim.FONT}`, f2 = `600 ${px}px ${Sim.MONO}`;
       ctx.font = f1; const w1 = ctx.measureText(name).width;
       ctx.font = f2; const w2 = value ? ctx.measureText(value).width : 0;
-      const vcol = pr && pr.open && pr.open() ? C.water : C.ink;
+      const on = pr && pr.open && pr.open(), vcol = on ? C.sel : C.ink, ncol = danger ? C.danger : on ? C.sel : C.muted;
       if (stack && value) {
         const w = Math.max(w1, w2), cx = left ? x + w / 2 : x, dy = Math.round(9 * k);
         D.backdrop(ctx, cx - w1 / 2, y - dy, w1, px); D.backdrop(ctx, cx - w2 / 2, y + dy, w2, px);
-        D.text(ctx, name, cx, y - dy, danger ? C.danger : C.muted, { size: 15 });
+        D.text(ctx, name, cx, y - dy, ncol, { size: 15 });
         D.text(ctx, value, cx, y + dy + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600 });
         return;
       }
       const w = w1 + (value ? gap + w2 : 0), x0 = left ? x : x - w / 2;
       D.backdrop(ctx, x0, y, w, px);
-      D.text(ctx, name, x0, y, danger ? C.danger : C.muted, { size: 15, align: 'left' });
+      D.text(ctx, name, x0, y, ncol, { size: 15, align: 'left' });
       if (value) D.text(ctx, value, x0 + w1 + gap, y + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
     };
 
@@ -372,13 +376,27 @@
       b.pw.replace(); b.pe.replace();
     };
     // Zonas para agarrarla: la caja y el símbolo. Van debajo de los demás controles (el interruptor y
-    // las perillas siguen funcionando).
+    // las perillas siguen funcionando). Tocarla sin arrastrar abre su tarjeta: la polaridad y los cables.
+    const srcEls = [], srcBox = {};
+    const srcOpen = () => ['w', 'e'].some(sd => srcBox[sd] && Sim.menu.isOpen(srcBox[sd]));
+    const srcMenu = side => {
+      const w = side === 'w';
+      return { float: true, title: w ? 'Bomba' : 'Fuente', ignore: t => srcEls.includes(t), rows: [
+        { label: 'Polaridad', seg: [{ value: false, text: 'Normal' }, { value: true, text: 'Invertida' }], get: () => st.rev,
+          set: v => { if (v !== st.rev) { st.rev = v; st.rpress = performance.now() + 140; syncPol(); } } },
+        { label: w ? 'Mangueras' : 'Cables', seg: [{ value: true, text: 'Tensas' }, { value: false, text: 'Libres' }].map(o => w ? o : { ...o, text: o.value ? 'Tensos' : 'Libres' }),
+          get: () => st.staut, set: v => { st.staut = v; if (v) tenseLeads(); syncSrcKeys(); } },
+        { actions: [{ text: 'Tensar una vez', onClick: tenseLeads }] }
+      ] };
+    };
     ['w', 'e'].forEach(side => {
       const name = side === 'w' ? 'la bomba' : 'la fuente';
       const grab = (cls, pos, size) => {
         const el = document.createElement('button');
         el.type = 'button'; el.className = 'sim-src-hit ' + cls; el.dataset.act = 'ali';
-        el.setAttribute('aria-label', `Mover ${name}: arrástrala (o usa las flechas) y sus cables la siguen; cerca de su lugar se regresa sola`);
+        el.setAttribute('aria-label', `${name[3].toUpperCase() + name.slice(4)}: tócala para ver sus opciones; arrástrala (o usa las flechas) y sus cables la siguen`);
+        el.setAttribute('aria-haspopup', 'dialog');
+        srcEls.push(el); if (cls === 'box') srcBox[side] = el;
         panel(side).box.querySelector('.sim-layer').prepend(el);
         panel(side).at(el, () => {
           const g = geo(side), s = panel(side).scale, [w, h] = size(g);
@@ -386,13 +404,15 @@
           el.hidden = cls === 'sym' && g.mode === 'lateral';
           return pos(g);
         });
-        let down = null, from = null;
+        let down = null, from = null, moved = false;
         el.addEventListener('pointerdown', e => {
-          el.setPointerCapture(e.pointerId); down = [e.clientX, e.clientY]; from = boxAt(geo(side)); e.preventDefault();
+          el.setPointerCapture(e.pointerId); down = [e.clientX, e.clientY]; from = boxAt(geo(side)); moved = false; e.preventDefault();
         });
+        el.addEventListener('click', () => { if (!moved) Sim.menu.toggle(srcBox[side], srcMenu(side)); moved = false; });
         el.addEventListener('pointermove', e => {
           if (!down || !el.hasPointerCapture(e.pointerId)) return;
           if (!st.sheld && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 6) return;
+          moved = true;
           if (!st.sheld && !st.spos[geo(side).mode]) st.spos[geo(side).mode] = [0, 0];
           st.sheld = true; el.classList.add('held');
           const s = panel(side).scale;
@@ -421,10 +441,10 @@
     });
 
     // Botón de los cables de la fuente, como el de los multímetros: encendido (como empieza) sus cables
-    // siempre van tensos, derechos del bloque al circuito; apagado se quedan como se acomoden. Apretado
-    // más de medio segundo los tensa una sola vez.
+    // siempre van tensos, derechos del bloque al circuito; apagado se quedan como se acomoden. Tensarlos una
+    // sola vez está en la tarjeta de la fuente.
     const SK = [26, 18];   // tamaño de la tecla
-    st.staut = true; st.spress = 0; st.shold = false;
+    st.staut = true; st.spress = 0;
     const srcKey = g => { const [x, y] = boxAt(g); return [x + 327, y + 100]; };
     // Arriba de él, el de la polaridad: invierte la salida (el + y el − cambian de lugar). Se queda hundido,
     // con su lucecita roja, mientras está invertida.
@@ -457,20 +477,16 @@
         bt.style.width = Math.max(30, (SK[0] + 6) * s) + 'px'; bt.style.height = Math.max(26, (SK[1] + 6) * s) + 'px';
         return srcKey(g);
       });
-      let downAt = 0;
-      bt.addEventListener('pointerdown', () => { downAt = performance.now(); st.shold = true; });
-      ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => bt.addEventListener(t, () => { st.shold = false; }));
-      bt.addEventListener('click', e => {
+      bt.addEventListener('click', () => {
         st.spress = performance.now() + 140;
-        if (e.detail && performance.now() - downAt > 500) tenseLeads();
-        else { st.staut = !st.staut; if (st.staut) tenseLeads(); }
+        st.staut = !st.staut; if (st.staut) tenseLeads();
         syncSrcKeys();
       });
       return [bt, side];
     });
     const syncSrcKeys = () => srcKeys.forEach(([bt, side]) => {
       const what = side === 'w' ? 'las mangueras de la bomba' : 'los cables de la fuente';
-      const label = st.staut ? `Soltar ${what}` : `Tensar ${what} (siempre); apretado medio segundo, solo una vez`;
+      const label = st.staut ? `Soltar ${what}` : `Tensar ${what}`;
       bt.setAttribute('aria-label', label); bt.title = label; bt.setAttribute('aria-pressed', String(st.staut));
     });
     syncSrcKeys();
@@ -945,12 +961,12 @@
       const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
       return [v / VMAX, Math.abs(bsg.I) / iFull];
     };
-    // Modo de color: en la esquina de arriba a la derecha de cada panel, arriba qué colorea ("color: rapidez")
-    // con tres puntitos, uno por modo, y debajo la barra de colores con lo que marca cada punta. Tocar la barra pasa al modo siguiente, deslizar el
-    // dedo hacia un lado o el otro avanza o regresa, y tocar un puntito va a ese modo. También se elige en
-    // la sección Ver de Controles. En la electricidad, con el modo rapidez las cargas van de su color de
-    // siempre: en vez de la barra dice que todas van del mismo color.
-    const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'], both: ['rapidez', 'presión / voltaje', 'caudal / corriente'] };
+    // Modo de color: en la esquina de arriba a la derecha de cada panel, un selector pequeño con el nombre de
+    // cada modo (rapidez · presión · caudal; en la electricidad normal · voltaje · corriente) y debajo la
+    // escala de colores, que solo es información (no se toca). En la electricidad, con el modo normal las
+    // cargas van de su color de siempre: en vez de la barra dice que todas van del mismo color. La rueda del
+    // multímetro también lo elige.
+    const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'] };
     const ends = side => ({
       v: ['lento', 'rápido'],
       p: side === 'w' ? ['0 psi', VMAX * PSI_PER_V + ' psi'] : ['0 V', VMAX + ' V'],
@@ -958,25 +974,11 @@
     })[Sim.shownColorMode()];
     const pickers = ['w', 'e'].map(side => {
       const el = document.createElement('div');
-      el.className = 'sim-colors'; el.dataset.act = 'ver'; el.tabIndex = 0; el.setAttribute('role', 'button');
-      el.innerHTML = '<div class="hd"><span class="mode"></span><span class="dots">' + [0, 1, 2].map(k => `<i data-k="${k}"></i>`).join('') + '</span></div>' +
-        '<div class="scale"><span></span><div class="bar"></div><span></span></div><div class="plain">todas del mismo color</div>';
-      const turn = d => { const k = Sim.COLOR_MODES.indexOf(Sim.colorMode); Sim.setColorMode(Sim.COLOR_MODES[(k + d + 3) % 3]); syncColors(); };
-      let x0 = null;
-      el.addEventListener('pointerdown', e => { x0 = e.clientX; el.setPointerCapture(e.pointerId); e.preventDefault(); });
-      el.addEventListener('pointerup', e => {
-        if (x0 == null) return;
-        const dx = e.clientX - x0, dot = e.target.closest('i');
-        x0 = null;
-        if (Math.abs(dx) > 24) turn(dx < 0 ? 1 : -1);
-        else if (dot) { Sim.setColorMode(Sim.COLOR_MODES[+dot.dataset.k]); syncColors(); }
-        else turn(1);
-      });
-      el.addEventListener('pointercancel', () => { x0 = null; });
-      el.addEventListener('keydown', e => {
-        const d = { Enter: 1, ' ': 1, ArrowRight: 1, ArrowLeft: -1 }[e.key];
-        if (d) { turn(d); e.preventDefault(); }
-      });
+      el.className = 'sim-colors'; el.dataset.act = 'ver';
+      el.innerHTML = '<div class="sim-seg mini" role="group" aria-label="Color de las partículas">' +
+        COLOR_NAMES[side].map((t, k) => `<button type="button" data-k="${k}">${t}</button>`).join('') + '</div>' +
+        '<div class="scale" aria-hidden="true"><span></span><div class="bar"></div><span></span></div><div class="plain">todas del mismo color</div>';
+      el.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => { Sim.setColorMode(Sim.COLOR_MODES[+bt.dataset.k]); syncColors(); }));
       // Si a la derecha del dibujo hay lugar, va hasta la esquina de arriba a la derecha del panel.
       const corner = g => {
         const q = panel(side), bw = q.box.clientWidth || (q.mirror && q.mirror.box.clientWidth) || 0;
@@ -985,24 +987,14 @@
       };
       return { side, el: b.place(side, el, corner) };
     });
-    const colorSeg = document.createElement('div');
-    colorSeg.className = 'sim-seg three'; colorSeg.setAttribute('role', 'group'); colorSeg.setAttribute('aria-label', 'Color de las partículas');
-    colorSeg.innerHTML = [0, 1, 2].map(k => `<button type="button" data-k="${k}"></button>`).join('');
-    colorSeg.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => { Sim.setColorMode(Sim.COLOR_MODES[+bt.dataset.k]); syncColors(); }));
-    if (Sim.side) Sim.side.row('ver', 'Color de las partículas', colorSeg);
     const syncColors = () => {
-      const k = Sim.COLOR_MODES.indexOf(Sim.colorMode), names = COLOR_NAMES[Sim.view] || COLOR_NAMES.both;
-      colorSeg.querySelectorAll('button').forEach((bt, j) => { bt.textContent = names[j]; bt.setAttribute('aria-pressed', String(j === k)); });
+      const k = Sim.COLOR_MODES.indexOf(Sim.colorMode), m = Sim.COLOR_MODES.indexOf(Sim.shownColorMode());
       pickers.forEach(({ side, el }) => {
-        const m = Sim.COLOR_MODES.indexOf(Sim.shownColorMode());
         el.dataset.bar = String(side === 'w' || m > 0);
         el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
-        el.querySelector('.mode').textContent = 'color: ' + COLOR_NAMES[side][m];
-        el.querySelectorAll('.dots i').forEach((d, j) => d.classList.toggle('on', j === k));
-        el.setAttribute('aria-label', `Color de las partículas: ${COLOR_NAMES[side][k]}. Tocar para cambiar`);
+        el.querySelectorAll('button').forEach((bt, j) => bt.setAttribute('aria-pressed', String(j === k)));
       });
     };
-    Sim.onView(() => syncColors());
     syncColors();
     // La perilla del multímetro elige el color: en V por presión (voltaje), en A por caudal (corriente),
     // en Ω u OFF el de siempre. Mientras se arrastra una punta, las partículas se colorean por lo que mide
@@ -1419,25 +1411,8 @@
       r.A = A;
       r.pts = ropePoints(r);
     };
-    // Rigidez e inercia de los cables, en la sección Medir de la columna (plegado, se usa poco).
-    if (Sim.side) {
-      const box = document.createElement('details');
-      box.className = 'sim-cables';
-      box.innerHTML = '<summary>Cables y mangueras</summary>';
-      [['stiff', 'Rigidez', 'flojo', 'rígido'], ['inertia', 'Inercia', 'se frena', 'se desliza']].forEach(([k, name, lo, hi]) => {
-        const row = document.createElement('label'), inp = document.createElement('input');
-        inp.type = 'range'; inp.min = 0; inp.max = 1; inp.step = 0.05; inp.value = cable[k];
-        inp.addEventListener('input', () => {
-          cable[k] = +inp.value;
-          try { localStorage.setItem('sim-cable', JSON.stringify(cable)); } catch (e) {}
-        });
-        row.innerHTML = `<span class="name">${name}</span><span class="lo">${lo}</span>`;
-        row.appendChild(inp);
-        row.insertAdjacentHTML('beforeend', `<span class="hi">${hi}</span>`);
-        box.appendChild(row);
-      });
-      Sim.side.sec('med').appendChild(box);
-    }
+    // Rigidez e inercia de los cables (en la tarjeta de cada multímetro); se recuerdan en este navegador.
+    const setCable = (k, v) => { cable[k] = v; try { localStorage.setItem('sim-cable', JSON.stringify(cable)); } catch (e) {} };
     // Nombre de cada multímetro (en el agua, medidor); con el segundo a la vista llevan su número.
     const meterName = (kind, side) => (side === 'w' ? 'medidor' : 'multímetro') + (st.show.b ? (kind === 'a' ? ' 1' : ' 2') : '');
     const cap = t => t[0].toUpperCase() + t.slice(1);
@@ -1445,82 +1420,48 @@
     const DIAL_NAMES = { w: { off: 'OFF', V: 'psi', A: 'mL/s', R: 'kΩ' }, e: { off: 'OFF', V: 'V', A: 'A', R: 'Ω' }, both: { off: 'OFF', V: 'V · psi', A: 'A · mL/s', R: 'Ω' } };
     // En Ω con voltaje entre las puntas: la lectura no sirve (hay que apagar la fuente).
     const live = kind => st.dial[kind] === 'R' && st.probe[kind] && ready(kind) && st.probe[kind] && Math.abs(st.probe[kind].va - st.probe[kind].vb) > 0.05;
-    // Lecturas en la sección Medir: lo que marca cada multímetro conectado, de los lados que se ven (los
-    // que no están conectados dicen "sin conectar"; así hay que medir para saber), su perilla, invertir
-    // sus cables (en V y Ω cambian de lugar sus puntas; en A el rojo y el negro se cruzan) y llevar su
-    // punta negra a la tierra común. Al final, sacar o guardar el segundo multímetro.
+    // Medir solo lee: la lectura grande de cada multímetro que está afuera, de los lados que se ven (los que
+    // no están conectados dicen "sin conectar"; así hay que medir para saber), y al final sacar otro. Su
+    // rueda, invertir, la tierra y los cables están en el multímetro y en su tarjeta.
+    let syncMed = () => {};
     if (Sim.side) {
       const wrap = document.createElement('div');
       wrap.className = 'sim-mms';
       const blocks = MS.map(kind => {
         const box = document.createElement('div');
-        box.className = 'sim-mm';
-        const tbl = document.createElement('div');
-        tbl.className = 'sim-read'; tbl.setAttribute('aria-live', 'off');
+        box.className = 'sim-read'; box.setAttribute('aria-live', 'off');
         const rows = ['w', 'e'].map(side => {
           const r = document.createElement('div');
           r.innerHTML = '<span class="nm"></span><span class="vl"></span>';
-          tbl.appendChild(r);
+          box.appendChild(r);
           return { r, side, nm: r.firstChild, vl: r.lastChild };
         });
-        const seg = document.createElement('div');
-        seg.className = 'sim-seg four'; seg.setAttribute('role', 'group');
-        seg.innerHTML = DIAL.map(d => `<button type="button" data-v="${d}"></button>`).join('');
-        seg.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => b.setDial(kind, bt.dataset.v)));
-        const pol = document.createElement('div');
-        pol.className = 'sim-pol';
-        const polBtn = onClick => {
-          const bt = document.createElement('button');
-          bt.type = 'button'; bt.className = 'sim-side-btn';
-          bt.addEventListener('click', onClick);
-          pol.appendChild(bt);
-          return bt;
-        };
-        const inv = polBtn(() => b.invert(kind)), gnd = polBtn(() => b.toGround(kind)), fz = polBtn(() => b.newFuse(kind));
-        box.append(tbl, seg, pol);
         wrap.appendChild(box);
-        return { kind, box, rows, seg, inv, gnd, fz };
+        return { kind, box, rows };
       });
       const add = document.createElement('button');
       add.type = 'button'; add.className = 'sim-side-btn sim-add';
       add.addEventListener('click', () => {
-        const on = !st.show.b;
-        b.showMeters({ b: on });
-        if (on) {   // sale guardado: se toca el circuito para ponerlo
-          st.placed.b = [false, false];
-          syncs.forEach(f => f()); syncReel();
-          setPlacing({ kind: 'b', i: 0 });
-        }
-        syncMed();
+        const kind = MS.find(k => !st.show[k]);
+        if (!kind) return;
+        b.showMeters({ [kind]: true });
+        st.placed[kind] = [false, false];   // sale guardado: se toca el circuito para ponerlo
+        syncs.forEach(f => f()); syncReel();
+        setPlacing({ kind, i: 0 });
       });
       wrap.appendChild(add);
       Sim.side.sec('med').prepend(wrap);
-      const syncMed = () => {
-        const w = Sim.view === 'w', names = DIAL_NAMES[Sim.view] || DIAL_NAMES.both, vs = w ? 'w' : 'e';
-        blocks.forEach(({ kind, box, rows, seg, inv, gnd, fz }) => {
+      syncMed = () => {
+        const w = Sim.view === 'w';
+        blocks.forEach(({ kind, box, rows }) => {
           box.hidden = !st.show[kind];
-          const name = meterName(kind, vs), md = st.dial[kind];
-          box.dataset.dial = md;
           rows.forEach(o => { o.nm.textContent = cap(meterName(kind, o.side)); });
-          seg.setAttribute('aria-label', 'Perilla del ' + name);
-          seg.querySelectorAll('button').forEach(bt => { bt.textContent = names[bt.dataset.v]; bt.setAttribute('aria-pressed', String(bt.dataset.v === md)); });
-          inv.textContent = '⇄ Invertir';
-          inv.title = `Cambia de lugar la ${w ? 'manguera' : 'punta'} roja (+) y la negra (−) del ${name}: la lectura cambia de signo`;
-          inv.setAttribute('aria-label', 'Invertir el ' + name);
-          fz.hidden = !st.fuse[kind];
-          fz.textContent = w ? '↻ Cambiar su válvula' : '↻ Cambiar su fusible';
-          fz.title = `En A el ${name} es casi un ${w ? 'tubo' : 'cable'}: con las puntas en dos nodos distintos hizo un corto, y con la ${w ? 'bomba' : 'fuente'} dando más de ${TRIP_MAX} ${w ? 'mL/s' : 'mA'} ${w ? 'se rompió su válvula de seguridad' : 'se fundió su fusible'}`;
-          gnd.textContent = w ? '⏚ Negra a 0 psi' : '⏚ Negra a tierra';
-          gnd.title = `Lleva la ${w ? 'manguera' : 'punta'} negra del ${name} a la tierra común (el − de la ${w ? 'bomba, 0 psi' : 'fuente, 0 V'}): la roja mide ${w ? 'la presión' : 'el voltaje'} de cada punto`;
-          gnd.hidden = series(kind);
-          const [gx, gy] = b.ground(b.gw), [x, y] = st.clamps[kind][1];
-          gnd.setAttribute('aria-pressed', String(!series(kind) && connected(kind, 1) && Math.hypot(x - gx, y - gy) < 3));
         });
-        add.textContent = st.show.b ? '− Guardar el segundo ' + (w ? 'medidor' : 'multímetro') : '+ Sacar un segundo ' + (w ? 'medidor' : 'multímetro');
-        add.title = 'Para medir dos cosas a la vez (por ejemplo, voltaje y corriente)';
+        const some = MS.some(k => st.show[k]), what = w ? 'medidor' : 'multímetro';
+        add.hidden = MS.every(k => st.show[k]);
+        add.textContent = (some ? '+ Sacar otro ' : '+ Sacar un ') + what;
       };
       Sim.onView(syncMed); syncMed(); syncs.push(syncMed);
-      setInterval(syncMed, 300);
       setInterval(() => blocks.forEach(({ kind, rows }) => rows.forEach(o => {
         if (!st.probe[kind]) return;   // todavía no arranca
         o.r.hidden = Sim.view !== 'both' && Sim.view !== o.side;
@@ -1613,12 +1554,11 @@
       b.pw.replace(); b.pe.replace();
     };
     const tipName = (kind, i, side) => `${side === 'w' ? 'Manguera' : 'Punta'} ${i ? 'negra' : 'roja'} del ${meterName(kind, side)}`;
-    // Arrastrar levanta la punta (como cable o como indicador, según el modo); tocarla sin arrastrar
-    // cambia entre cables e indicadores, para limpiar el diagrama. El indicador se agarra del
-    // círculo (el botón de la punta) o de su anillo (ring, el imán).
+    // Arrastrar levanta la punta (como cable o como indicador, según el modo); tocarla sin arrastrar abre
+    // su tarjeta (onTap). El indicador se agarra del círculo (el botón de la punta) o de su anillo (ring, el imán).
     // fromJack: se agarra desde el borne del multímetro y la punta sale de ahí (si estaba en el
     // circuito, se desliza hasta el puntero). iOf() da qué punta se agarra (la del borne cambia con la perilla).
-    const grab = (side, kind, btn, mode, iOf, fromJack) => {
+    const grab = (side, kind, btn, mode, iOf, fromJack, onTap) => {
       const p = panel(side);
       const toDrawing = e => {
         const r = p.box.getBoundingClientRect();
@@ -1657,25 +1597,42 @@
       const up = () => release(kind, i);
       btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
       btn.addEventListener('click', () => {
-        // tocar el borne sin arrastrar es como tocar el multímetro; tocar la punta cambia el modo
-        if (!dragged) fromJack ? setPlacing(st.placing && st.placing.kind === kind ? null : { kind, i: 0 }) : togglePinned();
+        // tocar el borne sin arrastrar es como tocar el multímetro; tocar la punta abre su tarjeta
+        if (!dragged) onTap();
         dragged = false;
       });
     };
+    // Tarjeta de una punta: cable o indicador (para todas las puntas) y soltarla: regresa a su multímetro.
+    const tipEls = { a: [{}, {}], b: [{}, {}] };
+    const tipOpen = (kind, i) => ['w', 'e'].some(sd => tipEls[kind][i][sd] && Sim.menu.isOpen(tipEls[kind][i][sd]));
+    const pinnedRow = side => ({ label: 'Puntas', seg: [{ value: false, text: side === 'w' ? 'Manguera' : 'Cable' }, { value: true, text: 'Indicador' }],
+      get: () => st.pinned.a, set: v => { if (v !== st.pinned.a) togglePinned(); } });
+    const letGo = (kind, i) => {
+      if (st.placing) setPlacing(null);
+      if (!st.placed[kind][i] || st.reel[kind][i]) return;
+      const q = pose(b.gw, kind, i);
+      st.lift[kind][i] = st.drop[kind][i] = null; st.pend[kind][i] = false;
+      st.floor[kind][i] = { x: q.x, y: q.y, n: q.n }; st.reel[kind][i] = 1e-6;
+      syncs.forEach(f => f()); syncReel();
+    };
+    const tipMenu = (kind, i, side) => ({ float: true, title: () => tipName(kind, i, side), rows: [pinnedRow(side),
+      { actions: [{ text: 'Soltar', onClick: () => { ['w', 'e'].forEach(sd => Sim.menu.close(tipEls[kind][i][sd])); letGo(kind, i); } }] }] });
     MS.forEach(kind => [0, 1].forEach(i => ['w', 'e'].forEach(side => {
       const el = document.createElement('button');
-      el.type = 'button'; el.className = 'sim-clamp';
-      const label = () => el.setAttribute('aria-label', `${tipName(kind, i, side)}: arrástrala o usa las flechas para moverla; tócala para cambiar entre cable e indicador`);
+      el.type = 'button'; el.className = 'sim-clamp'; el.setAttribute('aria-haspopup', 'dialog');
+      tipEls[kind][i][side] = el;
+      const tap = () => Sim.menu.toggle(el, tipMenu(kind, i, side));
+      const label = () => el.setAttribute('aria-label', `${tipName(kind, i, side)}: arrástrala o usa las flechas para moverla; tócala para ver sus opciones`);
       b.place(side, el, g => {
         const f = pose(g, kind, i), m = ease(st.morph[kind][i]);
         const L = tipLen(side) * 0.55 * (1 - m) + PIN_D * m;
         return [f.x + f.n[0] * L, f.y + f.n[1] * L];
       });
-      grab(side, kind, el, () => ease(st.morph[kind][i]) > 0.5 ? 'handle' : 'tip', () => i);
+      grab(side, kind, el, () => ease(st.morph[kind][i]) > 0.5 ? 'handle' : 'tip', () => i, false, tap);
       const ring = document.createElement('button');
       ring.type = 'button'; ring.className = 'sim-clamp ring'; ring.tabIndex = -1; ring.setAttribute('aria-hidden', 'true');
       b.place(side, ring, g => { const f = pose(g, kind, i); return [f.x, f.y]; });
-      grab(side, kind, ring, () => 'magnet', () => i);
+      grab(side, kind, ring, () => 'magnet', () => i, false, tap);
       syncs.push(() => { ring.hidden = el.hidden || !st.pinned[kind]; });
       el.addEventListener('keydown', e => {
         const step = { ArrowUp: [0, -12], ArrowDown: [0, 12], ArrowLeft: [-12, 0], ArrowRight: [12, 0] }[e.key];
@@ -1688,21 +1645,23 @@
       const sync = () => { el.hidden = i >= NP(kind) || !st.placed[kind][i] || !st.show[kind] || st.reel[kind][i] > 0; label(); };
       syncs.unshift(sync); sync();
     })));
-    // Los bornes: de ahí también se saca la punta de su cable.
+    // Los bornes: de ahí también se saca la punta de su cable; tocarlos es como tocar el multímetro.
+    const meterHits = { a: {}, b: {} }, jackEls = { a: [], b: [] };
+    const meterOpen = kind => ['w', 'e'].some(sd => meterHits[kind][sd] && Sim.menu.isOpen(meterHits[kind][sd]));
     MS.forEach(kind => [0, 1].forEach(j => ['w', 'e'].forEach(side => {
       const jb = document.createElement('button');
       jb.type = 'button'; jb.className = 'sim-clamp jack'; jb.tabIndex = -1; jb.setAttribute('aria-hidden', 'true');
+      jackEls[kind].push(jb);
       b.place(side, jb, g => leadJack(g, kind, j));
-      grab(side, kind, jb, i => st.pinned[kind] ? 'magnet' : 'tip', () => probeOf(kind, j), true);
+      grab(side, kind, jb, i => st.pinned[kind] ? 'magnet' : 'tip', () => probeOf(kind, j), true, () => Sim.menu.toggle(meterHits[kind][side], meterMenu(kind, side)));
       syncs.push(() => { jb.hidden = !st.show[kind] || st.reel[kind][probeOf(kind, j)] > 0; });
     })));
     syncs.forEach(f => f());
 
-    // Tocar un multímetro atenúa sus puntas (se pueden reposicionar), muestra sus botones y lo prepara: el
-    // siguiente toque pone la punta roja (+) y el siguiente la negra (−), que se deslizan ahí; en A solo
-    // necesita un toque: ahí se abre el circuito y queda en serie. Si una punta está guardada en el
-    // multímetro, solo se pone esa. Tocar el multímetro otra vez o Esc cancela y las puntas regresan a
-    // donde estaban.
+    // Tocar un multímetro abre su tarjeta. Su botón principal, Conectar puntas, atenúa sus puntas (se pueden
+    // reposicionar) y lo prepara: el siguiente toque en el circuito pone la punta roja (+) y el siguiente la
+    // negra (−), que se deslizan ahí. Si una punta está guardada en el multímetro, solo se pone esa. Tocar el
+    // multímetro o Esc cancela y las puntas regresan a donde estaban.
     st.placing = null;
     st.pend = per(false);   // puestas, pero esperando su nuevo lugar (se ven atenuadas)
     const setPlacing = v => {
@@ -1734,7 +1693,8 @@
         el.style.width = Math.max(60, 160 * s) + 'px'; el.style.height = Math.max(40, (bot - top) * s) + 'px';
         return [x, y + (top + bot) / 2 * g.MK];
       });
-      // tocarlo lo conecta; arrastrarlo (o las flechas) lo cambia de lugar
+      // tocarlo abre su tarjeta; arrastrarlo (o las flechas) lo cambia de lugar
+      meterHits[kind][side] = el; el.setAttribute('aria-haspopup', 'dialog');
       let down = null, dragged = false, from = null;
       el.addEventListener('pointerdown', e => {
         el.setPointerCapture(e.pointerId); down = [e.clientX, e.clientY]; dragged = false; from = meterAt(geo(side), kind); e.preventDefault();
@@ -1749,7 +1709,7 @@
       const up = () => { down = null; st.mheld[kind] = false; el.classList.remove('held'); };
       el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
       el.addEventListener('click', () => {
-        if (!dragged) setPlacing(st.placing && st.placing.kind === kind ? null : { kind, i: 0 });
+        if (!dragged) { if (st.placing && st.placing.kind === kind) setPlacing(null); else Sim.menu.toggle(el, meterMenu(kind, side)); }
         dragged = false;
       });
       el.addEventListener('keydown', e => {
@@ -1761,7 +1721,7 @@
       });
       syncs.push(() => {
         el.hidden = !st.show[kind];
-        el.setAttribute('aria-label', `Conectar ${name()}: luego toca el circuito para la ${side === 'w' ? 'manguera' : 'punta'} roja (+) y después para la negra (−)`);
+        el.setAttribute('aria-label', `${cap(meterName(kind, side))}: tócalo para ver sus opciones; arrástralo para moverlo`);
       });
       // La perilla: tocar una de sus posiciones la gira ahí; tocar el centro (o compactado, la perilla) pasa
       // a la siguiente. Con las flechas también gira.
@@ -1814,6 +1774,17 @@
         const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
         if (d) { turn(d); e.preventDefault(); }
       });
+      // La rueda del ratón la gira una posición por muesca (hacia arriba, en el sentido del reloj); en las
+      // orillas (OFF y Ω) se queda, como una de verdad.
+      let wacc = 0;
+      dial.addEventListener('wheel', e => {
+        e.preventDefault();
+        wacc += e.deltaMode ? e.deltaY * 40 : e.deltaY;
+        if (Math.abs(wacc) < 40) return;
+        const k = DIAL.indexOf(st.dial[kind]) + (wacc < 0 ? 1 : -1);
+        wacc = 0;
+        if (k >= 0 && k < DIAL.length) b.setDial(kind, DIAL[k]);
+      }, { passive: false });
       syncs.push(() => {
         dial.hidden = !st.show[kind];
         const names = DIAL_NAMES[side];
@@ -1835,16 +1806,12 @@
         return bt;
       };
       // Interruptor: un toque deja los cables siempre tensos (y guarda los del suelo), otro los suelta.
-      // Dejándolo apretado más de medio segundo es un botón normal: los tensa una vez.
-      let downAt = 0;
-      const rb = button(0, '', e => {
-        if (e.detail && performance.now() - downAt > 500) { reelIn(kind); return; }
+      // Tensarlos una sola vez está en la tarjeta del multímetro.
+      const rb = button(0, '', () => {
         st.taut[kind] = !st.taut[kind];
         if (st.taut[kind]) reelIn(kind);
         syncs.forEach(f => f());
       });
-      rb.addEventListener('pointerdown', () => { downAt = performance.now(); st.hold[kind] = true; b.pw.replace(); b.pe.replace(); });
-      ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => rb.addEventListener(t, () => { st.hold[kind] = false; }));
       reelBtns.push([rb, kind]);
       // Botón de la protección: sale de la funda cuando se bota; tocarlo la rearma.
       const tb = document.createElement('button');
@@ -1860,12 +1827,8 @@
         const l = `Rearmar la protección del ${meterName(kind, side)}`;
         tb.setAttribute('aria-label', l); tb.title = l;
       });
-      const cb = button(1, '', () => {
-        st.compact[kind] = !st.compact[kind];
-        try { localStorage.setItem('sim-compact', JSON.stringify(st.compact)); } catch (e) {}
-        syncs.forEach(f => f());
-      });
-      // Invertir: la punta roja y la negra cambian de lugar (solo extendido; compactado está en Medir).
+      const cb = button(1, '', () => setCompact(kind, !st.compact[kind]));
+      // Invertir: la punta roja y la negra cambian de lugar (solo extendido; compactado, en su tarjeta).
       const ib = button(2, '', () => b.invert(kind));
       syncs.push(() => {
         ib.hidden = !st.show[kind] || st.compact[kind];
@@ -1873,7 +1836,7 @@
         ib.setAttribute('aria-label', l); ib.title = l;
       });
       syncs.push(() => {
-        const label = st.taut[kind] ? `Soltar ${what} del ${meterName(kind, side)}` : `Tensar ${what} del ${meterName(kind, side)} (siempre); apretado medio segundo, solo una vez`;
+        const label = st.taut[kind] ? `Soltar ${what} del ${meterName(kind, side)}` : `Tensar ${what} del ${meterName(kind, side)}`;
         rb.setAttribute('aria-label', label); rb.title = label; rb.setAttribute('aria-pressed', String(st.taut[kind]));
         const c = st.compact[kind], cl = c ? `Mostrar ${name()} completo` : `Compactar ${name()}: solo la pantallita y la perilla`;
         cb.setAttribute('aria-pressed', String(c));
@@ -1881,6 +1844,41 @@
       });
     }));
     syncs.push(syncReel); syncs.forEach(f => f());
+    const setCompact = (kind, v) => {
+      st.compact[kind] = v;
+      try { localStorage.setItem('sim-compact', JSON.stringify(st.compact)); } catch (e) {}
+      syncs.forEach(f => f());
+    };
+    // Guardar el multímetro: sus puntas entran y se va de la mesa (en Medir se vuelve a sacar).
+    const putAway = kind => {
+      ['w', 'e'].forEach(sd => Sim.menu.close(meterHits[kind][sd]));
+      if (st.placing && st.placing.kind === kind) setPlacing(null);
+      st.placed[kind] = [false, false];
+      ['lift', 'floor', 'drop'].forEach(k => { st[k][kind] = [null, null]; });
+      st.reel[kind] = [0, 0]; st.pend[kind] = [false, false];
+      b.showMeters({ [kind]: false });
+    };
+    // Tarjeta del multímetro: conectar sus puntas (la acción principal), cable o indicador, invertir, la negra
+    // a tierra, tensar sus cables una vez, compactarlo y guardarlo; si se fundió, cambiar su fusible. Abajo,
+    // cómo son los cables (rigidez e inercia, para todos). Su rueda y sus bornes están en el aparato.
+    const meterMenu = (kind, side) => {
+      const w = side === 'w';
+      return { float: true, title: () => cap(meterName(kind, side)), ignore: t => jackEls[kind].includes(t), rows: [
+        { actions: [{ primary: true, text: 'Conectar puntas', onClick: () => { ['w', 'e'].forEach(sd => Sim.menu.close(meterHits[kind][sd])); setPlacing({ kind, i: 0 }); } }] },
+        pinnedRow(side),
+        { actions: [
+          { text: 'Invertir puntas', onClick: () => b.invert(kind) },
+          { text: w ? 'Negra a 0 psi' : 'Negra a tierra', hidden: () => series(kind), onClick: () => b.toGround(kind) },
+          { text: w ? 'Tensar mangueras' : 'Tensar cables', onClick: () => reelIn(kind) },
+          { text: () => st.compact[kind] ? 'Extender' : 'Compactar', onClick: () => setCompact(kind, !st.compact[kind]) },
+          { text: w ? 'Cambiar su válvula' : 'Cambiar su fusible', hidden: () => !st.fuse[kind], onClick: () => b.newFuse(kind) },
+          { text: 'Rearmar la protección', hidden: () => !st.trip[kind], onClick: () => b.resetTrip(kind) },
+          { text: w ? 'Guardar el medidor' : 'Guardar el multímetro', onClick: () => putAway(kind) }
+        ] },
+        { label: 'Rigidez', range: [0, 1, 0.05], lo: 'flojo', hi: 'rígido', get: () => cable.stiff, set: v => setCable('stiff', v) },
+        { label: 'Inercia', range: [0, 1, 0.05], lo: 'se frena', hi: 'se desliza', get: () => cable.inertia, set: v => setCable('inertia', v) }
+      ] };
+    };
     b.showMeters = show => {
       Object.assign(st.show, show);
       syncReel();
@@ -1962,8 +1960,10 @@
     const controllerBox = (ctx, g, title, fill, scales, lcd, leds) => {
       const [X, Y] = boxAt(g), [sx, sy] = symAt(g);
       if (g.mode !== 'lateral') { ctx.fillStyle = C.ink; ctx.fillRect(sx - 14, sy + 30, 28, 18); }   // cuello hacia el símbolo
+      const sel = Sim.fadeSel('src', srcOpen());
       D.roundRect(ctx, X, Y, g.BW, g.BH, 14, fill, C.ink, 2.5);
-      D.text(ctx, title, X + 18, Y + 24, C.ink, { align: 'left', size: 15, font: Sim.WIDE });
+      D.select(ctx, X - 6, Y - 6, g.BW + 12, g.BH + 12, sel, 18);
+      D.text(ctx, title, X + 18, Y + 24, sel > 0.5 ? C.sel : C.ink, { align: 'left', size: 15, font: Sim.WIDE });
       // lo que marca cada perilla, aunque esté apagada
       D.knobScale(ctx, X + 148, Y + 100, 36, scales[0]);
       D.lcd(ctx, X + 148, Y + 34, 88, 32, ...lcd);
@@ -1977,7 +1977,7 @@
       D.led(ctx, X + 86, Y + 112, out && st.cc ? 1 : 0, '#ff4a3d');
       D.text(ctx, leds[1], X + 86, Y + 131, C.ink, { size: 11, weight: 700 });
       // botón de los cables, a la derecha, como el de los multímetros
-      const [kx, ky] = srcKey(g), p = st.spress > performance.now() || st.staut || st.shold ? 1 : 0;
+      const [kx, ky] = srcKey(g), p = st.spress > performance.now() || st.staut ? 1 : 0;
       keycap(ctx, kx, ky, SK[0], SK[1], p, !st.staut && !awayK(g), st.staut);
       ctx.save(); ctx.translate(kx, ky + p * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); plug(ctx); ctx.restore();
       const [qx, qy] = polKey(g), q = st.rpress > performance.now() || st.rev ? 1 : 0;
@@ -2120,6 +2120,12 @@
         }
         if (m > 0) pin(ctx, q.n, col, kind, m, live, i);
         ctx.restore();
+        // seleccionada (su tarjeta abierta): contorno a lo largo de la punta, o alrededor del indicador
+        const sa = Sim.fadeSel('t' + kind + i, tipOpen(kind, i));
+        if (sa) {
+          const len = (tipLen(g.side) + BOOT) * (1 - m) + (PIN_D + 16) * m, hh = 13 * (1 - m) + 21 * m;
+          D.selectRot(ctx, q.x + q.n[0] * (len - 8) / 2, q.y + q.n[1] * (len - 8) / 2, Math.atan2(q.n[1], q.n[0]), (len + 16) / 2, hh, sa, 9);
+        }
       }
     };
     // Punta de multímetro a lo largo de +x, con la punta metálica tocando el cable en el origen.
@@ -2157,6 +2163,8 @@
       if (st.mheld[kind]) { ctx.shadowColor = 'rgba(21,33,42,0.35)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; }   // levantado mientras se mueve
       D.roundRect(ctx, -sh.hw, -48, 2 * sh.hw, H, 14, HOLSTER[g.side], C.ink, 2);
       ctx.restore();
+      const sel = Sim.fadeSel('m' + kind, meterOpen(kind));
+      if (!placing) D.select(ctx, -sh.hw - 7, -55, 2 * sh.hw + 14, Math.max(H + 14, sh.label + 66), sel, 20);   // con su nombre
       D.roundRect(ctx, -sh.hw + 8, -32, 2 * sh.hw - 16, H - 22, 8, C.metal, C.ink, 1.5);
       D.lcd(ctx, sh.lx, sh.lcd, sh.lw, sh.lh, ...meterText(kind, g.side));
       compare(ctx, kind, sh, water);
@@ -2183,14 +2191,14 @@
         D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 18, st.placing.i ? C.neg : RED, { size: 14, bg: true });
       } else if (blown) {   // en A con las puntas en dos nodos: corto, y la fuente daba de más
         D.text(ctx, water ? '⚠ se rompió su válvula' : '⚠ fusible fundido', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
-        D.text(ctx, 'cámbialo en Medir', 0, ly + 18, C.danger, { size: 14, bg: true });
+        D.text(ctx, 'cámbialo en su tarjeta', 0, ly + 18, C.danger, { size: 14, bg: true });
       } else if (tripped) {   // corto, pero su protección alcanzó: se botó su botón
         D.text(ctx, water ? '⚠ se cerró su válvula' : '⚠ se botó la protección', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
         D.text(ctx, 'en A va en serie · toca el botón', 0, ly + 18, C.danger, { size: 14, bg: true });
       } else if (warn) {   // en Ω con voltaje: la lectura no sirve
         D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 14, weight: 700, bg: true });
         D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 18, C.danger, { size: 14, bg: true });
-      } else D.text(ctx, meterName(kind, g.side), 0, ly, col, { size: 14, font: Sim.WIDE, bg: true });
+      } else D.text(ctx, meterName(kind, g.side), 0, ly, meterOpen(kind) ? C.sel : col, { size: 14, font: Sim.WIDE, bg: true });
       ctx.restore();
     };
     // Botón de la protección: en la orilla de la funda, del lado contrario a los bornes. Sale (pop de 0 a 1,
@@ -2210,7 +2218,7 @@
       ctx.restore();
     };
     // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
-    st.press = { a: [0, 0, 0], b: [0, 0, 0] }; st.hold = { a: false, b: false };
+    st.press = { a: [0, 0, 0], b: [0, 0, 0] };
     // Tecla física: su base, la tapa (hundida con p = 1) y, si lleva, su lucecita (led: encendida o no).
     const keycap = (ctx, bx, by, w, h, p, off, led) => {
       ctx.save();
@@ -2234,7 +2242,7 @@
     };
     const physButton = (ctx, kind, i, [bx, by], sh) => {
       const on = i === 0 && st.taut[kind];   // el de los cables se queda hundido mientras está encendido
-      const p = st.press[kind][i] > performance.now() || on || (i === 0 && st.hold[kind]) ? 1 : 0, off = i === 0 && !on && !st.placed[kind].some(Boolean);
+      const p = st.press[kind][i] > performance.now() || on ? 1 : 0, off = i === 0 && !on && !st.placed[kind].some(Boolean);
       ctx.save();
       if (i === 2) { if (sh.c >= 1) { ctx.restore(); return; } ctx.globalAlpha *= 1 - sh.c; }
       keycap(ctx, bx, by, sh.bw, sh.bh, p, off, i === 0 ? on : null);
@@ -2381,7 +2389,7 @@
     // medidores siempre pasan por debajo del circuito.
     const circuitAndCables = (ctx, g, m, drawPage) => {
       const u = net ? st.nodes.u : 0;
-      if (!u) { MS.forEach(k => drawCables(ctx, g, k)); drawLeads(ctx, g); drawPage(ctx, g, m); drawPorts(ctx, g); drawCuts(ctx, g); return; }
+      if (!u) { MS.forEach(k => drawCables(ctx, g, k)); drawLeads(ctx, g); drawPage(ctx, g, m); drawPorts(ctx, g); drawCuts(ctx, g); drawSel(ctx, g); return; }
       if (u < 1) {
         drawPage(ctx, g, m);
         ctx.save(); ctx.globalAlpha = Math.min(1, u / 0.3); ctx.fillStyle = C.card; ctx.fillRect(-4000, -4000, 8000, 8000); ctx.restore();
@@ -2391,6 +2399,22 @@
       drawNodes(ctx, g, m, u);
       drawPorts(ctx, g);
       drawCuts(ctx, g);
+      drawSel(ctx, g);
+    };
+    // Componente seleccionado (su tarjeta abierta, pr de b.pinch o b.part): un contorno azul a lo largo de su
+    // cable, de su ancho (half) y lo que sobresale (ext); en la vista de nodos, donde quedó.
+    const drawSel = (ctx, g) => {
+      const water = g.side === 'w';
+      for (const sg of st.list || []) for (const c of sg.comps || []) {
+        if (!c.pr || !c.pr.open) continue;
+        const a = Sim.fadeSel(c.pr, c.pr.open());
+        if (!a) continue;
+        const nc = net && st.nodes.u && net.comps.find(q => q.c === c);
+        let x, y, ang;
+        if (nc && nc.pose) ({ x, y, ang } = nc.pose);
+        else { const f = D.frameAt(sg.pts, project(sg.pts, ...c.at).d); [x, y] = f; ang = Math.atan2(f[3], f[2]); }
+        D.selectRot(ctx, x, y, ang, c.half + 8, extOf(c, water) + 6, a);
+      }
     };
     // Cuánto sobresale un componente a cada lado de su cable (ext de la página, un número o ext(water)).
     const extOf = (c, water) => typeof c.ext === 'function' ? c.ext(water) : c.ext || 22;
@@ -2663,7 +2687,8 @@
       st.vo *= sgn();   // con la polaridad invertida sale al revés
       smooth.t += dt;
       st.m = inertia(st.vo);
-      st.segs = buildSegs(nodeView(circuitList(b.gw, st.m, st.vo), dt));
+      st.list = circuitList(b.gw, st.m, st.vo);
+      st.segs = buildSegs(nodeView(st.list, dt));
       if (st.nodes.u) st.segs.forEach((sg, k) => { st.nph[k] = ((st.nph[k] || 0) + Math.sign(sg.I) * Math.min(Math.abs(sg.I), 60) * 6 * dt) % 1e4; });
       const before = JSON.stringify(st.clamps);
       st.probe = measure(st.segs);

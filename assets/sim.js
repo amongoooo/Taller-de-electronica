@@ -11,7 +11,7 @@
 
   Sim.readColors = () => {
     const cs = getComputedStyle(document.documentElement);
-    ['bg', 'card', 'ink', 'muted', 'line', 'pipe', 'water-soft', 'water', 'charge', 'charge-soft', 'danger', 'ok', 'metal', 'neg']
+    ['bg', 'card', 'ink', 'muted', 'line', 'pipe', 'water-soft', 'water', 'charge', 'charge-soft', 'danger', 'ok', 'metal', 'neg', 'sel']
       .forEach(k => C[k] = cs.getPropertyValue('--' + k).trim());
     C.dark = document.documentElement.dataset.theme === 'dark';
   };
@@ -69,6 +69,7 @@
       ctx.fillStyle = C.card; ctx.fillRect(0, 0, canvas.width, canvas.height);
       const k = p.dpr * p.scale;
       ctx.setTransform(k, 0, 0, k, p.dpr * p.ox, p.dpr * p.oy);
+      Sim.S = p.scale;   // escala del panel que se dibuja (para gruesos en px de pantalla)
       return ctx;
     };
     new ResizeObserver(fit).observe(box);
@@ -208,6 +209,34 @@
     ctx.lineTo(x + 36, y); ctx.lineTo(x + 46, y);
     ctx.lineWidth = 3.5; ctx.strokeStyle = C.ink; ctx.lineJoin = 'miter'; ctx.stroke();
   };
+  // Seleccionado: el objeto cuya tarjeta está abierta lleva un contorno azul de 2 px (en pantalla), con
+  // esquinas redondas; a (de 0 a 1, ver Sim.fadeSel) lo hace aparecer y desvanecerse.
+  Sim.S = 1;
+  D.select = (ctx, x, y, w, h, a = 1, r = 10) => {
+    if (!(a > 0)) return;
+    ctx.save(); ctx.globalAlpha *= a;
+    D.roundRect(ctx, x, y, w, h, r, null, C.sel, 2 / Sim.S);
+    ctx.restore();
+  };
+  // Lo mismo girado: un rectángulo de largo 2·hw y alto 2·hh centrado en (x, y) con ángulo ang.
+  D.selectRot = (ctx, x, y, ang, hw, hh, a = 1, r = 10) => {
+    if (!(a > 0)) return;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    D.select(ctx, -hw, -hh, 2 * hw, 2 * hh, a, r);
+    ctx.restore();
+  };
+  // De 0 a 1 mientras on, de vuelta a 0 al apagarse: 120 ms de ida y de vuelta (con movimiento reducido,
+  // de golpe). key: lo que se marca (cualquier objeto o texto).
+  const fades = new Map();
+  Sim.fadeSel = (key, on) => {
+    const now = performance.now();
+    let f = fades.get(key);
+    if (!f) { f = { v: 0, t: now }; fades.set(key, f); }
+    const d = Sim.REDUCE.matches ? 1 : (now - f.t) / 120;
+    f.t = now;
+    f.v = on ? Math.min(1, f.v + d) : Math.max(0, f.v - d);
+    return f.v;
+  };
   // Calor que se ve en el dibujo (ver Sim.heat): un resplandor naranja que crece con k (de 0 a 1).
   D.heatGlow = (ctx, x, y, k, rad = 52) => {
     if (!(k > 0)) return;
@@ -329,8 +358,8 @@
   Sim.WHEEL_RPM_PER_MA = 4;
   // Rueda de molino dentro de la tubería (el LED del lado del agua). Gira con la corriente y tiene
   // una compuerta que solo deja pasar el agua hacia la derecha; rev = al revés, broken = rota.
-  // tint: el color del LED que representa (un punto en el eje).
-  D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '', tint = null } = {}) => {
+  // tint: el color del LED que representa (un punto en el eje). sel: seleccionada (su nombre en azul).
+  D.wheel = (ctx, x, y, { angle = 0, omega = 0, broken = false, rev = false, label = '', tint = null, sel = false } = {}) => {
     D.circle(ctx, x, y, 30, C.metal, broken ? C.danger : C.ink, 2.5);
     D.circle(ctx, x, y, 24, C['water-soft']);
     if (broken) D.rotor(ctx, x, y, 7, 0.5, 0, 4, C.muted);   // solo quedan los muñones de las aspas
@@ -342,10 +371,10 @@
       D.line(ctx, [[x + 15, y - 15], [x - 15, y + 15]], 4, C.danger);
     }
     const t = broken ? 'rueda rota' : rev ? 'compuerta cerrada' : label;
-    if (t) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15, bg: true });
+    if (t) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : sel ? C.sel : C.muted, { size: 15, bg: true });
   };
   // LED en un cable horizontal; I en mA decide el brillo. La corriente entra por la izquierda.
-  D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED', rgb = null } = {}) => {
+  D.ledSymbol = (ctx, x, y, { I = 0, broken = false, rev = false, label = 'LED', rgb = null, sel = false } = {}) => {
     const dir = rev ? -1 : 1, [cr, cg, cb] = rgb || [255, 70, 50];   // rgb: el color de su luz (Sim.LEDS); apagado se ve un poco de ese color
     ctx.fillStyle = C.card; ctx.fillRect(x - 26, y - 26, 52, 52);
     const glow = broken ? 0 : Math.min(1, I / 30);   // brilla más con más corriente, hasta los 30 mA que aguanta
@@ -362,7 +391,7 @@
     D.line(ctx, [[x + 3, y - 17], [x + 12, y - 26]], 2, C.muted); D.line(ctx, [[x + 11, y - 14], [x + 20, y - 23]], 2, C.muted);
     if (broken) { D.line(ctx, [[x - 13, y - 13], [x + 13, y + 13]], 4, C.danger); D.line(ctx, [[x + 13, y - 13], [x - 13, y + 13]], 4, C.danger); }
     const t = broken ? label + ' quemado' : rev ? label + ' al revés' : label;
-    D.text(ctx, t, x, y + 48, broken || rev ? C.danger : C.muted, { size: 15, bg: true });
+    D.text(ctx, t, x, y + 48, broken || rev ? C.danger : sel ? C.sel : C.muted, { size: 15, bg: true });
   };
   // Válvula en una tubería horizontal.
   D.valve = (ctx, x, y, open) => {
@@ -658,13 +687,17 @@
     inp.addEventListener('change', settle);
     inp.addEventListener('pointerup', () => { inp.value = cur; });
     // con step 'any' las flechas moverían casi nada: van de un valor al siguiente
-    inp.addEventListener('keydown', e => {
-      const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
-      if (!d) return;
-      e.preventDefault(); cur = q(+inp.value);
+    const nudge = d => {
+      cur = q(+inp.value);
       inp.value = q(cur + d * step);
       inp.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    inp.addEventListener('keydown', e => {
+      const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
+      if (d) { e.preventDefault(); nudge(d); }
     });
+    // la rueda del ratón lo mueve un valor por vuelta, como a las perillas
+    inp.addEventListener('wheel', e => { e.preventDefault(); touch = false; nudge(e.deltaY < 0 ? 1 : -1); }, { passive: false });
     return inp;
   };
 
@@ -853,7 +886,9 @@
       isSheet: () => mode() === 'sheet'
     };
     // Lista de componentes: un renglón por componente con su nombre y su valor; tocarlo abre su menú
-    // (el mismo que al tocarlo en el dibujo). anchor() es el componente en el panel que se ve.
+    // (el mismo que al tocarlo en el dibujo). anchor() es el componente en el panel que se ve. Si varios
+    // componentes comparten anchor (la protoboard), isOpen() dice si su tarjeta es la abierta y toggle()
+    // la abre o la cierra. remove() quita el renglón.
     const parts = [];
     let list = null, cards = null;
     side.cards = () => { comBody(); return cards; };   // también en páginas sin lista (la protoboard)
@@ -865,16 +900,16 @@
       }
       return list;
     };
-    side.part = ({ anchor, menu }) => {
+    side.part = ({ anchor, menu, isOpen, toggle }) => {
       const row = el('button', 'sim-part', '<span class="nm"></span><span class="vl"></span>');
       row.type = 'button';
       comBody().appendChild(row);
-      const p = { row, anchor, menu };
+      const p = { row, anchor, menu, isOpen: isOpen || (() => Sim.menu.isOpen(anchor())) };
       row.addEventListener('click', () => {
-        const a = anchor();
         if (side.isSheet()) setSheet(false);
-        Sim.menu.toggle(a, menu());
+        if (toggle) toggle(); else Sim.menu.toggle(anchor(), menu());
       });
+      p.remove = () => { row.remove(); parts.splice(parts.indexOf(p), 1); };
       parts.push(p);
       setTimeout(syncParts);   // después de que la página termine de armarse (su menú puede usar lo que sigue)
       return p;
@@ -895,7 +930,7 @@
       const t = typeof o.title === 'function' ? o.title() : o.title;
       p.row.querySelector('.nm').textContent = t;
       p.row.querySelector('.vl').textContent = shown(o);
-      p.row.setAttribute('aria-expanded', String(Sim.menu.isOpen(a)));
+      p.row.setAttribute('aria-expanded', String(p.isOpen()));
       p.row.setAttribute('aria-label', `${t}: ${shown(o)}. Cambiarlo`);
     } catch (e) { p.row.hidden = true; } });
     setInterval(syncParts, 250);
@@ -1159,7 +1194,11 @@
   // title puede ser una función; cada fila es una de (label solo lo leen los lectores de pantalla):
   //   { label, values, get, set, format }   slider que pasa por una lista de valores (los comunes)
   //   { label, options: [{ value, text, color }], get, set }   botones para escoger (el color de un LED)
-  //   { actions: [{ text, onClick, hidden, danger }] }   botones (fundir, poner uno nuevo…)
+  //   { actions: [{ text, onClick, hidden, danger, primary }] }   botones (fundir, poner uno nuevo…); primary es
+  //                                         el botón lleno de la acción principal (uno por tarjeta, arriba)
+  //   { label, seg: [{ value, text }], get, set }   segmentado para elegir (cable o indicador)
+  //   { label, range: [min, max, step], lo, hi, get, set }   deslizador corto con sus dos extremos (rigidez)
+  // Con float: true no se acomoda en la columna: es la tarjeta de un instrumento, junto a él.
   // Se cierra tocando fuera (menos donde ignore(target) diga), con Esc o con la ×; mientras está abierta se actualiza sola.
   Sim.menu = (() => {
     // En la computadora, con la columna de controles abierta, los menús se acomodan en su sección
@@ -1172,7 +1211,8 @@
     const val = (f, ...a) => typeof f === 'function' ? f(...a) : f;
     const mk = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
     // Lugar libre a la derecha del dibujo, en el panel del componente.
-    const dockFor = anchor => {
+    const dockFor = (anchor, o) => {
+      if (o && o.float) return null;
       if (Sim.side && Sim.side.docked()) return { side: true };
       const p = Sim.panels.find(q => q.box.contains(anchor));
       if (!p || !p.box.clientWidth) return null;
@@ -1188,10 +1228,11 @@
     // Al abrir, la tarjeta crece un poquito desde su flechita (desde el componente); la hoja del celular sube
     // desde abajo; la de la columna baja apenas. Al cerrar se va más rápido de lo que llegó. Si se cambia de
     // un componente a otro con la tarjeta abierta, la nueva solo aparece (sin crecer otra vez).
+    const lying = matchMedia('(max-height: 500px)');   // celular acostado: la hoja sale de la derecha
     const enter = (card, quick) => {
       const el = card.el, sheet = el.classList.contains('sheet'), still = quick || Sim.REDUCE.matches;
       const kf = still ? [{ opacity: 0 }, { opacity: 1 }]
-        : sheet ? [{ transform: 'translateY(100%)' }, { transform: 'none' }]
+        : sheet ? [{ transform: lying.matches ? 'translateX(100%)' : 'translateY(100%)' }, { transform: 'none' }]
         : card.docked ? [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }]
         : [{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'none' }];
       el.animate(kf, { duration: still ? 120 : sheet ? 320 : 180, easing: sheet && !still ? Sim.EASE.drawer : Sim.EASE.out });
@@ -1201,7 +1242,7 @@
       const sheet = el.classList.contains('sheet');
       el.classList.add('leaving'); el.setAttribute('aria-hidden', 'true');
       const kf = Sim.REDUCE.matches ? [{ opacity: 1 }, { opacity: 0 }]
-        : sheet ? [{ transform: from || 'none' }, { transform: 'translateY(100%)' }]
+        : sheet ? [{ transform: from || 'none' }, { transform: lying.matches ? 'translateX(100%)' : 'translateY(100%)' }]
         : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.97)' }];
       el.animate(kf, { duration: sheet ? 220 : 120, easing: Sim.EASE.out, fill: 'forwards' }).finished.finally(() => el.remove());
     };
@@ -1296,10 +1337,37 @@
       };
       return { row, sync };
     };
+    // Segmentado: una opción de varias (como Serie | Paralelo).
+    const seg = r => {
+      const row = mk('div', 'row'), g = mk('div', 'sim-seg');
+      g.setAttribute('role', 'group'); g.setAttribute('aria-label', r.label);
+      if (r.label) row.appendChild(mk('div', 'lbl', r.label));
+      const btns = r.seg.map(o => {
+        const btn = mk('button', '', o.text);
+        btn.type = 'button';
+        btn.addEventListener('click', () => { r.set(o.value); sync(); });
+        g.appendChild(btn);
+        return btn;
+      });
+      row.appendChild(g);
+      const sync = () => { const v = r.get(); btns.forEach((btn, k) => btn.setAttribute('aria-pressed', String(r.seg[k].value === v))); };
+      return { row, sync };
+    };
+    // Deslizador corto: nombre, un extremo, el deslizador y el otro extremo, en un renglón.
+    const range = r => {
+      const row = mk('label', 'row rng'), inp = mk('input');
+      inp.type = 'range'; [inp.min, inp.max, inp.step] = r.range; inp.value = r.get();
+      row.innerHTML = `<span class="nm">${r.label}</span><span class="lo">${r.lo}</span>`;
+      row.appendChild(inp); row.insertAdjacentHTML('beforeend', `<span class="hi">${r.hi}</span>`);
+      Sim.snapRange(inp, { magnet: r.magnet || 0 });
+      inp.addEventListener('input', () => r.set(+inp.value));
+      const sync = () => { if (document.activeElement !== inp) inp.value = r.get(); };
+      return { row, sync };
+    };
     const actions = r => {
-      const row = mk('div', 'row acts');
+      const row = mk('div', 'row acts' + (r.actions.some(a => a.primary) ? ' main' : ''));
       const btns = r.actions.map(a => {
-        const btn = mk('button', 'act' + (a.danger ? ' danger' : ''));
+        const btn = mk('button', 'act' + (a.danger ? ' danger' : '') + (a.primary ? ' primary' : ''));
         btn.type = 'button';
         btn.addEventListener('click', () => { a.onClick(); sync(); });
         row.appendChild(btn);
@@ -1348,7 +1416,7 @@
       raf = 0;
       if (!cards.length) return;
       for (const c of [...cards]) {
-        const now = c.docked && dockFor(c.anchor);
+        const now = c.docked && dockFor(c.anchor, c.o);
         if (c.docked && (!now || !!now.side !== !!c.docked.side)) { close(c); continue; }   // ya no hay lugar (cambió la pantalla)
         refresh(c);
       }
@@ -1356,7 +1424,7 @@
     };
     const open = (anchor, o) => {
       if (!ready) setup();
-      const p = dockFor(anchor), swap = !p && cards.some(c => !c.docked);
+      const p = dockFor(anchor, o), swap = !p && cards.some(c => !c.docked);
       const old = cards.find(c => c.anchor === anchor);
       if (old) close(old, false, true);
       if (!p) closeFloating(true);
@@ -1366,11 +1434,11 @@
       x.type = 'button'; x.setAttribute('aria-label', 'Cerrar');
       hd.append(title, x);
       el.append(hd);
-      const parts = o.rows.map(r => r.values ? slider(r) : r.options ? choice(r) : r.heat ? heatRow(r) : actions(r));
+      const parts = o.rows.map(r => r.values ? slider(r) : r.options ? choice(r) : r.heat ? heatRow(r) : r.seg ? seg(r) : r.range ? range(r) : actions(r));
       parts.forEach(q => el.appendChild(q.row));
       const card = { anchor, o, el, title, parts, docked: p };
       x.addEventListener('click', () => close(card, true));
-      Sim.swipeClose(hd, el, 'y', () => el.classList.contains('sheet') && cards.includes(card), from => close(card, false, false, from));
+      Sim.swipeClose(hd, el, () => lying.matches ? 'x' : 'y', () => el.classList.contains('sheet') && cards.includes(card), from => close(card, false, false, from));
       if (p) {
         const d = dockEl(p);
         d.prepend(el);

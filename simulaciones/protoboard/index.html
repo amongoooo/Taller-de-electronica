@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022025258">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022040617">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022025258"></script>
+<script src="../../assets/sim.js?v=20261022040617"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -354,7 +354,7 @@
       }
       const f = ny > 0 ? -1 : 1;   // el valor va del lado de arriba (o a la izquierda si está parada)
       const o = 19 + 20 * Math.abs(nx);   // parada, la etiqueta necesita más espacio a un lado
-      if (!ghost) D.text(ctx, k.burnt ? (water ? 'reventado' : 'quemada') : ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, k.burnt ? C.danger : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
+      if (!ghost) D.text(ctx, k.burnt ? (water ? 'reventado' : 'quemada') : ohm(k.R), M[0] + f * nx * o, M[1] + f * ny * o, k.burnt ? C.danger : k === menuK && selOpen() ? C.sel : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
       if (k.burnt && !water) D.smoke(ctx, M[0], M[1] - 8, k.breakT);
     } else if (k.type === 'led') {
       const glowK = k.burnt ? 0 : Math.min(1, k.I / 20), [cr, cg, cb] = Sim.led(k.led).rgb;
@@ -488,24 +488,53 @@
     }
     if (side === 'w') drawValveNote(ctx, g);
     drawSelLabel(ctx, g, side);
+    // lo que tiene su tarjeta abierta: contorno azul a lo largo de él (o alrededor de la pila)
+    const sa = Sim.fadeSel('pb', selOpen());
+    if (sa && menuK) {
+      if (menuK === BATK) { const R = rectW(g, ...BAT); D.select(ctx, R[0] - 7, R[1] - 7, R[2] + 14, R[3] + 14, sa, 14); }
+      else {
+        const A = g.pt(...legUV(menuK.a)), B = g.pt(...legUV(menuK.b)), M = lerp(A, B, 0.5);
+        const hh = menuK.type === 'led' ? 21 : menuK.type === 'res' ? 15 : 12;
+        D.selectRot(ctx, M[0], M[1], Math.atan2(B[1] - A[1], B[0] - A[0]), Math.hypot(B[0] - A[0], B[1] - A[1]) / 2 + 12, hh, sa, 10);
+      }
+    }
   }
 
-  // ---------- menú de cada componente ----------
-  // Tocar una resistencia o un LED abre su menú (Sim.menu) junto a él: su valor o su color, girarlo,
-  // ponerlo nuevo y quitarlo. Un marcador en cada panel (sin dibujo) sirve para colocar el menú.
+  // ---------- tarjeta de cada cosa ----------
+  // Tocar una resistencia, un LED o un cable abre su tarjeta (Sim.menu) junto a él: su valor o su color,
+  // girarlo, ponerlo nuevo y quitarlo; tocar la pila (la bomba) abre la suya: su fusible. Un marcador en cada
+  // panel (sin dibujo) sirve para colocar la tarjeta; la cosa elegida (menuK) queda con su contorno azul.
+  // En Componentes hay un renglón por cada una, que abre la misma tarjeta.
   const anchors = {};
   let menuK = null;
+  const BATK = { type: 'bat' };
+  const centerUV = k => k === BATK ? [(BAT[0] + BAT[2]) / 2, (BAT[1] + BAT[3]) / 2] : lerp(legUV(k.a), legUV(k.b), 0.5);
   Object.entries(panels).forEach(([side, p]) => {
     const el = document.createElement('div');
     el.className = 'pb-anchor';
     p.box.querySelector('.sim-layer').appendChild(el);
-    p.at(el, () => menuK ? geo(p).pt(...lerp(legUV(menuK.a), legUV(menuK.b), 0.5)) : [-999, -999]);
+    p.at(el, () => menuK ? geo(p).pt(...centerUV(menuK)) : [-999, -999]);
     anchors[side] = el;
   });
-  const openMenu = (side, k) => {
-    menuK = k; panels.w.replace(); panels.e.replace();
+  const selOpen = () => !!menuK && (Sim.menu.isOpen(anchors.w) || Sim.menu.isOpen(anchors.e));
+  const shownSide = () => Sim.view === 'w' ? 'w' : 'e';
+  const WIRES = [['#1f9d55', 'Verde'], ['#e0a400', 'Amarillo'], ['#2563eb', 'Azul'], ['#ea7a1a', 'Naranja'], [REDW, 'Rojo'], ['#15212a', 'Negro']];
+  const nameOf = k => {
+    if (k === BATK) return 'Pila 9 V';
+    const n = st.comps.filter(c => c.type === k.type).indexOf(k) + 1;
+    return n ? String(n) : '';
+  };
+  const menuFor = (side, k) => {
     const water = side === 'w';
-    const remove = { text: 'Quitar de la protoboard', danger: true, onClick: () => { st.comps = st.comps.filter(c => c !== k); Sim.menu.close(anchors[side]); } };
+    const remove = { text: 'Quitar de la protoboard', danger: true, onClick: () => { st.comps = st.comps.filter(c => c !== k); Sim.menu.close(anchors.w); Sim.menu.close(anchors.e); } };
+    if (k === BATK) return { title: water ? 'Bomba' : 'Pila 9 V', rows: [
+      { actions: [{ text: water ? 'Abrir la válvula de seguridad' : 'Poner un fusible nuevo', primary: true, hidden: () => st.fuse, onClick: () => { st.fuse = true; st.fuseHeat = 0; } }] },
+      { heat: () => ({ label: water ? 'Caudal' : 'Corriente', rated: water ? '1000 mL/s' : '1 A', now: water ? Math.round(st.Ibat) + ' mL/s' : (st.Ibat >= 1000 ? fmt(st.Ibat / 1000, 2) + ' A' : Math.round(st.Ibat) + ' mA'),
+        over: st.Ibat > FUSE * 1000, f: st.fuse ? Math.min(1, st.fuseHeat) : 1, burnt: !st.fuse, name: water ? 'Válvula de seguridad' : 'Fusible',
+        val: st.fuse ? (water ? 'abierta' : 'bien') : (water ? 'cerrada' : 'fundido'), end: water ? 'cierra' : 'se funde' }) }] };
+    if (k.type === 'wire') return { title: (water ? 'Manguera ' : 'Cable ') + nameOf(k), rows: [
+      { label: 'Color', get: () => k.color, set: c => { k.color = c; }, options: WIRES.map(([c, t]) => ({ value: c, text: t, color: c })) },
+      { actions: [remove] }] };
     const o = k.type === 'res'
       ? Sim.resistorMenu({ values: RVALUES, get: () => k.R, set: R => { k.R = R; }, format: ohm, heat: heatOf(k), broken: () => k.burnt, actions: [
         { text: water ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } },
@@ -514,10 +543,29 @@
         { text: water ? 'Girar la rueda' : 'Girar el LED', onClick: () => { const t = k.a; k.a = k.b; k.b = t; } },
         { text: water ? 'Poner una rueda nueva' : 'Poner un LED nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } },
         remove] })(side);
-    // tocar la protoboard no la cierra aquí: lo decide el toque (otro componente abre su menú)
+    o.title = o.title + ' ' + nameOf(k);
+    return o;
+  };
+  const openMenu = (side, k) => {
+    menuK = k; panels.w.replace(); panels.e.replace();
+    const o = menuFor(side, k);
+    // tocar la protoboard no la cierra aquí: lo decide el toque (otra cosa abre su tarjeta)
     o.ignore = t => t === panels.w.canvas || t === panels.e.canvas;
     Sim.menu.open(anchors[side], o);
   };
+  const toggleMenu = (side, k) => { if (menuK === k && selOpen()) { Sim.menu.close(anchors.w); Sim.menu.close(anchors.e); } else openMenu(side, k); };
+  // Renglones de Componentes: la pila y cada resistencia, LED y cable que está en la protoboard.
+  const rows = new Map();
+  const syncRows = () => {
+    if (!Sim.side) return;
+    const want = [BATK, ...st.comps.filter(k => k.type !== 'lead')];
+    for (const [k, r] of rows) if (!want.includes(k)) { r.remove(); rows.delete(k); }
+    for (const k of want) if (!rows.has(k)) rows.set(k, Sim.side.part({
+      anchor: () => anchors[shownSide()], menu: () => menuFor(shownSide(), k),
+      isOpen: () => menuK === k && selOpen(), toggle: () => toggleMenu(shownSide(), k)
+    }));
+  };
+  setInterval(syncRows, 250); syncRows();
 
   // ---------- tocar y arrastrar ----------
   const distSeg = (p, a, b) => {
@@ -601,8 +649,8 @@
           if (!done) remove();
         } else if (d.kind === 'body') {
           if (d.k === d.menu) Sim.menu.close(anchors[side]);   // tocarlo otra vez lo cierra
-          else if (d.k.type === 'res' || d.k.type === 'led') openMenu(side, d.k);
-        } else if (d.kind === 'battery') { if (!st.fuse) { st.fuse = true; st.fuseHeat = 0; } }
+          else openMenu(side, d.k);
+        } else if (d.kind === 'battery') { if (d.menu !== BATK) openMenu(side, BATK); }
         else {
           const at = d.kind === 'leg' ? d.leg : nearestHole(...q, new Set(), 0.5);
           if (at && at.c != null) {
