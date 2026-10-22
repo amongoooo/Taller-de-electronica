@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022090217">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022093353">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022090217"></script>
+<script src="../../assets/sim.js?v=20261022093353"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -70,9 +70,11 @@
   const vf = k => Sim.led(k.led).vf;        // cada color de LED necesita otro voltaje
   const COLORS = ['#1f9d55', '#e0a400', '#2563eb', '#ea7a1a', '#d6392b', '#15212a'];
 
+  // Arriba queda una franja (BAND) para el selector del color de las partículas y su escala.
+  const BAND = 70;
   const GEO = {
-    h: { W: 765, H: 581, pt: (u, v) => [(u + 6.2) * P, (v + 1.3) * P], uv: (x, y) => [x / P - 6.2, y / P - 1.3], bat: [-5.6, 0.7, -2.95, 3.8], power: [-3.9, 5.7] },
-    v: { W: 581, H: 765, pt: (u, v) => [(v + 1.3) * P, (u + 6.2) * P], uv: (x, y) => [y / P - 6.2, x / P - 1.3], bat: [-5.6, 1.6, -2.95, 5.2], power: [-3.9, 6.3] }
+    h: { W: 765, H: 581 + BAND, pt: (u, v) => [(u + 6.2) * P, (v + 1.3) * P + BAND], uv: (x, y) => [x / P - 6.2, (y - BAND) / P - 1.3], bat: [-5.6, 0.7, -2.95, 3.8], power: [-3.9, 5.7] },
+    v: { W: 581, H: 765 + BAND, pt: (u, v) => [(v + 1.3) * P, (u + 6.2) * P + BAND], uv: (x, y) => [(y - BAND) / P - 6.2, x / P - 1.3], bat: [-5.6, 1.6, -2.95, 5.2], power: [-3.9, 6.3] }
   };
   const group = (c, r) => r === 0 ? 'R0p' : r === 1 ? 'R0n' : r === 12 ? 'R1p' : r === 13 ? 'R1n' : (r < 7 ? 'T' : 'B') + c;
   const groupHoles = g => {
@@ -192,7 +194,10 @@
   const size = (w, h) => {
     const s = m => Math.min(w / GEO[m].W, h / GEO[m].H);
     const m = s('v') > s('h') * 1.05 ? 'v' : 'h';
-    return [GEO[m].W, GEO[m].H, 0, m];
+    // Si a los lados sobra lugar para el selector del color (unos 250 px) pero no en cada lado, el dibujo se
+    // recorre a la izquierda y el selector va a su derecha; si no cabe, en la franja de arriba.
+    const k = s(m), free = w - GEO[m].W * k, extra = free >= 290 && free < 470 ? 250 / k + 20 : 0;
+    return [GEO[m].W + extra, GEO[m].H, 0, m];
   };
   const panels = { w: Sim.panel(document.getElementById('pw'), size), e: Sim.panel(document.getElementById('pe'), size) };
   panels.w.mirror = panels.e; panels.e.mirror = panels.w;
@@ -200,6 +205,14 @@
 
   // Switch Agua / Electricidad y Ambos, igual que en las demás simulaciones.
   Sim.viewSwitch();
+
+  // Color de las partículas: el selector con su escala, arriba a la derecha, en la franja de arriba (como en las
+  // demás simulaciones).
+  Sim.colorPicker(panels, { top: BAND, spot: side => [panels[side].W - 6, 2], ends: side => ({
+    v: ['lento', 'rápido'],
+    p: side === 'w' ? ['0 psi', V0 + ' psi'] : ['0 V', V0 + ' V'],
+    q: ['0', side === 'w' ? IMAX + ' mL/s' : IMAX + ' mA']
+  })[Sim.shownColorMode()] });
 
   const dentro = document.getElementById('dentro');
   const syncDentro = () => dentro.querySelectorAll('button').forEach(bt => bt.setAttribute('aria-pressed', String(bt.dataset.v === (st.inside ? '1' : '0'))));
@@ -246,13 +259,26 @@
   };
   const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
   const narrowHalf = R => Math.max(1, 4.6 - 1.8 * Math.log10(R / 100));
-  // Puntos que avanzan por un recorrido; phase crece con la corriente.
-  const flowDots = (ctx, pts, phase, col, gap, r) => {
+  // Puntos que avanzan por un recorrido; phase crece con la corriente. Con f = { v(t), I } cada punto toma el
+  // color del modo elegido (Sim.colorMode): presión (voltaje) de 0 a 9 V, v(t) a lo largo del recorrido (t de 0
+  // a 1), y caudal (corriente) |I| de 0 a 30 mA, lo más que aguanta un LED. En el agua, en modo rapidez, por
+  // su rapidez; en la electricidad, en modo normal, del color de siempre.
+  let fieldNow = [0, 0];
+  Sim.field = () => fieldNow;
+  const flowDots = (ctx, pts, phase, col, gap, r, f) => {
     const L = D.len(pts); if (L < 2) return;
-    const off = ((phase % gap) + gap) % gap;
+    const off = ((phase % gap) + gap) % gap, speed = col === C.water && f ? Math.min(420, Math.abs(f.I) * 4) / 200 : null;
     ctx.fillStyle = col;
-    for (let d = off; d < L; d += gap) { const [x, y] = D.pointAt(pts, d); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+    for (let d = off; d < L; d += gap) {
+      const [x, y] = D.pointAt(pts, d);
+      if (f) { fieldNow = [f.v(d / L) / V0, Math.abs(f.I) / IMAX]; ctx.fillStyle = Sim.particleColor(x, y, speed, col); }
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
   };
+  // Voltaje de la tira (o del borne) donde está una pata; null si está suelta o la tira no llega a la pila.
+  const vOf = l => { const n = legNode(l); return n && st.reach.has(n) ? st.V[n] ?? 0 : null; };
+  // En modo presión (voltaje) también se ve el agua quieta: con presión pero sin caudal.
+  const still = () => Sim.shownColorMode() === 'p';
   const phaseOf = (key, I, dt) => {
     const ph = (st.phase.get(key) || 0) + Math.sign(I) * Math.min(420, Math.abs(I) * 4) * dt;
     st.phase.set(key, ph); return ph;
@@ -298,20 +324,27 @@
   // sale la corriente de lo que está conectado ahí y lo que sobra sigue por la tira.
   function drawStripFlow(ctx, g, side, dt) {
     if (!st.inside) return;
-    const by = new Map();
-    for (const k of st.comps) for (const [l, s] of [[k.a, -1], [k.b, 1]]) if (l.c != null && k.I) {
+    const by = new Map(), sv = still();
+    for (const k of st.comps) for (const [l, s] of [[k.a, -1], [k.b, 1]]) if (l.c != null && (k.I || sv)) {
       const gr = group(l.c, l.r);
       (by.get(gr) || by.set(gr, []).get(gr)).push({ pos: gr[0] === 'R' ? l.c : l.r, uv: legUV(l), I: s * k.I });
     }
+    // en modo presión, toda la tira (o el riel) que llega a la pila, también lo que está quieto
+    if (sv) for (const gr of GROUPS) if (st.reach.has(gr) && !by.has(gr)) by.set(gr, []);
     for (const [gr, list] of by) {
       list.sort((p, q) => p.pos - q.pos);
+      const whole = sv && st.reach.has(gr), v = st.V[gr] ?? 0;
+      if (whole) {
+        const hs = groupHoles(gr), uv = ([c, r]) => [c, ROWV[r]];
+        list.unshift({ uv: uv(hs[0]), I: 0 }); list.push({ uv: uv(hs[hs.length - 1]), I: 0 });
+      }
       let sum = 0;
       for (let i = 0; i < list.length - 1; i++) {
         sum += list[i].I;
-        if (Math.abs(sum) < 0.01) continue;
+        if (Math.abs(sum) < 0.01 && !whole) continue;
         const pts = [g.pt(...list[i].uv), g.pt(...list[i + 1].uv)];
-        const ph = side === 'e' ? phaseOf(gr + i + 'e', sum, dt) : phaseOf(gr + i + 'w', sum, dt);
-        flowDots(ctx, pts, ph, side === 'w' ? C.water : C.charge, side === 'w' ? 16 : 18, 3.2);
+        const ph = phaseOf(gr + i + side, Math.abs(sum) < 0.01 ? 0 : sum, dt);
+        flowDots(ctx, pts, ph, side === 'w' ? C.water : C.charge, side === 'w' ? 16 : 18, 3.2, { v: () => v, I: sum });
       }
     }
   }
@@ -408,9 +441,10 @@
         }
       }
     }
-    if (!ghost && Math.abs(k.I) > 0.01) {
+    const va = vOf(k.a), vb = vOf(k.b), quiet = still() && va != null && vb != null;
+    if (!ghost && (Math.abs(k.I) > 0.01 || quiet)) {
       const ph = phaseOf(k.id + side, k.I, dt);
-      flowDots(ctx, path, ph, water ? C.water : C.charge, water ? 16 : 18, 3.2);
+      flowDots(ctx, path, ph, water ? C.water : C.charge, water ? 16 : 18, 3.2, { v: t => (va ?? 0) + ((vb ?? 0) - (va ?? 0)) * t, I: k.I });
     }
     ctx.globalAlpha = 1;
   }
