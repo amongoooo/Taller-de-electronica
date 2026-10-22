@@ -1,6 +1,8 @@
 // Banco común de las simulaciones de agua y electricidad: dos paneles con el mismo circuito,
-// bomba y fuente enlazadas (interruptor, LEDs CV/CC, perillas de voltaje y de límite de corriente con sus
-// pantallitas y medidor) y un multímetro abajo junto al controlador (en el agua, un medidor equivalente):
+// bomba y fuente enlazadas (como la fuente del taller, una BK 1761 de dos canales: en cada canal una
+// pantallita con su tecla V/A, VOLTAGE con COARSE y FINE, CURRENT para el límite de corriente, LEDs CV/CC y
+// bornes − ⏚ +; POWER en medio; el circuito va en el canal A) y un multímetro abajo junto a la fuente (en
+// el agua, un medidor equivalente):
 // un solo par de cables, rojo (+) y negro (−), y una perilla OFF · V · A · Ω. En V (presión) sus dos
 // puntas van entre dos puntos del circuito; en A (caudal) el circuito se abre en un punto y el
 // multímetro queda en medio: el cable se corta entre sus dos puntas y todo pasa por él (si las puntas
@@ -18,11 +20,11 @@
 //   iMax,             mA con el voltaje al máximo y la menor resistencia posible (si falta, iFull):
 //                     el tubo del medidor de caudal solo se llena del todo con ese caudal
 //   flowSpeed,        rapidez de las partículas en la tubería normal, por cada mA
-//   v0,               voltaje inicial de la perilla
+//   v0,               voltaje inicial del canal A (y del B)
 //   lim0,             límite de corriente inicial en mA (100 si falta)
 //   layout(g),        se llama cuando cambia el tamaño de un panel (g.side es 'w' o 'e')
 //   model(V),         devuelve { I } (mA totales) y lo que la página necesite para dibujar; V es el voltaje
-//                     que de verdad sale de la fuente (menor que el de la perilla si llegó al límite),
+//                     que de verdad sale del canal A (menor que el de sus perillas si llegó al límite),
 //                     así que I debe crecer con V y ser finita aunque haya un corto
 //   circuit(g, m, V), tramos del circuito sin contar la fuente, para las puntas (ver más abajo);
 //                     si falta, es una sola vuelta con todo el voltaje en el centro de arriba
@@ -32,6 +34,8 @@
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
 //   overlay(ctx, g, m)                    lo que va encima de todo (avisos de la página)
 // })
+// El canal B no tiene nada conectado: da su voltaje sin corriente (CV), listo para una página con dos fuentes.
+// b.st.set es el voltaje de las perillas del canal A y b.vScale() el voltaje de la escala de colores.
 // Vista de nodos (Ver → Dibujo: Circuito | Nodos): los cables se juntan en nodos con su voltaje y solo quedan
 // los componentes. Para dibujarlos ahí, cada componente de circuit() trae draw(ctx, water, g, m) (lo dibuja en
 // su lugar de siempre; el banco lo mueve y lo gira), tag(water) → [nombre, valor, peligro, estado], pr (su b.pinch o
@@ -48,7 +52,8 @@
 (() => {
   const { C, draw: D, fmt, digits } = Sim;
   // Del lado del agua los números son los mismos que los eléctricos: 1 psi por volt y 1 mL/s por mA.
-  const VMAX = 12, PSI_PER_V = 1, MLS_PER_MA = 1, RPM_PER_MA = 100;
+  // Cada canal de la fuente da de 0 a 35 V y de 0 a 3 A, como la BK 1761 del taller.
+  const VMAX = 35, PSI_PER_V = 1, MLS_PER_MA = 1, RPM_PER_MA = 100;
   const SRC = 40;   // medio ancho de la bomba (y de la fuente) sobre el cable de abajo
   // Color de cada posición de la perilla del multímetro (y de lo que mide): voltaje morado, corriente verde.
   const MCOL = { off: '#7a8794', V: '#8b5cf6', A: '#0ea371', R: '#1d6fd1' };
@@ -57,33 +62,67 @@
   const MS = ['a', 'b'];                                // los dos multímetros
   const RED = '#d6392b';
   const TRIP_MAX = 500;   // mA: hasta aquí la protección del multímetro en A se bota; arriba se funde su fusible
-  // Pasos de la perilla del límite de corriente (mA), de 1 mA a 1 A: diez por cada década.
-  const LIMS = [1, 10, 100].flatMap(d => [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8].map(x => Math.round(x * d * 10) / 10)).concat(1000);
-  // Lo que marca la perilla del límite: en mA (o A) en la fuente, en mL/s (o L/s) en la bomba.
-  const limText = (i, side) => {
-    const [small, big] = side === 'w' ? ['mL/s', 'L/s'] : ['mA', 'A'], q = side === 'w' ? i * MLS_PER_MA : i;
-    return q >= 1000 ? [digits(q / 1000, 1, 2), big] : [digits(q, 3, q < 10 ? 1 : 0), small];
+  // Pasos de la perilla CURRENT (el límite, en mA), de 0 a 3 A: de a 1 mA abajo de 10 mA (la pantallita marca
+  // 1 mA) y luego como 1-1,2-1,5-2-2,5-3-4-5-6-8 en cada década, para que 20 mA quede tan a la mano como 2 A.
+  const LIMS = [0, 1, 2, 3, 4, 5, 6, 8].concat([10, 100].flatMap(d => [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8].map(x => Math.round(x * d))),
+    [1000, 1200, 1500, 2000, 2500, 3000]);
+  // Escala de colores del voltaje (presión): la más chica de estas que alcanza el voltaje del canal A.
+  const VSCALES = [12, 24, 35];
+  // Los dos acomodos de la fuente, en sus coordenadas (w × h; se dibuja escalada, ver geometry). Cada canal
+  // trae: su letra; lcd [x, y, ancho, alto]; key, la tecla V/A [x, y, ancho, alto]; leds CV y CC; head, los
+  // nombres VOLTAGE y CURRENT [x, y, ancho]; las perillas co (COARSE), fi (FINE) y cu (CURRENT) [x, y, diámetro]
+  // con caps, los nombres COARSE y FINE debajo [x, y, ancho]; y jacks, los bornes − ⏚ +. ch da dónde empieza
+  // cada canal. Al centro (o a la derecha en el apilado): pow, la palanca POWER con su nombre (powLab) y las
+  // teclas de la polaridad (pol) y de los cables (cab).
+  // div: las rayas entre los canales (en el ancho no llegan abajo, para que quepa POWER entre los bornes).
+  //   wide:  B · POWER · A, como la del taller.
+  //   stack: A arriba y B abajo, con sus bornes a la derecha de cada uno y POWER en una columna a la derecha
+  //          (la mesa angosta de los dos paneles en la PC).
+  const SL = {
+    wide: { w: 540, h: 224, ch: { B: [0, 0], A: [302, 0] }, div: [[[234, 40], [234, 186]], [[302, 40], [302, 186]]],
+      pol: [251, 24], cab: [285, 24], pow: [268, 112], powLab: [268, 204, 120],
+      c: { letter: [16, 62], lcd: [89, 62, 100, 38], key: [213, 62, 38, 28], leds: [[149, 52], [149, 73]],
+        head: [[82, 98, 140], [191, 98, 86]], co: [46, 140, 46], fi: [118, 140, 38], cu: [196, 140, 46],
+        caps: [[46, 180, 84], [118, 180, 46]], jacks: [[62, 208], [118, 208], [174, 208]] } },
+    stack: { w: 330, h: 310, ch: { A: [0, 34], B: [0, 172] }, div: [[[12, 170], [264, 170]], [[272, 12], [272, 298]]],
+      pol: [301, 22], cab: [301, 48], pow: [301, 162], powLab: [301, 290, 58],
+      c: { letter: [14, 20], lcd: [75, 20, 88, 32], key: [192, 20, 38, 26], leds: [[128, 12], [128, 30]],
+        head: [[77, 55, 124], [184, 55, 86]], co: [44, 90, 42], fi: [110, 90, 34], cu: [184, 90, 42],
+        caps: [[44, 126, 80], [110, 126, 44]], jacks: [[254, 48], [254, 82], [254, 116]] } }
   };
   // Íconos de los botones de cada medidor: conector (recoger) y flechas (compactar o mostrar completo).
   const icon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
   Sim.bench = o => {
     const iFull = o.iFull || 12, iMax = o.iMax || iFull, flowSpeed = o.flowSpeed || 12;
-    const st = { on: false, set: o.v0 ?? 6, lim: Sim.nearest(LIMS, o.lim0 ?? 100), v: 0, vo: 0, cc: false, tau: 1, level: Sim.ramp(), m: { I: 0 },
+    // Cada canal: sus perillas (co, COARSE, de 0,5 en 0,5 V; fi, FINE, ±0,5 V de 0,01 en 0,01 V; lim, CURRENT),
+    // lo que se ve en su pantallita (disp, 'V' o 'A'; peek: lo que marca la perilla que se acaba de girar) y lo
+    // que sale: v (adentro, con la inercia), vo y io (en los bornes) y cc (llegó al límite). POWER (on) es de
+    // los dos. st.v, st.vo y st.cc son los del canal A, el del circuito.
+    const v0 = Math.max(0, Math.min(VMAX, o.v0 ?? 6)), lim0 = Sim.nearest(LIMS, o.lim0 ?? 100);
+    const channel = () => ({ co: Math.round(v0 * 2) / 2, fi: 0, lim: lim0, disp: 'V', peek: null, v: 0, vo: 0, io: 0, cc: false, level: Sim.ramp(), press: 0 });
+    const st = { on: false, ch: { A: channel(), B: channel() }, v: 0, vo: 0, cc: false, tau: 1, m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, segs: [], probe: { a: null, b: null }, pinned: { a: false, b: false }, show: { a: true, b: false },
       // la perilla de cada multímetro y su fusible (se funde al hacer un corto en A)
       dial: { a: 'V', b: 'A' }, fuse: { a: false, b: false },
       // su protección en A: se bota con un corto y se rearma tocando su botón (pop: qué tanto salió)
       trip: { a: false, b: false }, pop: { a: 0, b: 0 }, popv: { a: 0, b: 0 } };
     const b = { st, VMAX, PSI_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
+    // Voltaje de las perillas de un canal (COARSE + FINE, de 10 en 10 mV) y el límite del canal A.
+    const setOf = c => Math.max(0, Math.min(VMAX, Math.round((st.ch[c].co + st.ch[c].fi) * 100) / 100));
+    Object.defineProperty(st, 'set', { get: () => setOf('A') });
+    Object.defineProperty(st, 'lim', { get: () => st.ch.A.lim });
+    b.vScale = () => VSCALES.find(v => v >= setOf('A')) || VMAX;
 
     // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual). El
     // panel tiene dos franjas: el circuito y la mesa de trabajo, donde van los instrumentos alineados por
     // su base, centrados y con el mismo espacio entre ellos (si se arrastran, quedan donde se dejen):
-    //   ancho:   la computadora; la mesa abajo: multímetro · fuente · lugar del segundo multímetro.
-    //   medio:   la computadora con los dos paneles (angostos y altos): igual, con la fuente compacta.
-    //   alto:    celular vertical; la mesa abajo: la fuente y el multímetro compactos, lado a lado (el
-    //            segundo multímetro, encima del primero).
+    //   ancho:   la computadora; la mesa abajo: multímetro · fuente · lugar del segundo multímetro, con la
+    //            fuente a lo ancho (B · POWER · A).
+    //   medio:   la computadora con los dos paneles (angostos y altos): igual, con la fuente apilada (A arriba
+    //            y B abajo, POWER a la derecha).
+    //   alto:    celular vertical; la mesa abajo: la fuente a lo ancho de todo el panel y arriba de ella los dos
+    //            multímetros compactos, lado a lado.
     //   lateral: celular horizontal; la mesa a la derecha: los multímetros arriba y la fuente abajo.
     // En el celular solo se ve de x0 a x0 + W, sin márgenes de sobra, para que todo salga más grande.
     const MODES = {
@@ -107,40 +146,45 @@
     };
     // Medidas de un multímetro sin escalar (ver shape): extendido y compactado.
     const MW = { full: 152, small: 184, h: 212, hs: 70 };
+    // La fuente se dibuja en sus coordenadas (SL, ver más abajo) escalada g.FK; g.FL dice cuál de sus dos
+    // acomodos lleva. fit: la escala con la que cabe en un ancho.
+    const fit = (lay, w) => Math.min(1, w / SL[lay].w);
     // g.meters[k] = [x del centro, y de su base]; g.DESK es dónde empieza la mesa (y, o x en el lateral).
     const geometry = (side, W, H, mode = 'ancho') => {
-      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, BW: 350, BH: 152, MK: 1 };
+      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, MK: 1 };
+      const box = (lay, k) => { g.FL = lay; g.FK = k; g.BW = SL[lay].w * k; g.BH = SL[lay].h * k; };
       if (mode === 'lateral') {
-        g.MK = 1.15; g.BX = 700;
-        g.BY = H - 12 - g.BH;
+        g.MK = 1.05; g.DESK = 668;
+        const right = 110 + W;   // la orilla derecha de lo que se ve
+        box('wide', fit('wide', right - g.DESK - 24));
+        g.BX = (g.DESK + right) / 2 - g.BW / 2; g.BY = H - 12 - g.BH;
         const base = g.BY - 16, d = (MW.full * g.MK + 24) / 2;
         g.meters = { a: [g.BX + g.BW / 2 - d, base], b: [g.BX + g.BW / 2 + d, base] };
-        g.DESK = 668;
         g.BOT = H - 64;
         g.COL = [650, 10];   // arriba de la mesa no cabe: va arriba a la derecha del circuito
         g.TOP = 170;         // y el circuito baja un poco para dejarle lugar
       } else if (mode === 'alto') {
-        // la fuente compacta (slim) y el multímetro compacto, lado a lado
-        g.slim = true; g.BW = 272; g.BH = 186; g.MK = 1.2;
-        const base = H - 18, gap = 22, mw = MW.small * g.MK, x0 = g.PX - (g.BW + gap + mw) / 2;
-        g.BX = x0; g.BY = base - g.BH;
-        g.meters = { a: [x0 + g.BW + gap + mw / 2, base], b: [x0 + g.BW + gap + mw / 2, base] };
-        g.stack = true;   // el segundo multímetro va encima del primero
-        g.DESK = g.BY - 18;
+        // la fuente a lo ancho y arriba los dos multímetros compactos, lado a lado
+        g.MK = 1.2;
+        box('wide', fit('wide', W - 20));
+        g.BX = g.PX - g.BW / 2; g.BY = H - 18 - g.BH;
+        const base = g.BY - 16, d = (MW.small * g.MK + 22) / 2;
+        g.meters = { a: [g.PX - d, base], b: [g.PX + d, base] };
+        g.DESK = base - (MW.hs + 14) * g.MK - 16;
         g.BOT = g.DESK - 56;
         g.COL = [660, 10];
         g.TOP = 170;
       } else {
-        // multímetro · fuente · segundo multímetro (en medio, con la fuente compacta y más juntos)
-        if (mode === 'medio') { g.slim = true; g.BW = 272; g.BH = 186; }
-        const base = H - 20, slot = mode === 'medio' ? MW.full : MW.small - 14, gap = mode === 'medio' ? 16 : 36;
-        const x0 = g.PX - (2 * slot + g.BW + 2 * gap) / 2;
+        // multímetro · fuente · segundo multímetro (en medio, con la fuente apilada)
+        const medio = mode === 'medio', slot = medio ? MW.full : MW.small - 14, gap = 12;
+        box(medio ? 'stack' : 'wide', fit(medio ? 'stack' : 'wide', W - 16 - 2 * slot - 2 * gap));
+        const base = H - 20, x0 = g.PX - (2 * slot + g.BW + 2 * gap) / 2;
         g.BX = x0 + slot + gap; g.BY = base - g.BH;
         g.meters = { a: [x0 + slot / 2, base], b: [g.BX + g.BW + gap + slot / 2, base] };
-        g.DESK = base - MW.h - 24;
+        g.DESK = Math.min(base - MW.h - 24, g.BY - 44);   // con lugar para el cuello de la fuente
         g.BOT = g.DESK - 26;
         g.COL = [W - 12, 10];
-        if (mode === 'medio') { g.COL = [705, 10]; g.TOP = 170; }   // angosto: el circuito baja para dejarle lugar
+        if (medio) { g.COL = [705, 10]; g.TOP = 170; }   // angosto: el circuito baja para dejarle lugar
       }
       g.CX = g.BX + g.BW / 2;   // centro del controlador (perilla)
       g.MIDY = (g.TOP + g.BOT) / 2;
@@ -448,37 +492,36 @@
       grab('sym', g => symAt(g), () => [84, 84]);
     });
 
+    // Todo lo de la fuente va en sus coordenadas (SL): at(g, p) lo pone en el dibujo y chAt(g, c, p) hace lo
+    // mismo con lo de un canal. px(side, d) es el tamaño en pantalla de d unidades de la fuente.
+    const lay = g => SL[g.FL];
+    const at = (g, p) => { const [x, y] = boxAt(g); return [x + p[0] * g.FK, y + p[1] * g.FK]; };
+    const chAt = (g, c, p) => { const o = lay(g).ch[c]; return at(g, [o[0] + p[0], o[1] + p[1]]); };
+    const px = (side, d) => d * geo(side).FK * panel(side).scale;
+    const CHS = ['A', 'B'];
     // Botón de los cables de la fuente, como el de los multímetros: encendido (como empieza) sus cables
     // siempre van tensos, derechos del bloque al circuito; apagado se quedan como se acomoden. Tensarlos una
     // sola vez está en la tarjeta de la fuente.
     const SK = [26, 18];   // tamaño de la tecla
     st.staut = true; st.spress = 0;
-    // Dónde va cada cosa en la caja: completa (350 × 152) o compacta (272 × 186; con los paneles angostos).
-    //   name: el nombre; pow: la palanca; leds: CV y CC (y de su nombre, ltx/lty); lcd: alto, ancho y y de las
-    //   pantallitas; kv y ki: las perillas de voltaje y del límite; key y pol: las teclas de cables y polaridad.
-    const CL = {
-      full: { pow: [44, 97], leds: [[86, 74], [86, 112]], lab: [0, 19, 'center'], lcd: [32, 88, 34], kv: [148, 100], ki: [256, 100], key: [327, 100], pol: [327, 62] },
-      slim: { pow: [34, 134], leds: [[24, 44], [24, 64]], lab: [12, 0, 'left'], lcd: [30, 80, 52], kv: [118, 128], ki: [214, 128], key: [244, 23], pol: [208, 23] }
-    };
-    const cl = g => g.slim ? CL.slim : CL.full;
-    const inBox = (g, k) => { const [x, y] = boxAt(g), [dx, dy] = cl(g)[k]; return [x + dx, y + dy]; };
-    const srcKey = g => inBox(g, 'key');
-    // Arriba de él, el de la polaridad: invierte la salida (el + y el − cambian de lugar). Se queda hundido,
-    // con su lucecita roja, mientras está invertida.
-    st.rev = false; st.rpress = 0;
-    const polKey = g => inBox(g, 'pol');
-    const sgn = () => st.rev ? -1 : 1;
-    const polKeys = ['w', 'e'].map(side => {
+    // Teclas físicas que se dibujan en el canvas: aquí solo queda la zona para tocarlas.
+    const physKey = (side, pos, dim, onClick) => {
       const bt = document.createElement('button');
       bt.type = 'button'; bt.className = 'sim-meter-btn phys sim-src-ctl'; bt.dataset.act = 'ali';
       b.place(side, bt, g => {
-        const s = panel(side).scale;
-        bt.style.width = Math.max(30, (SK[0] + 6) * s) + 'px'; bt.style.height = Math.max(26, (SK[1] + 6) * s) + 'px';
-        return polKey(g);
+        const [w, h] = dim(g);
+        bt.style.width = Math.max(30, px(side, w + 6)) + 'px'; bt.style.height = Math.max(26, px(side, h + 6)) + 'px';
+        return pos(g);
       });
-      bt.addEventListener('click', () => { st.rpress = performance.now() + 140; st.rev = !st.rev; syncPol(); });
-      return [bt, side];
-    });
+      bt.addEventListener('click', onClick);
+      return bt;
+    };
+    // La de la polaridad invierte la salida (el + y el − cambian de lugar). Se queda hundida, con su lucecita
+    // roja, mientras está invertida.
+    st.rev = false; st.rpress = 0;
+    const sgn = () => st.rev ? -1 : 1;
+    const polKeys = ['w', 'e'].map(side => [physKey(side, g => at(g, lay(g).pol), () => SK,
+      () => { st.rpress = performance.now() + 140; st.rev = !st.rev; syncPol(); }), side]);
     const syncPol = () => polKeys.forEach(([bt, side]) => {
       const what = side === 'w' ? 'la bomba' : 'la fuente';
       const l = st.rev ? `Regresar ${what} a su polaridad normal` : `Invertir la polaridad de ${what}: el + y el − cambian de lugar`;
@@ -486,21 +529,11 @@
     });
     syncPol();
     const tenseLeads = () => ['w', 'e'].forEach(side => [0, 1].forEach(j => { const r = ropes[side]['s' + j]; if (r) r.tense = 0.8; }));
-    const srcKeys = ['w', 'e'].map(side => {
-      const bt = document.createElement('button');
-      bt.type = 'button'; bt.className = 'sim-meter-btn phys sim-src-ctl'; bt.dataset.act = 'ali';
-      b.place(side, bt, g => {
-        const s = panel(side).scale;
-        bt.style.width = Math.max(30, (SK[0] + 6) * s) + 'px'; bt.style.height = Math.max(26, (SK[1] + 6) * s) + 'px';
-        return srcKey(g);
-      });
-      bt.addEventListener('click', () => {
-        st.spress = performance.now() + 140;
-        st.staut = !st.staut; if (st.staut) tenseLeads();
-        syncSrcKeys();
-      });
-      return [bt, side];
-    });
+    const srcKeys = ['w', 'e'].map(side => [physKey(side, g => at(g, lay(g).cab), () => SK, () => {
+      st.spress = performance.now() + 140;
+      st.staut = !st.staut; if (st.staut) tenseLeads();
+      syncSrcKeys();
+    }), side]);
     const syncSrcKeys = () => srcKeys.forEach(([bt, side]) => {
       const what = side === 'w' ? 'las mangueras de la bomba' : 'los cables de la fuente';
       const label = st.staut ? `Soltar ${what}` : `Tensar ${what}`;
@@ -508,36 +541,66 @@
     });
     syncSrcKeys();
 
-    // ---------- controlador: bomba y fuente enlazadas ----------
-    // Como una fuente de laboratorio: interruptor ON/OFF a la izquierda con los LEDs CV y CC; la perilla del
-    // voltaje y la del límite de corriente (en el agua, presión y caudal máximo), cada una con su pantallita
-    // arriba (lo que marca la perilla), y a la derecha el medidor de lo que en verdad sale (sube y baja con
-    // la inercia). La fuente da el voltaje de la perilla mientras la corriente no pase del límite (CV); si
-    // se pasaría, sostiene la corriente en el límite y baja el voltaje lo necesario (CC).
-    const power = b.linkedButton({
-      pos: g => inBox(g, 'pow'), cls: 'sim-power',
-      label: side => (st.on ? 'Apagar ' : 'Encender ') + (side === 'w' ? 'la bomba' : 'la fuente'),
-      onClick: () => { st.on = !st.on; }
+    // ---------- la fuente: dos canales, como la BK 1761 del taller ----------
+    // POWER enciende los dos canales. En cada uno, VOLTAGE con dos perillas, COARSE (de 0,5 en 0,5 V) y FINE
+    // (±0,5 V de 10 en 10 mV), y CURRENT, el límite de corriente (de 0 a 3 A). La pantallita marca lo que en
+    // verdad sale por sus bornes (sube y baja con la inercia): el voltaje o, con su tecla V/A, la corriente; al
+    // girar una perilla marca un momento lo que pide esa perilla. El canal da el voltaje de sus perillas mientras
+    // la corriente no pase del límite (CV, verde); si se pasaría, sostiene la corriente en el límite y baja el
+    // voltaje lo necesario (CC, rojo). En el agua, la bomba de dos canales: presión y caudal máximo, en psi y L/s.
+    const power = ['w', 'e'].map(side => {
+      const el = document.createElement('button');
+      el.type = 'button'; el.className = 'sim-power sim-src-ctl'; el.dataset.act = 'ali'; el.innerHTML = Sim.SWITCH;
+      b.place(side, el, g => { el.style.setProperty('--s', geo(side).FK * panel(side).scale); return at(g, lay(g).pow); });
+      el.addEventListener('click', () => { st.on = !st.on; syncPower(); b.refresh(); });
+      return [el, side];
     });
-    power.forEach(el => { el.innerHTML = Sim.SWITCH; el.classList.add('sim-src-ctl'); });
-    const syncPower = () => power.forEach(el => el.setAttribute('aria-pressed', String(st.on)));
-    power.forEach(el => el.addEventListener('click', syncPower)); syncPower();
-    b.linkedKnob({
-      pos: g => inBox(g, 'kv'), min: 0, max: VMAX, step: 0.5, magnet: 1, value: st.set,
-      label: side => side === 'w' ? 'Presión de la bomba' : 'Voltaje de la fuente',
-      format: (v, side) => side === 'w' ? fmt(v * PSI_PER_V) + ' psi' : fmt(v) + ' V',
-      scale: () => [['0', 0], ['6', 0.5], ['12', 1]],
-      caption: side => side === 'w' ? 'presión (psi)' : 'voltaje (V)',
-      onInput: v => { st.set = v; }
+    const syncPower = () => power.forEach(([el, side]) => {
+      el.setAttribute('aria-pressed', String(st.on));
+      el.setAttribute('aria-label', 'POWER: ' + (st.on ? 'apagar ' : 'encender ') + (side === 'w' ? 'la bomba' : 'la fuente'));
     });
-    b.linkedKnob({
-      pos: g => inBox(g, 'ki'), min: 0, max: LIMS.length - 1, step: 1, value: LIMS.indexOf(st.lim),
-      label: side => side === 'w' ? 'Caudal máximo de la bomba' : 'Límite de corriente de la fuente',
-      format: (k, side) => limText(LIMS[k], side).join(' '),
-      onInput: k => { st.lim = LIMS[k]; }
+    syncPower();
+    const PEEK = 1.5;   // segundos que la pantallita marca lo que pide la perilla que se giró
+    const peek = (c, k) => { st.ch[c].peek = { k, until: performance.now() + PEEK * 1000 }; };
+    const chName = (c, side) => `${side === 'w' ? 'de la bomba' : 'de la fuente'}, canal ${c}`;
+    const KNOBS = {
+      co: { min: 0, max: VMAX, step: 0.5, magnet: 1, get: h => h.co, set: (h, v) => { h.co = v; },
+        label: (c, side) => `VOLTAGE COARSE ${chName(c, side)}: ${side === 'w' ? 'presión' : 'voltaje'}, de 0,5 en 0,5` },
+      fi: { min: -0.5, max: 0.5, step: 0.01, get: h => h.fi, set: (h, v) => { h.fi = v; },
+        label: (c, side) => `VOLTAGE FINE ${chName(c, side)}: ${side === 'w' ? 'presión' : 'voltaje'} fino, ±0,5` },
+      cu: { min: 0, max: LIMS.length - 1, step: 1, get: h => LIMS.indexOf(h.lim), set: (h, k) => { h.lim = LIMS[k]; },
+        label: (c, side) => `CURRENT ${chName(c, side)}: ${side === 'w' ? 'caudal' : 'corriente'} máximo` }
+    };
+    const vText = (v, side) => fmt(v * (side === 'w' ? PSI_PER_V : 1), 2) + (side === 'w' ? ' psi' : ' V');
+    const iText = (i, side) => side === 'w' ? fmt(i * MLS_PER_MA / 1000, 3) + ' L/s' : fmt(i / 1000, 3) + ' A';
+    CHS.forEach(c => Object.entries(KNOBS).forEach(([k, K]) => {
+      const ks = {}, h = st.ch[c];
+      ['w', 'e'].forEach(side => {
+        const el = document.createElement('div');
+        b.place(side, el, g => {
+          const d = lay(g).c[k][2];
+          el.style.width = Math.max(k === 'fi' ? 26 : 30, px(side, d)) + 'px';
+          return chAt(g, c, lay(g).c[k]);
+        });
+        el.dataset.act = 'ali';
+        ks[side] = Sim.knob(el, { min: K.min, max: K.max, step: K.step, magnet: K.magnet, value: K.get(h), label: K.label(c, side),
+          format: v => k === 'cu' ? iText(LIMS[v], side) : k === 'fi' ? (v < 0 ? '−' : '+') + vText(Math.abs(v), side) + ' (en total ' + vText(setOf(c), side) + ')'
+            : vText(v, side) + ' (en total ' + vText(setOf(c), side) + ')',
+          onInput: v => { K.set(h, v); peek(c, k === 'cu' ? 'cu' : 'v'); ks[side === 'w' ? 'e' : 'w'].set(v, true); } });
+        el.classList.add('sim-src-ctl');
+      });
+    }));
+    // La tecla V/A de cada canal: su pantallita pasa de voltaje a corriente y de regreso.
+    CHS.forEach(c => {
+      const h = st.ch[c], keys = ['w', 'e'].map(side => [physKey(side, g => chAt(g, c, lay(g).c.key), g => lay(g).c.key.slice(2),
+        () => { h.disp = h.disp === 'V' ? 'A' : 'V'; h.press = performance.now() + 140; h.peek = null; sync(); }), side]);
+      const sync = () => keys.forEach(([bt, side]) => {
+        const [v, i] = side === 'w' ? ['presión', 'caudal'] : ['voltaje', 'corriente'];
+        const l = `Tecla V/A ${chName(c, side)}: la pantallita marca ${h.disp === 'V' ? v : i}; tócala para ver ${h.disp === 'V' ? 'el ' + i : 'la ' + v}`;
+        bt.setAttribute('aria-label', l); bt.title = l; bt.setAttribute('aria-pressed', String(h.disp === 'A'));
+      });
+      sync();
     });
-    b.knobs.length = 0;   // las escalas de estas perillas las dibuja la caja del controlador
-    ['pw', 'pe'].forEach(k => b[k].box.querySelectorAll('.sim-layer > .knob').forEach(el => el.classList.add('sim-src-ctl')));
 
     const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
     Sim.snapRange(inercia, { magnet: 0.5 });   // pasa de 0,1 en 0,1 s y se engancha en 0, 0,5, 1… s
@@ -960,12 +1023,13 @@
       const still = Math.max(0, 1 - Math.abs(best.sg.I) / 2);
       if (!still) return 0;
       const v = best.sg.source ? 0 : best.sg.v(best.d);
-      return v > 0.05 ? still * (0.5 + 2.2 * v / VMAX) : 0;
+      return v > 0.05 ? still * (0.5 + 2.2 * v / b.vScale()) : 0;
     };
 
     // ---------- color de las partículas ----------
     // Presión (voltaje) y caudal (corriente) en cada punto, de 0 a 1, para colorear las partículas según
-    // Sim.colorMode: la presión va de 0 a 12 psi (V) y baja en cada componente; el caudal va de 0 a la
+    // Sim.colorMode: la presión va de 0 a b.vScale() psi (V): 12, 24 o 35, la más chica que alcanza el canal A,
+    // para que con los voltajes del taller se vean los colores; baja en cada componente. El caudal va de 0 a la
     // escala completa de los medidores (iFull) y es el del tramo. Dentro de la bomba (o la fuente) la
     // presión sube de 0 a lo que sale.
     Sim.field = (x, y) => {
@@ -976,7 +1040,7 @@
       }
       if (!best) return [0, 0];
       const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
-      return [v / VMAX, Math.abs(bsg.I) / iFull];
+      return [v / b.vScale(), Math.abs(bsg.I) / iFull];
     };
     // Modo de color: en la esquina de arriba a la derecha de cada panel, un selector pequeño con el nombre de
     // cada modo (rapidez · presión · caudal; en la electricidad normal · voltaje · corriente) y debajo la
@@ -985,7 +1049,7 @@
     // multímetro también lo elige.
     const ends = side => ({
       v: ['lento', 'rápido'],
-      p: side === 'w' ? ['0 psi', VMAX * PSI_PER_V + ' psi'] : ['0 V', VMAX + ' V'],
+      p: side === 'w' ? ['0 psi', b.vScale() * PSI_PER_V + ' psi'] : ['0 V', b.vScale() + ' V'],
       q: ['0', side === 'w' ? iFull * MLS_PER_MA + ' mL/s' : iFull + ' mA']
     })[Sim.shownColorMode()];
     const syncColors = Sim.colorPicker({ w: b.pw, e: b.pe }, { ends, spot: side => geo(side).COL });
@@ -1976,37 +2040,74 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.placing) setPlacing(null); });
 
     // ---------- dibujo común ----------
-    const controllerBox = (ctx, g, title, scales, lcd, leds) => {
-      const [X, Y] = boxAt(g), [sx, sy] = symAt(g), L = cl(g);
-      if (!apart(g)) { ctx.fillStyle = C.ink; ctx.fillRect(sx - 14, sy + 30, 28, Y - sy - 28); }   // cuello hacia el símbolo
+    // Lo que marca la pantallita de un canal: con POWER apagado, nada; un momento después de girar una perilla,
+    // lo que pide (el voltaje de COARSE + FINE o el límite de CURRENT); si no, lo que sale por sus bornes: el
+    // voltaje (2 decimales, 10 mV) o la corriente (3 decimales, 1 mA). En el agua, psi y L/s (1 L/s por A).
+    const lcdText = (c, w) => {
+      const h = st.ch[c];
+      if (!st.on) return ['    ', ''];
+      const pk = h.peek && performance.now() < h.peek.until ? h.peek.k : null;
+      if (pk ? pk === 'cu' : h.disp === 'A') return [digits((pk ? h.lim : Math.abs(h.io)) * (w ? MLS_PER_MA : 1) / 1000, 1, 3), w ? 'L/s' : 'A'];
+      return [digits((pk ? setOf(c) : Math.abs(h.vo)) * (w ? PSI_PER_V : 1), 2, 2), w ? 'psi' : 'V'];
+    };
+    // Bornes − (negro), ⏚ (verde, al chasis) y + (rojo), con su nombre a la izquierda.
+    const POST = () => [C.neg, '#2f9a5a', RED];
+    const post = (ctx, x, y, j) => {
+      D.circle(ctx, x, y, 10, POST()[j], C.ink, 1.5);
+      D.circle(ctx, x, y, 4, '#0b0f12');
+      const tx = x - 20;
+      if (j !== 1) { D.text(ctx, j ? '+' : '−', tx, y, j ? RED : C.neg, { size: 16 }); return; }
+      D.line(ctx, [[tx, y - 7], [tx, y]], 2, C.ink, 'butt');
+      [[7, 0], [4.5, 3.5], [2, 7]].forEach(([hw, dy]) => D.line(ctx, [[tx - hw, y + dy], [tx + hw, y + dy]], 2, C.ink, 'butt'));
+    };
+    // La fuente (en el agua, la bomba) de dos canales, en sus coordenadas (SL) escaladas g.FK. Las perillas y la
+    // palanca son de HTML (encima); aquí van su hueco, las pantallitas, las teclas, los LEDs, los nombres y los
+    // bornes. Fuera del celular, un cuello va del símbolo del circuito al canal A, el que lo alimenta.
+    const drawSource = (ctx, g) => {
+      const w = g.side === 'w', L = lay(g), P = L.c, [X, Y] = boxAt(g), [sx, sy] = symAt(g), now = performance.now();
+      if (!apart(g)) {
+        const ax = at(g, [L.ch.A[0] + P.lcd[0], 0])[0], y0 = sy + (w ? 36 : 22), ym = (y0 + Y) / 2;
+        D.line(ctx, Math.abs(ax - sx) < 1 ? [[sx, y0], [sx, Y + 2]] : [[sx, y0], [sx, ym], [ax, ym], [ax, Y + 2]], 14, C.ink);
+      }
       const sel = Sim.fadeSel('src', srcOpen());
-      D.chassis(ctx, X, Y, g.BW, g.BH, g.side === 'w', title, sel > 0.5);
+      D.chassis(ctx, X, Y, g.BW, g.BH, w, w ? 'BOMBA' : 'FUENTE', sel > 0.5);
       D.select(ctx, X - 6, Y - 6, g.BW + 12, g.BH + 12, sel, 16);
-      // lo que marca cada perilla, aunque esté apagada
-      const [[vx, vy], [ix, iy]] = [inBox(g, 'kv'), inBox(g, 'ki')], [lh, lw, ly] = L.lcd;
-      D.knobScale(ctx, vx, vy, 36, scales[0]);
-      D.lcd(ctx, vx, Y + ly, lw, lh, ...lcd);
-      D.knobScale(ctx, ix, iy, 36, scales[1], 6);
-      D.lcd(ctx, ix, Y + ly, lw, lh, ...limText(st.lim, g.side));
-      // CV (verde): sale el voltaje de la perilla. CC (rojo): llegó al límite y sostiene la corriente.
-      // Encienden con la salida, desde 0.05 psi (0.05 V) adentro de la fuente.
-      const out = st.v > 0.05, [ldx, ldy, la] = L.lab;
-      L.leds.forEach(([lx, ly2], k) => {
-        D.led(ctx, X + lx, Y + ly2, out && (k ? st.cc : !st.cc) ? 1 : 0, k ? '#ff4a3d' : undefined);
-        // con la letra mínima «presión» y «caudal» pueden no caber junto a la pantallita (o, debajo del LED,
-        // entre la palanca y la perilla): se acortan
-        const room = la === 'left' ? inBox(g, 'kv')[0] - L.lcd[1] / 2 - (X + lx + ldx) - 4
-          : 2 * Math.min(lx - L.pow[0] - 16, L.kv[0] - 50 - lx);
-        D.text(ctx, leds[k], X + lx + ldx, Y + ly2 + ldy, C.ink, { size: 11, weight: 700, align: la, max: room });
+      ctx.save(); ctx.translate(X, Y); ctx.scale(g.FK, g.FK);
+      L.div.forEach(ln => D.line(ctx, ln, 1.5, C.line, 'butt'));
+      const well = C.dark ? '#26313b' : '#cbd4db';
+      CHS.forEach(c => {
+        const h = st.ch[c], [ox, oy] = L.ch[c], q = p => [ox + p[0], oy + p[1], ...p.slice(2)];
+        D.text(ctx, c, ...q(P.letter), C.ink, { size: 20, font: Sim.WIDE });
+        const [lx, ly, lw, lh] = q(P.lcd);
+        D.lcd(ctx, lx, ly, lw, lh, ...lcdText(c, w));
+        const [kx, ky, kw, kh] = q(P.key), down = h.press > now ? 1 : 0;
+        D.key(ctx, kx, ky, kw, kh, down, false, null);
+        D.text(ctx, w ? 'P/Q' : 'V/A', kx, ky + down * 1.5 - 0.5, '#15212a', { size: 13, max: kw - 6 });
+        // CV (verde): sale el voltaje de las perillas. CC (rojo): llegó al límite y sostiene la corriente.
+        // Encienden con la salida, desde 0.05 V (0.05 psi) adentro del canal.
+        const out = st.on && h.v > 0.05;
+        P.leds.forEach((p, j) => {
+          const [ex, ey] = q(p);
+          D.led(ctx, ex, ey, out && (j ? h.cc : !h.cc) ? 1 : 0, j ? '#ff4a3d' : undefined, 5);
+          D.text(ctx, w ? ['P', 'Q'][j] : ['CV', 'CC'][j], ex + 9, ey, C.ink, { size: 12, align: 'left' });
+        });
+        const [hv, hi] = P.head.map(q);
+        D.text(ctx, w ? ['PRESIÓN', 'PRES.', 'P'] : ['VOLTAGE', 'VOLT.', 'V'], hv[0], hv[1], C.ink, { size: 13, max: hv[2] });
+        D.text(ctx, w ? ['CAUDAL', 'CAUD.', 'Q'] : ['CURRENT', 'CURR.', 'I'], hi[0], hi[1], C.ink, { size: 13, max: hi[2] });
+        P.caps.forEach((p, j) => { const [x, y, mw] = q(p); D.text(ctx, [['COARSE', 'CRS.'], ['FINE']][j], x, y, C.muted, { size: 12, max: mw }); });
+        ['co', 'fi', 'cu'].forEach(k => { const [x, y, d] = q(P[k]); D.circle(ctx, x, y, d / 2 + 3, well, C.ink, 1); });
+        P.jacks.forEach((p, j) => post(ctx, ...q(p), j));
       });
+      D.text(ctx, ['POWER', 'PWR'], L.powLab[0], L.powLab[1], C.ink, { size: 13, max: L.powLab[2] });
       // teclas de los cables y de la polaridad, las mismas que las de los multímetros
-      const [kx, ky] = srcKey(g), p = st.spress > performance.now() || st.staut ? 1 : 0;
+      const [kx, ky] = L.cab, p = st.spress > now || st.staut ? 1 : 0;
       D.key(ctx, kx, ky, SK[0], SK[1], p, !st.staut && !awayK(g), st.staut);
       ctx.save(); ctx.translate(kx, ky + p * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); plug(ctx); ctx.restore();
-      const [qx, qy] = polKey(g), q = st.rpress > performance.now() || st.rev ? 1 : 0;
-      D.key(ctx, qx, qy, SK[0], SK[1], q, false, null);
+      const [qx, qy] = L.pol, r = st.rpress > now || st.rev ? 1 : 0;
+      D.key(ctx, qx, qy, SK[0], SK[1], r, false, null);
       if (st.rev) D.circle(ctx, qx + SK[0] / 2 - 3.5, qy - SK[1] / 2 + 5, 1.8, '#ff4a3d');   // su lucecita roja
-      ctx.save(); ctx.translate(qx, qy + q * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); swap(ctx); ctx.restore();
+      ctx.save(); ctx.translate(qx, qy + r * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); swap(ctx); ctx.restore();
+      ctx.restore();
     };
     // Cables de la fuente (mangueras de la bomba) fuera de su lugar: rojo el del +, negro el del −. Son
     // cerrados, de su color: no se ve lo que circula por ellos. Van debajo del circuito, como los de los
@@ -2277,7 +2378,7 @@
       const r = st.probe[kind], ok = st.show[kind] && ready(kind) && r, s = water ? PSI_PER_V : 1, u = water ? 'psi' : 'V';
       ctx.save(); ctx.globalAlpha *= 1 - sh.c;
       [[r && r.va, RED], [r && r.vb, C.neg]].forEach(([v, col], i) => {
-        const y = sh.cmp + i * 20, f = ok ? Math.max(0, Math.min(1, v / VMAX)) : 0;   // separadas lo que mide su letra
+        const y = sh.cmp + i * 20, f = ok ? Math.max(0, Math.min(1, v / b.vScale())) : 0;   // separadas lo que mide su letra
         // el + y el − de cada una, de rayitas (una letra no cabe en el puntito)
         const sc = col === RED ? '#fff' : C.card;
         D.circle(ctx, -58, y, 4.5, col);
@@ -2287,7 +2388,7 @@
         const t = ok ? Sim.reading(v * s) + ' ' + u : '—';
         D.font(ctx, 11); const bw = Math.max(20, Math.min(66, 106 - ctx.measureText(t).width));
         D.roundRect(ctx, -50, y - 3.5, bw, 7, 3.5, C.card, C.muted, 1);
-        if (ok) D.roundRect(ctx, -50, y - 3.5, Math.max(7, bw * f), 7, 3.5, Sim.speedColor(v / VMAX));   // del color de las partículas en presión
+        if (ok) D.roundRect(ctx, -50, y - 3.5, Math.max(7, bw * f), 7, 3.5, Sim.speedColor(v / b.vScale()));   // del color de las partículas en presión
         D.text(ctx, t, 62, y, C.ink, { size: 11, weight: 700, align: 'right' });
       });
       ctx.restore();
@@ -2571,8 +2672,7 @@
       knobScales(ctx, g);
       // el bloque de la bomba va encima de los medidores: es lo que se arrastra a donde haya lugar
       MS.forEach(k => drawMeter(ctx, g, k));
-      controllerBox(ctx, g, 'BOMBA', [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
-        [digits(st.set * PSI_PER_V, 2, 1), 'psi'], [['presión', 'pres.', 'P'], ['caudal', 'caud.', 'Q']]);
+      drawSource(ctx, g);
       D.pump(ctx, ...symAt(g), st.rotor, st.omega);
       drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
@@ -2585,8 +2685,7 @@
       drawGround(ctx, g);
       knobScales(ctx, g);
       MS.forEach(k => drawMeter(ctx, g, k));
-      controllerBox(ctx, g, 'FUENTE', [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
-        [digits(st.set, 2, 1), 'V'], ['CV', 'CC']);
+      drawSource(ctx, g);
       { const [x, y] = symAt(g); ctx.save(); ctx.translate(x, y); ctx.scale(sgn(), 1); D.source(ctx, 0, 0); ctx.restore(); }   // invertida, al revés
       drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
@@ -2705,21 +2804,30 @@
       } else if (st.svel) st.svel = null;
       if (moved) { b.pw.replace(); b.pe.replace(); }
     };
-    // Voltaje que sale con el de adentro Vs: el mismo si la corriente no pasa del límite; si pasaría,
-    // el que da justo el límite (la corriente crece con el voltaje, así que se busca partiendo a la mitad).
-    const regulate = Vs => {
-      const over = V => Math.abs(o.model(sgn() * V).I) > st.lim;
+    // Voltaje que sale de un canal con el de adentro Vs: el mismo si la corriente no pasa de su límite; si
+    // pasaría, el que da justo el límite (la corriente crece con el voltaje, así que se busca partiendo a la
+    // mitad). El canal A alimenta el circuito de la página; el B no tiene nada conectado (no pasa corriente).
+    const load = c => c === 'A' ? V => o.model(sgn() * V).I : () => 0;
+    const regulate = (c, Vs) => {
+      const I = load(c), over = V => Math.abs(I(V)) > st.ch[c].lim;
       if (Vs <= 0 || !over(Vs)) return [Math.max(0, Vs), false];
       let lo = 0, hi = Vs;
       for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (over(mid)) hi = mid; else lo = mid; }
       return [lo, true];
     };
     b.start = () => Sim.run(dt => {
-      st.v = st.level.step(st.on ? st.set : 0, st.tau, dt);
-      [st.vo, st.cc] = regulate(st.v);
-      st.vo *= sgn();   // con la polaridad invertida sale al revés
+      for (const c of CHS) {
+        const h = st.ch[c];
+        h.v = h.level.step(st.on ? setOf(c) : 0, st.tau, dt);
+        [h.vo, h.cc] = regulate(c, h.v);
+      }
+      const A = st.ch.A;
+      st.v = A.v; st.cc = A.cc;
+      if (b.vScale() !== st.vs) { st.vs = b.vScale(); syncColors(); }   // la escala de colores cambia de tope
+      st.vo = A.vo * sgn();   // con la polaridad invertida sale al revés
       smooth.t += dt;
       st.m = inertia(st.vo);
+      A.io = st.m.I;   // lo que marca su pantallita en A, con la inercia, igual que el multímetro
       st.list = circuitList(b.gw, st.m, st.vo);
       st.segs = buildSegs(nodeView(st.list, dt));
       if (st.nodes.u) st.segs.forEach((sg, k) => { st.nph[k] = ((st.nph[k] || 0) + Math.sign(sg.I) * Math.min(Math.abs(sg.I), 60) * 6 * dt) % 1e4; });

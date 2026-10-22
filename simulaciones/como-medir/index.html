@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022211438">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022220920">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022211438"></script>
-<script src="../../assets/banco.js?v=20261022211438"></script>
+<script src="../../assets/sim.js?v=20261022220920"></script>
+<script src="../../assets/banco.js?v=20261022220920"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -45,6 +45,7 @@
   // 6 V y la tierra (0 V), y pasan 3 mA. Por pasos: los cables se juntan en nodos, luego se mide el
   // voltaje con el multímetro en V (comparar dos nodos), la corriente en A (abrir el camino y meterlo en
   // serie), la resistencia en Ω (con la fuente apagada) y al final un reto: medir las dos cosas.
+  // Son de ½ W: con los 35 V de la fuente pasan 11,7 mA y R2 recibe 0,27 W, así que no se queman.
   const RS = [1000, 2000], XR = [300, 500];
   const hn = RS.map(R => Sim.narrowHalf(R));
   const sides = {};

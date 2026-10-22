@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022211438">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022220920">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022211438"></script>
-<script src="../../assets/banco.js?v=20261022211438"></script>
+<script src="../../assets/sim.js?v=20261022220920"></script>
+<script src="../../assets/banco.js?v=20261022220920"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -63,14 +63,16 @@
   const K = 6;                     // px que avanzan las partículas por cada mC (como I·6 en las demás)
   const VC = '#8b5cf6', IC = '#0ea371';   // presión/voltaje morado, caudal/corriente verde
   const XR = 300, XC = 520;        // resistencia y capacitor, en el cable de arriba
-  const st = { R: 1000, C: 2200, charge: true, Vc: 0, t: 0, hist: [], ev: null, target: null,
+  const st = { R: 1000, C: 2200, charge: true, Vc: 0, t: 0, hist: [], ev: null, target: null, rb: false, burnT: 9,
     ph: { A: 0, C: 0, B: 0, N: 0 }, I: { A: 0, C: 0, B: 0, N: 0 } };
   const sides = {};
   const tau = () => st.R * st.C * 1e-6;
-  // La resistencia (¼ W) se calienta con I²·R mientras pasa corriente (Sim.heat), y su menú lo muestra; aquí
-  // no llega a quemarse: lo más que recibe es 12 V / 470 Ω = 0,31 W, solo un instante al empezar a cargar.
-  // El capacitor no se calienta: guarda energía (½·C·V²) y aguanta hasta 16 V (la fuente da 12 como máximo).
-  const rh = Sim.heat(Sim.HEAT.res), CAP_V = 16;
+  // La resistencia (¼ W) se calienta con I²·R mientras pasa corriente (Sim.heat), y su menú lo muestra. Al
+  // empezar a cargar recibe V²/R solo un instante; si la carga dura (un capacitor grande), se calienta más: con
+  // 35 V, 470 Ω y 4700 µF (τ = 2,2 s) llega a 161 °C y se quema (con 1 kΩ, 137 °C; con 12 V, 41 °C). Quemada
+  // abre el circuito: el capacitor se queda con su carga.
+  // El capacitor no se calienta: guarda energía (½·C·V²) y es de 50 V (la fuente da 35 como máximo).
+  const rh = Sim.heat(Sim.HEAT.res), CAP_V = 50;
   const joules = E => fmt(E, E < 0.1 ? 3 : 2) + ' J';
 
   // Nodos: J es el conmutador en el lado izquierdo; N donde el puente llega al cable de abajo.
@@ -115,7 +117,7 @@
     // El capacitor empuja de regreso con su voltaje Vc: la corriente es (Ventrada − Vc) / R.
     // I es lo que pasa por la fuente (y mueve la bomba); Ic lo que pasa por el capacitor.
     model(V) {
-      const Vin = st.charge ? V : 0, Ic = (Vin - st.Vc) / st.R * 1000;
+      const Vin = st.charge ? V : 0, Ic = st.rb ? 0 : (Vin - st.Vc) / st.R * 1000;
       return { I: st.charge ? Ic : 0, Ic, Vin };
     },
     circuit(g, m, V) {
@@ -126,9 +128,9 @@
         st.charge ? { pts: [n.A, n.P], I: Ic, v0: V, comps: [], link: true } : { pts: [n.B, n.P], I: Ic, v0: 0, comps: [], link: true },
         // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
         { pts: p.C, I: Ic, v0: st.charge ? V : 0, comps: [
-          { at: [XR, g.TOP], half: 46, dV: Ic * st.R / 1000, R: st.R, pr: pinchR,
+          { at: [XR, g.TOP], half: 46, dV: st.rb ? (st.charge ? V : 0) - st.Vc : Ic * st.R / 1000, R: st.rb ? Infinity : st.R, pr: pinchR,
             draw: (ctx, w) => w ? D.narrow(ctx, XR, g.TOP, half(st.R)) : D.resistor(ctx, XR, g.TOP),
-            tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(st.R)] },
+            tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(st.R), st.rb, st.rb ? (w ? 'reventado' : 'quemada') : ''] },
           { at: [XC, g.TOP], half: rc, dV: st.Vc, pr: pinchC, ext: rc + 4,
             draw: (ctx, w) => w ? tank(ctx, g, rc) : capacitor(ctx, g, rc),
             tag: w => [w ? 'tanque con membrana' : 'capacitor', uF(st.C)] }] },
@@ -138,7 +140,7 @@
     },
     step(dt, m) {
       // Carga exacta en cada cuadro: Vc se acerca a Ventrada con constante de tiempo τ = R·C.
-      const Vin = m.Vin ?? 0, v0 = st.Vc;
+      const Vin = st.rb ? st.Vc : m.Vin ?? 0, v0 = st.Vc;   // por la resistencia quemada ya no pasa nada
       st.Vc = Vin + (v0 - Vin) * Math.exp(-dt / tau());
       const dq = st.C * 1e-3 * (st.Vc - v0);   // mC que pasaron por la resistencia
       const dp = dq * K;
@@ -146,7 +148,8 @@
       if (st.charge) { st.ph.A += dp; st.ph.N += dp; } else st.ph.B -= dp;
       const I = dt ? dq / dt : 0;              // mA promedio en este cuadro
       st.I = { C: I, A: st.charge ? I : 0, N: st.charge ? I : 0, B: st.charge ? 0 : -I };
-      rh.step((I / 1000) ** 2 * st.R, dt);
+      if (rh.step(st.rb ? 0 : (I / 1000) ** 2 * st.R, dt) && !st.rb) { st.rb = true; st.burnT = 0; b.halt(); b.refresh(); }
+      st.burnT += dt;
       // Gráfica: cada cambio de lo que alimenta al capacitor marca desde dónde contar τ.
       const target = st.charge && b.st.on ? b.st.set : 0;
       st.t += dt;
@@ -161,11 +164,12 @@
       D.narrow(ctx, XR, g.TOP, half(st.R));
       for (const k of ['A', 'B', 'N']) s.streams[k].draw(ctx, st.ph[k], st.I[k] * K);
       s.streams.C1.draw(ctx, st.ph.C, st.I.C * K); s.streams.C2.draw(ctx, st.ph.C, st.I.C * K);
+      D.burstPipe(ctx, XR, g.TOP, half(st.R), st.burnT, st.rb, rh.glow, '');
       tank(ctx, g, rc);
       valve(ctx, n);
       b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinchR);
       b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
-      b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'tramo angosto', ohm(st.R));
+      b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'tramo angosto', ohm(st.R), st.rb, false, st.rb ? 'reventado' : '');
       b.tag(ctx, pinchC, XC, g.TOP - rc - 30, 'tanque con membrana', uF(st.C));
       switchTag(ctx, g, n, ['válvula de tres vías', 'válvula']);
       graph(ctx, g, 'presión', 'caudal');
@@ -177,13 +181,14 @@
       D.flow(ctx, s.wires.C1, st.ph.C, C.charge, { gap: 30, r: 4.5 });
       D.flow(ctx, s.wires.C2, st.ph.C, C.charge, { gap: 30, r: 4.5 });
       D.circle(ctx, n.XN, g.BOT, 5, C.ink);
-      D.heatGlow(ctx, XR, g.TOP, rh.glow);
+      if (!st.rb) D.heatGlow(ctx, XR, g.TOP, rh.glow);
       D.resistor(ctx, XR, g.TOP);
+      if (st.rb) D.burntResistor(ctx, XR, g.TOP, st.burnT, '');
       capacitor(ctx, g, rc);
       knife(ctx, n);
       b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinchR);
       b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
-      b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'resistencia', ohm(st.R));
+      b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'resistencia', ohm(st.R), st.rb, false, st.rb ? 'quemada' : '');
       b.tag(ctx, pinchC, XC, g.TOP - rc - 30, 'capacitor', uF(st.C));
       switchTag(ctx, g, n, 'conmutador');
       graph(ctx, g, 'voltaje', 'corriente');
@@ -197,7 +202,7 @@
   // Tanque redondo partido por una membrana elástica. La membrana se estira hacia la derecha
   // según la presión que aguanta (el voltaje del capacitor) y empuja el agua de regreso.
   function tank(ctx, g, rc) {
-    const y = g.TOP, bulge = Math.max(0, Math.min(1, st.Vc / b.VMAX)) * 0.8 * rc;
+    const y = g.TOP, bulge = Math.max(0, Math.min(1, st.Vc / b.vScale())) * 0.8 * rc;
     D.circle(ctx, XC, y, rc + 5, C.pipe);
     D.circle(ctx, XC, y, rc, C['water-soft']);
     ctx.save(); ctx.beginPath(); ctx.arc(XC, y, rc, 0, Math.PI * 2); ctx.clip();
@@ -215,7 +220,7 @@
     ctx.fillStyle = C.card; ctx.fillRect(XC - 7, y - ph - 2, 14, 2 * ph + 4);
     D.line(ctx, [[XC - 7, y - ph], [XC - 7, y + ph]], 4.5, C.ink, 'butt');
     D.line(ctx, [[XC + 7, y - ph], [XC + 7, y + ph]], 4.5, C.ink, 'butt');
-    const n = Math.round(Math.max(0, Math.min(1, st.Vc / b.VMAX)) * (2 * ph) / 9);
+    const n = Math.round(Math.max(0, Math.min(1, st.Vc / b.vScale())) * (2 * ph) / 9);
     for (let k = 0; k < n; k++) {
       const yy = y - ph + 5 + (2 * ph - 10) * (n > 1 ? k / (n - 1) : 0.5);
       D.text(ctx, '+', XC - 16, yy, '#d6392b', { size: 14 });
@@ -256,7 +261,7 @@
     if (st.ev && st.ev.v0 !== st.ev.v1) {
       const tt = st.ev.t + tau();
       if (tt >= ta && tt <= t1) {
-        const f = (st.ev.v0 + 0.632 * (st.ev.v1 - st.ev.v0)) / b.VMAX;
+        const f = (st.ev.v0 + 0.632 * (st.ev.v1 - st.ev.v0)) / b.vScale();
         ctx.setLineDash([4, 4]); D.line(ctx, [[X(tt), y0 + pad], [X(tt), Y(0)]], 1.5, C.muted, 'butt'); ctx.setLineDash([]);
         D.circle(ctx, X(tt), Y(f), 4.5, VC, C.card, 1.5);
         D.text(ctx, 'τ', X(tt) + 9, Y(0) - 10, C.muted, { size: 15, bg: true });
@@ -272,7 +277,7 @@
       ctx.lineWidth = 2.5; ctx.strokeStyle = col; ctx.lineJoin = 'round'; ctx.stroke();
     };
     curve(2, b.iFull, IC);
-    curve(1, b.VMAX, VC);
+    curve(1, b.vScale(), VC);
     D.text(ctx, nameV, x0 + 10, y0 + 12, VC, { align: 'left', size: 14 });
     D.font(ctx, 14);   // la misma letra con la que se dibujó nameV
     D.text(ctx, nameI, x0 + 20 + ctx.measureText(nameV).width, y0 + 12, IC, { align: 'left', size: 14 });
@@ -286,7 +291,9 @@
     pos: g => [XR, g.TOP], get: () => st.R, half, fromHalf, set: setR,
     label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia',
     text: ohm,
-    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: ohm, heat: rh })
+    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: ohm, heat: rh, broken: () => st.rb,
+      actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', primary: true, hidden: () => !st.rb,
+        onClick: () => { st.rb = false; rh.reset(); st.burnT = 9; } }] })
   });
   const pinchC = b.pinch({
     pos: g => [XC, g.TOP], get: () => st.C, half: rcOf, fromHalf: cOf, set: setC,
@@ -295,7 +302,7 @@
     menu: side => ({
       title: side === 'w' ? 'Tanque con membrana' : 'Capacitor',
       rows: [{ label: side === 'w' ? 'Tamaño (capacidad)' : 'Capacidad', values: CVALUES, get: () => st.C, set: setC, format: uF },
-        // lo que aguanta, lo que tiene ahora y la energía que lleva guardada (la barra se llena a 16 V)
+        // lo que aguanta, lo que tiene ahora y la energía que lleva guardada (la barra se llena a 50 V)
         { heat: () => {
           const w = side === 'w', u = w ? ' psi' : ' V', E = v => 0.5 * st.C * 1e-6 * v * v;
           return { label: w ? 'Presión · energía guardada en la membrana' : 'Voltaje · energía guardada (½·C·V²)',
