@@ -19,6 +19,8 @@ como el instrumento real. La persona escribe en español: responde en español.
 - No cambies la física por decoración. Si algo nuevo cambia la física (un valor que ahora se puede elegir),
   cuida que siga siendo correcta (corrientes máximas, calor, unidades: 1 psi por volt, 1 mL/s por mA).
 - Actualiza el README cuando cambie algo que describe.
+- Después de fusionar, revisa que corra «pages build and deployment» (Actions) con el commit nuevo de `main`; si no
+  aparece en unos minutos, la página publicada sigue con la versión anterior: hace falta otro cambio en `main`.
 - Al final de cada mensaje: el porcentaje aproximado de avance de lo pedido y si conviene seguir en el mismo
   chat o abrir otro (con el modelo y el prompt para pegar, si ya hay una tarea definida).
 
