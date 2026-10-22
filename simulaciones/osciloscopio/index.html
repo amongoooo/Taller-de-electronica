@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022053632">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* Teclas de forma de onda del generador y TRIG del osciloscopio: se dibujan en el canvas (Sim.draw.key);
@@ -45,7 +45,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022044050"></script>
+<script src="../../assets/sim.js?v=20261022053632"></script>
 <script>
 // Generador de funciones y osciloscopio. En el agua, el generador es una bomba que cambia de sentido
 // (bomba de vaivén) y el osciloscopio es un registrador que dibuja la presión en un papel.
@@ -377,12 +377,12 @@
     format: (v, side) => val(VDIV[v], side) + ' por división', onInput: v => { st.vi = v; }
   });
   linkedKnob({
-    pos: g => [g.SX + 500, g.SY + 250], min: 0, max: TDIV.length - 1, step: 1, value: st.ti, act: 'med',
+    pos: g => [g.SX + 500, g.SY + 262], min: 0, max: TDIV.length - 1, step: 1, value: st.ti, act: 'med',
     label: () => 'Tiempo por división', format: v => tText(TDIV[v]) + ' por división',
     onInput: v => { st.ti = v; resetSweep(); }
   });
   // Tecla TRIG (disparo): hundida y con su lucecita mientras la imagen se queda quieta.
-  const trigAt = g => [g.SX + 500, g.SY + 362];
+  const trigAt = g => [g.SX + 500, g.SY + 392];   // en el renglón de los bornes
   linkedButton({
     pos: trigAt, act: 'med', cls: 'sim-trig',
     label: () => st.trig ? 'Disparo (TRIG): quitarlo; la imagen deja de quedarse quieta' : 'Disparo (TRIG): ponerlo para que la imagen se quede quieta',
@@ -504,13 +504,12 @@
     D.lcd(ctx, x + 470, y + 28, 150, 30, txt.padStart(5, ' '), 'Hz');
     const k = 1;
     const knobs = [
-      [245, [['0.1', 0], ['1', 0.25], ['10', 0.5], ['100', 0.75], ['1k', 1]], 'frecuencia (Hz)', 8],
-      [365, [['0', 0], [String(5 * k), 0.5], [String(10 * k), 1]], `amplitud (${unitV(g.side)})`, 12],
-      [485, [[String(-5 * k), 0], ['0', 0.5], [String(5 * k), 1]], `offset (${unitV(g.side)})`, 12]
+      [245, [['0.1', 0], ['1', 0.25], ['10', 0.5], ['100', 0.75], ['1k', 1]], ['frecuencia (Hz)', 'frec. (Hz)', 'Hz'], 8],
+      [365, [['0', 0], [String(5 * k), 0.5], [String(10 * k), 1]], [`amplitud (${unitV(g.side)})`, `ampl. (${unitV(g.side)})`], 12],
+      [485, [[String(-5 * k), 0], ['0', 0.5], [String(5 * k), 1]], [`offset (${unitV(g.side)})`, 'offset'], 12]
     ];
     knobs.forEach(([dx, labels, cap, ticks]) => {
-      D.knobScale(ctx, x + dx, y + 112, 36, labels, ticks);
-      D.text(ctx, cap, x + dx, y + 176, C.muted, { size: 14 });
+      D.knobCaption(ctx, cap, x + dx, D.knobScale(ctx, x + dx, y + 112, 36, labels, ticks), 112);   // si no cabe entre las perillas, más corto
     });
   };
   const drawScope = (ctx, g) => {
@@ -518,7 +517,7 @@
     D.chassis(ctx, g.SX, g.SY, g.SW, g.SH, w, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO');
     { const [tx, ty] = trigAt(g), on = st.trig ? 1 : 0;   // tecla TRIG
       D.key(ctx, tx, ty, 44, 28, on, false, on);
-      D.text(ctx, 'TRIG', tx, ty + 0.5 + on * 1.5, '#1b242c', { size: 12, weight: 800 }); }
+      D.text(ctx, 'TRIG', tx, ty - 14 - Sim.px(14, ctx) * 0.6, C.muted, { size: 14 }); }   // su nombre arriba, impreso en el chasis
     // Pantalla (en el agua, papel cuadriculado)
     const ink = w ? PURPLE : '#c4b0ff', txt = w ? C.muted : Sim.LCD.on;
     D.roundRect(ctx, sx - 4, sy - 4, sw + 8, sh + 8, 6, w ? paper() : Sim.LCD.bg, C.ink, 2);
@@ -558,7 +557,8 @@
     const read = (t, x, y, align) => {
       D.text(ctx, t, -999, -999, txt, { ...opt, align });   // solo para fijar la letra y medir
       const tw = ctx.measureText(t).width, x0 = align === 'left' ? x : align === 'right' ? x - tw : x - tw / 2;
-      ctx.globalAlpha = 0.85; D.roundRect(ctx, x0 - 4, y - 9, tw + 8, 18, 4, w ? paper() : Sim.LCD.bg); ctx.globalAlpha = 1;
+      const th = Sim.px(14, ctx) * 1.25;
+      ctx.globalAlpha = 0.85; D.roundRect(ctx, x0 - 4, y - th / 2, tw + 8, th, 4, w ? paper() : Sim.LCD.bg); ctx.globalAlpha = 1;
       D.text(ctx, t, x, y, txt, { ...opt, align });
     };
     read(`${fmt(vdiv * k, vdiv * k < 1 ? 1 : 0)} ${u}/div`, sx + 8, sy + 14, 'left');
@@ -568,29 +568,27 @@
     read(`prom ${fmt(mean * k, 1)} ${u}`, sx + sw / 2, sy + sh - 14, 'center');   // promedio: negativo si la señal está abajo del cero
     read(`pp ${fmt(pp * k, 1)} ${u}`, sx + sw - 8, sy + sh - 14, 'right');
     // Perillas y bornes
-    D.knobScale(ctx, g.SX + 500, g.SY + 110, 36, VDIV.map((v, i) => [String(fmt(v * k, v * k < 1 ? 1 : 0)), i / (VDIV.length - 1)]), VDIV.length - 1);
-    D.text(ctx, `${u}/div`, g.SX + 500, g.SY + 168, C.muted, { size: 14 });
-    D.knobScale(ctx, g.SX + 500, g.SY + 250, 36, [['1 ms', 0.1], ['10 ms', 0.4], ['1 s', 1]], TDIV.length - 1);
-    D.text(ctx, 'tiempo/div', g.SX + 500, g.SY + 308, C.muted, { size: 14 });
+    D.knobCaption(ctx, `${u}/div`, g.SX + 500, D.knobScale(ctx, g.SX + 500, g.SY + 110, 36, VDIV.map((v, i) => [String(fmt(v * k, v * k < 1 ? 1 : 0)), i / (VDIV.length - 1)]), VDIV.length - 1));
+    D.knobCaption(ctx, ['tiempo/div', 's/div'], g.SX + 500, D.knobScale(ctx, g.SX + 500, g.SY + 262, 36, [['1 ms', 0.1], ['10 ms', 0.4], ['1 s', 1]], TDIV.length - 1), 110);
     g.jacks.forEach(([jx, jy], k2) => D.circle(ctx, jx, jy, 8, tipColor(k2), C.ink, 1.5));
     if (!w) D.text(ctx, 'CH1', g.SX + 44, g.SY + 396, C.muted, { size: 14, align: 'right' });
   };
 
-  // Nombre y valor de un componente en una línea (en azul mientras su tarjeta está abierta).
-  const tag = (ctx, x, y, name, value, sel) => {
-    ctx.font = `700 ${Sim.compact ? 17 : 15}px ${Sim.FONT}`;
-    const w1 = ctx.measureText(name).width;
-    ctx.font = `600 ${Sim.compact ? 18 : 16}px ${Sim.MONO}`;
-    const w2 = ctx.measureText(value).width, x0 = x - (w1 + 7 + w2) / 2;
-    D.backdrop(ctx, x0, y, w1 + 7 + w2, Sim.compact ? 18 : 16);
-    D.text(ctx, name, x0, y, sel ? C.sel : C.muted, { size: 15, align: 'left' });
-    D.text(ctx, value, x0 + w1 + 7, y + 0.5, sel ? C.sel : C.ink, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
+  // Etiquetas en una línea arriba de la resistencia y del LED («nombre valor», en azul mientras su tarjeta
+  // está abierta, y su estado en una pastilla); en el agua más arriba, sobre la flecha de la rueda.
+  const tags = (ctx, g, w) => {
+    const shut = w && clamp01((st.shut - 0.5) * 3) > 0.5;   // con la presión al revés: compuerta cerrada
+    D.tagRow(ctx, g.TOP - (w ? 62 : 42), [
+      { x: g.XR, name: [w ? 'tramo angosto' : 'resistencia', w ? 'tramo' : 'R'], value: ohm(st.R), sel: parts.R.open() },
+      st.led ? { x: g.XL, name: w ? 'rueda' : 'LED', value: w ? st.color.replace(/o$/, 'a') : st.color, sel: parts.L.open(),
+        danger: shut || st.rev, state: shut ? 'compuerta cerrada' : st.rev ? 'al revés' : '' }
+        : { x: g.XL, name: w ? 'sin rueda' : 'sin LED' }
+    ], g.X0 - 30, g.X1 + 30);
   };
   // Contorno de lo seleccionado y, sin LED, su lugar punteado (se toca para ponerlo otra vez).
   const marks = (ctx, g, w) => {
     if (!st.led) {
       ctx.setLineDash([5, 5]); D.roundRect(ctx, g.XL - 30, g.TOP - 30, 60, 60, 12, null, C.muted, 2); ctx.setLineDash([]);
-      D.text(ctx, w ? 'sin rueda' : 'sin LED', g.XL, g.TOP + 48, C.muted, { size: 15, bg: true });
     }
     D.select(ctx, g.XR - 54, g.TOP - 26, 108, 52, Sim.fadeSel('oR', parts.R.open()));
     D.select(ctx, g.XL - 40, g.TOP - 40, 80, 80, Sim.fadeSel('oL', parts.L.open()));
@@ -607,15 +605,10 @@
     D.pipe(ctx, g.loop);
     D.narrow(ctx, g.XR, g.TOP, HN());
     water.draw(ctx);
-    tag(ctx, g.XR, g.TOP - 40, 'tramo angosto', ohm(st.R), parts.R.open());
-    if (st.led) {
-      const a = clamp01((st.shut - 0.5) * 3);   // con la presión al revés: compuerta cerrada
-      D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, rev: st.rev, label: a > 0.5 ? '' : 'rueda ' + st.color.replace(/o$/, 'a'),
-        tint: `rgb(${Sim.led(st.color).rgb})`, sel: parts.L.open() });
-      if (a > 0.5) { ctx.globalAlpha = a; D.text(ctx, 'compuerta cerrada', g.XL, g.TOP + 48, C.danger, { size: 15, bg: true }); ctx.globalAlpha = 1; }
-    }
+    if (st.led) D.wheel(ctx, g.XL, g.TOP, { angle: st.wheel, omega: st.wheelOm, rev: st.rev, tint: `rgb(${Sim.led(st.color).rgb})`, tag: false });
+    tags(ctx, g, true);
     marks(ctx, g, true);
-    D.speedLegend(ctx, g.X0 + 30, g.BOT - 46, 150);
+    D.speedLegend(ctx, g.X0 + 30, g.BOT - 29 - 1.1 * Sim.px(14, ctx), 150);   // lo de abajo de la escala, sin tocar el tubo
     drawScope(ctx, g);
     drawGen(ctx, g);
     D.pump(ctx, g.PX, g.BOT, st.rotor, st.rotorOm);
@@ -628,8 +621,8 @@
     D.wire(ctx, g.loop);
     D.flow(ctx, g.loop, st.charge, C.charge, { gap: 30, r: 4.5 });
     D.resistor(ctx, g.XR, g.TOP);
-    tag(ctx, g.XR, g.TOP - 40, 'resistencia', ohm(st.R), parts.R.open());
-    if (st.led) D.ledSymbol(ctx, g.XL, g.TOP, { I: st.glow, rev: st.rev, label: 'LED ' + st.color, rgb: Sim.led(st.color).rgb, sel: parts.L.open() });
+    if (st.led) D.ledSymbol(ctx, g.XL, g.TOP, { I: st.glow, rev: st.rev, rgb: Sim.led(st.color).rgb, tag: false });
+    tags(ctx, g, false);
     marks(ctx, g, false);
     drawScope(ctx, g);
     drawGen(ctx, g);

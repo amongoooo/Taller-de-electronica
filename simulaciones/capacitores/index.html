@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022053632">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022044050"></script>
-<script src="../../assets/banco.js?v=20261022044050"></script>
+<script src="../../assets/sim.js?v=20261022053632"></script>
+<script src="../../assets/banco.js?v=20261022053632"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -200,7 +200,7 @@
       b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
       b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'tramo angosto', ohm(st.R));
       b.tag(ctx, pinchC, XC, g.TOP - rc - 30, 'tanque con membrana', uF(st.C));
-      D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15, bg: true });
+      switchTag(ctx, g, n, ['válvula de tres vías', 'válvula']);
       graph(ctx, g, 'presión', 'caudal');
     },
     drawE(ctx, g, m) {
@@ -218,10 +218,14 @@
       b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
       b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'resistencia', ohm(st.R));
       b.tag(ctx, pinchC, XC, g.TOP - rc - 30, 'capacitor', uF(st.C));
-      D.text(ctx, st.charge ? 'cargar' : 'descargar', g.X0 + 62, n.YB + 30, C.muted, { size: 15, bg: true });
+      switchTag(ctx, g, n, 'conmutador');
       graph(ctx, g, 'voltaje', 'corriente');
     }
   });
+  // La válvula de tres vías (el conmutador) va en el cable de la izquierda: su nombre a la derecha, debajo del
+  // puente, y si carga o descarga en una pastilla.
+  const switchTag = (ctx, g, n, name) => D.tag(ctx, g.X0 + 30, n.YB + 30, name, '',
+    { state: st.charge ? 'cargar' : 'descargar', align: 'left', max: g.PX - 46 - (g.X0 + 30) });   // sin llegar a la bomba
 
   // Tanque redondo partido por una membrana elástica. La membrana se estira hacia la derecha
   // según la presión que aguanta (el voltaje del capacitor) y empuja el agua de regreso.
@@ -303,7 +307,7 @@
     curve(2, b.iFull, IC);
     curve(1, b.VMAX, VC);
     D.text(ctx, nameV, x0 + 10, y0 + 12, VC, { align: 'left', size: 14 });
-    ctx.font = `700 ${Sim.compact ? 15 : 13}px ${Sim.FONT}`;
+    D.font(ctx, 14);   // la misma letra con la que se dibujó nameV
     D.text(ctx, nameI, x0 + 20 + ctx.measureText(nameV).width, y0 + 12, IC, { align: 'left', size: 14 });
     D.text(ctx, 'τ = R·C = ' + secs(tau()), x1 - 10, y0 + 12, C.ink, { align: 'right', size: 14, font: Sim.MONO, weight: 500 });
   }

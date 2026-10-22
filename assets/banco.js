@@ -34,7 +34,7 @@
 // })
 // Vista de nodos (Ver → Dibujo: Circuito | Nodos): los cables se juntan en nodos con su voltaje y solo quedan
 // los componentes. Para dibujarlos ahí, cada componente de circuit() trae draw(ctx, water, g, m) (lo dibuja en
-// su lugar de siempre; el banco lo mueve y lo gira), tag(water) → [nombre, valor, peligro], pr (su b.pinch o
+// su lugar de siempre; el banco lo mueve y lo gira), tag(water) → [nombre, valor, peligro, estado], pr (su b.pinch o
 // b.part) y ext (cuánto sobresale de su cable, o ext(water)). Un tramo con link: true es un contacto cerrado.
 // Para el Ω del multímetro cada componente trae R, su resistencia en ohmios (0 un corto; sin R o Infinity,
 // abierto: un LED, un capacitor, un interruptor abierto, un fusible fundido).
@@ -106,7 +106,7 @@
       return [MODES[mode].W, best.H, MODES[mode].x0, mode];
     };
     // Medidas de un multímetro sin escalar (ver shape): extendido y compactado.
-    const MW = { full: 152, small: 184, h: 194, hs: 70 };
+    const MW = { full: 152, small: 184, h: 212, hs: 70 };
     // g.meters[k] = [x del centro, y de su base]; g.DESK es dónde empieza la mesa (y, o x en el lateral).
     const geometry = (side, W, H, mode = 'ancho') => {
       const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, BW: 350, BH: 152, MK: 1 };
@@ -215,7 +215,7 @@
     b.linkedChoice = ({ pos, options, get, set, label, act }) => {
       const make = () => {
         const el = document.createElement('div');
-        el.className = 'sim-seg' + (act ? ' side-dup' : ''); el.setAttribute('role', 'group'); el.setAttribute('aria-label', label);
+        el.className = 'sim-seg'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', label);
         if (act) el.dataset.act = act;
         options.forEach(([v, t]) => {
           const btn = document.createElement('button');
@@ -226,7 +226,7 @@
         return el;
       };
       const pair = ['w', 'e'].map(side => b.place(side, make(), pos));
-      if (act && Sim.side) { const el = make(); el.classList.remove('side-dup'); Sim.side.row(act, label, el); pair.push(el); }
+      if (act && Sim.side) { const el = make(); Sim.side.row(act, label, el); pair.push(el); }   // el del dibujo se queda
       choices.push({ pair, get });
       b.refresh();
       return pair;
@@ -337,28 +337,15 @@
       }
       ctx.restore();
     };
-    // Nombre y valor de un componente sobre el dibujo, en una línea ("resistencia 1 kΩ"). Mientras su tarjeta
-    // está abierta (pr de b.pinch o b.part) el nombre y el valor van en azul, como su contorno.
-    // Con left, x es donde empieza (no el centro). Con stack, el valor va debajo del nombre (en dos
-    // renglones, para los lugares angostos). Lleva el fondo de la tarjeta, como los demás letreros (D.text bg).
-    b.tag = (ctx, pr, x, y, name, value, danger, left, stack) => {
-      const k = Sim.compact ? 1.15 : 1, gap = 7, px = Math.round(16 * k);
-      const f1 = `700 ${Math.round(15 * k)}px ${Sim.FONT}`, f2 = `600 ${px}px ${Sim.MONO}`;
-      ctx.font = f1; const w1 = ctx.measureText(name).width;
-      ctx.font = f2; const w2 = value ? ctx.measureText(value).width : 0;
-      const on = pr && pr.open && pr.open(), vcol = on ? C.sel : C.ink, ncol = danger ? C.danger : on ? C.sel : C.muted;
-      if (stack && value) {
-        const w = Math.max(w1, w2), cx = left ? x + w / 2 : x, dy = Math.round(9 * k);
-        D.backdrop(ctx, cx - w1 / 2, y - dy, w1, px); D.backdrop(ctx, cx - w2 / 2, y + dy, w2, px);
-        D.text(ctx, name, cx, y - dy, ncol, { size: 15 });
-        D.text(ctx, value, cx, y + dy + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600 });
-        return;
-      }
-      const w = w1 + (value ? gap + w2 : 0), x0 = left ? x : x - w / 2;
-      D.backdrop(ctx, x0, y, w, px);
-      D.text(ctx, name, x0, y, ncol, { size: 15, align: 'left' });
-      if (value) D.text(ctx, value, x0 + w1 + gap, y + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
-    };
+    // Nombre y valor de un componente sobre el dibujo, en una línea ("resistencia 1 kΩ", ver D.tag), y su
+    // estado en una pastilla al lado ("cerrado"). Mientras su tarjeta está abierta (pr de b.pinch o b.part) el
+    // nombre y el valor van en azul, como su contorno. Con left, x es donde empieza (no el centro).
+    b.tag = (ctx, pr, x, y, name, value, danger, left, state) =>
+      D.tag(ctx, x, y, name, value, { sel: !!(pr && pr.open && pr.open()), danger, state, align: left ? 'left' : 'center' });
+
+    // Las etiquetas de varios componentes en un renglón (ver D.tagRow): cada una { x, pr, name, value, danger,
+    // state }; sin salirse del dibujo de su lado.
+    b.tagRow = (ctx, g, y, items) => D.tagRow(ctx, y, items.map(it => ({ ...it, sel: !!(it.pr && it.pr.open && it.pr.open()) })), g.VX + 8, g.VX + g.W - 8);
 
     // ---------- la fuente se mueve ----------
     // La bomba (o la fuente) y su controlador son un solo bloque, como una fuente de laboratorio: se
@@ -635,7 +622,7 @@
     // pegan a ellos); medir corriente es abrir el camino entre un nodo y un componente y meter el
     // amperímetro en serie (no se puede poner encima de un nodo).
     // Cada componente de la página puede traer draw(ctx, water, g, m), que lo dibuja en su lugar de
-    // siempre (el banco lo mueve y lo gira), y tag(water) → [nombre, valor, peligro] para su etiqueta;
+    // siempre (el banco lo mueve y lo gira), y tag(water) → [nombre, valor, peligro, estado] para su etiqueta;
     // pr es su b.pinch o b.part (el valor va en azul mientras su menú está abierto).
     const RN = 14;        // radio de un nodo (en el agua, una cámara un poco más grande)
     const NODE_T = 1.6;   // segundos que tarda en transformarse
@@ -1079,11 +1066,11 @@
     // comparación se esconde.
     const shape = kind => {
       const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c;
-      return { top: mix(-62, -58), bottom: mix(132, 12), hw: mix(76, 92), lcd: mix(-8, -8), lh: mix(34, 30), lx: mix(0, -6), lw: mix(112, 104), cmp: 20, kx: mix(0, 66), ky: mix(86, -8), kr: mix(27, 12), c,
+      return { top: mix(-62, -58), bottom: mix(150, 12), hw: mix(76, 92), lcd: mix(-8, -8), lh: mix(34, 30), lx: mix(0, -6), lw: mix(112, 104), cmp: 20, kx: mix(0, 66), ky: mix(104, -8), kr: mix(27, 12), c,
         // botones físicos: recoger (0) y compactar (1); extendido a los lados de la rueda, compactado uno
         // sobre otro a la izquierda de la pantallita. Invertir (2), abajo a la izquierda de la rueda, solo
         // extendido (compactado está en Medir).
-        btn: [[mix(-52, -74), mix(54, -18)], [mix(52, -74), mix(54, -1)], [-52, 116]], bw: mix(24, 17), bh: mix(16, 13) };
+        btn: [[mix(-60, -74), mix(54, -18)], [mix(60, -74), mix(54, -1)], [-60, 136]], bw: mix(22, 17), bh: mix(16, 13) };
     };
     // Su lugar en la mesa: g.meters da el centro y la base, así que al compactarlo o extenderlo la base se
     // queda donde está. En el celular vertical el segundo va encima del primero.
@@ -2030,7 +2017,11 @@
       const out = st.v > 0.05, [ldx, ldy, la] = L.lab;
       L.leds.forEach(([lx, ly2], k) => {
         D.led(ctx, X + lx, Y + ly2, out && (k ? st.cc : !st.cc) ? 1 : 0, k ? '#ff4a3d' : undefined);
-        D.text(ctx, leds[k], X + lx + ldx, Y + ly2 + ldy, C.ink, { size: 11, weight: 700, align: la });
+        // con la letra mínima «presión» y «caudal» pueden no caber junto a la pantallita (o, debajo del LED,
+        // entre la palanca y la perilla): se acortan
+        const room = la === 'left' ? inBox(g, 'kv')[0] - L.lcd[1] / 2 - (X + lx + ldx) - 4
+          : 2 * Math.min(lx - L.pow[0] - 16, L.kv[0] - 50 - lx);
+        D.text(ctx, leds[k], X + lx + ldx, Y + ly2 + ldy, C.ink, { size: 11, weight: 700, align: la, max: room });
       });
       // teclas de los cables y de la polaridad, las mismas que las de los multímetros
       const [kx, ky] = srcKey(g), p = st.spress > performance.now() || st.staut ? 1 : 0;
@@ -2102,8 +2093,8 @@
     };
     const knobScales = (ctx, g) => b.knobs.forEach(k => {
       const [x, y] = k.pos(g);
-      D.knobScale(ctx, x, y, 36, k.scale(g.side), k.ticks);
-      if (k.caption) D.text(ctx, k.caption(g.side), x, y + 58, C.muted, { size: 14, bg: true });
+      const low = D.knobScale(ctx, x, y, 36, k.scale(g.side), k.ticks);
+      if (k.caption) D.knobCaption(ctx, k.caption(g.side), x, low);
     });
 
     // Cables (o mangueras con agua) de un medidor. Se dibujan antes que el circuito, el controlador
@@ -2225,18 +2216,17 @@
       dialKnob(ctx, kind, sh, water);
       sh.btn.forEach((p, i) => physButton(ctx, kind, i, p, sh));
       ctx.restore();
-      // bornes en su placa, sobre la orilla de la funda: VΩA (rojo) y COM (negro); su nombre hacia adentro
+      // bornes en su placa, sobre la orilla de la funda: VΩA (rojo) y COM (negro); los distingue el color (su
+      // nombre no cabe en la placa con la letra mínima de 14 px)
       ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
       const gap = jackGap(sh), [, , , , total] = rim(sh, 0), plate = [];
       for (let d = -gap - 11; d <= gap + 11; d += 3) plate.push(rim(sh, st.jpos[kind] + d / total).slice(0, 2));
       D.line(ctx, plate, 21, C.ink, 'round');
       D.line(ctx, plate, 17, KNOB.body, 'round');
-      [[0, RED, 'VΩA'], [1, C.neg, 'COM']].forEach(([j, c, t]) => {
-        const [px, py, tx, ty] = jackLocal(kind, j);
+      [[0, RED], [1, C.neg]].forEach(([j, c]) => {
+        const [px, py] = jackLocal(kind, j);
         D.circle(ctx, px, py, 6.5, '#0d1318');
         D.circle(ctx, px, py, 4.5, c, '#ffffff55', 1);
-        const [lx, ly] = rim(sh, st.jpos[kind] + (j ? 1 : -1) * (gap - 16) / total);   // su nombre, en la placa entre los dos
-        if (sh.c < 0.5) D.text(ctx, t, lx, ly, '#e8eef2', { size: 8, weight: 800 });   // compactado no caben: los distingue el color
       });
       tripButton(ctx, kind);
       // avisos arriba del multímetro (abajo si arriba no hay lugar), más arriba si ahí está la placa
@@ -2266,11 +2256,7 @@
       ctx.save(); ctx.translate(x, y); ctx.rotate(a);
       const out = 14 * Math.max(0, p);   // cuánto sobresale
       D.roundRect(ctx, -17, -3, 34, 6 + out, 4, '#1b242c');   // su tallo
-      D.roundRect(ctx, -21, out - 2, 42, 12, 5, RED, '#1b242c', 1.5);   // la tapa roja
-      if (p > 0.6) {   // su nombre, a lo largo de la tapa
-        ctx.globalAlpha *= Math.min(1, (p - 0.6) / 0.3);
-        D.text(ctx, 'RESET', 0, out + 4.5, '#ffffff', { size: 8, weight: 800 });
-      }
+      D.roundRect(ctx, -21, out - 2, 42, 12, 5, RED, '#1b242c', 1.5);   // la tapa roja (el aviso de arriba dice qué hacer)
       ctx.restore();
     };
     // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
@@ -2314,13 +2300,19 @@
       if (sh.c >= 1) return;
       const r = st.probe[kind], ok = st.show[kind] && ready(kind) && r, s = water ? PSI_PER_V : 1, u = water ? 'psi' : 'V';
       ctx.save(); ctx.globalAlpha *= 1 - sh.c;
-      [[r && r.va, RED, '+'], [r && r.vb, C.neg, '−']].forEach(([v, col, t], i) => {
-        const y = sh.cmp + i * 13, f = ok ? Math.max(0, Math.min(1, v / VMAX)) : 0;
+      [[r && r.va, RED], [r && r.vb, C.neg]].forEach(([v, col], i) => {
+        const y = sh.cmp + i * 20, f = ok ? Math.max(0, Math.min(1, v / VMAX)) : 0;   // separadas lo que mide su letra
+        // el + y el − de cada una, de rayitas (una letra no cabe en el puntito)
+        const sc = col === RED ? '#fff' : C.card;
         D.circle(ctx, -58, y, 4.5, col);
-        D.text(ctx, t, -58, y - 0.5, col === RED ? '#fff' : C.card, { size: 9, weight: 800 });
-        D.roundRect(ctx, -50, y - 3.5, 66, 7, 3.5, C.card, C.muted, 1);
-        if (ok) D.roundRect(ctx, -50, y - 3.5, Math.max(7, 66 * f), 7, 3.5, Sim.speedColor(v / VMAX));   // del color de las partículas en presión
-        D.text(ctx, ok ? Sim.reading(v * s) + ' ' + u : '—', 62, y, C.ink, { size: 11, weight: 700, align: 'right' });
+        D.line(ctx, [[-60.5, y], [-55.5, y]], 1.4, sc, 'butt');
+        if (!i) D.line(ctx, [[-58, y - 2.5], [-58, y + 2.5]], 1.4, sc, 'butt');
+        // la lectura a la derecha y la barra en lo que queda
+        const t = ok ? Sim.reading(v * s) + ' ' + u : '—';
+        D.font(ctx, 11); const bw = Math.max(20, Math.min(66, 106 - ctx.measureText(t).width));
+        D.roundRect(ctx, -50, y - 3.5, bw, 7, 3.5, C.card, C.muted, 1);
+        if (ok) D.roundRect(ctx, -50, y - 3.5, Math.max(7, bw * f), 7, 3.5, Sim.speedColor(v / VMAX));   // del color de las partículas en presión
+        D.text(ctx, t, 62, y, C.ink, { size: 11, weight: 700, align: 'right' });
       });
       ctx.restore();
     };
@@ -2332,9 +2324,11 @@
       if (c < 1) {
         ctx.save(); ctx.globalAlpha *= 1 - c;
         DIAL.forEach(d => {
-          const t = DANG[d] * Math.PI / 180, on = d === st.dial[kind], r = kr + 15, sx = Math.sin(t), cy = Math.cos(t);
+          const t = DANG[d] * Math.PI / 180, on = d === st.dial[kind], sx = Math.sin(t), cy = Math.cos(t);
           D.line(ctx, [[kx + sx * (kr + 3), ky - cy * (kr + 3)], [kx + sx * (kr + 7), ky - cy * (kr + 7)]], 2.5, on ? MCOL[d] : C.muted);
-          D.text(ctx, names[d], kx + sx * r + (d === 'off' ? -5 : d === 'R' ? 4 : 0), ky - cy * r, on ? MCOL[d] : C.ink, { size: d === 'off' ? 10 : 13, weight: on ? 800 : 600 });
+          // su nombre afuera de su raya, a una distancia según lo que mide (la letra nunca baja de 14 px)
+          const px = D.font(ctx, 13, Sim.FONT, on ? 800 : 600), dd = kr + 6 + D.reach(sx, cy, ctx.measureText(names[d]).width / 2, px * 0.4);
+          D.text(ctx, names[d], kx + sx * dd, ky - cy * dd, on ? MCOL[d] : C.ink, { size: 13, weight: on ? 800 : 600 });
         });
         ctx.restore();
       }
@@ -2541,13 +2535,12 @@
         return best;
       };
       const out = (x, y) => { const dx = x - c0[0], dy = y - c0[1], l = Math.hypot(dx, dy); return l < 1 ? [0, -1] : [dx / l, dy / l]; };
-      const K = Sim.compact ? 1.15 : 1, TH = Math.round(20 * K);
+      const TH = Math.round(Sim.px(16, ctx) * 1.3);
       for (const c of net.comps) {
         const tg = c.c.tag && c.c.tag(water);
         if (!tg) continue;
         const P = c.pose, o = out(P.x, P.y), ext = extOf(c.c, water) + 8;
-        ctx.font = `700 ${Math.round(15 * K)}px ${Sim.FONT}`; let w = ctx.measureText(tg[0]).width;
-        if (tg[1]) { ctx.font = `600 ${Math.round(16 * K)}px ${Sim.MONO}`; w += 7 + ctx.measureText(tg[1]).width; }
+        const w = D.tagWidth(ctx, tg[0], tg[1], tg[3]);
         const cands = [];
         for (const s of [1, -1]) for (const slide of [0, -0.5, 0.5, -1, 1, -1.6, 1.6]) for (const more of [0, 24]) {
           const px = -Math.sin(P.ang) * s, py = Math.cos(P.ang) * s, tx = Math.cos(P.ang), ty = Math.sin(P.ang);
@@ -2555,7 +2548,7 @@
           cands.push([P.x + px * off + tx * slide * c.half, P.y + py * off + ty * slide * c.half, px * o[0] + py * o[1] - Math.abs(slide) - more / 12]);
         }
         const q = place(w, TH, cands);
-        b.tag(ctx, c.c.pr, q.x, q.y, tg[0], tg[1], tg[2]);
+        b.tag(ctx, c.c.pr, q.x, q.y, tg[0], tg[1], tg[2], false, tg[3]);
       }
       // nodos: un punto de soldadura (en el agua, una cámara) del color de su cable, con su valor
       for (const n of net.nodes) {
@@ -2568,8 +2561,8 @@
       for (const n of net.nodes) {
         if (n.ground) continue;   // la tierra lleva su símbolo con 0 V
         const [x, y] = n.p, t = nodeText(n.v, water), o = out(x, y);
-        ctx.font = `600 ${Sim.compact ? 18 : 16}px ${Sim.MONO}`;
-        const w = ctx.measureText(t).width + 14, h = Sim.compact ? 26 : 23, cands = [];
+        const px = D.font(ctx, 16, Sim.MONO, 600);
+        const w = ctx.measureText(t).width + 14, h = Math.round(px * 1.45), cands = [];
         for (let k = 0; k < 16; k++) for (const more of [0, 28, 56]) {
           const a = k * Math.PI / 8, dx = Math.cos(a), dy = Math.sin(a), off = RN + (water ? 14 : 8) + more + Math.abs(dx) * w / 2 + Math.abs(dy) * h / 2;
           cands.push([x + dx * off, y + dy * off, dx * o[0] + dy * o[1] - more / 14]);
@@ -2603,7 +2596,7 @@
       // el bloque de la bomba va encima de los medidores: es lo que se arrastra a donde haya lugar
       MS.forEach(k => drawMeter(ctx, g, k));
       controllerBox(ctx, g, 'BOMBA', [[['0', 0], ['12', 1]], [['1', 0], ['1000', 1]]],
-        [digits(st.set * PSI_PER_V, 2, 1), 'psi'], ['presión', 'caudal']);
+        [digits(st.set * PSI_PER_V, 2, 1), 'psi'], [['presión', 'pres.', 'P'], ['caudal', 'caud.', 'Q']]);
       D.pump(ctx, ...symAt(g), st.rotor, st.omega);
       drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));

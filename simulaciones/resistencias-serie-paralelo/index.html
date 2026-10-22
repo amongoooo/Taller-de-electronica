@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022053632">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022044050"></script>
-<script src="../../assets/banco.js?v=20261022044050"></script>
+<script src="../../assets/sim.js?v=20261022053632"></script>
+<script src="../../assets/banco.js?v=20261022053632"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -91,7 +91,7 @@
       // draw y tag: cómo se ve cada una en la vista de nodos (en su lugar de siempre; el banco la mueve)
       const Rc = (k, dV) => {
         const [x, y] = rPos(g, k);
-        return { at: [x, y], half: 46, dV, R: st.rb[k] ? Infinity : st.R[k], pr: pinch[k], tag: w => ['R' + (k + 1), st.rb[k] ? (w ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]],
+        return { at: [x, y], half: 46, dV, R: st.rb[k] ? Infinity : st.R[k], pr: pinch[k], tag: w => ['R' + (k + 1), ohm(st.R[k]), st.rb[k], st.rb[k] ? (w ? 'reventado' : 'quemada') : ''],
           draw: (ctx, w) => w ? D.narrow(ctx, x, y, half(st.R[k])) : D.resistor(ctx, x, y) };
       };
       if (st.mode === 'serie') {
@@ -145,7 +145,7 @@
   // Marcas arriba y abajo de cada tramo (o resistencia) y su nombre.
   function grips(ctx, x, y, h, k, w = false) {
     b.grips(ctx, x, y, h, pinch[k]);
-    b.tag(ctx, pinch[k], x, y - h - 30, 'R' + (k + 1), st.rb[k] ? (w ? 'reventado' : 'quemada') : ohm(st.R[k]), st.rb[k]);
+    b.tag(ctx, pinch[k], x, y - h - 30, 'R' + (k + 1), ohm(st.R[k]), st.rb[k], false, st.rb[k] ? (w ? 'reventado' : 'quemada') : '');
   }
   // Cada resistencia se ajusta pellizcándola o con su menú.
   const pinch = [0, 1].map(k => {
@@ -160,9 +160,9 @@
     });
   });
   // Selector Serie | Paralelo arriba del circuito: al centro en la computadora, a la izquierda en el celular.
-  // También va en Cambiar componentes; mientras la columna de controles se ve, sale del dibujo.
+  // También va en la sección Armar de los controles.
   b.linkedChoice({
-    pos: g => g.mode === 'ancho' ? [g.PX, g.TOP - 92] : [g.X0 + 70, g.TOP - 72], label: 'Conexión', act: 'com',
+    pos: g => g.mode === 'ancho' ? [g.PX, g.TOP - 104] : [g.X0 + 70, g.TOP - 104], label: 'Conexión', act: 'arm',
     options: [['serie', 'Serie'], ['paralelo', 'Paralelo']],
     get: () => st.mode, set: v => { st.mode = v; }
   });

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022044050">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022053632">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022044050"></script>
-<script src="../../assets/banco.js?v=20261022044050"></script>
+<script src="../../assets/sim.js?v=20261022053632"></script>
+<script src="../../assets/banco.js?v=20261022053632"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -76,18 +76,18 @@
       const comps = [
         { at: [XV, g.TOP], half: 28, dV: st.closed ? 0 : V, R: st.closed ? 0 : Infinity, ext: w => w ? 46 : 30,
           draw: (ctx, w) => w ? D.valve(ctx, XV, g.TOP, st.closed) : D.knifeSwitch(ctx, XV, g.TOP, st.closed),
-          tag: w => [w ? 'válvula' : 'interruptor', w ? (st.closed ? 'abierta' : 'cerrada') : (st.closed ? 'cerrado' : 'abierto'), !st.closed] },
-        { at: [XL, g.TOP], half: 30, dV: st.closed ? V - dR : 0, pr: ledPart, ext: w => w ? 52 : 28,
+          tag: w => switchTag(w) },
+        { at: [XL, g.TOP], half: 30, dV: st.closed ? V - dR : 0, pr: ledPart, ext: w => w ? 46 : 28,
           draw: (ctx, w) => {
             const [jx, jy] = shake();
             if (w) D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, tint: `rgb(${Sim.led(st.led).rgb})` });
             else D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: Math.abs(m.I), broken: st.broken, rev: st.rev, rgb: Sim.led(st.led).rgb });
           },
-          tag: w => [w ? 'rueda' : 'LED', st.broken ? (w ? 'rota' : 'quemado') : st.rev ? 'al revés' : st.led, st.broken || st.rev] }
+          tag: w => ledTag(w) }
       ];
       if (R) comps.push({ at: [g.PX, g.TOP], half: 46, dV: dR, R: st.rburnt ? Infinity : R, pr: pinch,
         draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, half(R)) : D.resistor(ctx, g.PX, g.TOP),
-        tag: w => st.rburnt ? [w ? 'tubo reventado' : 'resistencia quemada', '', true] : [w ? 'tramo angosto' : 'resistencia', ohm(R)] });
+        tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(R), st.rburnt, st.rburnt ? (w ? 'reventado' : 'quemada') : ''] });
       return [{ pts: b.loopPts(g), I: m.I, v0: V, comps }];
     },
     step(dt, m) {
@@ -109,13 +109,13 @@
       D.pipe(ctx, g.loop);
       if (st.R) D.narrow(ctx, g.PX, g.TOP, half(st.R));
       sides.w.water.draw(ctx);
-      if (st.R) D.burstPipe(ctx, g.PX, g.TOP, half(st.R), st.burnT, st.rburnt, rh.glow);
+      if (st.R) D.burstPipe(ctx, g.PX, g.TOP, half(st.R), st.burnT, st.rburnt, rh.glow, '');
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
-      b.tag(ctx, pinch, g.PX, g.TOP - half(st.R) - 35, st.R ? 'tramo angosto' : 'sin estrechamiento', st.R ? ohm(st.R) : '0 Ω', !st.R);
-      D.valve(ctx, XV, g.TOP, st.closed);
+      D.valve(ctx, XV, g.TOP, st.closed, false);
       const [jx, jy] = shake();
       if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 60, 30, 46, lh.glow);
-      D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, label: 'rueda ' + st.led.replace(/o$/, 'a'), tint: `rgb(${Sim.led(st.led).rgb})`, sel: ledPart.open() });
+      D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, tint: `rgb(${Sim.led(st.led).rgb})`, tag: false });
+      tags(ctx, g, true);
       drawBreak(ctx, g, true);
     },
     drawE(ctx, g, m) {
@@ -124,18 +124,30 @@
       if (st.R) {
         if (!st.rburnt) D.heatGlow(ctx, g.PX, g.TOP, rh.glow);
         D.resistor(ctx, g.PX, g.TOP);
-        if (st.rburnt) D.burntResistor(ctx, g.PX, g.TOP, st.burnT);
+        if (st.rburnt) D.burntResistor(ctx, g.PX, g.TOP, st.burnT, '');
       }
-      b.tag(ctx, pinch, g.PX, g.TOP - half(st.R) - 35, st.R ? 'resistencia' : 'sin resistencia', st.R ? ohm(st.R) : '0 Ω', !st.R);
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
-      D.knifeSwitch(ctx, XV, g.TOP, st.closed);
+      D.knifeSwitch(ctx, XV, g.TOP, st.closed, false);
       const [jx, jy] = shake();
       if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 230, 140, 56, lh.glow);
-      D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: Math.abs(m.I), broken: st.broken, rev: st.rev, label: 'LED ' + st.led, rgb: Sim.led(st.led).rgb, sel: ledPart.open() });
+      D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: Math.abs(m.I), broken: st.broken, rev: st.rev, rgb: Sim.led(st.led).rgb, tag: false });
+      tags(ctx, g, false);
       drawBreak(ctx, g, false);
     }
   });
 
+  // Etiquetas en una línea arriba de cada componente («nombre valor» y su estado en una pastilla), todas a
+  // la misma altura: en el agua más arriba, sobre la manija de la válvula, la flecha de la rueda y su contorno.
+  const switchTag = w => [w ? 'válvula' : 'interruptor', '', !st.closed, w ? (st.closed ? 'abierta' : 'cerrada') : (st.closed ? 'cerrado' : 'abierto')];
+  const ledTag = w => [w ? 'rueda' : 'LED', w ? st.led.replace(/o$/, 'a') : st.led, st.broken || st.rev,
+    st.broken ? (w ? 'rota' : 'quemado') : st.rev ? (w ? 'compuerta cerrada' : 'al revés') : ''];
+  const rTag = w => st.R ? [w ? 'tramo angosto' : 'resistencia', ohm(st.R), st.rburnt, st.rburnt ? (w ? 'reventado' : 'quemada') : '']
+    : [w ? 'sin estrechamiento' : 'sin resistencia', '0 Ω', true];
+  const SHORT = { 'tramo angosto': 'tramo', 'resistencia': 'R', 'interruptor': 'interr.', 'sin estrechamiento': 'sin tramo', 'sin resistencia': 'sin R' };
+  function tags(ctx, g, w) {
+    b.tagRow(ctx, g, g.TOP - (w ? 68 : 44), [[switchTag(w), XV, null], [rTag(w), g.PX, pinch], [ledTag(w), XL, ledPart]]
+      .map(([t, x, pr]) => ({ x, pr, name: SHORT[t[0]] ? [t[0], SHORT[t[0]]] : t[0], value: t[1], danger: t[2], state: t[3] })));
+  }
   // Mientras se calienta, la rueda (el LED) brilla y tiembla cada vez más.
   const shake = () => {
     if (!lh.glow || st.broken) return [0, 0];

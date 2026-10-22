@@ -54,7 +54,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 - `assets/sim.js` (`window.Sim`), lo común a todas las páginas:
   - `Sim.panel(box, size)`: canvas escalado; `p.at(el, pos)` coloca controles HTML en coordenadas del dibujo;
     `p.begin()` limpia y deja `Sim.S` = escala del panel (para gruesos en px de pantalla).
-  - `Sim.draw` (`D`): `D.text`, `D.pipe`, `D.wire`, `D.narrow`, `D.resistor`, `D.wheel`, `D.ledSymbol`,
+  - `Sim.draw` (`D`): `D.text` (letra mínima de 14 px en pantalla con `Sim.px`; `t` puede ser una lista de
+    rótulos y `max` elige el que cabe), `D.tag` / `D.tagRow` (etiqueta «nombre valor» y estado en `D.pill`),
+    `D.knobScale` (devuelve dónde acaban sus números) y `D.knobCaption`, `D.pipe`, `D.wire`, `D.narrow`, `D.resistor`, `D.wheel`, `D.ledSymbol`,
     `D.lcd`, `D.knobScale`, `D.select` / `D.selectRot` (contorno de seleccionado), `D.chassis` (chasis común de
     los instrumentos: `--inst`, banda agua/ámbar, nombre) y `D.key` (tecla física común).
   - `Sim.fadeSel(key, on)`: 0→1 en 120 ms (aparece y se va el contorno).
@@ -66,7 +68,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     en celular suben desde abajo (acostado, salen de la derecha).
   - `Sim.side`: columna/hoja de controles. `sec(k)`, `row`, `button`, `part({ anchor, menu, isOpen, toggle })`
     (renglón de Componentes que abre la misma tarjeta).
-  - `Sim.ORDER` (orden de las simulaciones), barra (`Sim.steps`, `Sim.viewSwitch`, botón Siguiente), globito.
+  - `Sim.ORDER` (orden de las simulaciones), barra (`Sim.steps`, `Sim.viewSwitch` con transición de vista,
+    botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
   - Acomodos `ancho` (PC), `medio` (PC con los dos paneles), `alto` (celular vertical) y `lateral` (celular
@@ -74,7 +77,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     (`g.slim`: la caja compacta, ver `CL`), multímetros en `g.meters` = [centro, base] (`homeAt`, `meterAt`).
     En `alto` y `lateral` la caja va aparte del símbolo (`apart`).
   - `b.pinch` (resistencias y capacitores: asas solo con la tarjeta abierta), `b.part` (componente con
-    tarjeta), `b.grips` (asas), `b.tag` (etiqueta «nombre valor»), `b.linkedButton`, `b.linkedChoice`,
+    tarjeta), `b.grips` (asas), `b.tag` y `b.tagRow` (etiquetas, ver `D.tag`), `b.linkedButton`, `b.linkedChoice`,
     `b.linkedKnob`, `b.place`.
   - Fuente/bomba: `srcMenu` (tarjeta), `controllerBox` (dibujo), teclas físicas (polaridad y cables).
   - Multímetro: `meterMenu`, `tipMenu`, `drawMeter`, `shape` (extendido/compactado), puntas (`pose`, `grab`,
@@ -102,23 +105,23 @@ Fase 2 · Instrumentos y mesa (un PR):
   libres. Celular: fuente y multímetro compactos lado a lado bajo el circuito.
 
 Fase 3 · Pulido (otro PR):
-- [ ] E3 Etiquetas en una línea «nombre valor» (nombre gris, valor en tinta), arriba del componente horizontal
+- [x] E3 Etiquetas en una línea «nombre valor» (nombre gris, valor en tinta), arriba del componente horizontal
   o a la derecha del vertical. Estados («cerrado», «abierta», «cargar») en una pastilla pequeña al lado. Hoy:
   Voltaje y corriente pone «resistencia» arriba y «1 kΩ» abajo; osciloscopio «470 Ω» arriba y «LED» abajo;
   serie-paralelo «R1 470 Ω».
-- [ ] E5 Ningún texto del canvas baja de 14 px en pantalla: función común que dibuja a `max(base, 14/escala)`
+- [x] E5 Ningún texto del canvas baja de 14 px en pantalla: función común que dibuja a `max(base, 14/escala)`
   (la escala es `Sim.S`); si no cabe, acortar el rótulo.
-- [ ] S3 Serie | Paralelo pasa a la sección Armar (el selector arriba al centro del dibujo se queda).
-- [ ] S4 Tema y Pantalla completa salen de Ver y van como iconos junto a Controles en la barra (en celular en la
+- [x] S3 Serie | Paralelo pasa a la sección Armar (el selector arriba al centro del dibujo se queda).
+- [x] S4 Tema y Pantalla completa salen de Ver y van como iconos junto a Controles en la barra (en celular en la
   cabecera de la hoja). Quitar «Qué se ve» de la hoja de Controles del celular (ya está en las pestañas).
-- [ ] M1 Cambiar Agua · Ambos · Electricidad con `document.startViewTransition`: el panel que queda se estira a
+- [x] M1 Cambiar Agua · Ambos · Electricidad con `document.startViewTransition`: el panel que queda se estira a
   su ancho nuevo y el otro se desvanece, 240 ms; sin soporte o con movimiento reducido, como ahora.
-- [ ] M2 `@view-transition { navigation: auto; }` en sim.css y nombre de transición en la barra para pasar de
+- [x] M2 `@view-transition { navigation: auto; }` en sim.css y nombre de transición en la barra para pasar de
   simulación sin destello blanco (200 ms).
-- [ ] M3 Siguiente late una sola vez por sesión (hoy `sim-go-pulse` 3 veces en cada carga), o cuando el paso se
+- [x] M3 Siguiente late una sola vez por sesión (hoy `sim-go-pulse` 3 veces en cada carga), o cuando el paso se
   cumplió.
-- [ ] M4 Palanca ON/OFF: 160 ms con salida rápida sin sobrepaso (hoy `cubic-bezier(.3, 2.2, .5, 1)`).
-- [ ] M5 Tarjetas acopladas en la columna: envolverlas en una fila de cuadrícula 0fr→1fr en 200 ms (cerrar
+- [x] M4 Palanca ON/OFF: 160 ms con salida rápida sin sobrepaso (hoy `cubic-bezier(.3, 2.2, .5, 1)`).
+- [x] M5 Tarjetas acopladas en la columna: envolverlas en una fila de cuadrícula 0fr→1fr en 200 ms (cerrar
   120 ms) para que lo de abajo no salte.
 
 Al terminar una fase, marca sus casillas aquí en el mismo PR.
