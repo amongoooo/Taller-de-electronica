@@ -98,7 +98,7 @@
       return [MODES[mode].W, best.H, MODES[mode].x0, mode];
     };
     const geometry = (side, W, H, mode = 'ancho') => {
-      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, BW: 330, BH: 152, MK: 1 };
+      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, BW: 350, BH: 152, MK: 1 };
       if (mode === 'lateral') {
         g.BOT = H - 64;
         g.BX = 700; g.MK = 1.25;
@@ -416,6 +416,39 @@
       grab('box', g => { const [x, y] = boxAt(g); return [x + g.BW / 2, y + g.BH / 2]; }, g => [g.BW, g.BH]);
       grab('sym', g => symAt(g), () => [84, 84]);
     });
+
+    // Botón de los cables de la fuente, como el de los multímetros: encendido (como empieza) sus cables
+    // siempre van tensos, derechos del bloque al circuito; apagado se quedan como se acomoden. Apretado
+    // más de medio segundo los tensa una sola vez.
+    const SK = [26, 18];   // tamaño de la tecla
+    st.staut = true; st.spress = 0; st.shold = false;
+    const srcKey = g => { const [x, y] = boxAt(g); return [x + 327, y + 100]; };
+    const tenseLeads = () => ['w', 'e'].forEach(side => [0, 1].forEach(j => { const r = ropes[side]['s' + j]; if (r) r.tense = 0.8; }));
+    const srcKeys = ['w', 'e'].map(side => {
+      const bt = document.createElement('button');
+      bt.type = 'button'; bt.className = 'sim-meter-btn phys sim-src-ctl'; bt.dataset.act = 'ali';
+      b.place(side, bt, g => {
+        const s = panel(side).scale;
+        bt.style.width = Math.max(30, (SK[0] + 6) * s) + 'px'; bt.style.height = Math.max(26, (SK[1] + 6) * s) + 'px';
+        return srcKey(g);
+      });
+      let downAt = 0;
+      bt.addEventListener('pointerdown', () => { downAt = performance.now(); st.shold = true; });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => bt.addEventListener(t, () => { st.shold = false; }));
+      bt.addEventListener('click', e => {
+        st.spress = performance.now() + 140;
+        if (e.detail && performance.now() - downAt > 500) tenseLeads();
+        else { st.staut = !st.staut; if (st.staut) tenseLeads(); }
+        syncSrcKeys();
+      });
+      return [bt, side];
+    });
+    const syncSrcKeys = () => srcKeys.forEach(([bt, side]) => {
+      const what = side === 'w' ? 'las mangueras de la bomba' : 'los cables de la fuente';
+      const label = st.staut ? `Soltar ${what}` : `Tensar ${what} (siempre); apretado medio segundo, solo una vez`;
+      bt.setAttribute('aria-label', label); bt.title = label; bt.setAttribute('aria-pressed', String(st.staut));
+    });
+    syncSrcKeys();
 
     // ---------- controlador: bomba y fuente enlazadas ----------
     // Como una fuente de laboratorio: interruptor ON/OFF a la izquierda con los LEDs CV y CC; la perilla del
@@ -970,7 +1003,7 @@
     const NP = () => 2;
     const probeOf = (kind, j) => j;
     // placed: qué puntas están puestas en el circuito (al tocar el multímetro se quitan hasta ponerlas de nuevo).
-    st.placed = { a: [true, true], b: [true, true] };
+    st.placed = { a: [false, false], b: [false, false] };   // empiezan guardadas: se toca el multímetro para ponerlas
     // Al arrastrar una punta se levanta del circuito y deja de medir. Cerca de una línea un imán la
     // jala hacia ella: si se suelta ahí cae y se conecta; si se suelta lejos se queda en el suelo.
     //   lift:  mientras se arrastra, { x, y, n } (dónde va su contacto y su última orientación)
@@ -1304,7 +1337,11 @@
         for (let k = 0; k < NL; k++) { const u = k / (NL - 1), x = A[0] + (B[0] - A[0]) * u, y = A[1] + (B[1] - A[1]) * u; r.push({ x, y, px: x, py: y }); }
       }
       const hk = held && held.key === key ? held.k : -1;
-      const slack = span * 1.04 + Math.min(14, span * 0.2);
+      // con el botón de los cables encendido van siempre tensos (solo se aflojan mientras se jalan)
+      if (hk > 0 || (st.sheld && !st.staut)) r.taut = false;
+      else if (st.staut) r.tense = Math.max(r.tense || 0, 0.1);
+      const slack = r.taut || r.tense > 0 ? span * 1.005 + 2 : span * 1.04 + Math.min(14, span * 0.2);
+      if (r.tense > 0) { r.tense -= dt; r.taut = true; r.len += (slack - r.len) * (1 - Math.exp(-dt * 7)); }
       if (hk > 0) r.len = Math.max(r.len, Math.max(Math.hypot(held.x - A[0], held.y - A[1]) / hk, Math.hypot(B[0] - held.x, B[1] - held.y) / (NL - 1 - hk)) * (NL - 1) * 1.02);
       else if (st.sheld || st.svel) r.len += (slack - r.len) * (1 - Math.exp(-dt * 6));
       r.len = Math.max(r.len, slack);
@@ -1338,7 +1375,7 @@
       const still = 0.15 + 0.35 * cable.stiff;
       for (let k = 1; k < NL - 1; k++) {
         const q = r[k];
-        if (k !== hk && !st.sheld && !st.svel && Math.hypot(q.x - q.px, q.y - q.py) < still) { q.x = q.px; q.y = q.py; }
+        if (k !== hk && !st.sheld && !st.svel && !(r.tense > 0) && Math.hypot(q.x - q.px, q.y - q.py) < still) { q.x = q.px; q.y = q.py; }
       }
       r.A = A;
       r.pts = ropePoints(r);
@@ -1876,6 +1913,10 @@
       D.text(ctx, leds[0], X + 86, Y + 93, C.ink, { size: 11, weight: 700 });
       D.led(ctx, X + 86, Y + 112, out && st.cc ? 1 : 0, '#ff4a3d');
       D.text(ctx, leds[1], X + 86, Y + 131, C.ink, { size: 11, weight: 700 });
+      // botón de los cables, a la derecha, como el de los multímetros
+      const [kx, ky] = srcKey(g), p = st.spress > performance.now() || st.staut || st.shold ? 1 : 0;
+      keycap(ctx, kx, ky, SK[0], SK[1], p, !st.staut && !awayK(g), st.staut);
+      ctx.save(); ctx.translate(kx, ky + p * 1.5 - 0.5); ctx.scale(SK[1] / 16, SK[1] / 16); plug(ctx); ctx.restore();
     };
     // Cables de la fuente (mangueras de la bomba) fuera de su lugar: rojo el del +, negro el del −, con
     // lo que circula por ellos (sale por el + y regresa por el −). Van debajo del circuito, como los de
@@ -2099,22 +2140,32 @@
     };
     // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
     st.press = { a: [0, 0], b: [0, 0] }; st.hold = { a: false, b: false };
-    const physButton = (ctx, kind, i, [bx, by], sh) => {
-      const on = i === 0 && st.taut[kind];   // el de los cables se queda hundido mientras está encendido
-      const w = sh.bw, h = sh.bh, p = st.press[kind][i] > performance.now() || on || (i === 0 && st.hold[kind]) ? 1 : 0, off = i === 0 && !on && !st.placed[kind].some(Boolean);
+    // Tecla física: su base, la tapa (hundida con p = 1) y, si lleva, su lucecita (led: encendida o no).
+    const keycap = (ctx, bx, by, w, h, p, off, led) => {
       ctx.save();
       if (off) ctx.globalAlpha *= 0.55;
       D.roundRect(ctx, bx - w / 2, by - h / 2 + 2, w, h, 4, '#1b242c');   // la base
       D.roundRect(ctx, bx - w / 2, by - h / 2 + p * 1.5, w, h - 1.5, 4, p ? '#8e9aa4' : '#a9b4bd', '#1b242c', 1.2);
-      if (i === 0) D.circle(ctx, bx + w / 2 - 3.5, by - h / 2 + 3.5 + p * 1.5, 1.8, on ? '#22e06b' : '#5b6670');   // su lucecita
+      if (led != null) D.circle(ctx, bx + w / 2 - 3.5, by - h / 2 + 3.5 + p * 1.5, 1.8, led ? '#22e06b' : '#5b6670');
+      ctx.restore();
+    };
+    // Ícono de enchufe (el botón de los cables), centrado, en una tecla de 16 de alto.
+    const plug = ctx => {
+      const ink = '#1b242c';
+      D.line(ctx, [[-2.5, -6], [-2.5, -3]], 1.6, ink); D.line(ctx, [[2.5, -6], [2.5, -3]], 1.6, ink);
+      D.line(ctx, [[-5, -3], [5, -3], [5, 0], [0, 4], [-5, 0], [-5, -3]], 1.6, ink);
+      D.line(ctx, [[0, 4], [0, 7]], 1.6, ink);
+    };
+    const physButton = (ctx, kind, i, [bx, by], sh) => {
+      const on = i === 0 && st.taut[kind];   // el de los cables se queda hundido mientras está encendido
+      const p = st.press[kind][i] > performance.now() || on || (i === 0 && st.hold[kind]) ? 1 : 0, off = i === 0 && !on && !st.placed[kind].some(Boolean);
+      keycap(ctx, bx, by, sh.bw, sh.bh, p, off, i === 0 ? on : null);
+      ctx.save();
       ctx.translate(bx, by + p * 1.5 - 0.5);
-      const k = h / 16, ink = '#1b242c';
+      const k = sh.bh / 16, ink = '#1b242c';
       ctx.scale(k, k);
-      if (i === 0) {   // enchufe: recoger
-        D.line(ctx, [[-2.5, -6], [-2.5, -3]], 1.6, ink); D.line(ctx, [[2.5, -6], [2.5, -3]], 1.6, ink);
-        D.line(ctx, [[-5, -3], [5, -3], [5, 0], [0, 4], [-5, 0], [-5, -3]], 1.6, ink);
-        D.line(ctx, [[0, 4], [0, 7]], 1.6, ink);
-      } else {   // compactar (flechas hacia adentro) o mostrar completo (hacia afuera)
+      if (i === 0) plug(ctx);   // enchufe: los cables
+      else {   // compactar (flechas hacia adentro) o mostrar completo (hacia afuera)
         const o = st.compact[kind] ? 1 : -1;
         [[-1, -1], [1, 1]].forEach(([sx, sy]) => {
           const a = [sx * 6, sy * 6], z = [sx * 1.5, sy * 1.5], tip = o > 0 ? a : z, tail = o > 0 ? z : a;
