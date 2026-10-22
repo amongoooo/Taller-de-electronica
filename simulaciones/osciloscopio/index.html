@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022175407">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022202709">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,15 +36,15 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022175407"></script>
-<script src="../../assets/osciloscopio.js?v=20261022175407"></script>
+<script src="../../assets/sim.js?v=20261022202709"></script>
+<script src="../../assets/osciloscopio.js?v=20261022202709"></script>
 <script>
 // LED con el osciloscopio: generador → R → LED. El generador y el osciloscopio están en assets/osciloscopio.js.
 (() => {
   const { X0, X1, TOP, BOT, XR, XL, PATH } = Sim.scope;
   Sim.scope({
     // Senoidal de 6 Vp a 10 Hz con 470 Ω y el LED rojo: el canal 1 ve el generador y el LED solo prende arriba de 1,8 V.
-    preset: { wave: 'sine', fi: 10, amp: 6, off: 0, R: 470, vi: 2, ti: 8, ch2: false, probe: [300, 980, 640], side: [-1, -1, 1] },
+    preset: { wave: 'sine', fi: 10, amp: 6, off: 0, R: 470, vd: [2, 2], td: 250, ch2: false, probe: [300, 980, 640], side: [-1, -1, 1] },
     places: { R: [XR, TOP, 'h'], L: [XL, TOP, 'h'] },
     wires: [{ pts: PATH, seq: ['a', 'R', 'b', 'L', 'g'] }],
     branches: () => [{ pts: Sim.draw.rect(X0, TOP, X1, BOT), br: 's', dc: (BOT - TOP) + (XR - X0) }],

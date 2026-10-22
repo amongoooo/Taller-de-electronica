@@ -734,3 +734,5 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   border-radius: 6px; background: transparent; border: 0; touch-action: manipulation;
 }
 .sim-wave:focus-visible, .sim-trig:focus-visible { outline: 2px solid var(--water); outline-offset: 1px; }
+/* Lo que se guarda (el generador con el osciloscopio de frente, los mandos que el acomodo no tiene) no se ve. */
+.sim-layer > [hidden] { display: none !important; }

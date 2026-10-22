@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261022175407">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261022202709">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261022175407"></script>
-<script src="../../assets/osciloscopio.js?v=20261022175407"></script>
+<script src="../../assets/sim.js?v=20261022202709"></script>
+<script src="../../assets/osciloscopio.js?v=20261022202709"></script>
 <script>
 // Carga y descarga RC (C2, C3): generador → R → C a tierra. El generador y el osciloscopio están en
 // assets/osciloscopio.js.
@@ -46,7 +46,7 @@
   Sim.scope({
     // C2: cuadrada de 0 a 5 V a 100 Hz, 10 kΩ y 100 nF: τ = R·C = 1 ms, una división. C3: 10 µF y 1 Hz, τ = 0,1 s.
     // El canal 1 ve el capacitor y el canal 2 el generador.
-    preset: { wave: 'square', fi: 30, amp: 2.5, off: 2.5, R: 10000, Cap: 0.1, vi: 1, ti: 1, ch2: true, probe: [640, 980, 300], side: [1, -1, -1] },
+    preset: { wave: 'square', fi: 30, amp: 2.5, off: 2.5, R: 10000, Cap: 0.1, vd: [1, 2], td: 1, ch2: true, pos: [-2.5, -3.5], trig: { src: 1, level: 2.5 }, probe: [640, 980, 300], side: [1, -1, -1] },
     places: { R: [XR, TOP, 'h'], C: [XL, TOP, 'h'] },
     wires: [{ pts: PATH, seq: ['a', 'R', 'b', 'C', 'g'] }],
     branches: () => [{ pts: Sim.draw.rect(X0, TOP, X1, BOT), br: 's', dc: (BOT - TOP) + (XR - X0) }],
