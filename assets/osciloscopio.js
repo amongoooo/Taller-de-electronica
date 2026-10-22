@@ -5,9 +5,11 @@
 // guarda lo que marca cada canal; el osciloscopio dibuja de lo guardado.
 //
 // Cada página da su circuito (como banco.js con Sim.bench):
-//   preset    los valores del taller al abrir: generador (wave, fi, amp, off), R, Cap, filt, el osciloscopio (vd:
-//             volts por división de cada canal, td: ms por división, ch2: si el canal 2 empieza prendido, pos: dónde
-//             queda el cero de cada canal, en divisiones, trig: { src: 0 o 1, level: V }) y las puntas (probe: canal
+//   preset    los valores del taller al abrir: generador (wave: 'sine', 'square', 'tri' o 'dc'; freq en Hz; amp en
+//             volts pico a pico, como el del taller; off: offset en V; duty en %; sel: lo que cambia su perilla), R,
+//             Cap, filt, el osciloscopio (vd: volts por división de cada canal, td: ms por división, ch2: si el
+//             canal 2 empieza prendido, pos: dónde queda el cero de cada canal, en divisiones, trig: { src: 0 o 1,
+//             level: V }) y las puntas (probe: canal
 //             1, caimán de tierra, canal 2; pw: en qué cable va cada una, 0 si se omite; side: de qué lado del
 //             cable, −1 afuera y 1 adentro)
 //   places    dónde va cada componente: { clave: [x, y, 'h' acostado o 'v' parado, opciones] }. La clase sale de
@@ -38,9 +40,6 @@
   // blanco; key: la tapa de su tecla CH MENU.
   const CH = [{ lcd: '#f5d33a', paper: ['#9a7400', '#e3bf3c'], cable: '#d9ad00', key: '#f2cf3a' },
     { lcd: '#4cc9f0', paper: ['#1f74ad', '#5ab8e8'], cable: '#2f9cc6', key: '#6fcdf2' }];
-  // Frecuencias de 0.1 Hz a 1 kHz, diez pasos por década.
-  const E10 = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8];
-  const freqAt = i => E10[i % 10] * Math.pow(10, Math.floor(i / 10) - 1);
   // Escalas como las del osciloscopio del taller: volts por división en 1-2-5 (2 mV a 5 V) y tiempo por
   // división en 1-2,5-5 (0,1 ms a 1 s; en ms).
   const VDIV = [0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
@@ -55,12 +54,28 @@
   const MEAS_ALL = [0, 1].flatMap(c => Object.keys(MEAS).map(t => [c, t])).concat([null]);
   const frac = x => x - Math.floor(x);
   const clamp01 = x => Math.max(0, Math.min(1, x));
-  // Formas de onda en función de la fase (en vueltas); todas empiezan en 0 subiendo.
+  // Formas de onda en función de la fase (en vueltas), de −1 a 1; todas empiezan en 0 subiendo. La cuadrada
+  // está arriba la fracción du del ciclo (DUTY); DC no cambia (solo queda el offset).
   const WAVES = {
     sine: p => Math.sin(2 * Math.PI * p),
-    square: p => frac(p) < 0.5 ? 1 : -1,
-    tri: p => 4 * Math.abs(frac(p + 0.75) - 0.5) - 1
+    square: (p, du) => frac(p) < du ? 1 : -1,
+    tri: p => 4 * Math.abs(frac(p + 0.75) - 0.5) - 1,
+    dc: () => 0
   };
+  // El generador del taller (un JDS-2900): lo que cambia su perilla, con su rango y su resolución (d decimales;
+  // el dígito que cambia va de 10^lo a 10^hi). AMPL en volts pico a pico; el offset y la amplitud juntos no pasan
+  // de 10 V (|offset| + Vpp/2 ≤ 10 V); DUTY solo cambia la cuadrada; la fase da la vuelta.
+  const GP = {
+    freq: { min: 0.1, max: 1000, d: 2, lo: -2, hi: 3, name: 'la frecuencia' },
+    amp: { min: 0, max: 20, d: 3, lo: -3, hi: 1, name: 'la amplitud pico a pico' },
+    off: { min: -10, max: 10, d: 2, lo: -2, hi: 0, name: 'el offset' },
+    duty: { min: 10, max: 90, d: 1, lo: -1, hi: 1, name: 'el ciclo de trabajo de la cuadrada' },
+    phs: { min: 0, max: 360, d: 1, lo: -1, hi: 2, name: 'la fase', wrap: true }
+  };
+  const GKEYS = ['freq', 'amp', 'off', 'duty', 'phs'], GLAB = { freq: 'FREQ', amp: 'AMPL', off: 'OFFS', duty: 'DUTY', phs: 'PHAS' };
+  const WAVE_ORDER = ['sine', 'square', 'tri', 'dc'];
+  const WAVE_NAME = { sine: 'Senoidal', square: 'Cuadrada', tri: 'Triangular', dc: 'DC' };
+  const VMAX = 10;
   // Capacitores del taller, de 10 nF a 100 µF (serie E3: 10, 22, 47…), en µF. Desde 1 µF son
   // electrolíticos: tienen polaridad (la placa curva es la −).
   const CVALUES = Sim.series(0.01, 100, [1, 2.2, 4.7]);
@@ -120,6 +135,13 @@
       bnc: [[50, 392], [160, 392]], bncSide: true, gnd: [270, 392], fold: [568, 22]
     }
   };
+  // El generador (560 × 220): scr el marco de la pantalla ([x, y, ancho, alto]; adentro, a la derecha, la columna de
+  // las cinco casillas, de ancho soft), keyX y key: la tecla de cada casilla (centro x, [ancho, alto]); enc: la
+  // perilla [x, y, diámetro]; left, right, wave: [x, y, ancho, alto] de ◀, ▶ y WAVE; ch: las teclas 1 y 2; bnc: sus
+  // salidas.
+  const GEN = { scr: [10, 34, 300, 178], soft: 60, keyX: 328, key: [26, 22], enc: [404, 94, 92],
+    left: [378, 180, 44, 30], right: [430, 180, 44, 30], wave: [506, 180, 70, 30],
+    ch: [[478, 64, 40, 34], [478, 122, 40, 34]], bnc: [[532, 64], [532, 122]] };
   // El acomodo puesto en el lugar del chasis (x, y): todo en coordenadas del dibujo.
   const placeLayout = (L, x, y) => {
     const mv = a => a && [a[0] + x, a[1] + y, ...a.slice(2)], obj = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, mv(v)]));
@@ -148,13 +170,13 @@
       return r;
     };
     const geometry = (side, mode) => {
-      const g = { side, mode, ...CIRC, GX: 40, GY: CIRC.BOT + 46, GW: 560, GH: 200 };
+      const g = { side, mode, ...CIRC, GX: 40, GY: CIRC.BOT + 46, GW: 560, GH: 220 };
       g.alto = mode.startsWith('alto');
       g.solo = mode.startsWith('solo');
       g.pc = mode.startsWith('pc');
       g.lay = mode.split('-')[1];
-      [g.SX, g.SY] = g.alto ? (g.lay === 'tall' ? [20, 310] : [20, 556]) : g.pc ? [113, 400] : [640, 150];
-      if (g.pc) { g.GX = 620; g.GY = 160; }
+      [g.SX, g.SY] = g.alto ? (g.lay === 'tall' ? [20, 310] : [20, 566]) : g.pc ? [113, 400] : [640, 150];
+      if (g.pc) { g.GX = 620; g.GY = 150; }
       g.L = placeLayout(LAYOUTS[g.lay], g.SX, g.SY);
       if (g.solo) g.L.fold = [g.SX + g.L.w - 32, g.SY + 22];   // para regresarlo a la mesa
       g.SW = g.L.w; g.SH = g.L.h;
@@ -171,7 +193,10 @@
     for (const k in PLACES) if (kind(k) === 'D') dh[k] = Sim.heat({ pMax: 1, tMax: 150, tau: 4 });
     const popt = k => PLACES[k][3] || {};
 
-    const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, fi: 10, amp: 6, off: 0, wave: 'sine',
+    // El generador: la salida CH1 (on), la forma de onda, sus valores (ver GP), lo que cambia la perilla (sel) y el
+    // dígito que cambia de cada valor (dig: la potencia de 10).
+    const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, freq: 1, amp: 12, off: 0, duty: 50, phs: 0, wave: 'sine',
+      sel: 'freq', dig: { freq: 0, amp: 0, off: -1, duty: 0, phs: 1 },
       led: true, R: 470, color: 'rojo', rev: false, Cap: 0.1, filt: false, drev: false, vc: 0, rb: false, rbT: 0,
       ph: 0, T: 0, probe: [300, 980, 640], pw: [0, 0, 0], side: [-1, -1, 1], last: [0, 0],
       q: {}, flow: {}, dOn: {},
@@ -391,7 +416,7 @@
     st.avg = { on: false, v: {}, i: {} };
     const advance = dt => {
       st.level = st.ramp.step(st.on ? 1 : 0, st.tau, dt);
-      const f = freqAt(st.fi), S = sweepS();
+      const f = st.wave === 'dc' ? 0 : st.freq, S = sweepS(), du = st.duty / 100, p0 = st.ph + st.phs / 360;
       const n = Math.max(1, Math.min(4000, Math.ceil(Math.max(dt * f * 64, dt * 400 / S)))), h = dt / n;
       const at = [0, 1, 2].map(k => { const w = WIRES[st.pw[k]]; return { w, d: st.probe[k], sp: w.span() }; });
       const a = new Float32Array(n + 1), b = new Float32Array(n + 1);
@@ -410,7 +435,7 @@
       const qi = {}, ai = {}, sv = {}, ED = {}, on = {};
       for (const k in dh) { ED[k] = 0; on[k] = 0; }
       for (let k = 0; k < n; k++) {
-        const e = st.level * (st.amp * WAVES[st.wave](st.ph + f * h * (k + 1)) + st.off);
+        const e = st.level * (st.amp / 2 * WAVES[st.wave](p0 + f * h * (k + 1), du) + st.off);
         const m = o.solve(e, h, st);
         qa += Math.abs(m.I) * h; peak = Math.max(peak, Math.abs(m.I)); last = m.I;
         for (const br in m.i) { qi[br] = (qi[br] || 0) + m.i[br] * h; ai[br] = (ai[br] || 0) + Math.abs(m.i[br]) * h; }
@@ -584,7 +609,6 @@
     };
     const unitV = side => side === 'w' ? 'psi' : 'V';   // 1 psi por volt: mismos números
     const val = (v, side, d = 1) => fmt(v, d) + ' ' + unitV(side);
-    const fText = f => f >= 1000 ? fmt(f / 1000, 0) + ' kHz' : fmt(f, f < 1 ? 1 : f < 10 && f % 1 ? 1 : 0) + ' Hz';
     const tText = ms => ms >= 1000 ? fmt(ms / 1000, 0) + ' s' : ms < 1 ? fmt(ms * 1000, 0) + ' µs' : fmt(ms, ms % 1 ? 1 : 0) + ' ms';
     // Lecturas de la pantalla del osciloscopio, con tres cifras y punto decimal como en el de verdad (4.93V, 500mV,
     // 2.50ms; la frecuencia con una más: 100.0Hz). En el agua, psi sin prefijos.
@@ -597,40 +621,57 @@
     };
     const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
 
-    // Generador
-    linkedButton({
-      pos: g => [g.GX + 44, g.GY + 110], cls: 'sim-power', hidden: () => !geos.e.gen,
-      html: Sim.SWITCH,
-      label: side => (st.on ? 'Apagar ' : 'Encender ') + (side === 'w' ? 'la bomba' : 'el generador'),
-      attrs: () => ({ 'aria-pressed': String(st.on) }),
-      onClick: () => { st.on = !st.on; }
-    });
-    const ICON = {
-      sine: 'M2 12C5 1 9 1 12 12S19 23 22 12',
-      square: 'M2 17V7h5v10h5V7h5v10h5',
-      tri: 'M2 12l5-7 10 14 5-7'
+    // Generador, como el del taller (un JDS-2900): una sola perilla sin fin; las cinco teclas junto a la pantalla
+    // (FREQ, AMPL, OFFS, DUTY, PHAS) eligen qué cambia, ◀ ▶ mueven el dígito que cambia, WAVE pasa a la siguiente
+    // forma de onda y la tecla amarilla 1 prende y apaga la salida CH1 (con su luz roja). CH2 se ve pero no está
+    // conectado. Todo en coordenadas de su chasis (GEN).
+    const gAt = (g, a) => [g.GX + a[0], g.GY + a[1], ...a.slice(2)];
+    const noGen = () => !geos.e.gen;
+    const softH = (GEN.scr[3] - 10) / 5, softY = i => GEN.scr[1] + 5 + softH * (i + 0.5);
+    const SOFT = [GEN.scr[0] + GEN.scr[2] - 5 - GEN.soft, GEN.keyX + GEN.key[0] / 2];   // de la casilla a su tecla
+    // Que el offset y la amplitud juntos no pasen de 10 V (en DC solo cuenta el offset): se queda en el tope.
+    const limit = k => {
+      if (st.wave === 'dc') return;
+      if (k === 'amp') st.amp = +Math.min(st.amp, 2 * (VMAX - Math.abs(st.off))).toFixed(3);
+      else st.off = +Math.max(st.amp / 2 - VMAX, Math.min(VMAX - st.amp / 2, st.off)).toFixed(2);
     };
-    // Teclas de la forma de onda: la elegida se queda hundida, con su lucecita.
-    const WAVEK = ['sine', 'square', 'tri'], waveAt = (g, k) => [g.GX + 125, g.GY + 66 + 44 * k];
-    WAVEK.forEach((w, k) => linkedButton({
-      pos: g => waveAt(g, k), cls: 'sim-wave', hidden: () => !geos.e.gen,
-      label: () => 'Onda ' + ['senoidal', 'cuadrada', 'triangular'][k],
-      attrs: () => ({ role: 'radio', 'aria-checked': String(st.wave === w) }),
-      onClick: () => { st.wave = w; }
-    }));
-    linkedKnob({
-      pos: g => [g.GX + 245, g.GY + 112], min: 0, max: 40, step: 1, value: st.fi, hidden: () => !geos.e.gen,
-      label: () => 'Frecuencia', format: v => fText(freqAt(v)),
-      onInput: v => { st.fi = v; }
+    const turn = n => {
+      const k = st.sel, P = GP[k];
+      let v = st[k] + n * Math.pow(10, st.dig[k]);
+      v = P.wrap ? (v % P.max + P.max) % P.max : Math.max(P.min, Math.min(P.max, v));
+      st[k] = +v.toFixed(P.d);
+      if (k === 'amp' || k === 'off') limit(k);
+    };
+    // Lo que dice la pantalla (con sus ceros, para que el dígito que cambia no se mueva) y su unidad.
+    const gText = { freq: v => v.toFixed(2).padStart(7, '0'), amp: v => v.toFixed(3).padStart(6, '0'),
+      off: v => (v < 0 ? '-' : '+') + Math.abs(v).toFixed(2), duty: v => v.toFixed(1), phs: v => v.toFixed(1).padStart(5, '0') };
+    const gUnit = (k, side) => ({ freq: 'Hz', amp: side === 'w' ? 'psi pp' : 'Vpp', off: unitV(side), duty: '%', phs: '°' })[k];
+    const say = (k, side) => fmt(st[k], GP[k].d) + ' ' + gUnit(k, side);
+    const genName = side => side === 'w' ? 'de la bomba' : 'del generador';
+    const encEls = [], encs = ['w', 'e'].map(side => {
+      const el = place(side, document.createElement('div'), g => gAt(g, GEN.enc));
+      el.dataset.act = 'ali'; encEls.push(el);
+      return Sim.encoder(el, { turn: n => { turn(n); refresh(); },
+        label: () => `Perilla ${genName(side)}: cambia ${GP[st.sel].name}`, text: () => say(st.sel, side) });
     });
-    linkedKnob({
-      pos: g => [g.GX + 365, g.GY + 112], min: 0, max: 10, step: 0.5, magnet: 1, value: st.amp, hidden: () => !geos.e.gen,
-      label: () => 'Amplitud', format: val, onInput: v => { st.amp = v; }
+    buttons.push({ pair: encEls, hidden: noGen,
+      dim: () => [GEN.enc[2], GEN.enc[2]] });
+    const syncGen = () => encs.forEach(e => e.sync());
+    const genKey = (pos, dim, label, onClick, attrs) => linkedButton({ pos: g => gAt(g, pos), dim: () => dim, cls: 'sim-trig', act: 'ali',
+      hidden: noGen, label, attrs, onClick: () => { onClick(); syncGen(); } });
+    GKEYS.forEach((k, i) => genKey([(SOFT[0] + SOFT[1]) / 2, softY(i)], [SOFT[1] - SOFT[0], softH - 2],
+      () => `${GLAB[k]}: la perilla cambia ${GP[k].name}`, () => { st.sel = k; }, () => ({ 'aria-pressed': String(st.sel === k) })));
+    // ◀ pasa al dígito de la izquierda (la perilla cambia de a 10 veces más) y ▶ al de la derecha.
+    [[GEN.left, 1, '◀: la perilla cambia el dígito de la izquierda'], [GEN.right, -1, '▶: la perilla cambia el dígito de la derecha']]
+      .forEach(([pos, d, label]) => genKey(pos, pos.slice(2), () => label, () => {
+        const P = GP[st.sel]; st.dig[st.sel] = Math.max(P.lo, Math.min(P.hi, st.dig[st.sel] + d));
+      }));
+    genKey(GEN.wave, GEN.wave.slice(2), () => `WAVE: forma de onda (${WAVE_NAME[st.wave].toLowerCase()})`, () => {
+      st.wave = WAVE_ORDER[(WAVE_ORDER.indexOf(st.wave) + 1) % WAVE_ORDER.length];
+      limit('amp');   // al salir de DC la amplitud vuelve a contar
     });
-    linkedKnob({
-      pos: g => [g.GX + 485, g.GY + 112], min: -5, max: 5, step: 0.5, magnet: 1, value: st.off, hidden: () => !geos.e.gen,
-      label: side => side === 'w' ? 'Presión base (offset)' : 'Offset', format: val, onInput: v => { st.off = v; }
-    });
+    genKey(GEN.ch[0], GEN.ch[0].slice(2), side => `Tecla 1: ${st.on ? 'apaga' : 'prende'} la salida CH1 ${genName(side)}`,
+      () => { st.on = !st.on; }, () => ({ 'aria-pressed': String(st.on) }));
 
     // Componentes: tocarlos abre su tarjeta, como en las demás páginas.
     const setR = R => { st.R = R; rebuild(); };
@@ -865,6 +906,57 @@
       ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.lineCap = 'round'; ctx.stroke();
       D.text(ctx, '+', x - 34, y - 30, C.ink, { size: 18 });
     };
+    // Pantalla del generador, a color como la del taller: arriba CH1 (amarillo) con su forma de onda y si la salida
+    // está prendida; la frecuencia grande, la amplitud, el offset y DUTY (o la fase, mientras la perilla la cambia),
+    // con una raya bajo el dígito que cambia la perilla; abajo CH2 (azul), que no está conectado; a la derecha las
+    // cinco casillas, la que cambia la perilla en amarillo. Lo que no cuenta con la forma de onda puesta, tenue.
+    const genScreen = (ctx, g) => {
+      const [fx, fy, fw, fh] = gAt(g, GEN.scr), sx = fx + 5, sy = fy + 5, sw = fw - 10, sh = fh - 10, cw = GEN.soft;
+      const y1 = CH[0].lcd, y2 = CH[1].lcd, x0 = sx + 8, xr = sx + sw - cw - 8, dimC = '#5d6873', lab = '#8b98a5';
+      D.roundRect(ctx, fx, fy, fw, fh, 8, '#2b3440');
+      D.roundRect(ctx, sx, sy, sw, sh, 3, '#04070a');
+      const T = (t, x, y, col, size = 14, o2 = {}) => D.text(ctx, t, x, y, col, { size, align: 'left', font: Sim.MONO, weight: 700, ...o2 });
+      const width = (t, size = 14, weight = 700) => { D.font(ctx, size, Sim.MONO, weight); return ctx.measureText(t).width; };
+      const head = (name, col, y, wave, on, dim) => {
+        if (!dim) D.circle(ctx, x0 + 4, y, 4, col);
+        T(name, x0 + 13, y, dim ? dimC : col);
+        T(WAVE_NAME[wave], x0 + 13 + width(name) + 8, y, dim ? dimC : '#ffffff', 14, { weight: 600 });
+        T(on ? 'ON' : 'OFF', xr, y, dim ? dimC : on ? '#5be08a' : '#ff6b5f', 14, { align: 'right' });
+      };
+      head('CH1', y1, sy + 15, st.wave, st.on, false);
+      const dc = st.wave === 'dc';
+      const row = (k, y, size, label) => {
+        const faint = (dc && k !== 'off') || (k === 'duty' && st.wave !== 'square'), col = faint ? dimC : y1;
+        let x = x0;
+        if (label) { T(label, x, y, lab, 14, { weight: 600 }); x += width(label, 14, 600) + 8; }
+        const t = gText[k](st[k]), tw = width(t, size), px = D.font(ctx, size, Sim.MONO, 700);
+        T(t, x, y, col, size);
+        if (st.sel === k) {   // la raya bajo el dígito que cambia la perilla
+          const dot = t.indexOf('.'), e = st.dig[k], i = e >= 0 ? dot - 1 - e : dot - e;
+          D.font(ctx, size, Sim.MONO, 700);
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(x + ctx.measureText(t.slice(0, i)).width, y + px * 0.42, ctx.measureText(t[i]).width, Math.max(2.5, px * 0.09));
+        }
+        const us = Math.min(size, 17);
+        T(gUnit(k, g.side), x + tw + 3, y + (size - us) * 0.18, col, us, { weight: 600 });
+      };
+      row('freq', sy + 45, 28);
+      row('amp', sy + 76, 22);
+      row('off', sy + 100, 15, 'OFFS');
+      row(st.sel === 'phs' ? 'phs' : 'duty', sy + 127, 15, st.sel === 'phs' ? 'PHAS' : 'DUTY');
+      D.line(ctx, [[sx + 4, sy + 141], [xr + 4, sy + 141]], 1, '#1f4a63', 'butt');
+      head('CH2', y2, sy + 155, 'sine', false, true);
+      // las cinco casillas
+      GKEYS.forEach((k, i) => {
+        const by = sy + i * softH, on = st.sel === k, cx = sx + sw - cw;
+        D.roundRect(ctx, cx, by + 2, cw - 3, softH - 4, 4, on ? y1 : null, on ? null : CH[1].cable, 1.5);
+        D.text(ctx, GLAB[k], cx + (cw - 3) / 2, by + softH / 2, on ? '#000000' : '#ffffff', { size: 14, font: Sim.MONO, weight: 700, max: cw - 7 });
+      });
+    };
+    // Triángulo de ◀ y ▶ (s = −1 a la izquierda), sobre su tecla.
+    const arrowKey = (ctx, [x, y], s) => {
+      ctx.beginPath(); ctx.moveTo(x - 6 * s, y - 7); ctx.lineTo(x - 6 * s, y + 6); ctx.lineTo(x + 6 * s, y - 0.5); ctx.closePath();
+      ctx.fillStyle = '#15212a'; ctx.fill();
+    };
     const drawGen = (ctx, g) => {
       if (!g.gen) return;
       const w = g.side === 'w', x = g.GX, y = g.GY;
@@ -872,23 +964,21 @@
       if (g.pc) D.line(ctx, [[g.PX, g.BOT + 26], [g.PX, g.BOT + 36], [g.GX, g.BOT + 36]], 12, C.ink);
       else { ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 26, 28, 22); }
       D.chassis(ctx, x, y, g.GW, g.GH, w, w ? 'BOMBA DE VAIVÉN' : 'GENERADOR DE FUNCIONES');
-      WAVEK.forEach((wv, k) => {   // teclas de la forma de onda, con su dibujo
-        const [kx, ky] = waveAt(g, k), on = st.wave === wv ? 1 : 0;
-        D.key(ctx, kx, ky, 40, 30, on, false, on);
-        ctx.save(); ctx.translate(kx - 10, ky - 10 + on * 1.5); ctx.scale(20 / 24, 20 / 24);
-        ctx.lineWidth = 2.4; ctx.strokeStyle = '#1b242c'; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(new Path2D(ICON[wv]));
-        ctx.restore();
-      });
-      D.led(ctx, x + 84, y + 110, st.level > 0.02 ? 1 : 0);
-      const f = freqAt(st.fi), txt = f < 10 ? f.toFixed(2) : f < 100 ? f.toFixed(1) : f.toFixed(0);
-      D.lcd(ctx, x + 470, y + 28, 150, 30, txt.padStart(5, ' '), 'Hz');
-      const scales = [
-        [245, [['0.1', 0], ['1', 0.25], ['10', 0.5], ['100', 0.75], ['1k', 1]], ['frecuencia (Hz)', 'frec. (Hz)', 'Hz'], 8],
-        [365, [['0', 0], ['5', 0.5], ['10', 1]], [`amplitud (${unitV(g.side)})`, `ampl. (${unitV(g.side)})`], 12],
-        [485, [['-5', 0], ['0', 0.5], ['5', 1]], [`offset (${unitV(g.side)})`, 'offset'], 12]
-      ];
-      scales.forEach(([dx, labels, cap, ticks]) => {
-        D.knobCaption(ctx, cap, x + dx, D.knobScale(ctx, x + dx, y + 112, 36, labels, ticks), 112);   // si no cabe entre las perillas, más corto
+      genScreen(ctx, g);
+      GKEYS.forEach((k, i) => keyCap(ctx, gAt(g, [GEN.keyX, softY(i), ...GEN.key]), '', { down: st.sel === k ? 1 : 0 }));
+      // la perilla (la dibuja la página encima): su hueco
+      const [ex, ey, ed] = gAt(g, GEN.enc);
+      D.circle(ctx, ex, ey, ed / 2 + 6, C.dark ? '#26313b' : '#cbd4db', C.ink, 1);
+      keyCap(ctx, gAt(g, GEN.left), ''); arrowKey(ctx, gAt(g, GEN.left), -1);
+      keyCap(ctx, gAt(g, GEN.right), ''); arrowKey(ctx, gAt(g, GEN.right), 1);
+      keyCap(ctx, gAt(g, GEN.wave), 'WAVE');
+      // teclas de los canales con su luz (la del 1 prendida con la salida) y sus salidas; la del 1, con su cable
+      [0, 1].forEach(c => {
+        const k = gAt(g, GEN.ch[c]), [bx, by] = gAt(g, GEN.bnc[c]);
+        keyCap(ctx, k, String(c + 1), { fill: CH[c].key });
+        D.led(ctx, k[0] + k[2] / 2 + 8, k[1] - k[3] / 2 + 6, c === 0 && st.on ? 1 : 0, '#ff3b30', 4);
+        bnc(ctx, bx, by, CH[c].cable);
+        if (c === 0) { D.circle(ctx, bx, by, 11, '#2a333b', C.ink, 1.5); D.circle(ctx, bx, by, 4.5, '#56616b'); }
       });
     };
     // Tecla con su nombre impreso (la misma base que Sim.draw.key); fill: la tapa de color (CH1 y CH2 MENU).

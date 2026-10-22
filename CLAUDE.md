@@ -63,7 +63,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     `D.lcd`, `D.knobScale`, `D.select` / `D.selectRot` (contorno de seleccionado), `D.chassis` (chasis común de
     los instrumentos: `--inst`, banda agua/ámbar, nombre) y `D.key` (tecla física común).
   - `Sim.fadeSel(key, on)`: 0→1 en 120 ms (aparece y se va el contorno).
-  - `Sim.knob`, `Sim.snapRange` (imán, zona muerta, rueda del ratón), `Sim.ramp`, `Sim.needle`, `Sim.heat`.
+  - `Sim.knob`, `Sim.encoder` (perilla sin fin: pasos por muesca), `Sim.snapRange` (imán, zona muerta, rueda del
+    ratón), `Sim.ramp`, `Sim.needle`, `Sim.heat`.
   - `Sim.water` (agua en una vuelta cerrada) y `Sim.stream` (agua en un tramo abierto: una rama con su corriente).
   - Color de las partículas: `Sim.colorMode` (rapidez/normal, presión/voltaje, caudal/corriente), `Sim.field(x, y)` →
     [presión, caudal] de 0 a 1 que pone cada página (o el banco), y `Sim.colorPicker(panels, { ends, spot, top })`: el
@@ -96,6 +97,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   lo que marca cada canal, ya con su acoplamiento), disparo por nivel (`scan`, `updateScope`), `measure` (MEASURE,
   AUTOSET, SET TO 50%), los acomodos del osciloscopio (`LAYOUTS`: `wide` completo, `tall` de frente en la mesa angosta,
   `compact`; modos del dibujo `pc`, `ancho`, `solo` y `alto` en `size`), color de las partículas (`Sim.field`, `st.avg`),
+  el generador (`GEN`: su acomodo en el chasis; `GP`: rango, decimales y dígitos de FREQ, AMPL en Vpp, OFFS, DUTY y PHAS;
+  `turn` y `limit`: la perilla sin fin `Sim.encoder` y el tope |offset| + Vpp/2 ≤ 10 V; `genScreen`: su pantalla),
   tarjetas y dibujo de los componentes (R tramo angosto, L rueda, D válvula de retención, C tanque; la clase es la
   primera letra de la clave: `D1`…`D4` son diodos). La página da `preset`, `places`, `wires` (nodos y componentes en
   orden), `branches` (ramas del agua con su corriente), `dots`, `solve(e, h, st)` → corriente, voltaje de cada nodo
@@ -147,8 +150,9 @@ Fase 4 · Instrumentos como los del taller (boceto aprobado; un PR por instrumen
 - [x] Osciloscopio como el Tektronix TDS 2022B: VOLTS/DIV y POSITION por canal, CH MENU (CC · CA · Tierra, invertir),
   SEC/DIV y POSITION horizontal, disparo por nivel (LEVEL, TRIG MENU, SET TO 50%), MEASURE, AUTOSET, RUN/STOP; CH1
   amarillo y CH2 azul; compacto en la mesa angosta con su tecla de frente.
-- [ ] Generador como el JDS-2900: una perilla con FREQ · AMPL · OFFS · DUTY · PHAS y ◀ ▶ para el dígito, WAVE
-  (senoidal, cuadrada, triangular, DC), tecla CH1 con su luz en vez de la palanca, AMPL en Vpp.
+- [x] Generador como el JDS-2900: una perilla con FREQ · AMPL · OFFS · DUTY · PHAS y ◀ ▶ para el dígito, WAVE
+  (senoidal, cuadrada, triangular, DC), tecla CH1 con su luz en vez de la palanca, AMPL en Vpp. Pendiente: la salida
+  de 50 Ω.
 - [ ] Fuente como la BK 1761: canales A y B de 0–35 V y 0–3 A, COARSE y FINE, CURRENT, CV/CC, una pantallita por canal
   con su tecla V/A, POWER y bornes − ⏚ + (el circuito en el A).
 
