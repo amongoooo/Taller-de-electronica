@@ -98,7 +98,8 @@
   // taller: la pantalla con sus cinco botones de menú a la izquierda y los mandos a la derecha, en sus secciones
   // VERTICAL, HORIZONTAL y TRIGGER. tall: el mismo, de frente en la mesa angosta (celular o los dos paneles): los
   // mandos abajo de la pantalla. compact: en la mesa angosta junto al generador, la pantalla y las tres perillas
-  // grandes. frame: el marco de la pantalla; scr: la cuadrícula (10 × 8 divisiones de div); menu: la columna del
+  // grandes (en la PC con los dos paneles). mini: la versión corta del celular, solo para leer, como el multímetro
+  // corto: la pantalla, un poco más grande y centrada, sin perillas; para girar una se abre. frame: el marco de la pantalla; scr: la cuadrícula (10 × 8 divisiones de div); menu: la columna del
   // menú (arriba su título, en un renglón de alto top, y cinco casillas); keys: [x, y, ancho, alto] de cada tecla;
   // knobs: [x, y, diámetro]; labels: [rótulos, x, y, ancho]; secs: [x, y, ancho, alto, nombres]; bnc: las entradas
   // CH1 y CH2; gnd: el borne de tierra; fold: la tecla para ponerlo de frente o regresarlo.
@@ -133,6 +134,11 @@
       keys: {}, knobs: { vd0: [530, 94, 56], vd1: [530, 192, 56], td: [530, 290, 56] },
       secs: [], labels: [[VDL, 530, 50, 124], [VDL, 530, 148, 124], [SDL, 530, 246, 124]],
       bnc: [[50, 392], [160, 392]], bncSide: true, gnd: [270, 392], fold: [568, 22]
+    },
+    mini: {
+      w: 600, h: 420, div: 33, frame: [61, 40, 478, 324], scr: [67, 70, 330, 264], menu: [403, 46, 130, 312], top: 24,
+      keys: {}, knobs: {}, secs: [], labels: [],
+      bnc: [[50, 392], [160, 392]], bncSide: true, gnd: [270, 392], fold: [568, 22]
     }
   };
   // El generador (560 × 220): scr el marco de la pantalla ([x, y, ancho, alto]; adentro, a la derecha, la columna de
@@ -157,10 +163,10 @@
   Sim.scope = o => {
     // Acomodos del dibujo (el modo dice cuál y qué acomodo del osciloscopio lleva):
     //   alto (celular, o los dos paneles en la PC): el circuito arriba y en la mesa el generador y el osciloscopio
-    //     compacto; de frente (st.front), el generador se guarda y el osciloscopio ocupa la mesa con todos sus mandos.
+    //     compacto (en el celular, el corto: mini, solo para leer); de frente (st.front), el generador se guarda y el osciloscopio ocupa la mesa con todos sus mandos.
     //     En el celular el generador va corto (GMINI) hasta que se abre (st.gfront); abrir uno cierra el otro.
     //   pc (un solo panel en la PC): el generador a la derecha del circuito y abajo el osciloscopio completo.
-    //   ancho (el celular acostado): el osciloscopio compacto a la derecha del circuito y el generador; de frente se
+    //   ancho (el celular acostado): el osciloscopio corto (mini) a la derecha del circuito y el generador; de frente se
     //     ve solo él, completo y grande (solo: el mismo dibujo, recortado alrededor del osciloscopio).
     const BAND = 110;   // en el alto, franja arriba del circuito para el selector del color de las partículas
     const size = (w, h) => {
@@ -183,6 +189,7 @@
       [g.SX, g.SY] = g.alto ? (g.lay === 'tall' ? [20, 310] : [20, 566]) : g.pc ? [113, 400] : [640, 150];
       if (g.pc) { g.GX = 620; g.GY = 150; }
       g.phone = Sim.phone && !g.pc;
+      if (g.phone && g.lay === 'compact') g.lay = 'mini';   // en el celular, el corto solo se lee
       g.gmini = g.phone && !st.gfront;   // el generador corto (en el celular, mientras no se abre)
       if (g.gmini) { g.GH = GMINI.h; if (g.alto && g.lay !== 'tall') g.SY -= GEN_H - GMINI.h; }
       g.L = placeLayout(LAYOUTS[g.lay], g.SX, g.SY);

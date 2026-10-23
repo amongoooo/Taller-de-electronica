@@ -172,6 +172,7 @@
       const f = st.front, rest = ['a', 'src', 'b'].filter(k => k !== f && (k === 'src' || st.show[k]));
       const put = (k, x, y, s) => { if (k === 'src') { box('mini', s); g.BX = x - g.BW / 2; g.BY = y - g.BH; } else { g.mk[k] = s; g.meters[k] = [x, y]; } };
       const row = (items, y, kMax = lateral ? PH.kl : PH.k) => {
+        if (!items.length) return y;   // la fuente abierta sin multímetros a la vista
         const nat = items.reduce((t, k) => t + cw(k), 0) + PH.gap * (items.length - 1), s = Math.min(kMax, avail / nat);
         let x = cx - nat * s / 2;
         items.forEach(k => { put(k, x + cw(k) * s / 2, y, s); x += (cw(k) + PH.gap) * s; });
