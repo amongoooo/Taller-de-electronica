@@ -107,7 +107,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   dos canales y caimán de tierra, puntas en cualquier cable (`wires`), `frames` (cada cuadro integra el circuito y guarda
   lo que marca cada canal, ya con su acoplamiento), disparo por nivel (`scan`, `updateScope`), `measure` (MEASURE,
   AUTOSET, SET TO 50%), los acomodos del osciloscopio (`LAYOUTS`: `wide` completo, `tall` de frente en la mesa angosta,
-  `compact`; modos del dibujo `pc`, `ancho`, `solo` y `alto` en `size`), color de las partículas (`Sim.field`, `st.avg`),
+  `compact` en la PC con los dos paneles y `mini`, el corto del celular, solo para leer; modos del dibujo `pc`, `ancho`, `solo` y `alto` en `size`), color de las partículas (`Sim.field`, `st.avg`),
   el generador (`GEN`: su acomodo en el chasis; `GMINI`: su versión corta del celular, `st.gfront` abierto; `GP`: rango,
   decimales y dígitos de FREQ, AMPL en Vpp, OFFS, DUTY y PHAS;
   `turn` y `limit`: la perilla sin fin `Sim.encoder` y el tope |offset| + Vpp/2 ≤ 10 V; `genScreen`: su pantalla),
@@ -174,6 +174,8 @@ Celular · Instrumentos cortos y abiertos (un PR):
   lectura, fuente corta (canal A, COARSE y POWER), generador corto (pantallita, tecla 1); uno abierto a la vez.
 - [x] Revisión del acomodo: `Sim.phone` en vivo (una ventana que se angosta ya no toma el acomodo de la PC), fuente
   apilada sin rótulos encimados y acomodo del celular en ventanas muy angostas.
-- [ ] Pendiente de decidir: si el osciloscopio compacto también debe ser solo de lectura (hoy lleva VOLTS/DIV y SEC/DIV).
+- [x] El osciloscopio corto del celular solo se lee, como el multímetro corto (`LAYOUTS.mini`: la pantalla más grande y
+  centrada, sin VOLTS/DIV ni SEC/DIV; se abre con su tecla de las flechas). En la PC con los dos paneles sigue el
+  compacto con sus tres perillas.
 
 Al terminar una fase, marca sus casillas aquí en el mismo PR.
