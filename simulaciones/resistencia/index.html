@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261023092629">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261023183325">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261023092629"></script>
-<script src="../../assets/banco.js?v=20261023092629"></script>
+<script src="../../assets/sim.js?v=20261023183325"></script>
+<script src="../../assets/banco.js?v=20261023183325"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -90,8 +90,9 @@
     step(dt, m) {
       // El fusible se calienta con la corriente al cuadrado, aunque la inercia esté en 0: la corriente llega al
       // instante, pero el hilo tarda en fundirse, y entre más se pasa más rápido (con 500 mA, el límite de la
-      // fuente al empezar, un fusible de 100 mA tarda 1 s; con 150 mA, unos 15 s).
-      if (fh.step(st.blown ? 0 : (m.I / st.fuse) ** 2, dt) && !st.blown) blow();
+      // fuente al empezar, un fusible de 100 mA tarda 1 s; con 150 mA, unos 15 s). Va junto a la fuente: le pasa
+      // todo lo que ella da, también lo que se va por un multímetro en A que hace un corto (b.iOut).
+      if (fh.step(st.blown ? 0 : (b.iOut() / st.fuse) ** 2, dt) && !st.blown) blow();
       // La resistencia se calienta con la potencia P = I²·R; arriba de ¼ W se quema, más rápido entre más
       // se pasa (con 9 V y 100 Ω, unos 3 s; con 220 Ω, unos 9 s; con 330 Ω llega a 152 °C y aguanta). En un corto (0 Ω) no recibe potencia.
       if (rh.step(st.burnt ? 0 : (m.I / 1000) ** 2 * st.R, dt) && !st.burnt) burn();
@@ -133,7 +134,7 @@
     st.burnt ? (w ? 'reventado' : 'quemada') : '');
   // Cables al rojo: brillan más cuanto más se pasa la corriente de lo que aguanta el fusible.
   function hot(ctx, path, m) {
-    const k = Math.max(fh.glow, Math.min(1, Math.max(0, (Math.abs(m.I) - st.fuse) / (2 * st.fuse))));
+    const k = Math.max(fh.glow, Math.min(1, Math.max(0, (b.iOut() - st.fuse) / (2 * st.fuse))));
     if (!k) return;
     ctx.globalAlpha = 0.35 * k; D.line(ctx, path, 16, '#ff5a1f'); ctx.globalAlpha = 1;
     D.line(ctx, path, 4, `rgba(255, ${Math.round(110 - 60 * k)}, 30, ${0.4 + 0.6 * k})`);
@@ -277,7 +278,7 @@
         { label: side === 'w' ? 'Cierra arriba de' : 'Aguanta', values: FUSES, get: () => st.fuse, set: v => { st.fuse = v; }, format: side === 'w' ? mLs : mA },
         // lo que aguanta, lo que pasa ahora y cuánto le falta para fundirse (cerrarse)
         { heat: () => {
-          const w = side === 'w', f = w ? mLs : mA, I = st.blown ? 0 : b.st.m.I;
+          const w = side === 'w', f = w ? mLs : mA, I = st.blown ? 0 : b.iOut();
           return { label: w ? 'Caudal' : 'Corriente', rated: f(st.fuse), now: f(I), over: I > st.fuse,
             f: st.blown ? 1 : fh.f, burnt: st.blown, name: w ? 'Empuje' : 'Calor',
             val: st.blown ? (w ? 'cerró' : 'se fundió') : Math.round(100 * Math.min(1, fh.f)) + ' %', end: w ? 'cierra' : 'se funde' };

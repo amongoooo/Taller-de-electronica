@@ -6,7 +6,8 @@
 // un solo par de cables, rojo (+) y negro (−), y una perilla OFF · V · A · Ω. En V (presión) sus dos
 // puntas van entre dos puntos del circuito; en A (caudal) el circuito se abre en un punto y el
 // multímetro queda en medio: el cable se corta entre sus dos puntas y todo pasa por él (si las puntas
-// quedan en dos nodos distintos, el multímetro es un corto y se funde su fusible); en Ω mide la
+// quedan en dos nodos distintos, el multímetro es un corto entre ellos y marca lo que pasa por él; no se
+// rompe nunca); en Ω mide la
 // resistencia entre sus puntas como uno de verdad (con lo que esté en paralelo, y una lectura que no
 // sirve si hay voltaje). Los cables nunca cambian de borne (COM y VΩA): solo cambia el modo.
 // La perilla también elige el modo de color de las partículas. En Medir se puede sacar un segundo
@@ -46,8 +47,9 @@
 // Multímetros 'a' (el de siempre) y 'b' (el segundo): b.showMeters({ a, b }) muestra u oculta cada uno con
 // sus puntas (para las páginas que van por pasos); b.setDial(k, modo, puntas) gira su perilla ('off', 'V',
 // 'A' o 'R') y, si se dan, pone sus puntas ahí ([[x, y], [x, y]]).
-// b.ground(g) es el punto de la tierra común en el cable de abajo.
-// b.halt() se llama al romperse algo (se funde el fusible, se quema o revienta una pieza): el siguiente
+// b.ground(g) es el punto de la tierra común en el cable de abajo. b.iOut() es la corriente que de verdad sale
+// del canal A en mA (la de la página más la que se va por un multímetro que hace un corto).
+// b.halt() se llama al romperse algo (se funde el fusible del circuito, se quema o revienta una pieza): el siguiente
 // cambio del circuito no espera la inercia, el flujo se frena de golpe en un instante.
 (() => {
   const { C, draw: D, fmt, digits } = Sim;
@@ -61,7 +63,7 @@
   const DANG = { off: -105, V: -35, A: 35, R: 105 };   // ángulo de cada posición (grados, 0 arriba)
   const MS = ['a', 'b'];                                // los dos multímetros
   const RED = '#d6392b';
-  const TRIP_MAX = 500;   // mA: hasta aquí la protección del multímetro en A se bota; arriba se funde su fusible
+  const RM = 0.1;   // Ω del multímetro en A (su resistencia de medición más la de sus cables)
   // Pasos de la perilla CURRENT (el límite, en mA), de 0 a 3 A: de a 1 mA abajo de 10 mA (la pantallita marca
   // 1 mA) y luego como 1-1,2-1,5-2-2,5-3-4-5-6-8 en cada década, para que 20 mA quede tan a la mano como 2 A.
   const LIMS = [0, 1, 2, 3, 4, 5, 6, 8].concat([10, 100].flatMap(d => [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8].map(x => Math.round(x * d))),
@@ -109,10 +111,10 @@
     const channel = () => ({ co: Math.round(v0 * 2) / 2, fi: 0, lim: lim0, disp: 'V', peek: null, v: 0, vo: 0, io: 0, cc: false, level: Sim.ramp(), press: 0 });
     const st = { on: false, ch: { A: channel(), B: channel() }, v: 0, vo: 0, cc: false, tau: 1, m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, segs: [], probe: { a: null, b: null }, pinned: { a: false, b: false }, show: { a: true, b: false },
-      // la perilla de cada multímetro y su fusible (se funde al hacer un corto en A)
-      dial: { a: 'V', b: 'A' }, fuse: { a: false, b: false },
-      // su protección en A: se bota con un corto y se rearma tocando su botón (pop: qué tanto salió)
-      trip: { a: false, b: false }, pop: { a: 0, b: 0 }, popv: { a: 0, b: 0 } };
+      // la perilla de cada multímetro
+      dial: { a: 'V', b: 'A' },
+      // corriente de más que da el canal A por cada volt cuando un multímetro en A hace un corto (ver shorts)
+      sx: 0 };
     st.front = null;   // en el celular, el instrumento abierto (ver phoneDesk)
     const b = { st, VMAX, PSI_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
     // Voltaje de las perillas de un canal (COARSE + FINE, de 10 en 10 mV) y el límite del canal A.
@@ -120,6 +122,7 @@
     Object.defineProperty(st, 'set', { get: () => setOf('A') });
     Object.defineProperty(st, 'lim', { get: () => st.ch.A.lim });
     b.vScale = () => VSCALES.find(v => v >= setOf('A')) || VMAX;
+    b.iOut = () => Math.abs(st.ch.A.io);
 
     // Tres acomodos del mismo circuito (siempre de x = 180 a 640, para que cada página dibuje igual). El
     // panel tiene dos franjas: el circuito y la mesa de trabajo, donde van los instrumentos alineados por
@@ -951,7 +954,7 @@
     // Dónde está conectado cada multímetro, para las páginas que revisan cómo se midió:
     // { comps, nodes, meters: { a, b } }; cada multímetro que se ve trae dial (su perilla), value (lo que
     // marca), nodes: [nodo de la roja, nodo de la negra] y, en A, cut (si cortó el cable entre sus puntas), I
-    // y fuse (fundido). Lo que no está conectado va en null. Los nodos traen v (su voltaje), ground y plus;
+    // y short (hace un corto entre dos nodos). Lo que no está conectado va en null. Los nodos traen v (su voltaje), ground y plus;
     // comps, los componentes con c (lo que dio la página), A y B (sus nodos).
     const netNow = () => { if (net) return net; const n = analyze(circuitList(b.gw, st.m, st.vo)); morph(n, 0); return n; };
     const pieceAt = (n, kind, i) => {
@@ -965,7 +968,7 @@
         if (!st.show[k]) { meters[k] = null; continue; }
         const r = st.probe[k], value = r && ready(k) ? r.value : null;
         meters[k] = { dial: st.dial[k], value, nodes: [0, 1].map(i => { const p = pieceAt(n, k, i); return p ? p.node : null; }) };
-        if (series(k)) Object.assign(meters[k], { cut: !!(r && r.cut), I: r && r.cut && ready(k) ? r.value : null, fuse: st.fuse[k], trip: st.trip[k] });
+        if (series(k)) Object.assign(meters[k], { cut: !!(r && r.cut), I: r && r.cut && ready(k) ? r.value : null, short: !!(r && r.short) });
       }
       return { comps: n.comps, nodes: n.nodes, meters };
     };
@@ -1016,12 +1019,12 @@
     // voltaje(negro). En A el multímetro va en serie: con las dos puntas en el mismo cable (sin un
     // componente ni un nodo entre ellas) el cable se corta entre las dos (cut) y toda la corriente entra
     // por la roja y sale por la negra; positiva si la roja está del lado de donde viene. Con las puntas en
-    // dos nodos con voltaje distinto el multímetro, que por dentro es casi un cable, hace un corto y se
-    // bota su protección (un botón que sale y se rearma tocándolo); si la fuente puede dar más de TRIP_MAX
-    // (su límite de corriente) no alcanza a protegerlo y se funde su fusible, que se cambia en Medir.
-    // En Ω, la resistencia entre sus puntas (ver ohms).
+    // dos nodos distintos el multímetro, que por dentro es casi un cable (RM), hace un corto entre ellos y
+    // marca la corriente que se va por él (ver shorts): entre el + y el − de la fuente se lleva toda la
+    // corriente y la fuente entra en CC con su límite. No se rompe nunca. En Ω, la resistencia entre sus
+    // puntas (ver ohms).
     const measure = segs => {
-      const out = {};
+      const out = {}, cuts = [];
       for (const k of MS) {
         const [A, B] = st.clamps[k].map(([x, y]) => snap(segs, x, y, false, k));
         st.clamps[k] = [[A.x, A.y], [B.x, B.y]];
@@ -1033,14 +1036,69 @@
         const clear = A.k === B.k && !sg.source && d1 - d0 > 6 && !sg.comps.some(c => c.d1 > d0 && c.d0 < d1);
         out[k].value = 0;
         if (clear) { out[k].value = (A.d < B.d ? 1 : -1) * sg.I; out[k].cut = { k: A.k, d0, d1 }; }
-        else if (st.show[k] && ready(k) && Math.abs(va - vb) > 0.05 && !st.fuse[k] && !st.trip[k]) {
-          if (st.lim > TRIP_MAX) st.fuse[k] = true; else st.trip[k] = true;
-          syncs.forEach(f => f());
-        }
-        if (st.fuse[k] || st.trip[k]) { out[k].value = 0; out[k].cut = null; }
+        else if (st.show[k] && ready(k)) cuts.push(k);
       }
+      shorts(out, cuts);
       return out;
     };
+    // Multímetros en A con sus puntas en dos nodos distintos: cada uno es una resistencia RM entre esos nodos.
+    // Se resuelve la red por nodos (los componentes con su R; los que no la traen, como un LED o un
+    // capacitor, con la que tienen ahora: su voltaje entre su corriente) con la fuente como un voltaje entre
+    // su + y su −, con y sin los multímetros: por cada volt de la fuente, lo que pasa por cada multímetro y
+    // la corriente de más que da la fuente (st.sx, que regulate suma a la de la página para saber si llega a
+    // su límite). Con el corto entre el + y el −, casi toda la corriente se va por el multímetro y la fuente
+    // entra en CC; el voltaje que queda es el límite por RM.
+    const shorts = (out, ks) => {
+      st.sx = 0;
+      if (!ks.length) return;
+      const n = netNow(), plus = n.nodes.find(x => x.plus), gnd = n.nodes.find(x => x.ground);
+      const on = ks.map(k => {
+        const [P, Q] = [0, 1].map(i => { const p = pieceAt(n, k, i); return p && p.node; });
+        return P && Q && P !== Q ? { k, P, Q } : null;
+      }).filter(Boolean);
+      if (!on.length || !plus || !gnd || plus === gnd) return;
+      const N = n.nodes.length, ix = new Map(n.nodes.map((x, i) => [x, i])), ip = ix.get(plus), ig = ix.get(gnd);
+      const solve = withMeters => {
+        const G = n.nodes.map(() => new Float64Array(N));
+        const add = (p, q, gg) => { if (p === q || !(gg > 0)) return; G[p][p] += gg; G[q][q] += gg; G[p][q] -= gg; G[q][p] -= gg; };
+        n.comps.forEach(c => {
+          const R = c.c.R, sg = st.list[c.k], I = sg ? Math.abs(sg.I) / 1000 : 0, dV = Math.abs(c.c.dV || 0);
+          add(ix.get(c.A), ix.get(c.B), R != null ? (R < 1e12 ? 1 / Math.max(R, 1e-3) : 0) : dV > 0.01 && I > 1e-7 ? I / dV : 0);
+        });
+        if (withMeters) on.forEach(m => add(ix.get(m.P), ix.get(m.Q), 1 / RM));
+        // el + a 1 V y el − a 0 V; los demás nodos salen de que no se acumula corriente en ellos (un poquito a
+        // tierra para que un nodo suelto no deje la cuenta sin solución)
+        const free = n.nodes.map((_, i) => i).filter(i => i !== ip && i !== ig), M = free.length;
+        const rows = free.map(i => [...free.map(j => G[i][j] + (i === j ? 1e-9 : 0)), -G[i][ip]]);
+        for (let c = 0; c < M; c++) {
+          let p = c;
+          for (let r = c + 1; r < M; r++) if (Math.abs(rows[r][c]) > Math.abs(rows[p][c])) p = r;
+          [rows[c], rows[p]] = [rows[p], rows[c]];
+          for (let r = 0; r < M; r++) {
+            if (r === c || !rows[r][c]) continue;
+            const f = rows[r][c] / rows[c][c];
+            for (let j = c; j <= M; j++) rows[r][j] -= f * rows[c][j];
+          }
+        }
+        const v = new Float64Array(N);
+        v[ip] = 1;
+        free.forEach((i, r) => { v[i] = rows[r][M] / rows[r][r]; });
+        let I = 0;
+        for (let j = 0; j < N; j++) if (j !== ip) I -= G[ip][j] * (1 - v[j]);
+        return { v, I };
+      };
+      const without = solve(false), withM = solve(true);
+      st.sx = Math.max(0, withM.I - without.I);
+      // lo que da la fuente con este corto (al aparecer, sin esperar al siguiente cuadro), con su signo
+      const V = regulate('A', st.ch.A.v)[0] * Math.sign(plus.v - gnd.v || 1);
+      on.forEach(m => {
+        const o = out[m.k];
+        o.value = V * (withM.v[ix.get(m.P)] - withM.v[ix.get(m.Q)]) / RM * 1000;
+        o.short = true;
+      });
+    };
+    // Un multímetro en A haciendo un corto por el que pasa corriente (para su aviso).
+    const shorted = kind => st.dial[kind] === 'A' && st.probe[kind] && st.probe[kind].short && ready(kind) && Math.abs(st.probe[kind].value) > 0.05;
     // Ω como un multímetro de verdad: hace pasar una corriente chiquita (1 mA) de la punta roja a la negra
     // y divide el voltaje que aparece entre esa corriente. Si el circuito no tiene voltaje, eso es la
     // resistencia entre los dos nodos, con todo lo que esté conectado entre ellos (otra resistencia en
@@ -1235,19 +1293,6 @@
       return [...parts[0][1](0), total, parts];
     };
     const jackGap = sh => 26 - 6 * sh.c;   // de la placa a cada borne
-    // Centro del botón de la protección (ver tripButton) y n, hacia afuera de la funda.
-    // Va a la mitad del lado izquierdo de la funda; del derecho si ahí están los bornes o si a la izquierda
-    // no cabe (el multímetro junto a la orilla).
-    const tripU = kind => {
-      const sh = shape(kind), [, , , , total, parts] = rim(sh, 0), at = i => parts.slice(0, i).reduce((t, p) => t + p[0], 0);
-      const g = b.ge, tight = g && meterAt(g, kind)[0] - g.VX < (sh.hw + 34) * g.mk[kind];
-      const right = st.jedge[kind] === 'L' || (tight && st.jedge[kind] !== 'R');
-      return (at(right ? 2 : 6) + parts[2][0] / 2) / total;
-    };
-    const tripAt = kind => {
-      const sh = shape(kind), [x, y, tx, ty] = rim(sh, tripU(kind)), n = [ty, -tx], o = 6 + 7 * Math.max(0, st.pop[kind]);
-      return { x: x + n[0] * o, y: y + n[1] * o, n };
-    };
     // Borne j en coordenadas del multímetro (sin escalar): VΩA antes y COM después, en el sentido del reloj.
     const jackLocal = (kind, j) => {
       const sh = shape(kind), [, , , , total] = rim(sh, 0);
@@ -1629,9 +1674,8 @@
         o.r.hidden = Sim.view !== 'both' && Sim.view !== o.side;
         if (o.r.hidden) return;
         const md = st.dial[kind], [t, u] = meterText(kind, o.side), off = md !== 'off' && !ready(kind);
-        o.vl.textContent = md === 'off' ? 'apagado' : md === 'A' && st.fuse[kind] ? (o.side === 'w' ? 'válvula rota' : 'fusible fundido')
-          : md === 'A' && st.trip[kind] ? (o.side === 'w' ? 'válvula cerrada' : 'protección botada') : off ? 'sin conectar' : t.trim() + ' ' + u + (live(kind) ? ' ⚠ hay voltaje' : '');
-        o.r.className = 'r ' + md + (off || md === 'off' ? ' off' : '') + (live(kind) || (md === 'A' && (st.fuse[kind] || st.trip[kind])) ? ' warn' : '');
+        o.vl.textContent = md === 'off' ? 'apagado' : off ? 'sin conectar' : t.trim() + ' ' + u + (live(kind) ? ' ⚠ hay voltaje' : shorted(kind) ? ' ⚠ corto' : '');
+        o.r.className = 'r ' + md + (off || md === 'off' ? ' off' : '') + (live(kind) || shorted(kind) ? ' warn' : '');
       })), 200);
     }
     // Botón de recoger en cada medidor (con un conector): como una aspiradora, el medidor jala sus
@@ -1976,20 +2020,6 @@
         syncs.forEach(f => f());
       });
       reelBtns.push([rb, kind]);
-      // Botón de la protección: sale de la funda cuando se bota; tocarlo la rearma.
-      const tb = document.createElement('button');
-      tb.type = 'button'; tb.className = 'sim-meter-btn phys';
-      tb.addEventListener('click', () => { b.resetTrip(kind); b.pw.replace(); b.pe.replace(); });
-      b.place(side, tb, g => {
-        const s = panel(side).scale * g.mk[kind], [x, y] = meterAt(g, kind), q = tripAt(kind);
-        tb.style.width = Math.max(44, 50 * s) + 'px'; tb.style.height = Math.max(32, 26 * s) + 'px';
-        return [x + q.x * g.mk[kind], y + q.y * g.mk[kind]];
-      });
-      syncs.push(() => {
-        tb.hidden = !st.show[kind] || !st.trip[kind];
-        const l = `Rearmar la protección del ${meterName(kind, side)}`;
-        tb.setAttribute('aria-label', l); tb.title = l;
-      });
       const cb = button(1, '', () => toggleCompact(kind));
       // Invertir: la punta roja y la negra cambian de lugar (solo extendido; compactado, en su tarjeta).
       const ib = button(2, '', () => b.invert(kind));
@@ -2025,7 +2055,7 @@
       b.showMeters({ [kind]: false });
     };
     // Tarjeta del multímetro: conectar sus puntas (la acción principal), cable o indicador, invertir, la negra
-    // a tierra, tensar sus cables una vez, compactarlo y guardarlo; si se fundió, cambiar su fusible. Abajo,
+    // a tierra, tensar sus cables una vez, compactarlo y guardarlo. Abajo,
     // cómo son los cables (rigidez e inercia, para todos). Su rueda y sus bornes están en el aparato.
     const meterMenu = (kind, side) => {
       const w = side === 'w';
@@ -2037,8 +2067,6 @@
           { text: w ? 'Negra a 0 psi' : 'Negra a tierra', hidden: () => series(kind), onClick: () => b.toGround(kind) },
           { text: w ? 'Tensar mangueras' : 'Tensar cables', onClick: () => reelIn(kind) },
           { text: () => phoneNow() ? (isCompact(kind) ? 'Abrir' : 'Cerrar') : st.compact[kind] ? 'Extender' : 'Compactar', onClick: () => toggleCompact(kind) },
-          { text: w ? 'Cambiar su válvula' : 'Cambiar su fusible', hidden: () => !st.fuse[kind], onClick: () => b.newFuse(kind) },
-          { text: 'Rearmar la protección', hidden: () => !st.trip[kind], onClick: () => b.resetTrip(kind) },
           { text: w ? 'Guardar el medidor' : 'Guardar el multímetro', onClick: () => putAway(kind) }
         ] },
         { label: 'Rigidez', range: [0, 1, 0.05], lo: 'flojo', hi: 'rígido', get: () => cable.stiff, set: v => setCable('stiff', v) },
@@ -2075,10 +2103,6 @@
       syncs.forEach(f => f()); syncReel();
       b.pw.replace(); b.pe.replace();
     };
-    // Fusible nuevo (en el agua, abrir otra vez su válvula de seguridad).
-    b.newFuse = (kind = 'a') => { st.fuse[kind] = st.trip[kind] = false; syncs.forEach(f => f()); };
-    // Rearmar la protección: el botón que se botó se vuelve a meter.
-    b.resetTrip = (kind = 'a') => { st.trip[kind] = false; syncs.forEach(f => f()); };
     // Invertir la polaridad de un multímetro, como al cambiar de lugar sus puntas: la roja va a donde
     // estaba la negra y la negra a donde estaba la roja (se levantan y caen ahí).
     b.invert = (kind = 'a') => {
@@ -2377,7 +2401,7 @@
       if (!st.show[kind]) return;
       const water = g.side === 'w', [x, y] = meterAt(g, kind), sh = shape(kind), md = st.dial[kind], col = MCOL[md];
       ctx.save(); ctx.translate(x, y); ctx.scale(g.mk[kind], g.mk[kind]);
-      const placing = st.placing && st.placing.kind === kind, warn = live(kind), blown = md === 'A' && st.fuse[kind], tripped = md === 'A' && st.trip[kind];
+      const placing = st.placing && st.placing.kind === kind, warn = live(kind);
       const T = sh.top, H = sh.bottom - T;
       if (placing) {   // borde del color de lo que mide mientras espera dónde conectarse
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
@@ -2409,35 +2433,19 @@
         D.circle(ctx, px, py, 6.5, '#0d1318');
         D.circle(ctx, px, py, 4.5, c, '#ffffff55', 1);
       });
-      tripButton(ctx, kind);
       // avisos arriba del multímetro (abajo si arriba no hay lugar), más arriba si ahí está la placa
       const [, cny] = rim(sh, st.jpos[kind]), up = y + (T - 52) * g.mk[kind] > 4;
       const ly = up ? T - 40 - (cny < T ? 6 : 0) : sh.bottom + 22 + (cny > sh.bottom ? 8 : 0);
       if (placing) {
         D.text(ctx, 'toca el circuito para', 0, ly, col, { size: 14, bg: true });
         D.text(ctx, `la ${water ? 'manguera' : 'punta'} ${st.placing.i ? 'negra (−)' : 'roja (+)'}`, 0, ly + 18, st.placing.i ? C.neg : RED, { size: 14, bg: true });
-      } else if (blown) {   // en A con las puntas en dos nodos: corto, y la fuente daba de más
-        D.text(ctx, water ? '⚠ se rompió su válvula' : '⚠ fusible fundido', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
-        D.text(ctx, 'cámbialo en su tarjeta', 0, ly + 18, C.danger, { size: 14, bg: true });
-      } else if (tripped) {   // corto, pero su protección alcanzó: se botó su botón
-        D.text(ctx, water ? '⚠ se cerró su válvula' : '⚠ se botó la protección', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
-        D.text(ctx, 'en A va en serie · toca el botón', 0, ly + 18, C.danger, { size: 14, bg: true });
+      } else if (shorted(kind)) {   // en A con las puntas en dos nodos: un corto entre ellos
+        D.text(ctx, '⚠ corto', 0, ly, C.danger, { size: 14, weight: 700, bg: true });
+        D.text(ctx, `en ${water ? 'mL/s' : 'A'} va en serie`, 0, ly + 18, C.danger, { size: 14, bg: true });
       } else if (warn) {   // en Ω con voltaje: la lectura no sirve
         D.text(ctx, '⚠ hay ' + (water ? 'presión' : 'voltaje'), 0, ly, C.danger, { size: 14, weight: 700, bg: true });
         D.text(ctx, 'apaga la ' + (water ? 'bomba' : 'fuente'), 0, ly + 18, C.danger, { size: 14, bg: true });
       }
-      ctx.restore();
-    };
-    // Botón de la protección: en la orilla de la funda, del lado contrario a los bornes. Sale (pop de 0 a 1,
-    // con un rebote) cuando se bota y regresa al rearmarla.
-    const tripButton = (ctx, kind) => {
-      const p = st.pop[kind];
-      if (p <= 0.01) return;
-      const sh = shape(kind), [x, y, tx, ty] = rim(sh, tripU(kind)), a = Math.atan2(-ty, -tx);   // gira para que salga hacia afuera
-      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
-      const out = 14 * Math.max(0, p);   // cuánto sobresale
-      D.roundRect(ctx, -17, -3, 34, 6 + out, 4, '#1b242c');   // su tallo
-      D.roundRect(ctx, -21, out - 2, 42, 12, 5, RED, '#1b242c', 1.5);   // la tapa roja (el aviso de arriba dice qué hacer)
       ctx.restore();
     };
     // Botones físicos del multímetro: de hule gris, con su ícono; se hunden un instante al tocarlos.
@@ -2871,17 +2879,6 @@
         const c0 = st.cmp[kind];
         st.cmp[kind] = isCompact(kind) ? Math.min(1, c0 + dt / 0.3) : Math.max(0, c0 - dt / 0.3);
         if (st.cmp[kind] !== c0) moved = true;
-        // el botón de la protección sale de golpe con un rebote, o se mete al rearmarla
-        const pt = st.trip[kind] ? 1 : 0;
-        if (Math.abs(pt - st.pop[kind]) > 0.002 || Math.abs(st.popv[kind]) > 0.02) {
-          const h = dt / 4;
-          for (let i = 0; i < 4; i++) {
-            st.popv[kind] += (pt ? 700 * (pt - st.pop[kind]) - 18 * st.popv[kind] : 900 * (pt - st.pop[kind]) - 60 * st.popv[kind]) * h;
-            st.pop[kind] += st.popv[kind] * h;
-          }
-          if (Sim.REDUCE.matches) { st.pop[kind] = pt; st.popv[kind] = 0; }
-          moved = true;
-        } else if (st.pop[kind] !== pt) { st.pop[kind] = pt; st.popv[kind] = 0; moved = true; }
         // la placa de los bornes se recorre por la orilla hacia donde van los cables
         const jt = jackTarget(b.ge, kind);
         if (jt != null) {
@@ -2914,8 +2911,9 @@
     };
     // Voltaje que sale de un canal con el de adentro Vs: el mismo si la corriente no pasa de su límite; si
     // pasaría, el que da justo el límite (la corriente crece con el voltaje, así que se busca partiendo a la
-    // mitad). El canal A alimenta el circuito de la página; el B no tiene nada conectado (no pasa corriente).
-    const load = c => c === 'A' ? V => o.model(sgn() * V).I : () => 0;
+    // mitad). El canal A alimenta el circuito de la página, más lo que se va por un multímetro que hace un
+    // corto (st.sx por volt, ver shorts); el B no tiene nada conectado (no pasa corriente).
+    const load = c => c === 'A' ? V => sgn() * o.model(sgn() * V).I + V * st.sx * 1000 : () => 0;
     const regulate = (c, Vs) => {
       const I = load(c), over = V => Math.abs(I(V)) > st.ch[c].lim;
       if (Vs <= 0 || !over(Vs)) return [Math.max(0, Vs), false];
@@ -2935,12 +2933,13 @@
       st.vo = A.vo * sgn();   // con la polaridad invertida sale al revés
       smooth.t += dt;
       st.m = inertia(st.vo);
-      A.io = st.m.I;   // lo que marca su pantallita en A, con la inercia, igual que el multímetro
       st.list = circuitList(b.gw, st.m, st.vo);
       st.segs = buildSegs(nodeView(st.list, dt));
       if (st.nodes.u) st.segs.forEach((sg, k) => { st.nph[k] = ((st.nph[k] || 0) + Math.sign(sg.I) * Math.min(Math.abs(sg.I), 60) * 6 * dt) % 1e4; });
       const before = JSON.stringify(st.clamps);
       st.probe = measure(st.segs);
+      // lo que marca su pantallita en A, con la inercia, igual que el multímetro (con lo que se va por un corto)
+      A.io = st.m.I + (st.sx ? sgn() * regulate('A', A.v)[0] * st.sx * 1000 : 0);
       if (JSON.stringify(st.clamps) !== before) { b.pw.replace(); b.pe.replace(); }
       animate(dt);
       colorWhileDragging();
