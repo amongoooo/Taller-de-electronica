@@ -1682,7 +1682,7 @@
     // cables (o mangueras). Las puntas conectadas se quedan donde están y su cable se tensa; las que
     // quedaron en el suelo entran al medidor. Para volver a ponerlas se toca el medidor.
     const reelBtns = [];
-    st.taut = { a: false, b: false };   // botón de los cables encendido: siempre tensos
+    st.taut = { a: true, b: true };   // botón de los cables encendido (como empieza): siempre tensos
     const syncReel = () => reelBtns.forEach(([el, kind]) => { el.disabled = !st.placed[kind].some(Boolean) && !st.taut[kind]; });
     const reelIn = kind => {
       if (st.placing) setPlacing(null);
