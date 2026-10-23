@@ -142,6 +142,10 @@
   const GEN = { scr: [10, 34, 300, 178], soft: 60, keyX: 328, key: [26, 22], enc: [404, 94, 92],
     left: [378, 180, 44, 30], right: [430, 180, 44, 30], wave: [506, 180, 70, 30],
     ch: [[478, 64, 40, 34], [478, 122, 40, 34]], bnc: [[532, 64], [532, 122]] };
+  // Su versión corta, la del celular (alto h): una pantallita (scr) con CH1, su forma de onda, la frecuencia y la
+  // amplitud; la tecla 1 con su luz (ch) y la tecla para abrirlo (fold). Abierto (st.gfront) es el de siempre.
+  const GEN_H = 220;   // alto del generador completo
+  const GMINI = { h: 116, scr: [10, 36, 404, 72], ch: [458, 72, 44, 34], fold: [522, 72] };
   // El acomodo puesto en el lugar del chasis (x, y): todo en coordenadas del dibujo.
   const placeLayout = (L, x, y) => {
     const mv = a => a && [a[0] + x, a[1] + y, ...a.slice(2)], obj = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, mv(v)]));
@@ -154,12 +158,13 @@
     // Acomodos del dibujo (el modo dice cuál y qué acomodo del osciloscopio lleva):
     //   alto (celular, o los dos paneles en la PC): el circuito arriba y en la mesa el generador y el osciloscopio
     //     compacto; de frente (st.front), el generador se guarda y el osciloscopio ocupa la mesa con todos sus mandos.
+    //     En el celular el generador va corto (GMINI) hasta que se abre (st.gfront); abrir uno cierra el otro.
     //   pc (un solo panel en la PC): el generador a la derecha del circuito y abajo el osciloscopio completo.
     //   ancho (el celular acostado): el osciloscopio compacto a la derecha del circuito y el generador; de frente se
     //     ve solo él, completo y grande (solo: el mismo dibujo, recortado alrededor del osciloscopio).
     const BAND = 110;   // en el alto, franja arriba del circuito para el selector del color de las partículas
     const size = (w, h) => {
-      const fit = (W, H) => Math.min(w / W, h / H), altoH = st.front ? 1060 : 1000;
+      const fit = (W, H) => Math.min(w / W, h / H), altoH = st.front ? 1060 : st.gfront || !Sim.phone ? 1000 : 1000 - (GEN_H - GMINI.h);
       const pc = fit(1200, 840), cands = [];
       if (pc >= 0.62) cands.push({ s: pc * 1.15, r: [1200, 840, 0, 'pc-wide', 0] });
       else if (st.front) cands.push({ s: fit(1010, 500), r: [1010, 500, 622, 'solo-wide', 90] });
@@ -170,13 +175,16 @@
       return r;
     };
     const geometry = (side, mode) => {
-      const g = { side, mode, ...CIRC, GX: 40, GY: CIRC.BOT + 46, GW: 560, GH: 220 };
+      const g = { side, mode, ...CIRC, GX: 40, GY: CIRC.BOT + 46, GW: 560, GH: GEN_H };
       g.alto = mode.startsWith('alto');
       g.solo = mode.startsWith('solo');
       g.pc = mode.startsWith('pc');
       g.lay = mode.split('-')[1];
       [g.SX, g.SY] = g.alto ? (g.lay === 'tall' ? [20, 310] : [20, 566]) : g.pc ? [113, 400] : [640, 150];
       if (g.pc) { g.GX = 620; g.GY = 150; }
+      g.phone = Sim.phone && !g.pc;
+      g.gmini = g.phone && !st.gfront;   // el generador corto (en el celular, mientras no se abre)
+      if (g.gmini) { g.GH = GMINI.h; if (g.alto && g.lay !== 'tall') g.SY -= GEN_H - GMINI.h; }
       g.L = placeLayout(LAYOUTS[g.lay], g.SX, g.SY);
       if (g.solo) g.L.fold = [g.SX + g.L.w - 32, g.SY + 22];   // para regresarlo a la mesa
       g.SW = g.L.w; g.SH = g.L.h;
@@ -211,7 +219,7 @@
     Object.assign(st, {
       chs: [0, 1].map(k => ({ on: k === 0 || ch2, vi: nearest(VDIV, vd[k]), pos: pos[k], cpl: 'dc', inv: false })),
       ti: nearest(TDIV, td), hpos: 0, trg: { src: 0, slope: 1, mode: 'auto', level: 0, ...trig }, run: true,
-      menu: 'meas', meas: [[0, 'pp'], [0, 'mean'], [0, 'max'], [1, 'pp'], [1, 'mean']], front: false,
+      menu: 'meas', meas: [[0, 'pp'], [0, 'mean'], [0, 'max'], [1, 'pp'], [1, 'mean']], front: false, gfront: false,
       hp: [{ x: 0, y: 0 }, { x: 0, y: 0 }] });
     for (const k in dh) st.dOn[k] = 0;
 
@@ -626,7 +634,7 @@
     // forma de onda y la tecla amarilla 1 prende y apaga la salida CH1 (con su luz roja). CH2 se ve pero no está
     // conectado. Todo en coordenadas de su chasis (GEN).
     const gAt = (g, a) => [g.GX + a[0], g.GY + a[1], ...a.slice(2)];
-    const noGen = () => !geos.e.gen;
+    const noGen = () => !geos.e.gen || geos.e.gmini;   // los mandos que no lleva el corto
     const softH = (GEN.scr[3] - 10) / 5, softY = i => GEN.scr[1] + 5 + softH * (i + 0.5);
     const SOFT = [GEN.scr[0] + GEN.scr[2] - 5 - GEN.soft, GEN.keyX + GEN.key[0] / 2];   // de la casilla a su tecla
     // Que el offset y la amplitud juntos no pasen de 10 V (en DC solo cuenta el offset): se queda en el tope.
@@ -670,8 +678,17 @@
       st.wave = WAVE_ORDER[(WAVE_ORDER.indexOf(st.wave) + 1) % WAVE_ORDER.length];
       limit('amp');   // al salir de DC la amplitud vuelve a contar
     });
-    genKey(GEN.ch[0], GEN.ch[0].slice(2), side => `Tecla 1: ${st.on ? 'apaga' : 'prende'} la salida CH1 ${genName(side)}`,
-      () => { st.on = !st.on; }, () => ({ 'aria-pressed': String(st.on) }));
+    const chKey = g => g.gmini ? GMINI.ch : GEN.ch[0];
+    linkedButton({ pos: g => gAt(g, chKey(g)), dim: g => chKey(g).slice(2), cls: 'sim-trig', act: 'ali', hidden: () => !geos.e.gen,
+      label: side => `Tecla 1: ${st.on ? 'apaga' : 'prende'} la salida CH1 ${genName(side)}`, attrs: () => ({ 'aria-pressed': String(st.on) }),
+      onClick: () => { st.on = !st.on; syncGen(); } });
+    // Abrir el generador (en el celular) o cerrarlo: abierto, el osciloscopio regresa a la mesa.
+    const reflow = () => { pw.refit(); pe.refit(); relayout('w', pw.mode); relayout('e', pe.mode); rebuild(); };
+    linkedButton({ pos: g => g.gmini ? gAt(g, GMINI.fold) : gAt(g, [GEN.ch[0][0] + 54, 22]), dim: () => [44, 34], cls: 'sim-trig', act: 'ali',
+      hidden: () => !geos.e.gen || !geos.e.phone,
+      label: side => st.gfront ? `Cerrar ${side === 'w' ? 'la bomba' : 'el generador'}: la versión corta` : `Abrir ${side === 'w' ? 'la bomba' : 'el generador'}, con todos sus mandos`,
+      attrs: () => ({ 'aria-pressed': String(!!st.gfront) }),
+      onClick: () => { st.gfront = !st.gfront; if (st.gfront) st.front = false; reflow(); } });
 
     // Componentes: tocarlos abre su tarjeta, como en las demás páginas.
     const setR = R => { st.R = R; rebuild(); };
@@ -802,7 +819,7 @@
     linkedButton({ pos: g => g.L.fold || [-999, -999], act: 'med', cls: 'sim-trig', hidden: () => !lay().fold, dim: () => [44, 34],
       label: () => st.front ? 'Regresar el osciloscopio a la mesa (y sacar el generador)' : 'Poner el osciloscopio de frente, con todos sus mandos',
       attrs: () => ({ 'aria-pressed': String(st.front) }),
-      onClick: () => { st.front = !st.front; pw.refit(); pe.refit(); relayout('w', pw.mode); relayout('e', pe.mode); rebuild(); } });
+      onClick: () => { st.front = !st.front; if (st.front) st.gfront = false; reflow(); } });
 
     // ---------- puntas: la del canal 1 (roja), el caimán de tierra (negro) y la del canal 2 (rosa) ----------
     const frame = k => {
@@ -952,6 +969,22 @@
         D.text(ctx, GLAB[k], cx + (cw - 3) / 2, by + softH / 2, on ? '#000000' : '#ffffff', { size: 14, font: Sim.MONO, weight: 700, max: cw - 7 });
       });
     };
+    // La pantallita del generador corto: CH1 con su forma de onda y su salida, y abajo la frecuencia y la amplitud.
+    const genMini = (ctx, g) => {
+      const [fx, fy, fw, fh] = gAt(g, GMINI.scr), sx = fx + 5, sy = fy + 5, sw = fw - 10, sh = fh - 10, y1 = CH[0].lcd;
+      D.roundRect(ctx, fx, fy, fw, fh, 8, '#2b3440');
+      D.roundRect(ctx, sx, sy, sw, sh, 3, '#04070a');
+      const T = (t, x, y, col, size = 14, o2 = {}) => D.text(ctx, t, x, y, col, { size, align: 'left', font: Sim.MONO, weight: 700, ...o2 });
+      const x0 = sx + 8, xr = sx + sw - 8, ya = sy + sh * 0.28, yb = sy + sh * 0.72, dc = st.wave === 'dc';
+      D.circle(ctx, x0 + 4, ya, 4, y1);
+      D.font(ctx, 14, Sim.MONO, 700);
+      T('CH1', x0 + 13, ya, y1);
+      T(WAVE_NAME[st.wave], x0 + 21 + ctx.measureText('CH1').width, ya, '#ffffff', 14, { weight: 600 });
+      T(st.on ? 'ON' : 'OFF', xr, ya, st.on ? '#5be08a' : '#ff6b5f', 14, { align: 'right' });
+      const [k, v] = dc ? ['off', st.off] : ['freq', st.freq], t = gText[k](v) + ' ' + gUnit(k, g.side);
+      T(t, x0, yb, y1, 18);
+      if (!dc) T(gText.amp(st.amp) + ' ' + gUnit('amp', g.side), xr, yb, y1, 14, { align: 'right' });
+    };
     // Triángulo de ◀ y ▶ (s = −1 a la izquierda), sobre su tecla.
     const arrowKey = (ctx, [x, y], s) => {
       ctx.beginPath(); ctx.moveTo(x - 6 * s, y - 7); ctx.lineTo(x - 6 * s, y + 6); ctx.lineTo(x + 6 * s, y - 0.5); ctx.closePath();
@@ -964,6 +997,17 @@
       if (g.pc) D.line(ctx, [[g.PX, g.BOT + 26], [g.PX, g.BOT + 36], [g.GX, g.BOT + 36]], 12, C.ink);
       else { ctx.fillStyle = C.ink; ctx.fillRect(g.PX - 14, g.BOT + 26, 28, 22); }
       D.chassis(ctx, x, y, g.GW, g.GH, w, w ? 'BOMBA DE VAIVÉN' : 'GENERADOR DE FUNCIONES');
+      if (g.phone) {   // la tecla para abrirlo o cerrarlo
+        const [fx, fy] = g.gmini ? gAt(g, GMINI.fold) : gAt(g, [GEN.ch[0][0] + 54, 22]);
+        keyCap(ctx, [fx, fy, 44, 34], ''); foldIcon(ctx, fx, fy - 0.5, g.gmini);
+      }
+      if (g.gmini) {   // corto: su pantallita y la tecla 1 con su luz
+        genMini(ctx, g);
+        const k = gAt(g, GMINI.ch);
+        keyCap(ctx, k, '1', { fill: CH[0].key });
+        D.led(ctx, k[0] - k[2] / 2 - 9, k[1] - k[3] / 2 + 6, st.on ? 1 : 0, '#ff3b30', 4);
+        return;
+      }
       genScreen(ctx, g);
       GKEYS.forEach((k, i) => keyCap(ctx, gAt(g, [GEN.keyX, softY(i), ...GEN.key]), '', { down: st.sel === k ? 1 : 0 }));
       // la perilla (la dibuja la página encima): su hueco
