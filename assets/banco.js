@@ -691,8 +691,9 @@
     // Las puntas no se pueden poner encima de un componente ni de la fuente.
     // Tierra común (ver drawGround): en el cable de abajo, junto al − de la fuente. En la vista de nodos,
     // en el nodo de la tierra.
+    // Con la polaridad invertida el − de la fuente queda a la izquierda, y ahí va la tierra.
     b.ground = g => {
-      const p = [g.PX + SRC + 22, g.BOT], gn = net && st.nodes.u && net.nodes.find(n => n.ground);
+      const p = [g.PX + sgn() * (SRC + 22), g.BOT], gn = net && st.nodes.u && net.nodes.find(n => n.ground);
       return gn ? lerp(p, gn.p, geomE(st.nodes.u)) : p;
     };
     b.loopPts = g => [[g.PX - SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [g.X1, g.TOP], [g.X1, g.BOT], [g.PX + SRC, g.BOT]];
@@ -710,10 +711,16 @@
     // Tramos que da la página (o una sola vuelta) más el de la fuente, del − al +.
     // Un tramo con link: true es un contacto cerrado (un conmutador): une dos puntos para los nodos, pero
     // en el circuito normal no se le pueden poner puntas.
+    // La página toma como 0 V el punto de la derecha de la fuente (su − normal). Con la polaridad invertida
+    // el − queda a la izquierda, con V (negativo) en la cuenta de la página: todo sube −V para que el − de
+    // la fuente siga en 0 V (la tierra) y el + en lo que da. Así los colores de la presión (voltaje) se
+    // invierten: alto del lado derecho, bajo del izquierdo.
     const circuitList = (g, m, V) => {
       const list = o.circuit ? o.circuit(g, m, V)
         : [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [{ at: [g.PX, g.TOP], half: 46, dV: V }] }];
-      list.push({ pts: [[g.PX + SRC, g.BOT], [g.PX - SRC, g.BOT]], I: m.I, v0: 0, comps: [], source: true });
+      if (st.rev && V) list.forEach(sg => { sg.v0 -= V; });
+      const s = sgn() * SRC;
+      list.push({ pts: [[g.PX + s, g.BOT], [g.PX - s, g.BOT]], I: m.I * sgn(), v0: 0, comps: [], source: true });
       return list;
     };
     // Cada componente va de d0 a d1 del tramo (o se ubica por su centro at y su medio ancho half).
@@ -1171,7 +1178,7 @@
         if (!best || p.dist < best.dist) { best = p; bsg = sg; }
       }
       if (!best) return [0, 0];
-      const v = bsg.source ? st.vo * best.d / bsg.L : bsg.v(best.d);
+      const v = bsg.source ? Math.abs(st.vo) * best.d / bsg.L : bsg.v(best.d);
       return [v / b.vScale(), Math.abs(bsg.I) / iFull];
     };
     // Modo de color: en la esquina de arriba a la derecha de cada panel, un selector pequeño con el nombre de
@@ -2312,7 +2319,8 @@
       const [x, y] = b.ground(g), y0 = y + r + ((g.side === 'w' ? RN + 5 : RN) - r) * e, yb = y0 + (27 - r) + (r - 5) * e;
       D.line(ctx, [[x, y0], [x, yb]], 3, C.ink, 'butt');
       [[13, 0], [8.5, 5], [4, 10]].forEach(([w, dy]) => D.line(ctx, [[x - w, yb + dy], [x + w, yb + dy]], 3, C.ink, 'butt'));
-      D.text(ctx, g.side === 'w' ? '0 psi' : '0 V', x + 18, yb + 6, C.muted, { size: 14, align: 'left', bg: true });
+      const left = st.rev && !e;   // invertida, la tierra va a la izquierda de la fuente: su valor, hacia afuera
+      D.text(ctx, g.side === 'w' ? '0 psi' : '0 V', x + (left ? -18 : 18), yb + 6, C.muted, { size: 14, align: left ? 'right' : 'left', bg: true });
     };
     const knobScales = (ctx, g) => b.knobs.forEach(k => {
       const [x, y] = k.pos(g);
