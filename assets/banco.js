@@ -9,7 +9,8 @@
 // quedan en dos nodos distintos, el multímetro es un corto entre ellos y marca lo que pasa por él; no se
 // rompe nunca); en Ω mide la
 // resistencia entre sus puntas como uno de verdad (con lo que esté en paralelo, y una lectura que no
-// sirve si hay voltaje). Los cables nunca cambian de borne (COM y VΩA): solo cambia el modo.
+// sirve si hay voltaje). Cada cable va siempre en su borne (COM y VΩA): solo cambia el modo; la placa de los
+// bornes gira para que el rojo y el negro cambien de lugar si así no se cruzan.
 // La perilla también elige el modo de color de las partículas. En Medir se puede sacar un segundo
 // multímetro para medir dos cosas a la vez. Cables que cuelgan, e inercia. Botones para invertir la
 // polaridad y para llevar la punta negra a la tierra común (el − de la fuente, 0 V). Los multímetros se
@@ -1269,8 +1270,10 @@
       b.pw.replace(); b.pe.replace();
     };
     // Dos bornes: VΩA (el rojo) y COM (el negro), en una placa que se recorre por la orilla de la funda
-    // hacia donde van los cables (st.jpos: fracción del contorno). Los cables nunca cambian de borne.
-    st.jpos = { a: 0.12, b: 0.12 };
+    // hacia donde van los cables (st.jpos: fracción del contorno). Cada cable va siempre en su borne, pero la
+    // placa gira media vuelta para que el rojo y el negro cambien de lugar si así los cables no se cruzan
+    // (st.jswap va de 0 a 1 mientras gira).
+    st.jpos = { a: 0.12, b: 0.12 }; st.jswap = { a: 0, b: 0 }; st.jflip = { a: false, b: false };
     st.dang = { a: DANG[st.dial.a], b: DANG[st.dial.b] };
     st.dvel = { a: 0, b: 0 }; st.dpull = { a: 0, b: 0 };   // la rueda: su velocidad y su estirón hacia el dedo
     // Contorno por donde corre la placa: la funda un poco hacia afuera, con esquinas redondas. rim(sh, u)
@@ -1293,10 +1296,12 @@
       return [...parts[0][1](0), total, parts];
     };
     const jackGap = sh => 26 - 6 * sh.c;   // de la placa a cada borne
-    // Borne j en coordenadas del multímetro (sin escalar): VΩA antes y COM después, en el sentido del reloj.
+    // Borne j en coordenadas del multímetro (sin escalar): VΩA antes y COM después, en el sentido del reloj;
+    // con la placa girada, al revés. A medio giro se separan un poco de la orilla para no encimarse.
     const jackLocal = (kind, j) => {
-      const sh = shape(kind), [, , , , total] = rim(sh, 0);
-      return rim(sh, st.jpos[kind] + (j ? 1 : -1) * jackGap(sh) / total);
+      const sh = shape(kind), [, , , , total] = rim(sh, 0), a = Math.PI * ease(st.jswap[kind]), s = j ? 1 : -1;
+      const [x, y, tx, ty] = rim(sh, st.jpos[kind] + s * Math.cos(a) * jackGap(sh) / total), o = s * Math.sin(a) * 5;
+      return [x + ty * o, y - tx * o];
     };
     const leadJack = (g, kind, j) => {
       const [x, y] = meterAt(g, kind), [px, py] = jackLocal(kind, j);
@@ -1327,6 +1332,20 @@
       return s / total;
     };
     st.jedge = { a: 'T', b: 'T' };
+    // ¿La placa va girada? Compara dónde quedan la punta roja y la negra a lo largo de la orilla (en el sentido
+    // del reloj): si la roja va más adelante, el rojo pasa al lado de adelante. Con un margen para que no gire
+    // de ida y vuelta; null si no están las dos afuera.
+    const tipAt = (kind, i) => {
+      const lf = st.lift[kind][i], fl = st.floor[kind][i];
+      return lf ? liftContact(kind, i) : fl ? [fl.x, fl.y] : st.clamps[kind][i];
+    };
+    const jackFlip = (g, kind) => {
+      const out = [0, 1].every(i => st.placed[kind][i] || st.lift[kind][i] || st.floor[kind][i]);
+      if (!out || st.reel[kind].some(Boolean)) return null;
+      const [, , tx, ty] = rim(shape(kind), st.jpos[kind]), [r, k] = [0, 1].map(i => tipAt(kind, i));
+      const d = (r[0] - k[0]) * tx + (r[1] - k[1]) * ty, m = 14;
+      return d > m ? true : d < -m ? false : null;
+    };
     const jack = (g, kind, i) => leadJack(g, kind, i);
     const jackColor = (kind, j) => j ? C.neg : RED;
 
@@ -2907,6 +2926,11 @@
           const du = ((jt - st.jpos[kind]) % 1 + 1.5) % 1 - 0.5;
           if (Math.abs(du) > 1e-4) { st.jpos[kind] = (st.jpos[kind] + du * (1 - Math.exp(-dt * 7)) + 1) % 1; moved = true; }
         }
+        // y gira si la punta roja quedó más adelante (en el sentido del reloj) que la negra, o al revés
+        const fl = jackFlip(b.ge, kind);
+        if (fl != null) st.jflip[kind] = fl;
+        const w0 = st.jswap[kind], wt = st.jflip[kind] ? 1 : 0;
+        if (w0 !== wt) { st.jswap[kind] = Sim.REDUCE.matches ? wt : wt ? Math.min(1, w0 + dt / 0.3) : Math.max(0, w0 - dt / 0.3); moved = true; }
         // la rueda va a su posición (más su estirón hacia el dedo) como jalada por un imán: con un rebote
         const a0 = st.dang[kind], to = DANG[st.dial[kind]] + st.dpull[kind];
         if (Math.abs(to - a0) > 0.05 || Math.abs(st.dvel[kind]) > 0.5) {
