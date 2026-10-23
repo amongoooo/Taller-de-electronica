@@ -2,6 +2,7 @@
 // Levanta su propio servidor de la carpeta del repositorio y avisa de los errores de JavaScript.
 //
 //   node tools/capturas.js [--salida carpeta] [--paginas a,b|all] [--tamaños pc1440,pc1366,cel,cel-h]
+//                          (también cel360, cel360-h, tableta y pc1024)
 //                          [--temas light,dark] [--accion archivo.js] [--espera ms]
 //
 // --accion: un módulo que exporta async (page, { p, sz, th }) => {} y corre antes de cada captura (tocar un
@@ -23,7 +24,12 @@ const SIZES = {
   pc1440: { viewport: { width: 1440, height: 900 } },
   pc1366: { viewport: { width: 1366, height: 768 } },
   cel: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
-  'cel-h': { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }
+  'cel-h': { viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  // para revisar el acomodo en más pantallas (no van en el barrido de siempre): celular chico, tableta y PC chica
+  cel360: { viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  'cel360-h': { viewport: { width: 800, height: 360 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  tableta: { viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+  pc1024: { viewport: { width: 1024, height: 768 } }
 };
 const arg = (name, def) => { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : def; };
 const out = path.resolve(arg('salida', 'capturas'));

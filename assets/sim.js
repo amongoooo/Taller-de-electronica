@@ -35,8 +35,12 @@
     const canvas = box.querySelector('canvas');
     const p = { box, canvas, W: 0, H: 0, scale: 1, ox: 0, oy: 0, dpr: 1, items: [], onLayout: null };
     Sim.panels.push(p);
+    // pos() puede dar null: ese control no va en el acomodo de ahora y se esconde (.sim-off)
     const place = it => {
-      const [x, y] = it.pos();
+      const q = it.pos();
+      it.el.classList.toggle('sim-off', !q);
+      if (!q) return;
+      const [x, y] = q;
       it.el.style.left = (p.ox + x * p.scale) + 'px';
       it.el.style.top = (p.oy + y * p.scale) + 'px';
     };
@@ -571,13 +575,14 @@
   // gris claro (gris pizarra en oscuro), borde de 2 px, radio 10, una banda de 6 px arriba azul (agua) o
   // ámbar (electricidad) y su nombre en Saira arriba a la izquierda (en azul si su tarjeta está abierta).
   Sim.CHASSIS = { r: 10, band: 6, name: 23 };   // radio, alto de la banda, altura del nombre desde arriba
-  D.chassis = (ctx, x, y, w, h, water, name, sel = false) => {
+  // name puede ser una lista de rótulos (del más largo al más corto): va el que cabe en nameMax.
+  D.chassis = (ctx, x, y, w, h, water, name, sel = false, nameMax = 0) => {
     D.roundRect(ctx, x, y, w, h, Sim.CHASSIS.r, C.inst);
     ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, w, h, Sim.CHASSIS.r); ctx.clip();
     ctx.fillStyle = water ? C.water : C.charge; ctx.fillRect(x, y, w, Sim.CHASSIS.band);
     ctx.restore();
     D.roundRect(ctx, x, y, w, h, Sim.CHASSIS.r, null, C.ink, 2);
-    if (name) D.text(ctx, name, x + 14, y + Sim.CHASSIS.name, sel ? C.sel : C.ink, { align: 'left', size: 14, font: Sim.WIDE });
+    if (name) D.text(ctx, name, x + 14, y + Sim.CHASSIS.name, sel ? C.sel : C.ink, { align: 'left', size: 14, font: Sim.WIDE, max: nameMax });
   };
   // Tecla física (la misma en todos los instrumentos): su base, la tapa (hundida con p = 1) y, si lleva,
   // su lucecita (led: encendida o no). off la deja tenue (no hace nada por ahora).
@@ -1007,7 +1012,8 @@
   // Celular: pantalla angosta o acostada (la barra va en un renglón y los controles en una hoja).
   const phoneQ = matchMedia('(max-width: 600px), (max-height: 500px)');
   const colQ = matchMedia('(min-width: 1100px) and (min-height: 560px)');
-  Sim.phone = phoneQ.matches;
+  // en vivo: una ventana que se angosta (o se gira) después de cargar también cuenta como celular
+  Object.defineProperty(Sim, 'phone', { get: () => phoneQ.matches });
 
   // A qué acción pertenece un control del dibujo (data-act manda).
   Sim.actOf = e => e.dataset.act || (e.matches('.sim-clamp, .sim-meter-hit, .sim-meter-btn') ? 'med'

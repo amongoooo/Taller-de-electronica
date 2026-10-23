@@ -12,8 +12,9 @@ como el instrumento real. La persona escribe en español: responde en español.
   (si no, el navegador usa una copia vieja):
   `V=$(date -u +%Y%m%d%H%M%S); sed -i -E "s/\?v=[0-9]+/?v=$V/g" simulaciones/*/index.html`
 - Prueba con Playwright y capturas en PC (1440 y 1366) y celular (390×844 vertical y horizontal), en claro y
-  oscuro: usa la skill `probar` (`.claude/skills/probar/SKILL.md`, script `tools/capturas.js`). Al terminar
-  cada fase, manda capturas de PC y celular.
+  oscuro: usa la skill `probar` (`.claude/skills/probar/SKILL.md`, script `tools/capturas.js`; para el acomodo
+  también `cel360`, `cel360-h`, `tableta` y `pc1024`). En el celular revisa la versión corta y la abierta de cada
+  instrumento. Al terminar cada fase, manda capturas de PC y celular.
 - Controles sin textos explicativos. Los textos de los pasos y el botón «¿Qué se toca?» ya se quitaron: no
   los vuelvas a poner.
 - No cambies la física por decoración. Si algo nuevo cambia la física (un valor que ahora se puede elegir),
@@ -80,11 +81,17 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
-  - Acomodos `ancho` (PC), `medio` (PC con los dos paneles), `alto` (celular vertical) y `lateral` (celular
-    acostado) (`MODES`, `geometry`): circuito de x 180 a 640 y la mesa en `g.DESK`; la fuente en `g.BX, g.BY`,
-    dibujada en sus coordenadas (`SL`: `wide` B · POWER · A, o `stack` A sobre B en `medio`; `g.FL` cuál y `g.FK` su
-    escala; `at`/`chAt` las pasan al dibujo), multímetros en `g.meters` = [centro, base] (`homeAt`, `meterAt`).
-    En `alto` y `lateral` la caja va aparte del símbolo (`apart`); si no, un cuello va del símbolo al canal A.
+  - Acomodos `ancho` (PC), `medio` (PC con los dos paneles), `alto` (celular vertical, o PC tan angosta que `medio`
+    saldría a menos de 0.7) y `lateral` (celular acostado) (`MODES`, `geometry`): circuito de x 180 a 640 y la mesa en
+    `g.DESK`; la fuente en `g.BX, g.BY`, dibujada en sus coordenadas (`SL`: `wide` B · POWER · A, `stack` A sobre B en
+    `medio`, `mini` la versión corta; `g.FL` cuál y `g.FK` su escala; `at`/`chAt` las pasan al dibujo y dan null para lo
+    que el acomodo no trae, que se esconde: `p.at` acepta null y pone `.sim-off`), multímetros en `g.meters` = [centro,
+    base] con su escala `g.mk[k]` (`homeAt`, `meterAt`). En `alto` y `lateral` la caja va aparte del símbolo (`apart`);
+    si no, un cuello va del símbolo al canal A.
+  - Celular (`alto` y `lateral`, `phoneDesk`): versión corta y abierta de cada instrumento; `st.front` ('src', 'a', 'b'
+    o null) dice cuál está abierto (`setFront`, `b.setFront`; tecla `FOLD` con `foldArrows`). Multímetro corto
+    (`shape` con `ph`, `isCompact`): solo se lee. Fuente corta: `SL.mini`. Al cambiar, `relayout` mueve las puntas
+    con el circuito.
   - `b.pinch` (resistencias y capacitores: asas solo con la tarjeta abierta), `b.part` (componente con
     tarjeta), `b.grips` (asas), `b.tag` y `b.tagRow` (etiquetas, ver `D.tag`), `b.linkedButton`, `b.linkedChoice`,
     `b.linkedKnob`, `b.place`.
@@ -101,7 +108,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   lo que marca cada canal, ya con su acoplamiento), disparo por nivel (`scan`, `updateScope`), `measure` (MEASURE,
   AUTOSET, SET TO 50%), los acomodos del osciloscopio (`LAYOUTS`: `wide` completo, `tall` de frente en la mesa angosta,
   `compact`; modos del dibujo `pc`, `ancho`, `solo` y `alto` en `size`), color de las partículas (`Sim.field`, `st.avg`),
-  el generador (`GEN`: su acomodo en el chasis; `GP`: rango, decimales y dígitos de FREQ, AMPL en Vpp, OFFS, DUTY y PHAS;
+  el generador (`GEN`: su acomodo en el chasis; `GMINI`: su versión corta del celular, `st.gfront` abierto; `GP`: rango,
+  decimales y dígitos de FREQ, AMPL en Vpp, OFFS, DUTY y PHAS;
   `turn` y `limit`: la perilla sin fin `Sim.encoder` y el tope |offset| + Vpp/2 ≤ 10 V; `genScreen`: su pantalla),
   tarjetas y dibujo de los componentes (R tramo angosto, L rueda, D válvula de retención, C tanque; la clase es la
   primera letra de la clave: `D1`…`D4` son diodos). La página da `preset`, `places`, `wires` (nodos y componentes en
@@ -160,5 +168,12 @@ Fase 4 · Instrumentos como los del taller (boceto aprobado; un PR por instrumen
 - [x] Fuente como la BK 1761: canales A y B de 0–35 V y 0–3 A, COARSE y FINE, CURRENT, CV/CC, una pantallita por canal
   con su tecla V/A, POWER y bornes − ⏚ + (el circuito en el A). Pendiente: la salida fija de 5 A y los modos serie y
   paralelo de los canales; una página que use el canal B.
+
+Celular · Instrumentos cortos y abiertos (un PR):
+- [x] Cada instrumento con versión corta y abierta en el celular (como el osciloscopio): multímetro corto de solo
+  lectura, fuente corta (canal A, COARSE y POWER), generador corto (pantallita, tecla 1); uno abierto a la vez.
+- [x] Revisión del acomodo: `Sim.phone` en vivo (una ventana que se angosta ya no toma el acomodo de la PC), fuente
+  apilada sin rótulos encimados y acomodo del celular en ventanas muy angostas.
+- [ ] Pendiente de decidir: si el osciloscopio compacto también debe ser solo de lectura (hoy lleva VOLTS/DIV y SEC/DIV).
 
 Al terminar una fase, marca sus casillas aquí en el mismo PR.

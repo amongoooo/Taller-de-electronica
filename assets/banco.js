@@ -78,18 +78,24 @@
   //   wide:  B · POWER · A, como la del taller.
   //   stack: A arriba y B abajo, con sus bornes a la derecha de cada uno y POWER en una columna a la derecha
   //          (la mesa angosta de los dos paneles en la PC).
+  //   mini:  la versión corta del celular: solo el canal A con su pantallita, sus LEDs y COARSE, y POWER (sin
+  //          ON/OFF escritos: powK achica la palanca). fold: la tecla para abrirla (en el celular, el acomodo
+  //          wide la lleva para cerrarla).
   const SL = {
     wide: { w: 540, h: 224, ch: { B: [0, 0], A: [302, 0] }, div: [[[234, 40], [234, 186]], [[302, 40], [302, 186]]],
-      pol: [251, 24], cab: [285, 24], pow: [268, 112], powLab: [268, 204, 120],
+      pol: [251, 24], cab: [285, 24], pow: [268, 112], powLab: [268, 204, 120], fold: [516, 22],
       c: { letter: [16, 62], lcd: [89, 62, 100, 38], key: [213, 62, 38, 28], leds: [[149, 52], [149, 73]],
         head: [[82, 98, 140], [191, 98, 86]], co: [46, 140, 46], fi: [118, 140, 38], cu: [196, 140, 46],
         caps: [[46, 180, 84], [118, 180, 46]], jacks: [[62, 208], [118, 208], [174, 208]] } },
     stack: { w: 330, h: 310, ch: { A: [0, 34], B: [0, 172] }, div: [[[12, 170], [264, 170]], [[272, 12], [272, 298]]],
       pol: [301, 22], cab: [301, 48], pow: [301, 162], powLab: [301, 290, 50],
-      c: { letter: [14, 20], lcd: [75, 20, 88, 32], key: [192, 20, 38, 26], leds: [[128, 12], [128, 30]],
-        head: [[77, 55, 124], [184, 55, 86]], co: [44, 90, 42], fi: [110, 90, 34], cu: [184, 90, 42],
-        caps: [[44, 126, 80], [110, 126, 44]], jacks: [[254, 48], [254, 82], [254, 116]] } }
+      c: { letter: [14, 20], lcd: [72, 20, 80, 32], key: [198, 20, 38, 26], leds: [[121, 12], [121, 30]],
+        head: [[77, 55, 124], [184, 55, 76]], co: [44, 90, 42], fi: [110, 90, 34], cu: [184, 90, 42],
+        caps: [[44, 126, 66], [110, 126, 44]], jacks: [[254, 48], [254, 82], [254, 116]] } },
+    mini: { w: 232, h: 100, ch: { A: [0, 0] }, div: [[[188, 14], [188, 90]]], pow: [210, 54], powK: 0.8, fold: [164, 22],
+      c: { lcd: [56, 66, 88, 32], leds: [[110, 58], [110, 74]], co: [150, 66, 40] } }
   };
+  const FOLD = [30, 20];   // la tecla de abrir y cerrar (en el celular)
   // Íconos de los botones de cada medidor: conector (recoger) y flechas (compactar o mostrar completo).
   const icon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
@@ -107,6 +113,7 @@
       dial: { a: 'V', b: 'A' }, fuse: { a: false, b: false },
       // su protección en A: se bota con un corto y se rearma tocando su botón (pop: qué tanto salió)
       trip: { a: false, b: false }, pop: { a: 0, b: 0 }, popv: { a: 0, b: 0 } };
+    st.front = null;   // en el celular, el instrumento abierto (ver phoneDesk)
     const b = { st, VMAX, PSI_PER_V, MLS_PER_MA, SRC, iFull, flowSpeed, knobs: [] };
     // Voltaje de las perillas de un canal (COARSE + FINE, de 10 en 10 mV) y el límite del canal A.
     const setOf = c => Math.max(0, Math.min(VMAX, Math.round((st.ch[c].co + st.ch[c].fi) * 100) / 100));
@@ -121,9 +128,8 @@
     //            fuente a lo ancho (B · POWER · A).
     //   medio:   la computadora con los dos paneles (angostos y altos): igual, con la fuente apilada (A arriba
     //            y B abajo, POWER a la derecha).
-    //   alto:    celular vertical; la mesa abajo: la fuente a lo ancho de todo el panel y arriba de ella los dos
-    //            multímetros compactos, lado a lado.
-    //   lateral: celular horizontal; la mesa a la derecha: los multímetros arriba y la fuente abajo.
+    //   alto:    celular vertical; la mesa abajo (ver phoneDesk).
+    //   lateral: celular horizontal; la mesa a la derecha (ver phoneDesk).
     // En el celular solo se ve de x0 a x0 + W, sin márgenes de sobra, para que todo salga más grande.
     const MODES = {
       ancho: { W: 800, x0: 0, hMin: 650, hMax: 1060 },
@@ -137,40 +143,73 @@
         return { H, s: Math.min(w / m.W, h / H) };
       };
       let mode = 'ancho', best = fit(MODES.ancho);
-      // solo si en el acomodo ancho todo se vería chico
-      if (best.s < 0.75) for (const k of [Sim.phone ? 'alto' : 'medio', 'lateral']) {
+      // solo si en el acomodo ancho todo se vería chico; el medio, en la PC mientras no salga muy chico (si no,
+      // el del celular, con las versiones cortas de los instrumentos)
+      const narrow = Sim.phone || fit(MODES.medio).s < 0.7;
+      if (best.s < 0.75) for (const k of [narrow ? 'alto' : 'medio', 'lateral']) {
         const f = fit(MODES[k]);
         if (f.s > best.s * 1.08) { mode = k; best = f; }
       }
       return [MODES[mode].W, best.H, MODES[mode].x0, mode];
     };
-    // Medidas de un multímetro sin escalar (ver shape): extendido y compactado.
-    const MW = { full: 152, small: 184, h: 212, hs: 70 };
-    // La fuente se dibuja en sus coordenadas (SL, ver más abajo) escalada g.FK; g.FL dice cuál de sus dos
+    // Medidas de un multímetro sin escalar (ver shape): extendido, compactado y corto (cs, el del celular).
+    const MW = { full: 152, small: 184, h: 212, hs: 70, cs: 144 };
+    // La fuente se dibuja en sus coordenadas (SL, ver más abajo) escalada g.FK; g.FL dice cuál de sus
     // acomodos lleva. fit: la escala con la que cabe en un ancho.
     const fit = (lay, w) => Math.min(1, w / SL[lay].w);
-    // g.meters[k] = [x del centro, y de su base]; g.DESK es dónde empieza la mesa (y, o x en el lateral).
+    // En el celular (alto y lateral) cada instrumento tiene dos versiones: la corta, que solo deja leer (los
+    // multímetros) o hacer lo de siempre (la fuente: POWER y COARSE del canal A), y la abierta (st.front: 'src',
+    // 'a' o 'b'), grande y con todos sus mandos. Se abre uno a la vez con su tecla (FOLD). Sin ninguno abierto, las
+    // versiones cortas van en un renglón: multímetro · fuente · segundo multímetro (en el lateral, donde sobra alto,
+    // los multímetros arriba de la fuente y más grandes). La fuente abierta va a lo ancho
+    // con las demás cortas en un renglón arriba; un multímetro abierto, con las demás cortas en una columna a su
+    // lado (los multímetros arriba de la fuente). Todos alineados por su base; da dónde empieza lo de arriba.
+    // PH: el espacio entre ellos, lo que sobresalen los bornes de un multímetro, la escala más grande de las
+    // versiones cortas (k; kl en el lateral) y la del multímetro abierto (open; openL en el lateral).
+    const PH = { gap: 12, plate: 16, k: 1.2, kl: 1.5, open: 1.3, openL: 1.35 };
+    const cw = k => k === 'src' ? SL.mini.w : MW.cs, chh = k => k === 'src' ? SL.mini.h : MW.hs + PH.plate;
+    const phoneDesk = (g, box, cx, base, avail, lateral) => {
+      const f = st.front, rest = ['a', 'src', 'b'].filter(k => k !== f && (k === 'src' || st.show[k]));
+      const put = (k, x, y, s) => { if (k === 'src') { box('mini', s); g.BX = x - g.BW / 2; g.BY = y - g.BH; } else { g.mk[k] = s; g.meters[k] = [x, y]; } };
+      const row = (items, y, kMax = lateral ? PH.kl : PH.k) => {
+        const nat = items.reduce((t, k) => t + cw(k), 0) + PH.gap * (items.length - 1), s = Math.min(kMax, avail / nat);
+        let x = cx - nat * s / 2;
+        items.forEach(k => { put(k, x + cw(k) * s / 2, y, s); x += (cw(k) + PH.gap) * s; });
+        return y - Math.max(...items.map(chh)) * s;
+      };
+      if (f === 'src') {
+        box('wide', fit('wide', avail)); g.BX = cx - g.BW / 2; g.BY = base - g.BH;
+        return row(rest, g.BY - PH.gap);
+      }
+      if (!f && lateral) {
+        const ms = rest.filter(k => k !== 'src'), mw = ms.length * MW.cs + PH.gap * Math.max(0, ms.length - 1);
+        const hh = SL.mini.h + (ms.length ? chh('a') + PH.gap : 0), s = Math.min(PH.kl, avail / Math.max(mw, SL.mini.w), (base - 30) / hh);
+        put('src', cx, base, s);
+        return ms.length ? row(ms, base - (SL.mini.h + PH.gap) * s, s) : base - SL.mini.h * s;
+      }
+      if (!f) return row(rest, base);
+      const mk = lateral ? PH.openL : PH.open, mw = MW.full * mk, colN = Math.max(...rest.map(cw));
+      const s = Math.min(PH.k, (avail - mw - PH.gap) / colN), colW = colN * s, x0 = cx - (mw + PH.gap + colW) / 2, left = f === 'a';
+      g.mk[f] = mk; g.meters[f] = [left ? x0 + mw / 2 : x0 + colW + PH.gap + mw / 2, base];
+      const colX = left ? x0 + mw + PH.gap + colW / 2 : x0 + colW / 2;
+      let y = base;
+      for (const k of [...rest].sort((p, q) => (q === 'src') - (p === 'src'))) { put(k, colX, y, s); y -= chh(k) * s + PH.gap; }
+      return Math.min(y + PH.gap, base - (MW.h + PH.plate) * mk);
+    };
+    // g.meters[k] = [x del centro, y de su base] y g.mk[k] su escala; g.DESK es dónde empieza la mesa (y, o x en
+    // el lateral).
     const geometry = (side, W, H, mode = 'ancho') => {
-      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, MK: 1 };
+      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, mk: { a: 1, b: 1 }, meters: { a: [400, H], b: [400, H] } };
       const box = (lay, k) => { g.FL = lay; g.FK = k; g.BW = SL[lay].w * k; g.BH = SL[lay].h * k; };
       if (mode === 'lateral') {
-        g.MK = 1.05; g.DESK = 668;
+        g.DESK = 668;
         const right = 110 + W;   // la orilla derecha de lo que se ve
-        box('wide', fit('wide', right - g.DESK - 24));
-        g.BX = (g.DESK + right) / 2 - g.BW / 2; g.BY = H - 12 - g.BH;
-        const base = g.BY - 16, d = (MW.full * g.MK + 24) / 2;
-        g.meters = { a: [g.BX + g.BW / 2 - d, base], b: [g.BX + g.BW / 2 + d, base] };
+        phoneDesk(g, box, (g.DESK + right) / 2, H - 12, right - g.DESK - 24, true);
         g.BOT = H - 64;
         g.COL = [650, 10];   // arriba de la mesa no cabe: va arriba a la derecha del circuito
         g.TOP = 170;         // y el circuito baja un poco para dejarle lugar
       } else if (mode === 'alto') {
-        // la fuente a lo ancho y arriba los dos multímetros compactos, lado a lado
-        g.MK = 1.2;
-        box('wide', fit('wide', W - 20));
-        g.BX = g.PX - g.BW / 2; g.BY = H - 18 - g.BH;
-        const base = g.BY - 16, d = (MW.small * g.MK + 22) / 2;
-        g.meters = { a: [g.PX - d, base], b: [g.PX + d, base] };
-        g.DESK = base - (MW.hs + 14) * g.MK - 16;
+        g.DESK = phoneDesk(g, box, g.PX, H - 18, W - 20, false) - 16;
         g.BOT = g.DESK - 56;
         g.COL = [660, 10];
         g.TOP = 170;
@@ -200,10 +239,18 @@
     b.pe = Sim.panel(document.getElementById('pe'), size);
     b.pw.mirror = b.pe; b.pe.mirror = b.pw;
     const relayout = (side, W, H, mode) => {
-      const g = geometry(side, W, H, mode);
+      const g = geometry(side, W, H, mode), old = side === 'w' ? b.gw : b.ge;
       g.VX = (side === 'w' ? b.pw : b.pe).x0 || 0;   // x del dibujo en el borde izquierdo de lo que se ve
       Sim.compact = mode !== 'ancho';
       if (side === 'w') b.gw = g; else b.ge = g;
+      // Si el circuito cambia de alto (al abrir o cerrar un instrumento en el celular), las puntas puestas lo
+      // siguen: las del cable de abajo bajan con él y las demás se estiran con el circuito (las dos geometrías
+      // dan el mismo circuito: basta con hacerlo una vez).
+      if (side === 'e' && old && st.clamps && old.mode === mode && (old.TOP !== g.TOP || old.BOT !== g.BOT)) {
+        const nearBot = 80, k = (g.BOT - nearBot - g.TOP) / (old.BOT - nearBot - old.TOP);
+        const ny = y => y >= old.BOT - nearBot ? y + g.BOT - old.BOT : g.TOP + (y - old.TOP) * k;
+        for (const kind of MS) st.clamps[kind].forEach((q, i) => { if (st.placed[kind][i]) st.clamps[kind][i] = [q[0], ny(q[1])]; });
+      }
       o.layout && o.layout(g);
     };
     b.pw.onLayout = (W, H, mode) => relayout('w', W, H, mode);
@@ -495,8 +542,9 @@
     // Todo lo de la fuente va en sus coordenadas (SL): at(g, p) lo pone en el dibujo y chAt(g, c, p) hace lo
     // mismo con lo de un canal. px(side, d) es el tamaño en pantalla de d unidades de la fuente.
     const lay = g => SL[g.FL];
-    const at = (g, p) => { const [x, y] = boxAt(g); return [x + p[0] * g.FK, y + p[1] * g.FK]; };
-    const chAt = (g, c, p) => { const o = lay(g).ch[c]; return at(g, [o[0] + p[0], o[1] + p[1]]); };
+    // Lo que no va en el acomodo de ahora (p o el canal sin dar, como en la versión corta) da null: se esconde.
+    const at = (g, p) => { if (!p) return null; const [x, y] = boxAt(g); return [x + p[0] * g.FK, y + p[1] * g.FK]; };
+    const chAt = (g, c, p) => { const o = lay(g).ch[c]; return o && p ? at(g, [o[0] + p[0], o[1] + p[1]]) : null; };
     const px = (side, d) => d * geo(side).FK * panel(side).scale;
     const CHS = ['A', 'B'];
     // Botón de los cables de la fuente, como el de los multímetros: encendido (como empieza) sus cables
@@ -540,6 +588,26 @@
       bt.setAttribute('aria-label', label); bt.title = label; bt.setAttribute('aria-pressed', String(st.staut));
     });
     syncSrcKeys();
+    // En el celular, abrir un instrumento (st.front, ver phoneDesk) o cerrarlo: la mesa se acomoda de nuevo, el
+    // circuito cambia de alto y lo que se movió de su lugar regresa.
+    const setFront = v => {
+      if (st.front === v) return;
+      st.front = v;
+      st.spos = {}; st.mpos = {};
+      [b.pw, b.pe].forEach(p => p.onLayout(p.W, p.H, p.mode));
+      syncFold(); syncs.forEach(f => f());
+      b.pw.replace(); b.pe.replace();
+    };
+    b.setFront = setFront;
+    const foldKeys = ['w', 'e'].map(side => [physKey(side, g => apart(g) ? at(g, lay(g).fold) : null, () => FOLD,
+      () => { st.fpress = performance.now() + 140; setFront(st.front === 'src' ? null : 'src'); }), side]);
+    st.fpress = 0;
+    const syncFold = () => foldKeys.forEach(([bt, side]) => {
+      const what = side === 'w' ? 'la bomba' : 'la fuente', open = st.front === 'src';
+      const l = open ? `Cerrar ${what}: la versión corta` : `Abrir ${what}, con todos sus mandos`;
+      bt.setAttribute('aria-label', l); bt.title = open ? 'Cerrar' : 'Abrir'; bt.setAttribute('aria-pressed', String(open));
+    });
+    syncFold();
 
     // ---------- la fuente: dos canales, como la BK 1761 del taller ----------
     // POWER enciende los dos canales. En cada uno, VOLTAGE con dos perillas, COARSE (de 0,5 en 0,5 V) y FINE
@@ -551,7 +619,11 @@
     const power = ['w', 'e'].map(side => {
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'sim-power sim-src-ctl'; el.dataset.act = 'ali'; el.innerHTML = Sim.SWITCH;
-      b.place(side, el, g => { el.style.setProperty('--s', geo(side).FK * panel(side).scale); return at(g, lay(g).pow); });
+      b.place(side, el, g => {
+        const k = lay(g).powK;   // en la versión corta, más chica y sin ON/OFF escritos
+        el.style.setProperty('--s', geo(side).FK * panel(side).scale * (k || 1)); el.classList.toggle('bare', !!k);
+        return at(g, lay(g).pow);
+      });
       el.addEventListener('click', () => { st.on = !st.on; syncPower(); b.refresh(); });
       return [el, side];
     });
@@ -578,9 +650,9 @@
       ['w', 'e'].forEach(side => {
         const el = document.createElement('div');
         b.place(side, el, g => {
-          const d = lay(g).c[k][2];
-          el.style.width = Math.max(k === 'fi' ? 26 : 30, px(side, d)) + 'px';
-          return chAt(g, c, lay(g).c[k]);
+          const p = lay(g).c[k], q = chAt(g, c, p);
+          if (q) el.style.width = Math.max(k === 'fi' ? 26 : 30, px(side, p[2])) + 'px';
+          return q;
         });
         el.dataset.act = 'ali';
         ks[side] = Sim.knob(el, { min: K.min, max: K.max, step: K.step, magnet: K.magnet, value: K.get(h), label: K.label(c, side),
@@ -592,7 +664,7 @@
     }));
     // La tecla V/A de cada canal: su pantallita pasa de voltaje a corriente y de regreso.
     CHS.forEach(c => {
-      const h = st.ch[c], keys = ['w', 'e'].map(side => [physKey(side, g => chAt(g, c, lay(g).c.key), g => lay(g).c.key.slice(2),
+      const h = st.ch[c], keys = ['w', 'e'].map(side => [physKey(side, g => chAt(g, c, lay(g).c.key), g => (lay(g).c.key || [0, 0, 30, 20]).slice(2),
         () => { h.disp = h.disp === 'V' ? 'A' : 'V'; h.press = performance.now() + 140; h.peek = null; sync(); }), side]);
       const sync = () => keys.forEach(([bt, side]) => {
         const [v, i] = side === 'w' ? ['presión', 'caudal'] : ['voltaje', 'corriente'];
@@ -1099,28 +1171,34 @@
     const small = matchMedia('(max-width: 600px)').matches;
     st.compact = { a: small, b: small };
     try { const c = JSON.parse(localStorage.getItem('sim-compact') || '{}'); MS.forEach(k => { if (typeof c[k] === 'boolean') st.compact[k] = c[k]; }); } catch (e) {}
-    st.cmp = { a: +st.compact.a, b: +st.compact.b };
+    // En el celular no se compacta: su versión corta (solo para leer) y la abierta las da st.front (ver phoneDesk).
+    const phoneNow = () => !!(b.ge && apart(b.ge));
+    const isCompact = kind => phoneNow() ? st.front !== kind : st.compact[kind];
+    const toggleCompact = kind => phoneNow() ? setFront(st.front === kind ? null : kind) : setCompact(kind, !st.compact[kind]);
+    st.cmp = { a: +isCompact('a'), b: +isCompact('b') };
     // Forma del multímetro (sin escalar, desde su centro): el chasis de top a bottom (con su nombre arriba a
     // la izquierda), la pantallita (lcd, lx, su ancho lw y su alto lh), la comparación de sus dos puntas
     // (cmp) y la rueda (kx, ky, kr). Compactado, la rueda se achica y va a la derecha de la pantallita y la
-    // comparación se esconde.
+    // comparación se esconde. La versión corta del celular (ph) es más angosta y no lleva rueda: solo se lee.
     const shape = kind => {
-      const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c;
-      return { top: mix(-62, -58), bottom: mix(150, 12), hw: mix(76, 92), lcd: mix(-8, -8), lh: mix(34, 30), lx: mix(0, -6), lw: mix(112, 104), cmp: 20, kx: mix(0, 66), ky: mix(104, -8), kr: mix(27, 12), c,
+      const c = ease(st.cmp[kind]), mix = (a, z) => a + (z - a) * c, ph = phoneNow();
+      const z = ph ? { hw: MW.cs / 2, lx: 16, lw: 100, kx: 16, kr: 0, b0: [-52, -8], b1: [-52, -8], bw: 22, bh: 18 }
+        : { hw: 92, lx: -6, lw: 104, kx: 66, kr: 12, b0: [-74, -18], b1: [-74, -1], bw: 17, bh: 13 };
+      return { top: mix(-62, -58), bottom: mix(150, 12), hw: mix(76, z.hw), lcd: mix(-8, -8), lh: mix(34, 30), lx: mix(0, z.lx), lw: mix(112, z.lw), cmp: 20, kx: mix(0, z.kx), ky: mix(104, -8), kr: mix(27, z.kr), c, ph,
         // botones físicos: recoger (0) y compactar (1); extendido a los lados de la rueda, compactado uno
-        // sobre otro a la izquierda de la pantallita. Invertir (2), abajo a la izquierda de la rueda, solo
-        // extendido (compactado está en Medir).
-        btn: [[mix(-60, -74), mix(54, -18)], [mix(60, -74), mix(54, -1)], [-60, 136]], bw: mix(22, 17), bh: mix(16, 13) };
+        // sobre otro a la izquierda de la pantallita (en la versión corta del celular solo el de abrir).
+        // Invertir (2), abajo a la izquierda de la rueda, solo extendido (compactado está en Medir).
+        btn: [[mix(-60, z.b0[0]), mix(54, z.b0[1])], [mix(60, z.b1[0]), mix(54, z.b1[1])], [-60, 136]], bw: mix(22, z.bw), bh: mix(16, z.bh) };
     };
     // Su lugar en la mesa: g.meters da el centro y la base, así que al compactarlo o extenderlo la base se
     // queda donde está. En el celular vertical el segundo va encima del primero.
     const homeAt = (g, kind) => {
-      const [x0, base] = g.meters[kind], k = g.MK, sh = shape(kind);
+      const [x0, base] = g.meters[kind], k = g.mk[kind], sh = shape(kind);
       if (kind === 'b' && g.stack) { const sa = shape('a'); return [x0, base - (sa.bottom - sa.top + 26) * k - sh.bottom * k]; }
       return [x0, base - sh.bottom * k];
     };
     const meterAt = (g, kind) => {
-      const [x0, y0] = homeAt(g, kind), o = st.mpos[g.mode + kind], k = g.MK, sh = shape(kind);
+      const [x0, y0] = homeAt(g, kind), o = st.mpos[g.mode + kind], k = g.mk[kind], sh = shape(kind);
       if (!o) return [x0, y0];
       // sin salirse de lo que se ve (con sus botones a los lados y sus bornes arriba)
       return [Math.max(g.VX + 90 * k, Math.min(g.VX + g.W - 90 * k, x0 + o[0])),
@@ -1161,7 +1239,7 @@
     // no cabe (el multímetro junto a la orilla).
     const tripU = kind => {
       const sh = shape(kind), [, , , , total, parts] = rim(sh, 0), at = i => parts.slice(0, i).reduce((t, p) => t + p[0], 0);
-      const g = b.ge, tight = g && meterAt(g, kind)[0] - g.VX < (sh.hw + 34) * g.MK;
+      const g = b.ge, tight = g && meterAt(g, kind)[0] - g.VX < (sh.hw + 34) * g.mk[kind];
       const right = st.jedge[kind] === 'L' || (tight && st.jedge[kind] !== 'R');
       return (at(right ? 2 : 6) + parts[2][0] / 2) / total;
     };
@@ -1176,7 +1254,7 @@
     };
     const leadJack = (g, kind, j) => {
       const [x, y] = meterAt(g, kind), [px, py] = jackLocal(kind, j);
-      return [x + px * g.MK, y + py * g.MK];
+      return [x + px * g.mk[kind], y + py * g.mk[kind]];
     };
     // A dónde debe ir la placa: al lado de la funda que mira hacia las puntas (el promedio de las que
     // están afuera), recorrida a lo largo de ese lado hasta quedar frente a ellas.
@@ -1185,7 +1263,7 @@
       if (!out.length) return null;
       const [mx, my] = meterAt(g, kind), sh = shape(kind);
       const tx = out.reduce((t, i) => t + st.clamps[kind][i][0], 0) / out.length, ty = out.reduce((t, i) => t + st.clamps[kind][i][1], 0) / out.length;
-      const lx = (tx - mx) / g.MK, ly = (ty - my) / g.MK;
+      const lx = (tx - mx) / g.mk[kind], ly = (ty - my) / g.mk[kind];
       const L = -sh.hw - 3, R = sh.hw + 3, T = sh.top - 3, B = sh.bottom + 3, rc = 13, cy = (T + B) / 2;
       const dx = lx, dy = ly - cy, hw = R, hh = (B - T) / 2;
       const [, , , , total, parts] = rim(sh, 0), start = i => parts.slice(0, i).reduce((t, p) => t + p[0], 0);
@@ -1499,14 +1577,14 @@
       setPlacing({ kind, i: 0 });
     };
     // Su lugar en la mesa, punteado, mientras solo está el primero.
-    const slotOpen = () => st.show.a && !st.show.b;
+    const slotOpen = () => st.show.a && !st.show.b && !phoneNow();   // en el celular la mesa no lo lleva
     ['w', 'e'].forEach(side => {
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'sim-slot'; el.dataset.act = 'med';
       b.place(side, el, g => {
-        const [x, y] = homeAt(g, 'b'), sh = shape('b'), s = panel(side).scale * g.MK;
+        const [x, y] = homeAt(g, 'b'), sh = shape('b'), s = panel(side).scale * g.mk.b;
         el.style.width = 2 * sh.hw * s + 'px'; el.style.height = (sh.bottom - sh.top) * s + 'px';
-        return [x, y + (sh.top + sh.bottom) / 2 * g.MK];
+        return [x, y + (sh.top + sh.bottom) / 2 * g.mk.b];
       });
       el.addEventListener('click', () => b.addMeter());
       syncs.push(() => {
@@ -1772,9 +1850,9 @@
       const name = () => 'el ' + meterName(kind, side);
       // cubre el chasis (cambia de tamaño al compactar)
       b.place(side, el, g => {
-        const [x, y] = meterAt(g, kind), s = panel(side).scale * g.MK, sh = shape(kind), top = sh.top, bot = sh.bottom;
+        const [x, y] = meterAt(g, kind), s = panel(side).scale * g.mk[kind], sh = shape(kind), top = sh.top, bot = sh.bottom;
         el.style.width = Math.max(60, (2 * sh.hw + 8) * s) + 'px'; el.style.height = Math.max(40, (bot - top + 8) * s) + 'px';
-        return [x, y + (top + bot) / 2 * g.MK];
+        return [x, y + (top + bot) / 2 * g.mk[kind]];
       });
       // tocarlo abre su tarjeta; arrastrarlo (o las flechas) lo cambia de lugar
       meterHits[kind][side] = el; el.setAttribute('aria-haspopup', 'dialog');
@@ -1811,9 +1889,10 @@
       const dial = document.createElement('button');
       dial.type = 'button'; dial.className = 'sim-dial';
       b.place(side, dial, g => {
-        const [x, y] = meterAt(g, kind), sh = shape(kind), s = panel(side).scale * g.MK;
+        const [x, y] = meterAt(g, kind), sh = shape(kind), s = panel(side).scale * g.mk[kind];
+        if (sh.ph && sh.c > 0.5) return null;   // la versión corta del celular solo se lee
         dial.style.width = dial.style.height = Math.max(40, (sh.kr + (sh.c > 0.5 ? 8 : 24)) * 2 * s) + 'px';
-        return [x + sh.kx * g.MK, y + sh.ky * g.MK];
+        return [x + sh.kx * g.mk[kind], y + sh.ky * g.mk[kind]];
       });
       const turn = d => b.setDial(kind, DIAL[(DIAL.indexOf(st.dial[kind]) + d + DIAL.length) % DIAL.length]);
       // Arrastrarla la gira con imán: se queda en su posición (pasada la zona muerta solo se estira un poco
@@ -1847,7 +1926,7 @@
         if (drag && drag.done) { drag = null; return; }   // fue un arrastre
         drag = null;
         const r = dial.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-        const sh = shape(kind), s = panel(side).scale * geo(side).MK;
+        const sh = shape(kind), s = panel(side).scale * geo(side).mk[kind];
         // con el teclado (sin puntero) o en el centro: la siguiente posición
         if (!e.detail || sh.c > 0.5 || Math.hypot(dx, dy) < sh.kr * s * 0.9) { turn(1); return; }
         const a = Math.atan2(dx, -dy) * 180 / Math.PI;
@@ -1881,9 +1960,9 @@
         bt.type = 'button'; bt.className = 'sim-meter-btn phys';
         bt.addEventListener('click', e => { st.press[kind][bi] = performance.now() + 140; onClick(e); b.pw.replace(); b.pe.replace(); setTimeout(() => { b.pw.replace(); b.pe.replace(); }, 160); });
         b.place(side, bt, g => {
-          const [x, y] = meterAt(g, kind), sh = shape(kind), s = panel(side).scale * g.MK;
+          const [x, y] = meterAt(g, kind), sh = shape(kind), s = panel(side).scale * g.mk[kind];
           bt.style.width = Math.max(28, (sh.bw + 6) * s) + 'px'; bt.style.height = Math.max(24, (sh.bh + 6) * s) + 'px';
-          return [x + sh.btn[bi][0] * g.MK, y + sh.btn[bi][1] * g.MK];
+          return [x + sh.btn[bi][0] * g.mk[kind], y + sh.btn[bi][1] * g.mk[kind]];
         });
         syncs.push(() => { bt.hidden = !st.show[kind]; });
         return bt;
@@ -1901,29 +1980,32 @@
       tb.type = 'button'; tb.className = 'sim-meter-btn phys';
       tb.addEventListener('click', () => { b.resetTrip(kind); b.pw.replace(); b.pe.replace(); });
       b.place(side, tb, g => {
-        const s = panel(side).scale * g.MK, [x, y] = meterAt(g, kind), q = tripAt(kind);
+        const s = panel(side).scale * g.mk[kind], [x, y] = meterAt(g, kind), q = tripAt(kind);
         tb.style.width = Math.max(44, 50 * s) + 'px'; tb.style.height = Math.max(32, 26 * s) + 'px';
-        return [x + q.x * g.MK, y + q.y * g.MK];
+        return [x + q.x * g.mk[kind], y + q.y * g.mk[kind]];
       });
       syncs.push(() => {
         tb.hidden = !st.show[kind] || !st.trip[kind];
         const l = `Rearmar la protección del ${meterName(kind, side)}`;
         tb.setAttribute('aria-label', l); tb.title = l;
       });
-      const cb = button(1, '', () => setCompact(kind, !st.compact[kind]));
+      const cb = button(1, '', () => toggleCompact(kind));
       // Invertir: la punta roja y la negra cambian de lugar (solo extendido; compactado, en su tarjeta).
       const ib = button(2, '', () => b.invert(kind));
       syncs.push(() => {
-        ib.hidden = !st.show[kind] || st.compact[kind];
+        ib.hidden = !st.show[kind] || isCompact(kind);
         const l = `Invertir ${what} del ${meterName(kind, side)}: la roja va donde estaba la negra`;
         ib.setAttribute('aria-label', l); ib.title = l;
       });
       syncs.push(() => {
         const label = st.taut[kind] ? `Soltar ${what} del ${meterName(kind, side)}` : `Tensar ${what} del ${meterName(kind, side)}`;
         rb.setAttribute('aria-label', label); rb.title = label; rb.setAttribute('aria-pressed', String(st.taut[kind]));
-        const c = st.compact[kind], cl = c ? `Mostrar ${name()} completo` : `Compactar ${name()}: solo la pantallita y la perilla`;
+        const c = isCompact(kind), ph = phoneNow();
+        const cl = ph ? (c ? `Abrir ${name()}, con su perilla y sus botones` : `Cerrar ${name()}: la versión corta, solo para leer`)
+          : c ? `Mostrar ${name()} completo` : `Compactar ${name()}: solo la pantallita y la perilla`;
         cb.setAttribute('aria-pressed', String(c));
-        cb.setAttribute('aria-label', cl); cb.title = c ? 'Mostrar completo' : 'Compactar';
+        cb.setAttribute('aria-label', cl); cb.title = ph ? (c ? 'Abrir' : 'Cerrar') : c ? 'Mostrar completo' : 'Compactar';
+        rb.hidden = !st.show[kind] || (ph && c);   // la versión corta del celular solo se lee
       });
     }));
     syncs.push(syncReel); syncs.forEach(f => f());
@@ -1953,7 +2035,7 @@
           { text: 'Invertir puntas', onClick: () => b.invert(kind) },
           { text: w ? 'Negra a 0 psi' : 'Negra a tierra', hidden: () => series(kind), onClick: () => b.toGround(kind) },
           { text: w ? 'Tensar mangueras' : 'Tensar cables', onClick: () => reelIn(kind) },
-          { text: () => st.compact[kind] ? 'Extender' : 'Compactar', onClick: () => setCompact(kind, !st.compact[kind]) },
+          { text: () => phoneNow() ? (isCompact(kind) ? 'Abrir' : 'Cerrar') : st.compact[kind] ? 'Extender' : 'Compactar', onClick: () => toggleCompact(kind) },
           { text: w ? 'Cambiar su válvula' : 'Cambiar su fusible', hidden: () => !st.fuse[kind], onClick: () => b.newFuse(kind) },
           { text: 'Rearmar la protección', hidden: () => !st.trip[kind], onClick: () => b.resetTrip(kind) },
           { text: w ? 'Guardar el medidor' : 'Guardar el multímetro', onClick: () => putAway(kind) }
@@ -1963,7 +2045,13 @@
       ] };
     };
     b.showMeters = show => {
+      const before = MS.map(k => st.show[k]).join();
       Object.assign(st.show, show);
+      // en el celular las versiones cortas van en un renglón: con uno más o uno menos la mesa se acomoda
+      if (phoneNow() && MS.map(k => st.show[k]).join() !== before) {
+        if (MS.includes(st.front) && !st.show[st.front]) st.front = null;
+        [b.pw, b.pe].forEach(p => p.onLayout(p.W, p.H, p.mode)); syncFold();
+      }
       syncReel();
       if (st.placing && !st.show[st.placing.kind]) setPlacing(null);
       syncs.forEach(f => f());
@@ -2075,6 +2163,20 @@
       ctx.save(); ctx.translate(X, Y); ctx.scale(g.FK, g.FK);
       L.div.forEach(ln => D.line(ctx, ln, 1.5, C.line, 'butt'));
       const well = C.dark ? '#26313b' : '#cbd4db';
+      // en el celular, la tecla para abrirla (versión corta) o cerrarla
+      if (apart(g) && L.fold) {
+        const [fx, fy] = L.fold, fp = st.fpress > now ? 1 : 0;
+        D.key(ctx, fx, fy, FOLD[0], FOLD[1], fp, false, null);
+        ctx.save(); ctx.translate(fx, fy + fp * 1.5 - 0.5); ctx.scale(FOLD[1] / 16, FOLD[1] / 16); foldArrows(ctx, g.FL === 'mini'); ctx.restore();
+      }
+      if (g.FL === 'mini') {   // la versión corta: la pantallita del canal A con sus LEDs y COARSE
+        const h = st.ch.A, P = L.c, out = st.on && h.v > 0.05;
+        D.lcd(ctx, ...P.lcd, ...lcdText('A', w));
+        P.leds.forEach(([ex, ey], j) => D.led(ctx, ex, ey, out && (j ? h.cc : !h.cc) ? 1 : 0, j ? '#ff4a3d' : undefined, 5));
+        D.circle(ctx, P.co[0], P.co[1], P.co[2] / 2 + 3, well, C.ink, 1);
+        ctx.restore();
+        return;
+      }
       CHS.forEach(c => {
         const h = st.ch[c], [ox, oy] = L.ch[c], q = p => [ox + p[0], oy + p[1], ...p.slice(2)];
         D.text(ctx, c, ...q(P.letter), C.ink, { size: 20, font: Sim.WIDE });
@@ -2273,7 +2375,7 @@
     const drawMeter = (ctx, g, kind) => {
       if (!st.show[kind]) return;
       const water = g.side === 'w', [x, y] = meterAt(g, kind), sh = shape(kind), md = st.dial[kind], col = MCOL[md];
-      ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
+      ctx.save(); ctx.translate(x, y); ctx.scale(g.mk[kind], g.mk[kind]);
       const placing = st.placing && st.placing.kind === kind, warn = live(kind), blown = md === 'A' && st.fuse[kind], tripped = md === 'A' && st.trip[kind];
       const T = sh.top, H = sh.bottom - T;
       if (placing) {   // borde del color de lo que mide mientras espera dónde conectarse
@@ -2286,7 +2388,8 @@
       if (st.mheld[kind]) { ctx.shadowColor = 'rgba(21,33,42,0.35)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; D.roundRect(ctx, -sh.hw, T, 2 * sh.hw, H, Sim.CHASSIS.r, C.inst); }   // levantado mientras se mueve
       ctx.restore();
       const sel = Sim.fadeSel('m' + kind, meterOpen(kind));
-      D.chassis(ctx, -sh.hw, T, 2 * sh.hw, H, water, meterName(kind, g.side).toUpperCase(), sel > 0.5);
+      const nm = meterName(kind, g.side).toUpperCase();
+      D.chassis(ctx, -sh.hw, T, 2 * sh.hw, H, water, [nm, nm.replace('MULTÍMETRO', 'MULTÍM.'), nm.replace('MULTÍMETRO', 'MULT.').replace('MEDIDOR', 'MED.')], sel > 0.5, 2 * sh.hw - 20);
       if (!placing) D.select(ctx, -sh.hw - 7, T - 7, 2 * sh.hw + 14, H + 14, sel, 16);
       D.lcd(ctx, sh.lx, sh.lcd, sh.lw, sh.lh, ...meterText(kind, g.side));
       compare(ctx, kind, sh, water);
@@ -2295,7 +2398,7 @@
       ctx.restore();
       // bornes en su placa, sobre la orilla de la funda: VΩA (rojo) y COM (negro); los distingue el color (su
       // nombre no cabe en la placa con la letra mínima de 14 px)
-      ctx.save(); ctx.translate(x, y); ctx.scale(g.MK, g.MK);
+      ctx.save(); ctx.translate(x, y); ctx.scale(g.mk[kind], g.mk[kind]);
       const gap = jackGap(sh), [, , , , total] = rim(sh, 0), plate = [];
       for (let d = -gap - 11; d <= gap + 11; d += 3) plate.push(rim(sh, st.jpos[kind] + d / total).slice(0, 2));
       D.line(ctx, plate, 21, C.ink, 'round');
@@ -2307,7 +2410,7 @@
       });
       tripButton(ctx, kind);
       // avisos arriba del multímetro (abajo si arriba no hay lugar), más arriba si ahí está la placa
-      const [, cny] = rim(sh, st.jpos[kind]), up = y + (T - 52) * g.MK > 4;
+      const [, cny] = rim(sh, st.jpos[kind]), up = y + (T - 52) * g.mk[kind] > 4;
       const ly = up ? T - 40 - (cny < T ? 6 : 0) : sh.bottom + 22 + (cny > sh.bottom ? 8 : 0);
       if (placing) {
         D.text(ctx, 'toca el circuito para', 0, ly, col, { size: 14, bg: true });
@@ -2345,6 +2448,16 @@
       D.line(ctx, [[-5, -3], [5, -3], [5, 0], [0, 4], [-5, 0], [-5, -3]], 1.6, ink);
       D.line(ctx, [[0, 4], [0, 7]], 1.6, ink);
     };
+    // Ícono de abrir (o mostrar completo: flechas hacia afuera, out) o de cerrar (o compactar: hacia adentro),
+    // centrado, en una tecla de 16 de alto. Lo llevan los multímetros y, en el celular, la fuente.
+    const foldArrows = (ctx, out, ink = '#1b242c') => {
+      const o = out ? 1 : -1;
+      [[-1, -1], [1, 1]].forEach(([sx, sy]) => {
+        const a = [sx * 6, sy * 6], z = [sx * 1.5, sy * 1.5], tip = o > 0 ? a : z, tail = o > 0 ? z : a;
+        D.line(ctx, [tail, tip], 1.6, ink);
+        D.line(ctx, [[tip[0] - sx * o * 3, tip[1]], tip, [tip[0], tip[1] - sy * o * 3]], 1.6, ink);
+      });
+    };
     // Ícono de invertir: dos flechas, una hacia cada lado.
     const swap = (ctx, col = '#1b242c') => {
       D.line(ctx, [[-6, -2.5], [5, -2.5]], 1.6, col); D.line(ctx, [[2.5, -5], [5.5, -2.5], [2.5, 0]], 1.6, col);
@@ -2354,21 +2467,14 @@
       const on = i === 0 && st.taut[kind];   // el de los cables se queda hundido mientras está encendido
       const p = st.press[kind][i] > performance.now() || on ? 1 : 0, off = i === 0 && !on && !st.placed[kind].some(Boolean);
       ctx.save();
-      if (i === 2) { if (sh.c >= 1) { ctx.restore(); return; } ctx.globalAlpha *= 1 - sh.c; }
+      if (i === 2 || (i === 0 && sh.ph)) { if (sh.c >= 1) { ctx.restore(); return; } ctx.globalAlpha *= 1 - sh.c; }
       D.key(ctx, bx, by, sh.bw, sh.bh, p, off, i === 0 ? on : null);
       ctx.translate(bx, by + p * 1.5 - 0.5);
       const k = sh.bh / 16, ink = '#1b242c';
       ctx.scale(k, k);
       if (i === 0) plug(ctx);   // enchufe: los cables
       else if (i === 2) swap(ctx);   // invertir
-      else {   // compactar (flechas hacia adentro) o mostrar completo (hacia afuera)
-        const o = st.compact[kind] ? 1 : -1;
-        [[-1, -1], [1, 1]].forEach(([sx, sy]) => {
-          const a = [sx * 6, sy * 6], z = [sx * 1.5, sy * 1.5], tip = o > 0 ? a : z, tail = o > 0 ? z : a;
-          D.line(ctx, [tail, tip], 1.6, ink);
-          D.line(ctx, [[tip[0] - sx * o * 3, tip[1]], tip, [tip[0], tip[1] - sy * o * 3]], 1.6, ink);
-        });
-      }
+      else foldArrows(ctx, isCompact(kind));   // compactar o mostrar completo (en el celular: abrir o cerrar)
       ctx.restore();
     };
     // Formato extendido: abajo de la pantallita, la comparación de la punta roja (+) con la negra (−): el
@@ -2398,6 +2504,7 @@
     // poco a poco.
     const dialKnob = (ctx, kind, sh, water) => {
       const { kx, ky, kr, c } = sh, a = st.dang[kind] * Math.PI / 180, names = DIAL_NAMES[water ? 'w' : 'e'];
+      if (kr < 3) return;   // la versión corta del celular no la lleva
       if (c < 1) {
         ctx.save(); ctx.globalAlpha *= 1 - c;
         DIAL.forEach(d => {
@@ -2659,7 +2766,7 @@
       else ctx.fillRect(-2000, g.DESK, 4000, 4000);
       ctx.restore();
       if (!slotOpen()) return;
-      const [x, y] = homeAt(g, 'b'), sh = shape('b'), k = g.MK;
+      const [x, y] = homeAt(g, 'b'), sh = shape('b'), k = g.mk.b;
       ctx.save(); ctx.setLineDash([7, 6]);
       D.roundRect(ctx, x - sh.hw * k, y + sh.top * k, 2 * sh.hw * k, (sh.bottom - sh.top) * k, Sim.CHASSIS.r, null, C.muted, 2);
       ctx.restore();
@@ -2761,7 +2868,7 @@
       }
       for (const kind of MS) {
         const c0 = st.cmp[kind];
-        st.cmp[kind] = st.compact[kind] ? Math.min(1, c0 + dt / 0.3) : Math.max(0, c0 - dt / 0.3);
+        st.cmp[kind] = isCompact(kind) ? Math.min(1, c0 + dt / 0.3) : Math.max(0, c0 - dt / 0.3);
         if (st.cmp[kind] !== c0) moved = true;
         // el botón de la protección sale de golpe con un rebote, o se mete al rearmarla
         const pt = st.trip[kind] ? 1 : 0;
