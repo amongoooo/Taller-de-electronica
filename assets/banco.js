@@ -2655,6 +2655,19 @@
     // Cuánto sobresale un componente a cada lado de su cable (ext de la página, un número o ext(water)).
     const extOf = (c, water) => typeof c.ext === 'function' ? c.ext(water) : c.ext || 22;
     const nodeText = (v, water) => Sim.fmt(Math.abs(v) < 0.005 ? 0 : v, 2) + (water ? ' psi' : ' V');
+    // Mientras se arrastra una punta, el nodo al que se va a conectar (el que la jala su imán): { node, a } con
+    // a de 0 a 1, qué tan cerca está.
+    const aimed = g => {
+      const out = [];
+      for (const kind of MS) if (st.show[kind]) for (let i = 0; i < NP(kind); i++) {
+        if (!st.lift[kind][i]) continue;
+        const q = pose(g, kind, i), p = q.snap;
+        if (!p) continue;
+        const pc = p.node ? null : onPiece(net.pieces, p.x, p.y), node = p.node || (pc && pc.dist < 3 ? net.pieces[pc.p].node : null);
+        if (node) out.push({ node, a: Math.min(1, (1 - q.h) / 0.6) });
+      }
+      return out;
+    };
     const drawNodes = (ctx, g, m, u) => {
       const water = g.side === 'w', kw = Math.min(1, u / 0.3), kn = Math.max(0, (u - 0.5) / 0.5);
       const c0 = [0, 0];
@@ -2663,6 +2676,14 @@
       // cables (tuberías): de su color de siempre; el voltaje (presión) lo muestran las partículas
       const src = st.segs.find(sg => sg.source);
       if (src) water ? D.pipe(ctx, src.pts) : D.wire(ctx, src.pts);
+      // el nodo completo al que va la punta que se arrastra: un halo azul por todos sus cables
+      const aim = aimed(g);
+      aim.forEach(({ node, a }) => {
+        ctx.save(); ctx.globalAlpha *= 0.4 * a;
+        for (const p of net.pieces) if (p.node === node) D.line(ctx, p.m, water ? 2 * Sim.PIPE + 26 : 22, C.sel);
+        D.circle(ctx, ...node.p, (water ? RN + 8 : RN) + 10, C.sel);
+        ctx.restore();
+      });
       for (const p of net.pieces) if (water) D.pipe(ctx, p.m); else D.wire(ctx, p.m);
       // lo que circula, por cada tramo
       st.segs.forEach((sg, k) => { if (!sg.source) D.flow(ctx, sg.pts, st.nph[k] || 0, water ? C.water : C.charge, { gap: 30, r: water ? 3.6 : 4.5 }); });
@@ -2751,6 +2772,7 @@
           D.circle(ctx, x, y, RN + 3, C['water-soft']);
         } else D.circle(ctx, x, y, RN, C.ink);
       }
+      aim.forEach(({ node, a }) => { ctx.save(); ctx.globalAlpha *= a; D.circle(ctx, ...node.p, (water ? RN + 8 : RN) + 4, null, C.sel, 3); ctx.restore(); });
       for (const n of net.nodes) {
         if (n.ground) continue;   // la tierra lleva su símbolo con 0 V
         const [x, y] = n.p, t = nodeText(n.v, water), o = out(x, y);
