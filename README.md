@@ -56,7 +56,7 @@ Sus puntas se arrastran (o se mueven con las flechas) a cualquier punto del circ
 
 - Tocar el multímetro abre su tarjeta: **Conectar puntas** (el botón principal: el siguiente toque en el circuito pone la roja y el siguiente la negra; tocar el multímetro o Esc cancela), **Cable · Indicador** (el indicador es un pin pequeño con + o −, para dejar el diagrama limpio), **Invertir puntas**, **Negra a tierra** (no en A), **Tensar cables** (una vez), **Compactar** (en el celular, **Abrir** o **Cerrar**), **Guardar el multímetro** y la rigidez e inercia de los cables. La rueda OFF · V · A · Ω y los bornes siguen en el aparato; la rueda también gira con la rueda del ratón.
 - Tocar una punta abre su tarjeta: **Cable · Indicador** y **Soltar** (regresa a su multímetro).
-- Tocar la fuente (o la bomba) abre su tarjeta: polaridad **Normal · Invertida**, cables **Tensos · Libres** y **Tensar una vez**. Su tecla de cables solo alterna. Sus perillas, POWER y las teclas V/A son mandos: se accionan en el aparato.
+- Tocar la fuente (o la bomba) abre su tarjeta: polaridad **Normal · Invertida**, cables **Tensos · Libres** y **Tensar una vez**. Invertida, el + y el − cambian de lugar y la tierra (0 V, 0 psi) se va con el −, a la izquierda de la fuente: los colores de la presión (voltaje) se invierten, bajos del lado izquierdo y altos del derecho, y los nodos y las puntas marcan lo mismo que en un circuito de verdad con la fuente al revés. Su tecla de cables solo alterna. Sus perillas, POWER y las teclas V/A son mandos: se accionan en el aparato.
 - **Medir** solo lee: la lectura grande de cada multímetro y **Sacar otro multímetro**.
 
 ## Resistencias y menú de componentes

@@ -105,7 +105,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     las puntas en dos nodos, `shorts` (un corto de 0,1 Ω: la red por nodos, `st.sx` lo que la fuente da de más; nunca se
     rompe). `b.iOut()` es lo que de verdad da el canal A.
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
-  - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado). Inercia: `inertia`. Regulación CV/CC de cada canal: `regulate`.
+  - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado). Inercia: `inertia`. Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
+    tramo de la fuente, para que el − (y la tierra, `b.ground`) quede en 0 V a la izquierda.
 - `assets/osciloscopio.js` (`Sim.scope(o)`), el generador de funciones y el osciloscopio que usan las páginas 9 a 13:
   dos canales y caimán de tierra, puntas en cualquier cable (`wires`), `frames` (cada cuadro integra el circuito y guarda
   lo que marca cada canal, ya con su acoplamiento), disparo por nivel (`scan`, `updateScope`), `measure` (MEASURE,
