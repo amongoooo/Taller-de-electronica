@@ -83,11 +83,11 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
   - Acomodos `ancho` (PC), `medio` (PC con los dos paneles), `alto` (celular vertical, o PC tan angosta que `medio`
     saldría a menos de 0.7) y `lateral` (celular acostado) (`MODES`, `geometry`): circuito de x 180 a 640 y la mesa en
-    `g.DESK`; la fuente en `g.BX, g.BY`, dibujada en sus coordenadas (`SL`: `wide` B · POWER · A, `stack` A sobre B en
-    `medio`, `mini` la versión corta; `g.FL` cuál y `g.FK` su escala; `at`/`chAt` las pasan al dibujo y dan null para lo
+    `g.DESK`; la fuente en `g.BX, g.BY`, dibujada en sus coordenadas (`SL`: `wide` la de un canal con los bornes arriba al
+    centro, `mini` la versión corta; `g.FL` cuál y `g.FK` su escala; `at`/`chAt` las pasan al dibujo y dan null para lo
     que el acomodo no trae, que se esconde: `p.at` acepta null y pone `.sim-off`), multímetros en `g.meters` = [centro,
     base] con su escala `g.mk[k]` (`homeAt`, `meterAt`). En `alto` y `lateral` la caja va aparte del símbolo (`apart`);
-    si no, un cuello va del símbolo al canal A.
+    si no, `hoses`: de sus bornes + y − suben mangueras (cables) a la rueda (al símbolo).
   - Celular (`alto` y `lateral`, `phoneDesk`): versión corta y abierta de cada instrumento; `st.front` ('src', 'a', 'b'
     o null) dice cuál está abierto (`setFront`, `b.setFront`; tecla `FOLD` con `foldArrows`). Multímetro corto
     (`shape` con `ph`, `isCompact`): solo se lee. Fuente corta: `SL.mini`. Al cambiar, `relayout` mueve las puntas
@@ -95,15 +95,15 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `b.pinch` (resistencias y capacitores: asas solo con la tarjeta abierta), `b.part` (componente con
     tarjeta), `b.grips` (asas), `b.tag` y `b.tagRow` (etiquetas, ver `D.tag`), `b.linkedButton`, `b.linkedChoice`,
     `b.linkedKnob`, `b.place`.
-  - Fuente/bomba, como la BK 1761: dos canales en `st.ch` (A con el circuito, B sin nada; `co` COARSE, `fi` FINE,
+  - Fuente/bomba de un canal, con los mandos de uno de la BK 1761: `st.ch.A` (`co` COARSE, `fi` FINE,
     `lim` CURRENT de `LIMS`, `disp` V/A, `peek`), `setOf`, `KNOBS`, POWER (`st.on`), `srcMenu` (tarjeta),
-    `drawSource` y `lcdText` (dibujo), teclas físicas (V/A, polaridad y cables). `b.st.set`/`st.lim` son los del
-    canal A; `b.vScale()` el tope de la escala de colores del voltaje (12, 24 o 35 V).
+    `drawSource` y `lcdText` (dibujo), teclas físicas (V/A, polaridad y cables). `b.st.set`/`st.lim` son los de
+    su canal; `b.vScale()` el tope de la escala de colores del voltaje (12, 24 o 35 V).
   - Multímetro: `meterMenu`, `tipMenu`, `drawMeter`, `shape` (extendido/compactado), puntas (`pose`, `grab`,
     `setPlacing`), cables con física (`ropeStep`, `leadStep`), placa de los bornes (`jackTarget`: por la orilla; `jackFlip`/`st.jswap`: gira para que los cables no se
     crucen), `measure` / `ohms` (V, A, Ω); en A con
     las puntas en dos nodos, `shorts` (un corto de 0,1 Ω: la red por nodos, `st.sx` lo que la fuente da de más; nunca se
-    rompe). `b.iOut()` es lo que de verdad da el canal A.
+    rompe). `b.iOut()` es lo que de verdad da la fuente.
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
   - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado). Inercia: `inertia`. Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
     tramo de la fuente, para que el − (y la tierra, `b.ground`) quede en 0 V a la izquierda.
@@ -181,6 +181,6 @@ Celular · Instrumentos cortos y abiertos (un PR):
   compacto con sus tres perillas.
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
-paralelo de la fuente, ni una página que use el canal B.
+paralelo de la fuente, ni un segundo canal (la fuente y la bomba son de uno).
 
 Al terminar una fase, marca sus casillas aquí en el mismo PR.
