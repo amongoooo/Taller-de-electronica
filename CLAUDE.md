@@ -163,11 +163,9 @@ Fase 4 · Instrumentos como los del taller (boceto aprobado; un PR por instrumen
   SEC/DIV y POSITION horizontal, disparo por nivel (LEVEL, TRIG MENU, SET TO 50%), MEASURE, AUTOSET, RUN/STOP; CH1
   amarillo y CH2 azul; compacto en la mesa angosta con su tecla de frente.
 - [x] Generador como el JDS-2900: una perilla con FREQ · AMPL · OFFS · DUTY · PHAS y ◀ ▶ para el dígito, WAVE
-  (senoidal, cuadrada, triangular, DC), tecla CH1 con su luz en vez de la palanca, AMPL en Vpp. Pendiente: la salida
-  de 50 Ω.
+  (senoidal, cuadrada, triangular, DC), tecla CH1 con su luz en vez de la palanca, AMPL en Vpp.
 - [x] Fuente como la BK 1761: canales A y B de 0–35 V y 0–3 A, COARSE y FINE, CURRENT, CV/CC, una pantallita por canal
-  con su tecla V/A, POWER y bornes − ⏚ + (el circuito en el A). Pendiente: la salida fija de 5 A y los modos serie y
-  paralelo de los canales; una página que use el canal B.
+  con su tecla V/A, POWER y bornes − ⏚ + (el circuito en el A).
 
 Celular · Instrumentos cortos y abiertos (un PR):
 - [x] Cada instrumento con versión corta y abierta en el celular (como el osciloscopio): multímetro corto de solo
@@ -177,5 +175,8 @@ Celular · Instrumentos cortos y abiertos (un PR):
 - [x] El osciloscopio corto del celular solo se lee, como el multímetro corto (`LAYOUTS.mini`: la pantalla más grande y
   centrada, sin VOLTS/DIV ni SEC/DIV; se abre con su tecla de las flechas). En la PC con los dos paneles sigue el
   compacto con sus tres perillas.
+
+No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
+paralelo de la fuente, ni una página que use el canal B.
 
 Al terminar una fase, marca sus casillas aquí en el mismo PR.
