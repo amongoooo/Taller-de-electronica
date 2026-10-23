@@ -100,7 +100,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     `drawSource` y `lcdText` (dibujo), teclas físicas (V/A, polaridad y cables). `b.st.set`/`st.lim` son los del
     canal A; `b.vScale()` el tope de la escala de colores del voltaje (12, 24 o 35 V).
   - Multímetro: `meterMenu`, `tipMenu`, `drawMeter`, `shape` (extendido/compactado), puntas (`pose`, `grab`,
-    `setPlacing`), cables con física (`ropeStep`, `leadStep`), `measure` / `ohms` (V, A, Ω); en A con
+    `setPlacing`), cables con física (`ropeStep`, `leadStep`), placa de los bornes (`jackTarget`: por la orilla; `jackFlip`/`st.jswap`: gira para que los cables no se
+    crucen), `measure` / `ohms` (V, A, Ω); en A con
     las puntas en dos nodos, `shorts` (un corto de 0,1 Ω: la red por nodos, `st.sx` lo que la fuente da de más; nunca se
     rompe). `b.iOut()` es lo que de verdad da el canal A.
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
