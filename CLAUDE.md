@@ -87,13 +87,13 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     saldría a menos de 0.7) y `lateral` (celular acostado) (`MODES`, `geometry`): circuito de x 180 a 640 y la mesa en
     `g.DESK`; la fuente en `g.BX, g.BY`, dibujada en sus coordenadas (`SL`: `wide` la de un canal con los bornes arriba al
     centro, `mini` la versión corta; `g.FL` cuál y `g.FK` su escala; `at`/`chAt` las pasan al dibujo y dan null para lo
-    que el acomodo no trae, que se esconde: `p.at` acepta null y pone `.sim-off`), multímetros en `g.meters` = [centro,
+    que el acomodo no trae, que se esconde: `p.at` acepta null y pone `.sim-off`), si la escala de colores taparía rótulos altos (`o.head`), el circuito baja (`headTop`); multímetros en `g.meters` = [centro,
     base] con su escala `g.mk[k]` (`homeAt`, `meterAt`). En `alto` y `lateral` la caja va aparte del símbolo (`apart`);
     si no, `hoses`: de sus bornes + y − suben mangueras (cables) a la rueda (al símbolo).
   - Celular (`alto` y `lateral`, `phoneDesk`): versión corta y abierta de cada instrumento; `st.front` ('src', 'a', 'b'
     o null) dice cuál está abierto (`setFront`, `b.setFront`; tecla `FOLD` con `foldArrows`). Multímetro corto
     (`shape` con `ph`, `isCompact`): solo se lee. Fuente corta: `SL.mini`. Al cambiar, `relayout` mueve las puntas
-    con el circuito. En `alto` el circuito llega a lo más a `TALL` (`o.tall`, 0.8 de su ancho) y baja si la escala de colores taparía rótulos altos (`o.head`) y las cortas se apilan
+    con el circuito. En `alto` el circuito llega a lo más a `TALL` (`o.tall`, 0.8 de su ancho) y las cortas se apilan
     más grandes si cabe; en `lateral` la página puede pedir una franja arriba de la mesa para su gráfica (`o.deskGraph`
     → `g.GRAPH`). `hoses` también en el celular: de los bornes o de la orilla de la corta (`HOSE`), por detrás.
   - `b.pinch` (resistencias y capacitores: asas solo con la tarjeta abierta), `b.part` (componente con
