@@ -522,7 +522,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   border: 2px solid var(--act); background: var(--card); color: var(--act);
 }
 .sim-side-btn:hover, .sim-sec .pb-btn:hover { background: color-mix(in srgb, var(--act) 10%, var(--card)); }
-.sim-side-btn[hidden] { display: none; }
+.sim-side-btn[hidden], .sim-side-row[hidden] { display: none; }
 .sim-sec .pb-btn[aria-pressed="true"] { background: var(--act); color: var(--card); }
 .sim-sec[data-act="arm"] .body { display: flex; flex-wrap: wrap; gap: 8px; }
 .sim-sec[data-act="arm"] .sim-hint { flex-basis: 100%; }
