@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261024023830">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024024403">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261024023830"></script>
-<script src="../../assets/banco.js?v=20261024023830"></script>
+<script src="../../assets/sim.js?v=20261024024403"></script>
+<script src="../../assets/banco.js?v=20261024024403"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -49,7 +49,7 @@
   const RS = [1000, 2000], XR = [300, 500];
   const hn = RS.map(R => Sim.narrowHalf(R));
   const sides = {};
-  const ohm = R => (R / 1000).toLocaleString('es-MX') + ' kΩ';
+  const ohm = Sim.ohm;
   const prof = g => Sim.profile(...[0, 1].map(k => Sim.narrowProfile((g.BOT - g.TOP) + (XR[k] - g.X0), hn[k])));
 
   const b = Sim.bench({

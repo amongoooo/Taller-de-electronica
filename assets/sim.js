@@ -25,6 +25,8 @@
   };
 
   Sim.fmt = (x, d = 1) => x.toLocaleString('es-MX', { minimumFractionDigits: d, maximumFractionDigits: d });
+  // Resistencia como se escribe en todas las páginas: 470 Ω, 1 kΩ, 2.2 kΩ (sin ceros de más).
+  Sim.ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : Math.round(R) + ' Ω';
 
   // ---------- panel: un canvas con tamaño lógico W×H que se escala para llenar su caja ----------
   // size puede ser [W, H] fijo o una función (ancho, alto de la caja) → [W, H], para que el dibujo
@@ -1189,11 +1191,12 @@
       }
       return list;
     };
-    side.part = ({ anchor, menu, isOpen, toggle }) => {
+    // visible(): si el renglón se ve; sin él, se ve si su marcador (anchor) está en el dibujo.
+    side.part = ({ anchor, menu, isOpen, toggle, visible }) => {
       const row = el('button', 'sim-part', '<span class="nm"></span><span class="vl"></span>');
       row.type = 'button';
       comBody().appendChild(row);
-      const p = { row, anchor, menu, isOpen: isOpen || (() => Sim.menu.isOpen(anchor())) };
+      const p = { row, anchor, menu, visible, isOpen: isOpen || (() => Sim.menu.isOpen(anchor())) };
       row.addEventListener('click', () => {
         if (side.isSheet()) setSheet(false);
         if (toggle) toggle(); else Sim.menu.toggle(anchor(), menu());
@@ -1215,7 +1218,7 @@
       const a = p.anchor(), o = p.menu(), pb = a.closest('.sim-panel');
       const r = a.getBoundingClientRect(), q = pb && pb.getBoundingClientRect();
       // escondido, o fuera del dibujo (un componente que no está en este acomodo)
-      p.row.hidden = a.hidden || (q && q.width > 0 && (r.right < q.left || r.left > q.right || r.bottom < q.top || r.top > q.bottom));
+      p.row.hidden = p.visible ? !p.visible() : a.hidden || (q && q.width > 0 && (r.right < q.left || r.left > q.right || r.bottom < q.top || r.top > q.bottom));
       const t = typeof o.title === 'function' ? o.title() : o.title;
       p.row.querySelector('.nm').textContent = t;
       p.row.querySelector('.vl').textContent = shown(o);

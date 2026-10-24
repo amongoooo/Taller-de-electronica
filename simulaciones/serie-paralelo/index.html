@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261024023830">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024024403">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261024023830"></script>
-<script src="../../assets/banco.js?v=20261024023830"></script>
+<script src="../../assets/sim.js?v=20261024024403"></script>
+<script src="../../assets/banco.js?v=20261024024403"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -47,7 +47,7 @@
   const RVALUES = Sim.series(RMIN, RMAX);
   const half = R => HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN;
   const fromHalf = h => Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
-  const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
+  const ohm = Sim.ohm;
   const XR = 260;                 // posición de las resistencias
   const st = { mode: 'serie', R: [470, 470], led: ['rojo', 'rojo'], broken: [false, false], rb: [false, false], burnT: [9, 9], ang: [0, 0], om: [0, 0] };
   const sides = {};

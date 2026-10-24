@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261024023830">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024024403">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261024023830"></script>
-<script src="../../assets/banco.js?v=20261024023830"></script>
+<script src="../../assets/sim.js?v=20261024024403"></script>
+<script src="../../assets/banco.js?v=20261024024403"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -53,7 +53,7 @@
   const RW = 0.05, FUSES = [50, 100, 250, 500, 1000];
   const mA = i => i >= 1000 ? fmt(i / 1000, i % 1000 ? 2 : 0) + ' A' : Math.round(i) + ' mA';
   const mLs = i => { const q = i * b.MLS_PER_MA; return q >= 1000 ? fmt(q / 1000, q % 1000 ? 2 : 0) + ' L/s' : Math.round(q) + ' mL/s'; };
-  const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
+  const ohm = Sim.ohm;
   // Calor del fusible y de la resistencia (de ¼ W), ver Sim.heat: el menú de cada uno lo muestra.
   const fh = Sim.heat(Sim.HEAT.fuse), rh = Sim.heat(Sim.HEAT.res);
   const st = { R: 1000, fuse: 100, blown: false, breakT: 9, sparks: [], burnt: false, burnT: 9, drops: [] };
@@ -76,7 +76,7 @@
       // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
       const fz = { at: fuseAt(g), half: 24, dV: st.blown ? V : 0, R: st.blown ? Infinity : 0, pr: fusePart, ext: w => w ? 22 : 14,
         draw: (ctx, w) => w ? safetyValve(ctx, g) : fuse(ctx, g),
-        tag: w => [w ? 'válvula de seguridad' : 'fusible', w ? mLs(st.fuse) : mA(st.fuse), st.blown, st.blown ? (w ? 'cerrada' : 'fundido') : ''] };
+        tag: w => [w ? 'válvula' : 'fusible', w ? mLs(st.fuse) : mA(st.fuse), st.blown, st.blown ? (w ? 'cerrada' : 'fundido') : ''] };   // en nodos va inclinada: el nombre corto
       const res = { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : V, R: st.burnt ? Infinity : st.R, pr: pinch,
         draw: (ctx, w) => {
           const [jx, jy] = jitter();

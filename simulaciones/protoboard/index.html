@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261024023830">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024024403">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261024023830"></script>
+<script src="../../assets/sim.js?v=20261024024403"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -257,7 +257,7 @@
     const e = Math.floor(Math.log10(R)) - 1, d = Math.round(R / 10 ** e);
     return [BAND[Math.floor(d / 10)], BAND[d % 10], BAND[e], '#c9a227'];
   };
-  const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
+  const ohm = Sim.ohm;
   const narrowHalf = R => Math.max(1, 4.6 - 1.8 * Math.log10(R / 100));
   // Puntos que avanzan por un recorrido; phase crece con la corriente. Con f = { v(t), I } cada punto toma el
   // color del modo elegido (Sim.colorMode): presión (voltaje) de 0 a 9 V, v(t) a lo largo del recorrido (t de 0
@@ -603,7 +603,8 @@
     for (const [k, r] of rows) if (!want.includes(k)) { r.remove(); rows.delete(k); }
     for (const k of want) if (!rows.has(k)) rows.set(k, Sim.side.part({
       anchor: () => anchors[shownSide()], menu: () => menuFor(shownSide(), k),
-      isOpen: () => menuK === k && selOpen(), toggle: () => toggleMenu(shownSide(), k)
+      isOpen: () => menuK === k && selOpen(), toggle: () => toggleMenu(shownSide(), k),
+      visible: () => true   // su marcador solo se pone junto a lo que tiene la tarjeta abierta
     }));
   };
   setInterval(syncRows, 250); syncRows();
