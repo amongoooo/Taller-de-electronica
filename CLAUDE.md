@@ -103,7 +103,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     `setPlacing`), cables con física (`ropeStep`, `leadStep`), placa de los bornes (`jackTarget`: por la orilla; `jackFlip`/`st.jswap`: gira para que los cables no se
     crucen), `measure` / `ohms` (V, A, Ω); en A con
     las puntas en dos nodos, `shorts` (un corto de 0,1 Ω: la red por nodos, `st.sx` lo que la fuente da de más; nunca se
-    rompe). `b.iOut()` es lo que de verdad da la fuente.
+    rompe; reescribe `v` e `Iat` de cada tramo y el voltaje de los nodos con esa red, y da `Sim.holds`, los tramos puenteados
+    donde las partículas se quedan quietas en `D.flow` y `Sim.water`). `b.iOut()` es lo que de verdad da la fuente; `b.flowI(m)`,
+    la corriente con la que las páginas mueven las partículas de su vuelta (con un corto, la de la fuente).
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
   - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado). Inercia: `inertia`. Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
     tramo de la fuente, para que el − (y la tierra, `b.ground`) quede en 0 V a la izquierda.

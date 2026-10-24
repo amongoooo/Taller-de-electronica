@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261023190029">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024023233">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261023190029"></script>
-<script src="../../assets/banco.js?v=20261023190029"></script>
+<script src="../../assets/sim.js?v=20261024023233"></script>
+<script src="../../assets/banco.js?v=20261024023233"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -154,6 +154,8 @@
       const target = st.charge && b.st.on ? b.st.set : 0;
       st.t += dt;
       if (target !== st.target) { st.target = target; st.ev = { t: st.t, v0: st.Vc, v1: target }; }
+      // si la fuente llega a su límite (CC) carga con corriente fija, no con τ = R·C: ya no se marca τ
+      if (st.ev && st.charge && b.st.cc) st.ev.cc = true;
       st.hist.push([st.t, st.Vc, Math.abs(I)]);
       while (st.hist.length && st.hist[0][0] < st.t - 60) st.hist.shift();
     },
@@ -258,7 +260,7 @@
     const pad = 22, Y = f => y1 - 6 - (y1 - y0 - pad - 6) * Math.max(0, Math.min(1.02, f));
     D.line(ctx, [[x0 + 6, Y(0)], [x1 - 6, Y(0)]], 1, C.line);
     // τ: línea punteada a la hora del 63 % y un punto donde la curva lo cruza
-    if (st.ev && st.ev.v0 !== st.ev.v1) {
+    if (st.ev && st.ev.v0 !== st.ev.v1 && !st.ev.cc) {
       const tt = st.ev.t + tau();
       if (tt >= ta && tt <= t1) {
         const f = (st.ev.v0 + 0.632 * (st.ev.v1 - st.ev.v0)) / b.vScale();

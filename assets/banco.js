@@ -673,6 +673,8 @@
     Sim.snapRange(inercia, { magnet: 0.5 });   // pasa de 0,1 en 0,1 s y se engancha en 0, 0,5, 1… s
     const setTau = () => { st.tau = +inercia.value; oIn.textContent = st.tau ? fmt(st.tau) + ' s' : 'sin'; };
     inercia.addEventListener('input', setTau); setTau();
+    // con un capacitor no hay inercia (ver b.start): no se ofrece
+    if (o.stateful) (inercia.closest('.sim-side-row') || inercia.parentElement).hidden = true;
 
     // ---------- puntas: los medidores se conectan al circuito ----------
     // El circuito son tramos de cable (o tubería) que se unen en sus puntas. Cada tramo lleva
@@ -1021,24 +1023,34 @@
     // marca la corriente que se va por él (ver shorts): entre el + y el − de la fuente se lleva toda la
     // corriente y la fuente entra en CC con su límite. No se rompe nunca. En Ω, la resistencia entre sus
     // puntas (ver ohms).
+    // Primero se ve dónde está cada punta y qué multímetros en A hacen un corto; con un corto, los voltajes y
+    // las corrientes de los tramos salen de la red con el multímetro (ver shorts) y luego se lee cada uno.
     const measure = segs => {
-      const out = {}, cuts = [];
+      const out = {}, cuts = [], at = {};
       for (const k of MS) {
-        const [A, B] = st.clamps[k].map(([x, y]) => snap(segs, x, y, false, k));
+        const [A, B] = at[k] = st.clamps[k].map(([x, y]) => snap(segs, x, y, false, k));
         st.clamps[k] = [[A.x, A.y], [B.x, B.y]];
-        const va = segs[A.k].v(A.d), vb = segs[B.k].v(B.d);
-        out[k] = { value: va - vb, va, vb };
-        if (st.dial[k] === 'R') out[k].value = st.show[k] && ready(k) ? ohms(k, va - vb) : NaN;
+        out[k] = { value: 0 };
         if (st.dial[k] !== 'A') continue;
         const sg = segs[A.k], d0 = Math.min(A.d, B.d), d1 = Math.max(A.d, B.d);
         const clear = A.k === B.k && !sg.source && d1 - d0 > 6 && !sg.comps.some(c => c.d1 > d0 && c.d0 < d1);
-        out[k].value = 0;
-        if (clear) { out[k].value = (A.d < B.d ? 1 : -1) * sg.I; out[k].cut = { k: A.k, d0, d1 }; }
+        if (clear) out[k].cut = { k: A.k, d0, d1 };
         else if (st.show[k] && ready(k)) cuts.push(k);
       }
-      shorts(out, cuts);
+      Sim.holds = shorts(out, cuts, segs, at);
+      for (const k of MS) {
+        const [A, B] = at[k], o = out[k];
+        o.va = segs[A.k].v(A.d); o.vb = segs[B.k].v(B.d);
+        if (o.short) continue;
+        if (st.dial[k] === 'R') o.value = st.show[k] && ready(k) ? ohms(k, o.va - o.vb) : NaN;
+        else if (st.dial[k] !== 'A') o.value = o.va - o.vb;
+        else if (o.cut) o.value = (A.d < B.d ? 1 : -1) * Iat(segs[A.k], (o.cut.d0 + o.cut.d1) / 2);
+      }
       return out;
     };
+    // Corriente de un tramo en d (en el sentido del recorrido): la del tramo, o la de ese pedazo si un corto la
+    // cambió (ver shorts).
+    const Iat = (sg, d) => sg.Iat ? sg.Iat(d) : sg.I;
     // Multímetros en A con sus puntas en dos nodos distintos: cada uno es una resistencia RM entre esos nodos.
     // Se resuelve la red por nodos (los componentes con su R; los que no la traen, como un LED o un
     // capacitor, con la que tienen ahora: su voltaje entre su corriente) con la fuente como un voltaje entre
@@ -1046,23 +1058,30 @@
     // la corriente de más que da la fuente (st.sx, que regulate suma a la de la página para saber si llega a
     // su límite). Con el corto entre el + y el −, casi toda la corriente se va por el multímetro y la fuente
     // entra en CC; el voltaje que queda es el límite por RM.
-    const shorts = (out, ks) => {
-      st.sx = 0;
-      if (!ks.length) return;
+    // Con el corto también cambia lo demás: los voltajes de los nodos y la corriente de cada pedazo de cable
+    // (por un tramo puenteado ya casi no pasa nada). Se reescriben v e Iat de los tramos (segs) con esa red, para
+    // que los colores, las barras de las puntas, el otro multímetro y la vista de nodos digan lo mismo que la
+    // pantallita; st.short.I es lo que da la fuente (b.flowI). Devuelve los tramos puenteados por los que no pasa
+    // corriente (Sim.holds): ahí las partículas se quedan quietas y las demás pasan por el multímetro.
+    const shorts = (out, ks, segs, at) => {
+      st.sx = 0; st.short = null;
+      if (!ks.length) return [];
       const n = netNow(), plus = n.nodes.find(x => x.plus), gnd = n.nodes.find(x => x.ground);
       const on = ks.map(k => {
         const [P, Q] = [0, 1].map(i => { const p = pieceAt(n, k, i); return p && p.node; });
         return P && Q && P !== Q ? { k, P, Q } : null;
       }).filter(Boolean);
-      if (!on.length || !plus || !gnd || plus === gnd) return;
+      if (!on.length || !plus || !gnd || plus === gnd) return [];
       const N = n.nodes.length, ix = new Map(n.nodes.map((x, i) => [x, i])), ip = ix.get(plus), ig = ix.get(gnd);
+      // conductancia de cada componente (S): la de su R o, sin ella, la que tiene ahora (su corriente entre su voltaje)
+      const cond = c => {
+        const R = c.c.R, sg = st.list[c.k], I = sg ? Math.abs(sg.I) / 1000 : 0, dV = Math.abs(c.c.dV || 0);
+        return R != null ? (R < 1e12 ? 1 / Math.max(R, 1e-3) : 0) : dV > 0.01 && I > 1e-7 ? I / dV : 0;
+      };
       const solve = withMeters => {
         const G = n.nodes.map(() => new Float64Array(N));
         const add = (p, q, gg) => { if (p === q || !(gg > 0)) return; G[p][p] += gg; G[q][q] += gg; G[p][q] -= gg; G[q][p] -= gg; };
-        n.comps.forEach(c => {
-          const R = c.c.R, sg = st.list[c.k], I = sg ? Math.abs(sg.I) / 1000 : 0, dV = Math.abs(c.c.dV || 0);
-          add(ix.get(c.A), ix.get(c.B), R != null ? (R < 1e12 ? 1 / Math.max(R, 1e-3) : 0) : dV > 0.01 && I > 1e-7 ? I / dV : 0);
-        });
+        n.comps.forEach(c => add(ix.get(c.A), ix.get(c.B), cond(c)));
         if (withMeters) on.forEach(m => add(ix.get(m.P), ix.get(m.Q), 1 / RM));
         // el + a 1 V y el − a 0 V; los demás nodos salen de que no se acumula corriente en ellos (un poquito a
         // tierra para que un nodo suelto no deje la cuenta sin solución)
@@ -1089,12 +1108,58 @@
       st.sx = Math.max(0, withM.I - without.I);
       // lo que da la fuente con este corto (al aparecer, sin esperar al siguiente cuadro), con su signo
       const V = regulate('A', st.ch.A.v)[0] * Math.sign(plus.v - gnd.v || 1);
+      const taps = [];   // [tramo, d, mA que salen del cable hacia el multímetro]: entra por la roja y sale por la negra
       on.forEach(m => {
-        const o = out[m.k];
+        const o = out[m.k], [A, B] = at[m.k];
         o.value = V * (withM.v[ix.get(m.P)] - withM.v[ix.get(m.Q)]) / RM * 1000;
         o.short = true;
+        taps.push([A.k, A.d, o.value], [B.k, B.d, -o.value]);
       });
+      // lo que da la fuente (mA, con el signo de la página) y cuánto cambió: los cables sin componentes, que no
+      // tienen de dónde sacar su corriente, la escalan igual
+      const Itot = V * withM.I * 1000, Ipage = st.m.I, ratio = Math.abs(Ipage) > 1e-6 ? Itot / Ipage : 0;
+      st.short = { I: Itot };
+      const nv = node => gnd.v + V * withM.v[ix.get(node)];
+      n.nodes.map(nv).forEach((v, i) => { n.nodes[i].v = v; });   // el voltaje de cada nodo (lo que dice su rótulo)
+      const sum = (ts, f) => ts.reduce((a, t) => a + (f(t[1]) ? t[2] : 0), 0);
+      segs.forEach((sg, k) => {
+        if (sg.source) { sg.I = Itot * sgn(); return; }
+        const ps = n.pieces.filter(p => p.k === k), cs = n.comps.filter(c => c.k === k), C = sg.comps;
+        if (ps.length !== C.length + 1 || cs.length !== C.length) return;
+        const Vr = ps.map(p => nv(p.node)), Ic = cs.map((c, j) => (Vr[j] - Vr[j + 1]) * cond(c) * 1000);
+        const tp = taps.filter(t => t[0] === k), base = sg.I * ratio;
+        sg.v = d => {
+          for (let j = 0; j < C.length; j++) {
+            if (d < C[j].d0) return Vr[j];
+            if (d <= C[j].d1) return Vr[j] + (Vr[j + 1] - Vr[j]) * (d - C[j].d0) / (C[j].d1 - C[j].d0 || 1);
+          }
+          return Vr[C.length];
+        };
+        // en un componente, la suya; en un cable, la del componente de después más lo que sale hacia las puntas
+        // antes de llegar a él (en el último cable, la del de antes menos lo que ya salió)
+        sg.Iat = d => {
+          let j = 0;
+          while (j < C.length && d > C[j].d1) j++;
+          if (j < C.length && d >= C[j].d0) return Ic[j];
+          const lo = j ? C[j - 1].d1 : -Infinity, hi = j < C.length ? C[j].d0 : Infinity;
+          const here = tp.filter(t => t[1] >= lo && t[1] <= hi);
+          if (j < C.length) return Ic[j] + sum(here, x => x > d);
+          return (C.length ? Ic[j - 1] : base) - sum(here, x => x < d);
+        };
+        sg.I = sg.Iat(0);
+      });
+      // Puenteado: las dos puntas en el mismo tramo, con componentes entre ellas por los que ya casi no pasa nada.
+      const holds = [];
+      on.forEach(m => {
+        const [A, B] = at[m.k], sg = segs[A.k], d0 = Math.min(A.d, B.d), d1 = Math.max(A.d, B.d);
+        if (A.k !== B.k || sg.source || !sg.Iat || !sg.comps.some(c => c.d0 > d0 && c.d1 < d1)) return;
+        if (Math.abs(sg.Iat((d0 + d1) / 2)) < 0.05 * Math.abs(out[m.k].value) + 0.01) holds.push({ pts: piecePts(sg.pts, d0, d1).pts });
+      });
+      return holds;
     };
+    // Corriente con la que avanzan las partículas de la vuelta de una página: la suya o, con un multímetro en A
+    // haciendo un corto, la que de verdad da la fuente (por el tramo puenteado no pasa: ahí se quedan quietas).
+    b.flowI = m => st.short ? st.short.I : m.I;
     // Un multímetro en A haciendo un corto por el que pasa corriente (para su aviso).
     const shorted = kind => st.dial[kind] === 'A' && st.probe[kind] && st.probe[kind].short && ready(kind) && Math.abs(st.probe[kind].value) > 0.05;
     // Ω como un multímetro de verdad: hace pasar una corriente chiquita (1 mA) de la punta roja a la negra
@@ -1149,7 +1214,7 @@
       }
       // la vibración aparece poco a poco mientras la corriente se apaga con la inercia
       if (!best || best.dist > 30) return 0;
-      const still = Math.max(0, 1 - Math.abs(best.sg.I) / 2);
+      const still = Math.max(0, 1 - Math.abs(Iat(best.sg, best.d)) / 2);
       if (!still) return 0;
       const v = best.sg.source ? 0 : best.sg.v(best.d);
       return v > 0.05 ? still * (0.5 + 2.2 * v / b.vScale()) : 0;
@@ -1169,7 +1234,7 @@
       }
       if (!best) return [0, 0];
       const v = bsg.source ? Math.abs(st.vo) * best.d / bsg.L : bsg.v(best.d);
-      return [v / b.vScale(), Math.abs(bsg.I) / iFull];
+      return [v / b.vScale(), Math.abs(Iat(bsg, best.d)) / iFull];
     };
     // Modo de color: en la esquina de arriba a la derecha de cada panel, un selector pequeño con el nombre de
     // cada modo (rapidez · presión · caudal; en la electricidad normal · voltaje · corriente) y debajo la
@@ -2721,7 +2786,7 @@
       });
       for (const p of net.pieces) if (water) D.pipe(ctx, p.m); else D.wire(ctx, p.m);
       // lo que circula, por cada tramo
-      st.segs.forEach((sg, k) => { if (!sg.source) D.flow(ctx, sg.pts, st.nph[k] || 0, water ? C.water : C.charge, { gap: 30, r: water ? 3.6 : 4.5 }); });
+      st.segs.forEach((sg, k) => { if (!sg.source) D.flow(ctx, sg.pts, st.nph[k] || 0, water ? C.water : C.charge, { gap: 30, r: water ? 3.6 : 4.5, key: 'nodos' + k }); });
       // componentes: el dibujo de la página, movido y girado a su lugar (sin sus letreros)
       for (const c of net.comps) (water ? D.pipe : D.wire)(ctx, [c.pose.a, c.pose.b]);   // el cable sigue por debajo
       const quiet = D.text, quietBg = D.backdrop;
@@ -2988,7 +3053,9 @@
     b.start = () => Sim.run(dt => {
       for (const c of CHS) {
         const h = st.ch[c];
-        h.v = h.level.step(st.on ? setOf(c) : 0, st.tau, dt);
+        // con un capacitor (stateful) la fuente sube de golpe, como la de verdad: con la rampa de la inercia la
+        // carga ya no sería la de R·C
+        h.v = h.level.step(st.on ? setOf(c) : 0, o.stateful ? 0 : st.tau, dt);
         [h.vo, h.cc] = regulate(c, h.v);
       }
       const A = st.ch.A;

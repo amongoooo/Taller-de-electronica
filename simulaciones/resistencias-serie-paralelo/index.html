@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261023190029">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024023233">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261023190029"></script>
-<script src="../../assets/banco.js?v=20261023190029"></script>
+<script src="../../assets/sim.js?v=20261024023233"></script>
+<script src="../../assets/banco.js?v=20261024023233"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -114,9 +114,9 @@
         st.burnT[j] += dt;
       }
       const k = 4, w = sides.w, e = sides.e;
-      if (st.mode === 'serie') { w.water.loop.step(m.I * k, dt); e.phase.loop += m.I * k * dt; }
+      if (st.mode === 'serie') { w.water.loop.step(b.flowI(m) * k, dt); e.phase.loop += b.flowI(m) * k * dt; }
       else {
-        w.water.trunk.step(m.I * k, dt); e.phase.trunk += m.I * k * dt;
+        w.water.trunk.step(b.flowI(m) * k, dt); e.phase.trunk += b.flowI(m) * k * dt;
         w.water.a.step(m.branch[0] * k, dt); e.phase.a += m.branch[0] * k * dt;
         w.water.b.step(m.branch[1] * k, dt); e.phase.b += m.branch[1] * k * dt;
       }

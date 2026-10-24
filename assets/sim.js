@@ -97,6 +97,18 @@
     }
     return pts[pts.length - 1];
   };
+  // Distancia sobre el recorrido del punto más cercano a (x, y), y qué tan lejos queda: { d, dist }.
+  D.project = (pts, x, y) => {
+    let best = null, d0 = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i], s = Math.hypot(bx - ax, by - ay);
+      const t = s ? Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (s * s))) : 0;
+      const dist = Math.hypot(x - ax - (bx - ax) * t, y - ay - (by - ay) * t);
+      if (!best || dist < best.dist) best = { d: d0 + t * s, dist };
+      d0 += s;
+    }
+    return best;
+  };
   // Punto y dirección (tx, ty) a la distancia d del recorrido.
   D.frameAt = (pts, d) => {
     for (let i = 1; i < pts.length; i++) {
@@ -244,15 +256,41 @@
   };
   // Puntos que avanzan por el recorrido; phase crece con la corriente.
   // Con el banco (Sim.field) cada punto toma el color de su modo (Sim.particleColor); sin él, col.
-  D.flow = (ctx, pts, phase, col, { gap = 30, r = 4.5 } = {}) => {
+  // En un tramo puenteado (Sim.holds) las cargas se quedan donde estaban (frozen: la fase de cuando empezó, por
+  // recorrido o por key) y las demás siguen: desaparecen en una punta y salen por la otra.
+  const frozen = new WeakMap(), frozenKey = new Map();
+  D.flow = (ctx, pts, phase, col, { gap = 30, r = 4.5, key } = {}) => {
     const L = D.len(pts), off = ((phase % gap) + gap) % gap, byField = !!Sim.field;
-    ctx.fillStyle = col;
-    for (let d = off, i = 0; d < L; d += gap, i++) {
+    const hs = Sim.holdsOn(pts), store = key == null ? frozen : frozenKey, id = key ?? pts;
+    if (!hs.length) store.delete(id); else if (!store.has(id)) store.set(id, phase);
+    const dot = (d, i) => {
       const [x, y] = D.pointAt(pts, d), [jx, jy] = Sim.jitter(x, y, i);
       if (byField) ctx.fillStyle = Sim.particleColor(x, y, null, col);
       ctx.beginPath(); ctx.arc(x + jx, y + jy, r, 0, Math.PI * 2); ctx.fill();
-    }
+    };
+    ctx.fillStyle = col;
+    for (let d = off, i = 0; d < L; d += gap, i++) if (!Sim.held(hs, d, L)) dot(d, i);
+    if (!hs.length) return;
+    const f = store.get(id);
+    for (let d = ((f % gap) + gap) % gap, i = 0; d < L; d += gap, i++) if (Sim.held(hs, d, L)) dot(d, i);
   };
+  // Tramos por donde no pasa corriente porque un multímetro en A los puentea: el banco pone aquí sus recorridos
+  // ({ pts }). Sim.holdsOn(pts) da los pedazos [desde, hasta] de pts que caen en ellos (hasta puede pasar de su largo
+  // si dan la vuelta a un recorrido cerrado) y Sim.held si d cae en uno.
+  Sim.holds = [];
+  Sim.holdsOn = pts => {
+    if (!Sim.holds.length) return [];
+    const L = D.len(pts), n = pts.length - 1, closed = Math.hypot(pts[0][0] - pts[n][0], pts[0][1] - pts[n][1]) < 1, out = [];
+    for (const h of Sim.holds) {
+      const hl = D.len(h.pts), [a, b, m] = [h.pts[0], h.pts[h.pts.length - 1], D.pointAt(h.pts, hl / 2)].map(q => D.project(pts, ...q));
+      if (a.dist > 3 || b.dist > 3 || m.dist > 3) continue;
+      const lo = Math.min(a.d, b.d), hi = Math.max(a.d, b.d);
+      if (m.d >= lo && m.d <= hi) out.push([lo, hi]);
+      else if (closed) out.push([hi, lo + L]);
+    }
+    return out;
+  };
+  Sim.held = (hs, d, L) => hs.some(([lo, hi]) => (d >= lo && d <= hi) || (d + L >= lo && d + L <= hi));
   // Vibración de las partículas donde hay presión (voltaje) pero no corriente: el banco pone en
   // Sim.shake(x, y) la amplitud en cada punto; seed hace que cada partícula vibre a su ritmo.
   Sim.shake = null;
@@ -668,20 +706,36 @@
       const span = Vs[hi] - Vs[lo];
       return [lo * ds + (span ? (v - Vs[lo]) / span : 0) * ds, Hs[lo]];
     };
+    // volumen hasta la distancia d
+    const volAt = d => { const t = Math.max(0, Math.min(N, d / ds)), i = Math.min(N - 1, Math.floor(t)); return Vs[i] + (Vs[i + 1] - Vs[i]) * (t - i); };
+    const mod = v => ((v % VT) + VT) % VT;
     let rate = 0;
     return {
       parts, setProfile,
-      // flow: caudal en unidades de "rapidez media en la tubería normal" (unidades de dibujo por segundo).
+      // flow: caudal en unidades de "rapidez media en la tubería normal" (unidades de dibujo por segundo). En un
+      // tramo puenteado (Sim.holds) el agua se queda quieta y la que llega a él sale por el otro lado, como si
+      // pasara por el medidor.
       step(flow, dt) {
         rate = flow * Sim.PIPE;
-        for (const p of parts) { p.v = (p.v + rate * p.u * dt) % VT; if (p.v < 0) p.v += VT; }
+        const hs = Sim.holdsOn(pts).map(([lo, hi]) => { const a = volAt(lo); return [a, hi > L ? VT + volAt(hi - L) : volAt(hi)]; });
+        for (const p of parts) {
+          const dv = rate * p.u * dt;
+          p.held = hs.some(([a, b]) => mod(p.v - a) < b - a);
+          if (p.held) continue;
+          let v = p.v + dv;
+          for (const [a, b] of hs) {
+            if (dv > 0 && mod(a - p.v) < dv) v += b - a;
+            else if (dv < 0 && mod(p.v - b) < -dv) v -= b - a;
+          }
+          p.v = mod(v);
+        }
       },
       draw(ctx, r = radius) {
         parts.forEach((p, i) => {
           const [d, h] = locate(p.v);
           const [x, y, tx, ty] = D.frameAt(pts, d);
           const off = p.f * h, [jx, jy, js] = Sim.jitter(x, y, i);
-          ctx.fillStyle = Sim.particleColor(x, y, Math.max(Math.abs(rate * p.u / h), js) / vmax);
+          ctx.fillStyle = Sim.particleColor(x, y, Math.max(p.held ? 0 : Math.abs(rate * p.u / h), js) / vmax);
           ctx.beginPath(); ctx.arc(x - ty * off + jx, y + tx * off + jy, r, 0, Math.PI * 2); ctx.fill();
         });
       }
