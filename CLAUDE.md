@@ -77,7 +77,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     en celular suben desde abajo (acostado, salen de la derecha).
   - `Sim.side`: columna/hoja de controles. `sec(k)`, `row`, `button`, `part({ anchor, menu, isOpen, toggle })`
     (renglón de Componentes que abre la misma tarjeta).
-  - `Sim.ORDER` (orden de las simulaciones), barra (`Sim.steps`, `Sim.viewSwitch` con transición de vista,
+  - `Sim.ORDER` (orden de las simulaciones), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre, `Sim.viewSwitch` con transición de vista,
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:

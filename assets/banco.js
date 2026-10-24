@@ -1727,9 +1727,9 @@
         box.className = 'sim-read'; box.setAttribute('aria-live', 'off');
         const rows = ['w', 'e'].map(side => {
           const r = document.createElement('div');
-          r.innerHTML = '<span class="nm"></span><span class="vl"></span>';
+          r.innerHTML = '<span class="nm"></span><span class="vl"></span>' + (side === 'e' ? '<span class="sub"></span>' : '');
           box.appendChild(r);
-          return { r, side, nm: r.firstChild, vl: r.lastChild };
+          return { r, side, nm: r.children[0], vl: r.children[1], sub: r.children[2] };
         });
         wrap.appendChild(box);
         return { kind, box, rows };
@@ -1750,13 +1750,20 @@
         add.textContent = (some ? '+ Sacar otro ' : '+ Sacar un ') + what;
       };
       Sim.onView(syncMed); syncMed(); syncs.push(syncMed);
+      // Un renglón por multímetro: el del panel que se ve; con los dos, el eléctrico con la lectura del agua debajo.
       setInterval(() => blocks.forEach(({ kind, rows }) => rows.forEach(o => {
         if (!st.probe[kind]) return;   // todavía no arranca
-        o.r.hidden = Sim.view !== 'both' && Sim.view !== o.side;
+        const both = Sim.view === 'both';
+        o.r.hidden = both ? o.side !== 'e' : Sim.view !== o.side;
         if (o.r.hidden) return;
         const md = st.dial[kind], [t, u] = meterText(kind, o.side), off = md !== 'off' && !ready(kind);
         o.vl.textContent = md === 'off' ? 'apagado' : off ? 'sin conectar' : t.trim() + ' ' + u + (live(kind) ? ' ⚠ hay voltaje' : shorted(kind) ? ' ⚠ corto' : '');
         o.r.className = 'r ' + md + (off || md === 'off' ? ' off' : '') + (live(kind) || shorted(kind) ? ' warn' : '');
+        if (o.sub) {
+          const [tw, uw] = meterText(kind, 'w');
+          o.sub.hidden = !both || off || md === 'off';
+          o.sub.textContent = 'en el agua: ' + tw.trim() + ' ' + uw;
+        }
       })), 200);
     }
     // Botón de recoger en cada medidor (con un conector): como una aspiradora, el medidor jala sus
