@@ -440,7 +440,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-steps { flex: 1 1 380px; max-width: 560px; min-width: 150px; display: flex; gap: 6px; }
 .sim-steps .seg {
   flex: 1 1 0; min-width: 0; display: grid; gap: 4px; padding: 4px 0 2px; border: 0; background: none; cursor: pointer;
-  font: inherit; font-size: 13px; line-height: 1.2; color: var(--muted); text-align: left; touch-action: manipulation;
+  font: inherit; font-size: 14px; line-height: 1.2; color: var(--muted); text-align: left; touch-action: manipulation;
 }
 .sim-steps .seg i { display: block; height: 6px; border-radius: 3px; background: var(--line); transition: background .25s, opacity .25s; }
 .sim-steps .seg[data-on="true"] i { background: var(--water); opacity: .5; }
@@ -451,6 +451,10 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-steps .seg:hover { color: var(--ink); }
 .sim-steps .seg:not([data-on="true"]):hover i { background: var(--muted); }
 .sim-steps .seg:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; border-radius: 4px; }
+/* Si los nombres no caben (Sim.steps pone tight): los demás pasos solo con su número, el actual entero. */
+.sim-steps.tight .seg:not([aria-current]) { flex: 0 1 44px; }
+.sim-steps.tight .seg:not([aria-current]) .name { display: none; }
+.sim-steps.tight .seg[aria-current] { flex: 1 1 auto; }
 
 /* Botón de la barra: Controles (secundario: sin color propio). */
 .sim-ctl-btn {
@@ -466,7 +470,7 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   .sim-bar .back::before { content: "←"; font-size: 20px; line-height: 1; }
   .sim-bar .back:hover { text-decoration: none; border-color: var(--water); background: var(--water-soft); }
 }
-@media (max-width: 1360px) { .sim-go.next .name, .sim-steps .seg:not([aria-current]) .name { display: none; } }
+@media (max-width: 1360px) { .sim-go.next .name { display: none; } }
 @media (max-width: 1200px) { .sim-ctl-btn .t { display: none; } .sim-ctl-btn { padding: 0 8px; } .sim-bar { column-gap: 10px; } .sim-foot { padding-left: 10px; } }
 
 /* ---------- columna de controles ----------
@@ -508,6 +512,10 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 
 .sim-sec { display: grid; gap: 10px; padding: 10px 12px 12px; border-radius: 12px; background: var(--bg); border-left: 4px solid var(--act); }
 .sim-sec[hidden] { display: none; }
+/* En la columna, Medir (la última) se queda pegada abajo: al abrir una tarjeta la lectura sigue a la vista. */
+.sim-page:not([data-side="sheet"]) .sim-sec[data-act="med"] { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -10px 18px -10px rgb(0 0 0 / .3); }
+/* el margen de abajo de la columna, del color de la columna, para que no se asome lo de atrás */
+.sim-page:not([data-side="sheet"]) .sim-sec[data-act="med"]::after { content: ""; position: absolute; left: -16px; right: -16px; top: 100%; height: 40px; background: var(--card); }
 .sim-sec h3 {
   display: flex; align-items: center; gap: 8px; margin: 0; color: var(--act);
   font-family: var(--font-display); font-stretch: 125%; font-size: 14px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap;
@@ -563,6 +571,8 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-read .vl { font-family: var(--font-mono); font-size: 30px; font-weight: 600; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sim-read .r.off .vl { font-family: var(--font-body); font-size: 16px; font-weight: 500; color: var(--muted); }
 .sim-read .r.warn .vl { font-size: 20px; white-space: normal; }
+.sim-read .sub { font-size: 15px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sim-read .sub[hidden] { display: none; }
 /* Cada multímetro en Medir: su lectura, su perilla y sus botones; al final, sacar el segundo. */
 .sim-mms { display: grid; gap: 14px; }
 .sim-mm { display: grid; gap: 6px; }
@@ -749,5 +759,8 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
   border-radius: 6px; background: transparent; border: 0; touch-action: manipulation;
 }
 .sim-wave:focus-visible, .sim-trig:focus-visible { outline: 2px solid var(--water); outline-offset: 1px; }
+/* La tecla 1 del generador late una vez al entrar (la salida empieza apagada), como Siguiente. */
+.sim-trig.pulse { animation: sim-go-pulse 1.8s ease-out 1; }
+@media (prefers-reduced-motion: reduce) { .sim-trig.pulse { animation: none; } }
 /* Lo que se guarda (el generador con el osciloscopio de frente, los mandos que el acomodo no tiene) no se ve. */
 .sim-layer > [hidden] { display: none !important; }

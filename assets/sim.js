@@ -1390,12 +1390,21 @@
       return b;
     });
     const where = foot && foot.querySelector('.sim-where');
+    // Si algún nombre no cabe completo, los pasos que no son el actual se quedan con su número (su nombre sigue
+    // en el globito) y el actual se lee entero.
+    const fit = () => {
+      wrap.classList.remove('tight');
+      if (segs.some(b => { const t = b.querySelector('.t'); return t.offsetWidth && t.scrollWidth > t.clientWidth + 1; })) wrap.classList.add('tight');
+    };
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(wrap);
+    if (document.fonts) document.fonts.ready.then(fit);
     const fromHash = () => { const m = /^#paso-(\d+)$/.exec(location.hash); return m ? Math.min(n, Math.max(1, +m[1])) - 1 : 0; };
     let k = -1;
     const set = (j, push) => {
       if (j === k) return;
       k = j;
       segs.forEach((b, i) => { b.dataset.on = String(i <= k); b.toggleAttribute('aria-current', i === k); });
+      fit();
       if (where) { where.querySelector('.k').textContent = `Paso ${k + 1} de ${n}`; where.querySelector('.nm').textContent = steps[k]; }
       if (foot) foot.dataset.last = String(k === n - 1);
       if (k === n - 1) pulseOnce();

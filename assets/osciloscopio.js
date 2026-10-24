@@ -686,9 +686,17 @@
       limit('amp');   // al salir de DC la amplitud vuelve a contar
     });
     const chKey = g => g.gmini ? GMINI.ch : GEN.ch[0];
-    linkedButton({ pos: g => gAt(g, chKey(g)), dim: g => chKey(g).slice(2), cls: 'sim-trig', act: 'ali', hidden: () => !geos.e.gen,
+    const chPair = linkedButton({ pos: g => gAt(g, chKey(g)), dim: g => chKey(g).slice(2), cls: 'sim-trig', act: 'ali', hidden: () => !geos.e.gen,
       label: side => `Tecla 1: ${st.on ? 'apaga' : 'prende'} la salida CH1 ${genName(side)}`, attrs: () => ({ 'aria-pressed': String(st.on) }),
       onClick: () => { st.on = !st.on; syncGen(); } });
+    // La salida empieza apagada, como la del generador de verdad: su tecla 1 late una vez por sesión en cada página
+    // (como Siguiente) para que se vea qué se toca primero. Con movimiento reducido no late.
+    setTimeout(() => {
+      if (st.on || Sim.REDUCE.matches) return;
+      const key = 'sim-pulse-gen:' + location.pathname;
+      try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) {}
+      chPair.forEach(el => { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); });
+    }, 900);
     // Abrir el generador (en el celular) o cerrarlo: abierto, el osciloscopio regresa a la mesa.
     const reflow = () => { pw.refit(); pe.refit(); relayout('w', pw.mode); relayout('e', pe.mode); rebuild(); };
     linkedButton({ pos: g => g.gmini ? gAt(g, GMINI.fold) : gAt(g, [GEN.ch[0][0] + 54, 22]), dim: () => [44, 34], cls: 'sim-trig', act: 'ali',
