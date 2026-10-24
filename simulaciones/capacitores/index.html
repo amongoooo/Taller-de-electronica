@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261024023830">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024024403">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261024023830"></script>
-<script src="../../assets/banco.js?v=20261024023830"></script>
+<script src="../../assets/sim.js?v=20261024024403"></script>
+<script src="../../assets/banco.js?v=20261024024403"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -57,7 +57,7 @@
   const fromHalf = h => Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
   const rcOf = c => RCMIN + (RCMAX - RCMIN) * Math.log(c / CMIN) / LNC;   // radio del tanque
   const cOf = r => Sim.nearest(CVALUES, CMIN * Math.exp((Math.max(RCMIN, Math.min(RCMAX, r)) - RCMIN) / (RCMAX - RCMIN) * LNC));
-  const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
+  const ohm = Sim.ohm;
   const uF = c => c + ' µF';
   const secs = t => fmt(t, t < 1 ? 2 : 1) + ' s';
   const K = 6;                     // px que avanzan las partículas por cada mC (como I·6 en las demás)

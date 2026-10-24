@@ -634,7 +634,7 @@
       const x = v * k, ax = Math.abs(x), d = (ax >= 99.95 ? 0 : ax >= 9.995 ? 1 : ax >= 0.995 || !bare ? 2 : 3) + (u === 'Hz' ? 1 : 0);
       return x.toFixed(d) + p + u;
     };
-    const ohm = R => R >= 1000 ? (R / 1000).toLocaleString('es-MX') + ' kΩ' : R + ' Ω';
+    const ohm = Sim.ohm;
 
     // Generador, como el del taller (un JDS-2900): una sola perilla sin fin; las cinco teclas junto a la pantalla
     // (FREQ, AMPL, OFFS, DUTY, PHAS) eligen qué cambia, ◀ ▶ mueven el dígito que cambia, WAVE pasa a la siguiente
@@ -1290,7 +1290,7 @@
           danger: shut || st.rev, state: shut ? 'compuerta cerrada' : st.rev ? 'al revés' : '' } : { name: w ? 'sin rueda' : 'sin LED' };
       }
       if (K === 'D') return { name: ref || [w ? 'válvula de retención' : 'diodo', w ? 'válvula' : 'D'],
-        value: w ? '0,7 psi' : '1N4007', sel: parts[k].open(), state: dState(k, w) };
+        value: w ? fmt(VF, 1) + ' psi' : '1N4007', sel: parts[k].open(), state: dState(k, w) };
       if (!capOn()) return { name: w ? 'sin tanque' : 'sin capacitor' };
       return { name: [w ? 'tanque con membrana' : 'capacitor', w ? 'tanque' : 'C'], value: capText(st.Cap), sel: parts[k].open(),
         danger: capRev(), state: capRev() ? 'al revés' : '' };

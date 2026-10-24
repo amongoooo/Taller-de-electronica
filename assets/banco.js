@@ -636,7 +636,7 @@
       fi: { min: -0.5, max: 0.5, step: 0.01, get: h => h.fi, set: (h, v) => { h.fi = v; },
         label: (c, side) => `VOLTAGE FINE ${chName(c, side)}: ${side === 'w' ? 'presión' : 'voltaje'} fino, ±0,5` },
       cu: { min: 0, max: LIMS.length - 1, step: 1, get: h => LIMS.indexOf(h.lim), set: (h, k) => { h.lim = LIMS[k]; },
-        label: (c, side) => `CURRENT ${chName(c, side)}: ${side === 'w' ? 'caudal' : 'corriente'} máximo` }
+        label: (c, side) => `CURRENT ${chName(c, side)}: ${side === 'w' ? 'caudal máximo' : 'corriente máxima'}` }
     };
     const vText = (v, side) => fmt(v * (side === 'w' ? PSI_PER_V : 1), 2) + (side === 'w' ? ' psi' : ' V');
     const iText = (i, side) => side === 'w' ? fmt(i * MLS_PER_MA / 1000, 3) + ' L/s' : fmt(i / 1000, 3) + ' A';
@@ -662,8 +662,9 @@
       const h = st.ch[c], keys = ['w', 'e'].map(side => [physKey(side, g => chAt(g, c, lay(g).c.key), g => (lay(g).c.key || [0, 0, 30, 20]).slice(2),
         () => { h.disp = h.disp === 'V' ? 'A' : 'V'; h.press = performance.now() + 140; h.peek = null; sync(); }), side]);
       const sync = () => keys.forEach(([bt, side]) => {
-        const [v, i] = side === 'w' ? ['presión', 'caudal'] : ['voltaje', 'corriente'];
-        const l = `Tecla V/A ${chName(c, side)}: la pantallita marca ${h.disp === 'V' ? v : i}; tócala para ver ${h.disp === 'V' ? 'el ' + i : 'la ' + v}`;
+        // con su artículo: la presión y el caudal, el voltaje y la corriente
+        const [v, i] = side === 'w' ? ['la presión', 'el caudal'] : ['el voltaje', 'la corriente'];
+        const l = `Tecla V/A ${chName(c, side)}: la pantallita marca ${h.disp === 'V' ? v : i}; tócala para ver ${h.disp === 'V' ? i : v}`;
         bt.setAttribute('aria-label', l); bt.title = l; bt.setAttribute('aria-pressed', String(h.disp === 'A'));
       });
       sync();
