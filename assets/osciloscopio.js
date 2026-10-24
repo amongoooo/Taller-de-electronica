@@ -1305,7 +1305,8 @@
         const nm = [].concat(t.name), pick = nm.find(n => D.tagWidth(ctx, n, t.value, t.state) <= room) ?? nm[nm.length - 1];
         D.tag(ctx, right ? xr : xr - D.tagWidth(ctx, pick, t.value, t.state), y, pick, t.value, { ...t, align: 'left' });
       }
-      for (const ry in rows) D.tagRow(ctx, +ry, rows[ry], g.X0 + (w ? 50 : 80), g.X1 + 30);   // sin llegar al letrero Agua / Electricidad
+      // sin llegar al letrero Agua / Electricidad (más ancho en la pantalla que en el dibujo si el panel se ve chico)
+      for (const ry in rows) D.tagRow(ctx, +ry, rows[ry], Math.max(g.X0 + (w ? 50 : 80), (w ? pw : pe).tagEdge(+ry)), g.X1 + 30);
     };
     // Contorno de lo seleccionado y, si falta el LED o el capacitor, su lugar punteado (se toca para ponerlo).
     const BOX = { R: [108, 52], L: [80, 80], D: [80, 80], C: [76, 76] };
