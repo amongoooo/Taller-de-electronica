@@ -70,6 +70,15 @@
     p.at = (el, pos) => { const it = { el, pos }; p.items.push(it); place(it); return el; };
     p.refit = fit;
     p.replace = () => p.items.forEach(place);   // volver a acomodar controles que cambian de lugar
+    // Dónde acaba (x del dibujo) el letrero Agua / Electricidad del panel si un rótulo a la altura y lo tocaría;
+    // -Infinity si no se ve o queda más arriba o más abajo. Sirve de orilla izquierda a D.tagRow.
+    const tag = box.querySelector('.sim-tag');
+    p.tagEdge = y => {
+      if (!tag || !tag.offsetWidth) return -Infinity;
+      const py = p.oy + y * p.scale, top = tag.offsetTop, bot = top + tag.offsetHeight;
+      if (py + 16 < top || py - 16 > bot) return -Infinity;
+      return (tag.offsetLeft + tag.offsetWidth + 8 - p.ox) / p.scale;
+    };
     p.begin = () => {
       const ctx = canvas.getContext('2d');
       ctx.setTransform(1, 0, 0, 1, 0, 0);

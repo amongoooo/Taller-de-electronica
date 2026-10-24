@@ -34,6 +34,9 @@
 //   stateful,         true si la corriente cambia sola con el tiempo (un capacitor que se carga):
 //                     esos cambios ya vienen suaves y no se toman como cambios del circuito
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
+//   tall,             en el celular vertical, lo más alto del circuito (si falta, 0.8 de su ancho: lo demás es para la mesa)
+//   deskGraph,        alto de una gráfica de la página que en el celular acostado va arriba en la mesa (g.GRAPH:
+//                     [x0, y0, x1, y1], null mientras hay un instrumento abierto)
 //   overlay(ctx, g, m)                    lo que va encima de todo (avisos de la página)
 // })
 // b.st.set es el voltaje de las perillas (st.ch.A, el único canal) y b.vScale() el voltaje de la escala de colores.
@@ -146,6 +149,8 @@
       }
       return [MODES[mode].W, best.H, MODES[mode].x0, mode];
     };
+    // Lo más alto del circuito en el celular vertical (ver geometry): 0.8 de su ancho, o lo que pida la página.
+    const TALL = o.tall || 0.8 * (640 - 180);
     // Medidas de un multímetro sin escalar (ver shape): extendido, compactado y corto (cs, el del celular).
     const MW = { full: 152, small: 184, h: 212, hs: 70, cs: 144 };
     // La fuente se dibuja en sus coordenadas (SL, ver más abajo) escalada g.FK; g.FL dice cuál de sus
@@ -154,35 +159,45 @@
     // En el celular (alto y lateral) cada instrumento tiene dos versiones: la corta, que solo deja leer (los
     // multímetros) o hacer lo de siempre (la fuente: POWER y COARSE), y la abierta (st.front: 'src',
     // 'a' o 'b'), grande y con todos sus mandos. Se abre uno a la vez con su tecla (FOLD). Sin ninguno abierto, las
-    // versiones cortas van en un renglón: multímetro · fuente · segundo multímetro (en el lateral, donde sobra alto,
-    // los multímetros arriba de la fuente y más grandes). La fuente abierta va a lo ancho
+    // versiones cortas van en un renglón: multímetro · fuente · segundo multímetro (donde sobra alto, los
+    // multímetros arriba de la fuente y más grandes). La fuente abierta va a lo ancho
     // con las demás cortas en un renglón arriba; un multímetro abierto, con las demás cortas en una columna a su
     // lado (los multímetros arriba de la fuente). Todos alineados por su base; da dónde empieza lo de arriba.
+    // Apilados van siempre en el lateral y en el alto si así salen más grandes. top: hasta dónde pueden subir (en el
+    // alto, hasta el tope del circuito; en el lateral, la orilla de arriba o la gráfica de la página, ver geometry).
     // PH: el espacio entre ellos, lo que sobresalen los bornes de un multímetro, la escala más grande de las
-    // versiones cortas (k; kl en el lateral) y la del multímetro abierto (open; openL en el lateral) y la de la fuente abierta (src).
-    const PH = { gap: 12, plate: 16, k: 1.2, kl: 1.5, open: 1.3, openL: 1.35, src: 1.4 };
+    // versiones cortas en un renglón (k) y apiladas (kl en el lateral, kt en el alto), la del multímetro abierto (open;
+    // openL en el lateral) y la de la fuente abierta (src).
+    const PH = { gap: 12, plate: 16, k: 1.2, kl: 1.5, kt: 1.7, open: 1.3, openL: 1.35, src: 1.4 };
     const cw = k => k === 'src' ? SL.mini.w : MW.cs, chh = k => k === 'src' ? SL.mini.h : MW.hs + PH.plate;
-    const phoneDesk = (g, box, cx, base, avail, lateral) => {
-      const f = st.front, rest = ['a', 'src', 'b'].filter(k => k !== f && (k === 'src' || st.show[k]));
+    const rowW = items => items.reduce((t, k) => t + cw(k), 0) + PH.gap * (items.length - 1);
+    const phoneDesk = (g, box, cx, base, avail, lateral, top) => {
+      const f = st.front, rest = ['a', 'src', 'b'].filter(k => k !== f && (k === 'src' || st.show[k])), room = base - top;
       const put = (k, x, y, s) => { if (k === 'src') { box('mini', s); g.BX = x - g.BW / 2; g.BY = y - g.BH; } else { g.mk[k] = s; g.meters[k] = [x, y]; } };
       const row = (items, y, kMax = lateral ? PH.kl : PH.k) => {
         if (!items.length) return y;   // la fuente abierta sin multímetros a la vista
-        const nat = items.reduce((t, k) => t + cw(k), 0) + PH.gap * (items.length - 1), s = Math.min(kMax, avail / nat);
+        const nat = rowW(items), s = Math.min(kMax, avail / nat);
         let x = cx - nat * s / 2;
         items.forEach(k => { put(k, x + cw(k) * s / 2, y, s); x += (cw(k) + PH.gap) * s; });
         return y - Math.max(...items.map(chh)) * s;
       };
       if (f === 'src') {
-        box('wide', Math.min(PH.src, avail / SL.wide.w)); g.BX = cx - g.BW / 2; g.BY = base - g.BH;
-        return row(rest, g.BY - PH.gap);
+        // la fuente abierta y arriba el renglón de las cortas; si no cabe a lo alto, todo se achica parejo
+        let ks = Math.min(PH.src, avail / SL.wide.w), kr = rest.length ? Math.min(lateral ? PH.kl : PH.k, avail / rowW(rest)) : 0;
+        const need = SL.wide.h * ks + (rest.length ? PH.gap + Math.max(...rest.map(chh)) * kr : 0);
+        if (need > room) { const t = (room - (rest.length ? PH.gap : 0)) / (need - (rest.length ? PH.gap : 0)); ks *= t; kr *= t; }
+        box('wide', ks); g.BX = cx - g.BW / 2; g.BY = base - g.BH;
+        return row(rest, g.BY - PH.gap, kr);
       }
-      if (!f && lateral) {
-        const ms = rest.filter(k => k !== 'src'), mw = ms.length * MW.cs + PH.gap * Math.max(0, ms.length - 1);
-        const hh = SL.mini.h + (ms.length ? chh('a') + PH.gap : 0), s = Math.min(PH.kl, avail / Math.max(mw, SL.mini.w), (base - 30) / hh);
-        put('src', cx, base, s);
-        return ms.length ? row(ms, base - (SL.mini.h + PH.gap) * s, s) : base - SL.mini.h * s;
+      if (!f) {
+        const ms = rest.filter(k => k !== 'src'), hh = SL.mini.h + (ms.length ? chh('a') + PH.gap : 0);
+        const s = Math.min(lateral ? PH.kl : PH.kt, avail / Math.max(ms.length ? rowW(ms) : 0, SL.mini.w), room / hh);
+        if (lateral || s > Math.min(PH.k, avail / rowW(rest), room / Math.max(...rest.map(chh)))) {
+          put('src', cx, base, s);
+          return ms.length ? row(ms, base - (SL.mini.h + PH.gap) * s, s) : base - SL.mini.h * s;
+        }
+        return row(rest, base, Math.min(PH.k, room / Math.max(...rest.map(chh))));
       }
-      if (!f) return row(rest, base);
       const mk = lateral ? PH.openL : PH.open, mw = MW.full * mk, colN = Math.max(...rest.map(cw));
       const s = Math.min(PH.k, (avail - mw - PH.gap) / colN), colW = colN * s, x0 = cx - (mw + PH.gap + colW) / 2, left = f === 'a';
       g.mk[f] = mk; g.meters[f] = [left ? x0 + mw / 2 : x0 + colW + PH.gap + mw / 2, base];
@@ -199,15 +214,23 @@
       if (mode === 'lateral') {
         g.DESK = 668;
         const right = 110 + W;   // la orilla derecha de lo que se ve
-        phoneDesk(g, box, (g.DESK + right) / 2, H - 12, right - g.DESK - 24, true);
+        // la gráfica de la página (o.deskGraph: su alto) va arriba en la mesa, mientras no hay un instrumento abierto
+        g.GRAPH = o.deskGraph && !st.front ? [g.DESK + 14, 14, right - 14, 14 + o.deskGraph] : null;
+        phoneDesk(g, box, (g.DESK + right) / 2, H - 12, right - g.DESK - 24, true, g.GRAPH ? g.GRAPH[3] + 22 : 24);
         g.BOT = H - 64;
         g.COL = [650, 10];   // arriba de la mesa no cabe: va arriba a la derecha del circuito
         g.TOP = 170;         // y el circuito baja un poco para dejarle lugar
       } else if (mode === 'alto') {
-        g.DESK = phoneDesk(g, box, g.PX, H - 18, W - 20, false) - 16;
+        // El circuito llega a lo más a TALL de alto (si no, es casi todo hueco) y lo demás es para la mesa: las
+        // versiones cortas salen más grandes y, si aún sobra, quedan al centro de la mesa. Con un instrumento
+        // abierto que necesita más, el circuito se achica como siempre.
+        g.TOP = 170;
+        const base = H - 18, top = g.TOP + TALL + 56 + 16, t = phoneDesk(g, box, g.PX, base, W - 20, false, top);
+        const d = Math.max(0, t - top) / 2;
+        if (d) { g.BY -= d; MS.forEach(k => { g.meters[k] = [g.meters[k][0], g.meters[k][1] - d]; }); }
+        g.DESK = Math.min(t, top) - 16;
         g.BOT = g.DESK - 56;
         g.COL = [660, 10];
-        g.TOP = 170;
       } else {
         // multímetro · fuente · segundo multímetro
         const medio = mode === 'medio', slot = medio ? MW.full : MW.small - 14, gap = 12;
@@ -431,7 +454,8 @@
 
     // Las etiquetas de varios componentes en un renglón (ver D.tagRow): cada una { x, pr, name, value, danger,
     // state }; sin salirse del dibujo de su lado.
-    b.tagRow = (ctx, g, y, items) => D.tagRow(ctx, y, items.map(it => ({ ...it, sel: !!(it.pr && it.pr.open && it.pr.open()) })), g.VX + 8, g.VX + g.W - 8);
+    b.tagRow = (ctx, g, y, items) => D.tagRow(ctx, y, items.map(it => ({ ...it, sel: !!(it.pr && it.pr.open && it.pr.open()) })),
+      Math.max(g.VX + 8, panel(g.side).tagEdge(y)), g.VX + g.W - 8);   // sin llegar al letrero Agua / Electricidad
 
     // ---------- la fuente se mueve ----------
     // La bomba (o la fuente) y su controlador son un solo bloque, como una fuente de laboratorio: se
@@ -2265,24 +2289,33 @@
     // Mangueras de la bomba (cables de la fuente): de su + y su − al símbolo del circuito, que está justo arriba
     // de los bornes. En el agua llegan a la carcasa de la rueda, abajo a los lados (el + a la izquierda, del lado
     // del + del circuito); en la electricidad, a las placas del símbolo. Suben derecho y dan la vuelta hacia él.
-    const hoses = (ctx, g) => {
-      // en el celular, solo con la fuente abierta justo abajo del circuito (sin multímetros en medio)
-      if (!lay(g).jacks || (apart(g) && (g.mode !== 'alto' || MS.some(k => st.show[k])))) return;
-      const w = g.side === 'w', [sx, sy] = symAt(g), J = lay(g).jacks;
-      [[2, -1], [0, 1]].forEach(([j, s]) => {
-        const [px, py] = at(g, J[j]), a = 35 * Math.PI / 180;
+    // En el celular siempre se ven, para que se sepa de dónde sale el voltaje, y pasan por detrás de los
+    // multímetros: la corta (sin bornes) los saca de su orilla de arriba, y en el lateral, donde la fuente queda a la
+    // derecha del circuito, de su orilla izquierda (el + abajo, para que no se crucen). Los que salen de una orilla van
+    // por debajo de todo (edge: true, antes del circuito); los de los bornes, encima de la fuente.
+    const HOSE = { top: [[100, 0], [126, 0]], left: [[0, 74], [0, 44]] };   // + y −, en las coordenadas de la fuente
+    const hoses = (ctx, g, edge = false) => {
+      const J = lay(g).jacks, side = g.mode === 'lateral' ? 'left' : !J && apart(g) ? 'top' : null;
+      if (edge !== !!side || (!J && !side)) return;
+      const w = g.side === 'w', [sx, sy] = symAt(g), [bx, by] = boxAt(g);
+      [[2, -1], [0, 1]].forEach(([j, s], i) => {
+        const a = 35 * Math.PI / 180;
+        // la orilla (en la corta, escalada a su alto) o el borne, y hacia dónde sale
+        const [px, py, out] = side === 'left' ? [bx + 2, by + HOSE.left[i][1] * g.BH / SL.mini.h, [-1, 0]]
+          : side ? [bx + HOSE.top[i][0] * g.FK, by + 2, [0, -1]] : [...at(g, J[j]), [0, -1]];
         // el agua: a la carcasa (radio 40); la electricidad: abajo de la placa de su lado (larga + a la izquierda)
         const [ax, ay, d] = w ? [sx + s * 40 * Math.sin(a), sy + 40 * Math.cos(a), [s * Math.sin(a), Math.cos(a)]]
           : [sx + s * 9, sy + (s * sgn() < 0 ? 24 : 12), [0, 1]];
-        const k1 = Math.max(10, (py - ay) * 0.45), k2 = Math.max(8, (py - ay) * 0.35);
-        const c1 = [px, py - k1], c2 = [ax + d[0] * k2, ay + d[1] * k2], pts = [];
+        const reach = side === 'left' ? px - ax : py - ay;
+        const k1 = Math.max(10, reach * 0.45), k2 = Math.max(side === 'left' ? 30 : 8, (py - ay) * 0.35);
+        const c1 = [px + out[0] * k1, py + out[1] * k1], c2 = [ax + d[0] * k2, ay + d[1] * k2], pts = [];
         for (let i = 0; i <= 24; i++) {
           const t = i / 24, u = 1 - t, b0 = u * u * u, b1 = 3 * u * u * t, b2 = 3 * u * t * t, b3 = t * t * t;
           pts.push([b0 * px + b1 * c1[0] + b2 * c2[0] + b3 * ax, b0 * py + b1 * c1[1] + b2 * c2[1] + b3 * ay]);
         }
         if (w) D.hose(ctx, pts, POST()[j]);
         else { D.line(ctx, pts, 8, C.card); D.line(ctx, pts, 4, POST()[j]); }
-        D.circle(ctx, px, py, (w ? 8 : 6) * g.FK, '#9aa6af', C.ink, 1.5);   // su conector en el borne
+        if (!side) D.circle(ctx, px, py, (w ? 8 : 6) * g.FK, '#9aa6af', C.ink, 1.5);   // su conector en el borne
       });
     };
     // La fuente (en el agua, la bomba), en sus coordenadas (SL) escaladas g.FK. Las perillas y la palanca son de
@@ -2910,16 +2943,20 @@
       D.roundRect(ctx, x - sh.hw * k, y + sh.top * k, 2 * sh.hw * k, (sh.bottom - sh.top) * k, Sim.CHASSIS.r, null, C.muted, 2);
       ctx.restore();
     };
+    const instruments = (ctx, g) => {
+      if (apart(g)) { drawSource(ctx, g); hoses(ctx, g); MS.forEach(k => drawMeter(ctx, g, k)); return; }
+      MS.forEach(k => drawMeter(ctx, g, k)); drawSource(ctx, g); hoses(ctx, g);
+    };
     function drawWater() {
       const g = b.gw, m = st.m, ctx = b.pw.begin();
       drawDesk(ctx, g);
+      hoses(ctx, g, true);
       circuitAndCables(ctx, g, m, o.drawW);
       drawGround(ctx, g);
       knobScales(ctx, g);
-      // el bloque de la bomba va encima de los medidores: es lo que se arrastra a donde haya lugar
-      MS.forEach(k => drawMeter(ctx, g, k));
-      drawSource(ctx, g);
-      hoses(ctx, g);
+      // el bloque de la bomba va encima de los medidores: es lo que se arrastra a donde haya lugar (en el celular,
+      // donde no se enciman, los medidores van encima de las mangueras)
+      instruments(ctx, g);
       D.pump(ctx, ...symAt(g), st.rotor, st.omega);
       drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
@@ -2928,13 +2965,12 @@
     function drawElectric() {
       const g = b.ge, m = st.m, ctx = b.pe.begin();
       drawDesk(ctx, g);
+      hoses(ctx, g, true);
       circuitAndCables(ctx, g, m, o.drawE);
       drawGround(ctx, g);
       knobScales(ctx, g);
-      MS.forEach(k => drawMeter(ctx, g, k));
-      drawSource(ctx, g);
+      instruments(ctx, g);
       { const [x, y] = symAt(g); ctx.save(); ctx.translate(x, y); ctx.scale(sgn(), 1); D.source(ctx, 0, 0); ctx.restore(); }   // invertida, al revés
-      hoses(ctx, g);
       drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
       o.overlay && o.overlay(ctx, g, m);

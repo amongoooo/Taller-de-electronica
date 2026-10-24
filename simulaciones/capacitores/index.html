@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261024024403">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024044335">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,8 +40,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261024024403"></script>
-<script src="../../assets/banco.js?v=20261024024403"></script>
+<script src="../../assets/sim.js?v=20261024044335"></script>
+<script src="../../assets/banco.js?v=20261024044335"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -113,6 +113,7 @@
 
   const b = Sim.bench({
     iFull: 10, v0: 9, stateful: true,
+    deskGraph: 150,   // en el celular acostado la gráfica no cabe en el circuito: va arriba en la mesa
     layout(g) { sides[g.side] = { g }; build(g.side); },
     // El capacitor empuja de regreso con su voltaje Vc: la corriente es (Ventrada − Vc) / R.
     // I es lo que pasa por la fuente (y mueve la bomba); Ic lo que pasa por el capacitor.
@@ -173,7 +174,7 @@
       b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
       b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'tramo angosto', ohm(st.R), st.rb, false, st.rb ? 'reventado' : '');
       b.tag(ctx, pinchC, XC, g.TOP - rc - 30, 'tanque con membrana', uF(st.C));
-      switchTag(ctx, g, n, ['válvula de tres vías', 'válvula']);
+      switchTag(ctx, g, n, ['válvula de tres vías', 'válvula', '']);
       graph(ctx, g, 'presión', 'caudal');
     },
     drawE(ctx, g, m) {
@@ -192,12 +193,12 @@
       b.grips(ctx, XC, g.TOP, rc + 4, pinchC);
       b.tag(ctx, pinchR, XR, g.TOP - half(st.R) - 42, 'resistencia', ohm(st.R), st.rb, false, st.rb ? 'quemada' : '');
       b.tag(ctx, pinchC, XC, g.TOP - rc - 30, 'capacitor', uF(st.C));
-      switchTag(ctx, g, n, 'conmutador');
+      switchTag(ctx, g, n, ['conmutador', '']);
       graph(ctx, g, 'voltaje', 'corriente');
     }
   });
   // La válvula de tres vías (el conmutador) va en el cable de la izquierda: su nombre a la derecha, debajo del
-  // puente, y si carga o descarga en una pastilla.
+  // puente, y si carga o descarga en una pastilla (si no cabe antes del + de la fuente, solo la pastilla).
   const switchTag = (ctx, g, n, name) => D.tag(ctx, g.X0 + 30, n.YB + 30, name, '',
     { state: st.charge ? 'cargar' : 'descargar', align: 'left', max: g.PX - 46 - (g.X0 + 30) });   // sin llegar a la bomba
 
@@ -249,10 +250,11 @@
     D.line(ctx, [n.P, [to[0] + (st.charge ? 0 : -4), to[1] + (st.charge ? -4 : 0)]], 3.5, C.ink);
   }
 
-  // Gráfica dentro del circuito: el voltaje del capacitor (morado) y la corriente (verde) en el tiempo,
-  // con una marca en τ desde el último cambio: ahí la carga (o la descarga) lleva el 63 %.
+  // Gráfica dentro del circuito (en el celular acostado, arriba en la mesa: g.GRAPH): el voltaje del capacitor
+  // (morado) y la corriente (verde) en el tiempo, con una marca en τ desde el último cambio: ahí la carga (o la
+  // descarga) lleva el 63 %.
   function graph(ctx, g, nameV, nameI) {
-    const n = nodes(g), x0 = g.X0 + 40, x1 = g.X1 - 40, y0 = g.TOP + 82, y1 = n.YB - 40;
+    const n = nodes(g), [x0, y0, x1, y1] = g.mode === 'lateral' ? g.GRAPH || [0, 0, 0, 0] : [g.X0 + 40, g.TOP + 82, g.X1 - 40, n.YB - 40];
     if (y1 - y0 < 50) return;
     D.roundRect(ctx, x0, y0, x1 - x0, y1 - y0, 8, C.card, C.line, 1.5);
     const T = Math.max(3, Math.min(40, 6 * tau())), t1 = st.t, ta = t1 - T;

@@ -56,7 +56,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 
 - `assets/sim.js` (`window.Sim`), lo común a todas las páginas:
   - `Sim.panel(box, size)`: canvas escalado (`size` → `[W, H, x0, modo, y0]`; `y0` negativo deja una franja libre arriba);
-    `p.at(el, pos)` coloca controles HTML en coordenadas del dibujo;
+    `p.at(el, pos)` coloca controles HTML en coordenadas del dibujo; `p.tagEdge(y)` dónde acaba el letrero Agua / Electricidad
+    (orilla izquierda para `D.tagRow`);
     `p.begin()` limpia y deja `Sim.S` = escala del panel (para gruesos en px de pantalla).
   - `Sim.draw` (`D`): `D.text` (letra mínima de 14 px en pantalla con `Sim.px`; `t` puede ser una lista de
     rótulos y `max` elige el que cabe), `D.tag` / `D.tagRow` (etiqueta «nombre valor» y estado en `D.pill`),
@@ -92,7 +93,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - Celular (`alto` y `lateral`, `phoneDesk`): versión corta y abierta de cada instrumento; `st.front` ('src', 'a', 'b'
     o null) dice cuál está abierto (`setFront`, `b.setFront`; tecla `FOLD` con `foldArrows`). Multímetro corto
     (`shape` con `ph`, `isCompact`): solo se lee. Fuente corta: `SL.mini`. Al cambiar, `relayout` mueve las puntas
-    con el circuito.
+    con el circuito. En `alto` el circuito llega a lo más a `TALL` (`o.tall`, 0.8 de su ancho) y las cortas se apilan
+    más grandes si cabe; en `lateral` la página puede pedir una franja arriba de la mesa para su gráfica (`o.deskGraph`
+    → `g.GRAPH`). `hoses` también en el celular: de los bornes o de la orilla de la corta (`HOSE`), por detrás.
   - `b.pinch` (resistencias y capacitores: asas solo con la tarjeta abierta), `b.part` (componente con
     tarjeta), `b.grips` (asas), `b.tag` y `b.tagRow` (etiquetas, ver `D.tag`), `b.linkedButton`, `b.linkedChoice`,
     `b.linkedKnob`, `b.place`.
