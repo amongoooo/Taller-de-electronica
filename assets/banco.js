@@ -35,6 +35,8 @@
 //                     esos cambios ya vienen suaves y no se toman como cambios del circuito
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
 //   tall,             en el celular vertical, lo más alto del circuito (si falta, 0.8 de su ancho: lo demás es para la mesa)
+//   head,             cuánto suben los rótulos de la página sobre el circuito: en una pantalla chica el circuito baja si
+//                     la escala de colores llegaría a taparlos (headTop)
 //   deskGraph,        alto de una gráfica de la página que en el celular acostado va arriba en la mesa (g.GRAPH:
 //                     [x0, y0, x1, y1], null mientras hay un instrumento abierto)
 //   overlay(ctx, g, m)                    lo que va encima de todo (avisos de la página)
@@ -206,6 +208,13 @@
       for (const k of [...rest].sort((p, q) => (q === 'src') - (p === 'src'))) { put(k, colX, y, s); y -= chh(k) * s + PH.gap; }
       return Math.min(y + PH.gap, base - (MW.h + PH.plate) * mk);
     };
+    // Dónde empieza el circuito (top, o más abajo) cuando la escala de colores va arriba a la derecha del dibujo:
+    // mide lo mismo en la pantalla, así que en una pantalla chica ocupa más del dibujo y baja más; con rótulos altos
+    // (o.head) el circuito baja para que no se encimen.
+    const headTop = (side, top) => {
+      const p = side === 'w' ? b.pw : b.pe, ce = p && p.box.querySelector('.sim-colors');
+      return o.head && p && p.scale ? Math.max(top, 10 + ((ce && ce.offsetHeight) || 58) / p.scale + 12 + o.head) : top;
+    };
     // g.meters[k] = [x del centro, y de su base] y g.mk[k] su escala; g.DESK es dónde empieza la mesa (y, o x en
     // el lateral).
     const geometry = (side, W, H, mode = 'ancho') => {
@@ -219,12 +228,12 @@
         phoneDesk(g, box, (g.DESK + right) / 2, H - 12, right - g.DESK - 24, true, g.GRAPH ? g.GRAPH[3] + 22 : 24);
         g.BOT = H - 64;
         g.COL = [650, 10];   // arriba de la mesa no cabe: va arriba a la derecha del circuito
-        g.TOP = 170;         // y el circuito baja un poco para dejarle lugar
+        g.TOP = headTop(side, 170);   // y el circuito baja un poco para dejarle lugar
       } else if (mode === 'alto') {
         // El circuito llega a lo más a TALL de alto (si no, es casi todo hueco) y lo demás es para la mesa: las
         // versiones cortas salen más grandes y, si aún sobra, quedan al centro de la mesa. Con un instrumento
         // abierto que necesita más, el circuito se achica como siempre.
-        g.TOP = 170;
+        g.TOP = headTop(side, 170);
         const base = H - 18, top = g.TOP + TALL + 56 + 16, t = phoneDesk(g, box, g.PX, base, W - 20, false, top);
         const d = Math.max(0, t - top) / 2;
         if (d) { g.BY -= d; MS.forEach(k => { g.meters[k] = [g.meters[k][0], g.meters[k][1] - d]; }); }
@@ -241,7 +250,8 @@
         g.DESK = Math.min(base - MW.h - 24, g.BY - 44);   // con lugar para el cuello de la fuente
         g.BOT = g.DESK - 26;
         g.COL = [W - 12, 10];
-        if (medio) { g.COL = [705, 10]; g.TOP = 170; }   // angosto: el circuito baja para dejarle lugar
+        g.TOP = headTop(side, g.TOP);
+        if (medio) { g.COL = [705, 10]; g.TOP = headTop(side, 170); }   // angosto: el circuito baja para dejarle lugar
       }
       g.CX = g.BX + g.BW / 2;   // centro del controlador (perilla)
       g.MIDY = (g.TOP + g.BOT) / 2;
