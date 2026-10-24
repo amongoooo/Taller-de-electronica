@@ -1095,6 +1095,8 @@
   // («Paso 2 · La fuente» o «Siguiente · 4 Resistencias…»).
   Sim.goHTML = (cls, what, name) => cls === 'prev' ? `<span class="arr">${chev(-1)}</span>`
     : `<span class="lbl"><span class="stp">${what}</span><span class="name"> · ${name}</span></span><span class="arr">${chev(1)}</span>`;
+  // Palomita de un paso cumplido (Sim.steps).
+  const CHECK = '<svg class="ok" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>';
   Sim.ORDER = [
     ['voltaje-presion', 'Voltaje y corriente'],
     ['como-medir', 'Cómo medir'],
@@ -1371,9 +1373,9 @@
     update();
   };
 
-  // El botón Siguiente late una vez, para avisar que ya se puede seguir. Sim.steps lo hace al llegar al último
-  // paso, una sola vez por sesión en cada página; una página también lo puede llamar cuando se cumplió lo que
-  // pedía un paso. Con movimiento reducido no late.
+  // El botón Siguiente late una vez, para avisar que ya se puede seguir. Sim.steps lo hace al cumplirse un paso
+  // (con done) o, si la página no los revisa, al llegar al último paso, una sola vez por sesión en cada página.
+  // Con movimiento reducido no late.
   Sim.pulseNext = () => {
     const a = foot && foot.querySelector('.sim-go.next');
     if (!a || Sim.REDUCE.matches) return;
@@ -1389,19 +1391,40 @@
   // con el paso elegido (de 0 a steps.length − 1). El paso queda en la dirección (#paso-2), así que
   // se puede recargar o compartir en ese paso. Va en la barra, junto al título: un segmento con su
   // nombre por paso (se toca para ir a él). Para avanzar y regresar están las flechas de la derecha.
-  Sim.steps = (steps, go) => {
+  // Con done(k) → true cuando ya se hizo lo que pide el paso k (se revisa cuatro veces por segundo, solo el
+  // paso actual), el paso queda con su palomita (en la barra y en «dónde estoy»; se recuerda en la sesión) y
+  // Siguiente late.
+  Sim.steps = (steps, go, done) => {
     const n = steps.length;
     const wrap = el('div', 'sim-steps');
     wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', 'Pasos');
     const segs = steps.map((name, j) => {
-      const b = el('button', 'seg', `<i></i><span class="t"><b>${j + 1}</b><span class="name"> · ${name}</span></span>`);
-      b.type = 'button'; b.title = `Paso ${j + 1}: ${name}`;
-      b.setAttribute('aria-label', `Ir al paso ${j + 1}: ${name}`);
+      const b = el('button', 'seg', `<i></i><span class="t">${CHECK}<b>${j + 1}</b><span class="name"> · ${name}</span></span>`);
+      b.type = 'button';
       b.addEventListener('click', () => set(j, true));
       wrap.appendChild(b);
       return b;
     });
     const where = foot && foot.querySelector('.sim-where');
+    // Los pasos cumplidos.
+    const KEY = 'sim-done:' + location.pathname;
+    let ok = [];
+    try { ok = JSON.parse(sessionStorage.getItem(KEY) || '[]').filter(j => j >= 0 && j < n); } catch (e) {}
+    const mark = () => {
+      segs.forEach((b, j) => {
+        const on = ok.includes(j);
+        b.dataset.done = String(on);
+        b.title = `Paso ${j + 1}: ${steps[j]}${on ? ' ✓' : ''}`;
+        b.setAttribute('aria-label', `Ir al paso ${j + 1}: ${steps[j]}${on ? ', cumplido' : ''}`);
+      });
+      if (where) where.dataset.done = String(ok.includes(k));
+    };
+    if (done) setInterval(() => {
+      if (k < 0 || ok.includes(k) || document.hidden || !done(k)) return;
+      ok.push(k);
+      try { sessionStorage.setItem(KEY, JSON.stringify(ok)); } catch (e) {}
+      mark(); Sim.pulseNext();
+    }, 250);
     // Si algún nombre no cabe completo, los pasos que no son el actual se quedan con su número (su nombre sigue
     // en el globito) y el actual se lee entero.
     const fit = () => {
@@ -1419,8 +1442,8 @@
       fit();
       if (where) { where.querySelector('.k').textContent = `Paso ${k + 1} de ${n}`; where.querySelector('.nm').textContent = steps[k]; }
       if (foot) foot.dataset.last = String(k === n - 1);
-      if (k === n - 1) pulseOnce();
-      syncGo();
+      if (k === n - 1 && !done) pulseOnce();
+      mark(); syncGo();
       if (push) history.replaceState(null, '', k ? `#paso-${k + 1}` : location.pathname + location.search);
       go(k);
     };

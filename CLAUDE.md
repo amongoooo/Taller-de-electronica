@@ -79,7 +79,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `Sim.side`: columna/hoja de controles. `sec(k)`, `row`, `button`, `part({ anchor, menu, isOpen, toggle, visible })`
     (renglón de Componentes que abre la misma tarjeta; sin `visible`, se esconde si su marcador queda fuera del dibujo).
   - `Sim.fmt` (números con punto decimal, es-MX) y `Sim.ohm` (470 Ω, 1 kΩ, 2.2 kΩ): los formatos de todas las páginas.
-  - `Sim.ORDER` (orden de las simulaciones), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre, `Sim.viewSwitch` con transición de vista,
+  - `Sim.ORDER` (orden de las simulaciones), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre; con `done(k)` el paso se revisa solo y, al
+    cumplirse, lleva su palomita y Siguiente late (las páginas 1 y 2, con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
