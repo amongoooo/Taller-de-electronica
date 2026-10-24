@@ -451,6 +451,17 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-steps .seg:hover { color: var(--ink); }
 .sim-steps .seg:not([data-on="true"]):hover i { background: var(--muted); }
 .sim-steps .seg:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; border-radius: 4px; }
+/* Paso cumplido (Sim.steps con done): su palomita antes del número, y en «dónde estoy» del celular. */
+.sim-steps .seg .ok { display: none; width: 14px; height: 14px; margin: 0 3px -2px 0; fill: none; stroke: var(--water); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.sim-steps .seg[data-done="true"] .ok { display: inline-block; animation: sim-ok .18s ease-out; }
+.sim-steps .seg[data-done="true"] i { opacity: 1; }
+.sim-where[data-done="true"] .nm::before {
+  content: ""; display: inline-block; width: 14px; height: 14px; margin: 0 4px -2px 0; background: var(--water);
+  -webkit-mask: var(--ok-mask) center / contain no-repeat; mask: var(--ok-mask) center / contain no-repeat;
+}
+.sim-where { --ok-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2.5 7.5l3 3 6-7' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+@keyframes sim-ok { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .sim-steps .seg[data-done="true"] .ok { animation: none; } }
 /* Si los nombres no caben (Sim.steps pone tight): los demás pasos solo con su número, el actual entero. */
 .sim-steps.tight .seg:not([aria-current]) { flex: 0 1 44px; }
 .sim-steps.tight .seg:not([aria-current]) .name { display: none; }

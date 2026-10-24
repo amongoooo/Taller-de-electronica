@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261024053654">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261024064347">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261024053654"></script>
-<script src="../../assets/banco.js?v=20261024053654"></script>
+<script src="../../assets/sim.js?v=20261024064347"></script>
+<script src="../../assets/banco.js?v=20261024064347"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -97,6 +97,12 @@
     if (k === 4 && !b.st.on) document.querySelector('#pe .sim-power').click();
     clearTimeout(timer);
     if (k === 0) { b.setNodes(false); timer = setTimeout(() => b.setNodes(true), 900); } else b.setNodes(true);
+  }, k => {
+    // Cada paso se cumple solo: los nodos ya formados; el multímetro en V entre dos nodos, en A abriendo un
+    // cable o en Ω con la fuente apagada; en el reto, uno en V y el otro en A a la vez.
+    if (k === 0) return !!b.net();
+    const m = b.measuring();
+    return k === 4 ? m.includes('V') && m.includes('A') : m.includes('VAR'[k - 1]);
   });
 })();
 </script>

@@ -48,7 +48,8 @@
 // b.part) y ext (cuánto sobresale de su cable, o ext(water)). Un tramo con link: true es un contacto cerrado.
 // Para el Ω del multímetro cada componente trae R, su resistencia en ohmios (0 un corto; sin R o Infinity,
 // abierto: un LED, un capacitor, un interruptor abierto, un fusible fundido).
-// b.setNodes(v) y b.nodesOn() la ponen o la quitan; b.where() dice en qué nodos están las puntas.
+// b.setNodes(v) y b.nodesOn() la ponen o la quitan; b.where() dice en qué nodos están las puntas y b.measuring()
+// qué mide de verdad cada multímetro ('V', 'A' o 'R'; para los pasos que se revisan solos).
 // Multímetros 'a' (el de siempre) y 'b' (el segundo): b.showMeters({ a, b }) muestra u oculta cada uno con
 // sus puntas (para las páginas que van por pasos); b.setDial(k, modo, puntas) gira su perilla ('off', 'V',
 // 'A' o 'R') y, si se dan, pone sus puntas ahí ([[x, y], [x, y]]).
@@ -1006,6 +1007,20 @@
         if (series(k)) Object.assign(meters[k], { cut: !!(r && r.cut), I: r && r.cut && ready(k) ? r.value : null, short: !!(r && r.short) });
       }
       return { comps: n.comps, nodes: n.nodes, meters };
+    };
+    // Lo que de verdad está midiendo cada multímetro, para los pasos que se revisan solos: 'V' entre dos nodos
+    // distintos con voltaje, 'A' en serie (cortó un cable) con corriente, 'R' entre dos nodos con la fuente
+    // apagada; los demás (sin conectar, en el mismo nodo, el amperímetro haciendo un corto) no cuentan.
+    b.measuring = () => {
+      const { meters } = b.where();
+      return MS.map(k => {
+        const m = meters[k], [A, B] = m ? m.nodes : [];
+        if (!m) return null;
+        if (m.dial === 'A') return m.cut && Math.abs(m.I) > 0.05 ? 'A' : null;
+        if (!A || !B || A === B) return null;
+        if (m.dial === 'V') return Math.abs(m.value) > 0.05 ? 'V' : null;
+        return m.dial === 'R' && !st.on && st.v < 0.02 && m.value > 0 && isFinite(m.value) ? 'R' : null;
+      }).filter(Boolean);
     };
     b.nodesOn = () => st.nodes.on;
     // Nodo en el que está cada punta del voltímetro (null si no está en un nodo o no está la vista de nodos)
