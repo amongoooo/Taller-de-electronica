@@ -1489,10 +1489,14 @@
   //   LED de 5 mm: aguanta 30 mA, o sea pMax = Vf · 30 mA (de 54 mW el rojo a 96 mW el blanco), hasta 125 °C
   //   fusible: su "potencia" es (I / In)², 1 con la corriente que aguanta; se funde rápido si se pasa mucho
   //   y tarda (decenas de segundos) si se pasa poco, como uno de verdad
+  //   capacitor electrolítico al revés: de 1 V para arriba su óxido ya no aísla y conduce; esa corriente
+  //   descompone el electrolito y lo calienta por dentro (gas y calor en el centro del rollo, donde casi no se
+  //   enfría): con 5 mW llega a 105 °C, su temperatura máxima. Al derecho no se calienta.
   Sim.HEAT = {
     res: { pMax: 0.25, tMax: 155, tau: 8 },
     led: { pMax: 0.054, tMax: 125, tau: 2.5 },
-    fuse: { pMax: 1, tMax: 125, tau: 25 }
+    fuse: { pMax: 1, tMax: 125, tau: 25 },
+    cap: { pMax: 0.005, tMax: 105, tau: 3 }
   };
   Sim.LED_IMAX = 30;   // mA
   Sim.heat = (o = Sim.HEAT.res) => {

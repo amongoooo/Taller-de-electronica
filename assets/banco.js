@@ -35,6 +35,8 @@
 //                     esos cambios ya vienen suaves y no se toman como cambios del circuito
 //   drawW(ctx, g, m), drawE(ctx, g, m)   dibujan el circuito de cada lado
 //   tall,             en el celular vertical, lo más alto del circuito (si falta, 0.8 de su ancho: lo demás es para la mesa)
+//   head,             cuánto suben los rótulos de la página sobre el circuito: en el celular vertical el circuito baja si
+//                     la escala de colores llegaría a taparlos (ver geometry)
 //   deskGraph,        alto de una gráfica de la página que en el celular acostado va arriba en la mesa (g.GRAPH:
 //                     [x0, y0, x1, y1], null mientras hay un instrumento abierto)
 //   overlay(ctx, g, m)                    lo que va encima de todo (avisos de la página)
@@ -224,7 +226,10 @@
         // El circuito llega a lo más a TALL de alto (si no, es casi todo hueco) y lo demás es para la mesa: las
         // versiones cortas salen más grandes y, si aún sobra, quedan al centro de la mesa. Con un instrumento
         // abierto que necesita más, el circuito se achica como siempre.
-        g.TOP = 170;
+        // La escala de colores mide lo mismo en la pantalla: en un celular angosto ocupa más del dibujo y baja
+        // más; con rótulos altos (o.head) el circuito baja para que no se encimen.
+        const p = side === 'w' ? b.pw : b.pe, ce = p && p.box.querySelector('.sim-colors');
+        g.TOP = o.head && p && p.scale ? Math.max(170, 10 + ((ce && ce.offsetHeight) || 58) / p.scale + 12 + o.head) : 170;
         const base = H - 18, top = g.TOP + TALL + 56 + 16, t = phoneDesk(g, box, g.PX, base, W - 20, false, top);
         const d = Math.max(0, t - top) / 2;
         if (d) { g.BY -= d; MS.forEach(k => { g.meters[k] = [g.meters[k][0], g.meters[k][1] - d]; }); }

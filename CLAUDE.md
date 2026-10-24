@@ -93,7 +93,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - Celular (`alto` y `lateral`, `phoneDesk`): versión corta y abierta de cada instrumento; `st.front` ('src', 'a', 'b'
     o null) dice cuál está abierto (`setFront`, `b.setFront`; tecla `FOLD` con `foldArrows`). Multímetro corto
     (`shape` con `ph`, `isCompact`): solo se lee. Fuente corta: `SL.mini`. Al cambiar, `relayout` mueve las puntas
-    con el circuito. En `alto` el circuito llega a lo más a `TALL` (`o.tall`, 0.8 de su ancho) y las cortas se apilan
+    con el circuito. En `alto` el circuito llega a lo más a `TALL` (`o.tall`, 0.8 de su ancho) y baja si la escala de colores taparía rótulos altos (`o.head`) y las cortas se apilan
     más grandes si cabe; en `lateral` la página puede pedir una franja arriba de la mesa para su gráfica (`o.deskGraph`
     → `g.GRAPH`). `hoses` también en el celular: de los bornes o de la orilla de la corta (`HOSE`), por detrás.
   - `b.pinch` (resistencias y capacitores: asas solo con la tarjeta abierta), `b.part` (componente con
