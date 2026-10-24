@@ -10,14 +10,16 @@
 <style>
 :root {
   --bg: #eaf0f3; --card: #ffffff; --ink: #15212a; --muted: #566a78; --line: #cfd9e0;
-  --water: #1874b8; --charge: #c77d00;
+  --water: #1874b8; --charge: #c77d00; --sel: #1d6fd1; --pos: #d63a2f; --neg: #15212a;
+  --mini: #f6f9fb; --board: #f1efe8; --hole: #8f9aa2;
   color-scheme: light;
   --font-display: "Saira", "Segoe UI", sans-serif;
   --font-body: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
 }
 :root[data-theme="dark"] {
   --bg: #0e151b; --card: #18222b; --ink: #e2e9ef; --muted: #9cadba; --line: #2f3d49;
-  --water: #4fa6e6; --charge: #f0a830;
+  --water: #4fa6e6; --charge: #f0a830; --sel: #5d9ff2; --pos: #ff6b5e; --neg: #aab6bf;
+  --mini: #121b22; --board: #26323c; --hole: #5b6872;
   color-scheme: dark;
 }
 /* sin destello blanco al ir a una simulación y al volver (como en sim.css) */
@@ -26,25 +28,51 @@
 @media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.5; }
-.wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 56px; display: grid; gap: 28px; }
+.wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 56px; display: grid; gap: 32px; }
 .eyebrow { font-family: var(--font-display); font-stretch: 125%; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 h1 { font-family: var(--font-display); font-stretch: 125%; font-weight: 750; font-size: clamp(34px, 6vw, 56px); line-height: 1.05; margin: 6px 0 8px; }
 .lede { margin: 0; max-width: 62ch; color: var(--muted); }
-h2 { font-family: var(--font-display); font-stretch: 125%; font-weight: 600; font-size: 22px; margin: 0; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-.card { display: grid; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; color: inherit; text-decoration: none; }
-a.card:hover { border-color: var(--water); }
-.card h3 { font-family: var(--font-display); font-stretch: 125%; font-weight: 600; font-size: 20px; margin: 0; }
-.card p { margin: 0; color: var(--muted); font-size: 15px; }
-.tag { font-family: var(--font-display); font-stretch: 125%; font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--water); }
-.card.soon { border-style: dashed; }
-.card.soon .tag { color: var(--muted); }
+h2 { font-family: var(--font-display); font-stretch: 125%; font-weight: 600; font-size: 22px; line-height: 1.25; margin: 0 0 12px; text-wrap: balance; }
+h2 .ins { color: var(--muted); font-weight: 500; }
+/* Tres bloques que siguen el curso; cada tarjeta con la miniatura de su circuito. */
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 720px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+.card { display: grid; grid-template-rows: auto 1fr; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 14px; color: inherit; text-decoration: none; transition: border-color .12s, scale .12s; }
+.card:hover { border-color: var(--sel); }
+.card:active { scale: .97; }
+.card:focus-visible, .resume:focus-visible { outline: 2px solid var(--sel); outline-offset: 2px; }
+.card h3 { font-family: var(--font-display); font-stretch: 125%; font-weight: 600; font-size: 18px; line-height: 1.25; margin: 0; padding: 0 4px; text-wrap: balance; }
+.n { display: block; font-size: 14px; font-weight: 700; letter-spacing: .06em; color: var(--sel); }
+@media (max-width: 720px) { .card { padding: 8px 8px 10px; gap: 8px; } .card h3 { font-size: 16px; padding: 0 2px; } }
+.mini { display: block; aspect-ratio: 8 / 5; border-radius: 8px; background: var(--mini); border: 1px solid var(--line); overflow: hidden; }
+.mini svg { display: block; width: 100%; height: 100%; }
+.mini .w { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.mini .q { fill: none; stroke: var(--charge); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 7; }
+.mini .f { fill: var(--ink); stroke: none; }
+.mini .bg { fill: var(--mini); stroke: none; }
+.mini .k { stroke-width: 3.4; }
+.mini .pos { stroke: var(--pos); }
+.mini .neg { stroke: var(--neg); }
+.mini .pb { fill: var(--board); stroke: var(--line); }
+.mini .h { fill: var(--hole); }
+.mini .lead { fill: none; stroke: var(--hole); stroke-width: 1.2; }
+.mini .body { fill: #d8b781; stroke: none; }
+.mini .led { fill: #e2483d; stroke: none; }
+/* Seguir donde te quedaste: la última simulación abierta, con su paso. */
+.resume { display: grid; grid-template-columns: 168px 1fr; gap: 16px; align-items: center; background: var(--card); border: 2px solid var(--sel); border-radius: 12px; padding: 12px; color: inherit; text-decoration: none; transition: scale .12s; }
+.resume:active { scale: .97; }
+.resume[hidden] { display: none; }
+.resume .k { font-family: var(--font-display); font-stretch: 125%; font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--sel); }
+.resume b { display: block; font-family: var(--font-display); font-stretch: 125%; font-weight: 650; font-size: 22px; line-height: 1.2; }
+.resume .p { color: var(--muted); font-size: 16px; }
+@media (max-width: 520px) { .resume { grid-template-columns: 112px 1fr; gap: 12px; padding: 10px; } .resume b { font-size: 18px; } }
 header { position: relative; }
 .theme { position: absolute; top: 0; right: 0; display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); }
 .theme button { font: inherit; font-size: 14px; font-weight: 700; padding: 4px 12px; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
 .theme button:hover { color: var(--ink); }
-.theme button[aria-pressed="true"] { background: var(--water); color: var(--card); }
+.theme button[aria-pressed="true"] { background: var(--sel); color: var(--card); }
 @media (max-width: 600px) { .theme { position: static; margin-bottom: 14px; } }
+@media (prefers-reduced-motion: reduce) { .card, .resume { transition: none; } .card:active, .resume:active { scale: none; } }
 footer { color: var(--muted); font-size: 14px; }
 footer a { color: var(--water); }
 </style>
@@ -59,74 +87,39 @@ footer a { color: var(--water); }
     <p class="lede">Simulaciones interactivas para acompañar el taller en laboratorio con fuente, generador de funciones y osciloscopio. Funcionan en el navegador, también en el celular.</p>
   </header>
 
+  <a class="resume" hidden>
+    <span class="mini"></span>
+    <span><span class="k">Seguir donde te quedaste</span><b></b><span class="p"></span></span>
+  </a>
+
   <section>
-    <h2>Disponibles</h2>
-    <div class="grid" style="margin-top:12px">
-      <a class="card" href="simulaciones/voltaje-presion/">
-        <span class="tag">1</span>
-        <h3>Voltaje y corriente</h3>
-        <p>La bomba empuja el agua como la fuente empuja la corriente. Con una resistencia fija de 1 kΩ, sube el voltaje y mide qué pasa.</p>
-      </a>
-      <a class="card" href="simulaciones/como-medir/">
-        <span class="tag">2</span>
-        <h3>Cómo medir</h3>
-        <p>Los cables se juntan en nodos, cada uno con su voltaje. El multímetro en V compara dos nodos, en A abre el camino para ir en serie y en Ω mide con la fuente apagada. Al final, un reto.</p>
-      </a>
-      <a class="card" href="simulaciones/resistencia/">
-        <span class="tag">3</span>
-        <h3>Ley de Ohm</h3>
-        <p>Ahora el tramo angosto se estira o se pellizca: con la misma presión pasa más o menos agua. Ciérralo hasta el cortocircuito o hasta que la resistencia se queme.</p>
-      </a>
-      <a class="card" href="simulaciones/resistencias-serie-paralelo/">
-        <span class="tag">4</span>
-        <h3>Resistencias en serie y paralelo</h3>
-        <p>Dos tramos angostos que estiras o pellizcas. Compara cómo cambia la corriente en serie y en paralelo.</p>
-      </a>
-      <a class="card" href="simulaciones/interruptor-led/">
-        <span class="tag">5</span>
-        <h3>Interruptor y LED</h3>
-        <p>Válvula, compuerta de un solo sentido y qué pasa si el LED no tiene resistencia.</p>
-      </a>
-      <a class="card" href="simulaciones/serie-paralelo/">
-        <span class="tag">6</span>
-        <h3>LEDs en serie y paralelo</h3>
-        <p>Dos LEDs (ruedas de molino) en un solo camino o en dos. Rompe uno y compara.</p>
-      </a>
-      <a class="card" href="simulaciones/protoboard/">
-        <span class="tag">7</span>
-        <h3>Protoboard</h3>
-        <p>Cómo se conectan por dentro sus filas y rieles, como canales de agua. Arma un circuito con cables, resistencias y LEDs.</p>
-      </a>
-      <a class="card" href="simulaciones/capacitores/">
-        <span class="tag">8</span>
-        <h3>Capacitores</h3>
-        <p>Un tanque con una membrana elástica que se estira y empuja de regreso. Carga y descarga, constante de tiempo RC.</p>
-      </a>
-      <a class="card" href="simulaciones/osciloscopio/">
-        <span class="tag">9</span>
-        <h3>LED y osciloscopio</h3>
-        <p>Una bomba que cambia de sentido como el generador de funciones. El osciloscopio dibuja el voltaje en el tiempo: el LED solo prende cuando la señal pasa de su voltaje.</p>
-      </a>
-      <a class="card" href="simulaciones/osciloscopio-rc/">
-        <span class="tag">10</span>
-        <h3>Carga y descarga RC</h3>
-        <p>Una onda cuadrada carga y descarga el capacitor. Con dos canales se ve cómo llega al 63 % en τ = R·C.</p>
-      </a>
-      <a class="card" href="simulaciones/osciloscopio-diodo/">
-        <span class="tag">11</span>
-        <h3>Diodo 1N4007</h3>
-        <p>Una válvula de retención que solo abre en su sentido. En directo caen 0,7 V; girado, no conduce.</p>
-      </a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/">
-        <span class="tag">12</span>
-        <h3>Rectificador de media onda</h3>
-        <p>Un diodo deja pasar solo los semiciclos positivos. Con un capacitor de filtro la salida queda casi fija.</p>
-      </a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/">
-        <span class="tag">13</span>
-        <h3>Rectificador de onda completa</h3>
-        <p>Un puente de cuatro diodos voltea el semiciclo negativo: la corriente va siempre en el mismo sentido por la carga, con dos jorobas por ciclo.</p>
-      </a>
+    <h2>Corriente directa <span class="ins">·&nbsp;fuente y multímetro</span></h2>
+    <div class="grid">
+      <a class="card" href="simulaciones/voltaje-presion/"><span class="mini" data-p="voltaje-presion"></span><h3><span class="n">1</span>Voltaje y corriente</h3></a>
+      <a class="card" href="simulaciones/como-medir/"><span class="mini" data-p="como-medir"></span><h3><span class="n">2</span>Cómo medir</h3></a>
+      <a class="card" href="simulaciones/resistencia/"><span class="mini" data-p="resistencia"></span><h3><span class="n">3</span>Ley de Ohm</h3></a>
+      <a class="card" href="simulaciones/resistencias-serie-paralelo/"><span class="mini" data-p="resistencias-serie-paralelo"></span><h3><span class="n">4</span>Resistencias en serie y paralelo</h3></a>
+      <a class="card" href="simulaciones/interruptor-led/"><span class="mini" data-p="interruptor-led"></span><h3><span class="n">5</span>Interruptor y LED</h3></a>
+      <a class="card" href="simulaciones/serie-paralelo/"><span class="mini" data-p="serie-paralelo"></span><h3><span class="n">6</span>LEDs en serie y paralelo</h3></a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Armar y guardar carga</h2>
+    <div class="grid">
+      <a class="card" href="simulaciones/protoboard/"><span class="mini" data-p="protoboard"></span><h3><span class="n">7</span>Protoboard</h3></a>
+      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">8</span>Capacitores</h3></a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Señales <span class="ins">·&nbsp;generador y osciloscopio</span></h2>
+    <div class="grid">
+      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">9</span>LED y osciloscopio</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">10</span>Carga y descarga RC</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-diodo/"><span class="mini" data-p="osciloscopio-diodo"></span><h3><span class="n">11</span>Diodo 1N4007</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">12</span>Rectificador de media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">13</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -143,6 +136,72 @@ footer a { color: var(--water); }
     sync();
   }));
   sync();
+})();
+
+// Miniaturas: el circuito eléctrico de cada simulación, como se dibuja en ella (cables con sus cargas ámbar,
+// los símbolos encima), en un dibujo de 144 × 90. Cada pieza va horizontal de x −12 a 12, centrada en (0, 0).
+(() => {
+  const plus = '<path class="w pos" d="M-9-10h4M-7-12v4"/>';
+  const PIECE = {
+    r: '<path class="w" d="M-12 0h4l2-4 3 8 3-8 3 8 3-8 2 4h4"/>',
+    // la que se estira o se pellizca (Ley de Ohm): con su flecha de variable
+    rv: '<path class="w" d="M-12 0h4l2-4 3 8 3-8 3 8 3-8 2 4h4M-8 8L7-7M2-7h5v5"/>',
+    d: '<path class="f" d="M-5-5v10l9-5z"/><path class="w" d="M-12 0h7M4-5v10M4 0h8"/>',
+    led: '<path class="w" d="M-12 0h7M-5-5v10l9-5zM4-5v10M4 0h8M-1-7l4-4M1-11h2v2M3-7l4-4M5-11h2v2"/>',
+    c: '<path class="w" d="M-12 0h10M2 0h10M-2-7v14M2-7v14"/>',
+    // electrolítico: la placa − es la curva y lleva su + del lado positivo
+    cp: '<path class="w" d="M-12 0h10M-2-7v14M4-7q-3 7 0 14M2.5 0h9.5"/>' + plus,
+    sw: '<path class="w" d="M-12 0h6M6 0h6M-6 0l11-6"/><circle class="f" cx="-6" r="1.8"/><circle class="f" cx="6" r="1.8"/>',
+    // fuente: placa larga + y corta −
+    bat: '<path class="w" d="M-12 0h10M2 0h10M-2-8v16"/><path class="w k" d="M2-4v8"/>' + plus,
+    gen: '<circle class="w" r="7"/><path class="w" d="M-12 0h5M7 0h5M-4 0q2-5 4 0t4 0"/>'
+  };
+  const at = (k, x, y, rot) => `<g transform="translate(${x} ${y})${rot ? ` rotate(${rot})` : ''}"><rect class="bg" x="-9" y="-9" width="18" height="18"/>${PIECE[k]}</g>`;
+  const node = pts => pts.map(([x, y]) => `<circle class="f" cx="${x}" cy="${y}" r="2.2"/>`).join('');
+  // cables (con sus cargas) y, encima, las piezas y los nodos
+  const circ = (wire, parts, nodes = []) => `<path class="w" d="${wire}"/><path class="q" d="${wire}"/>` + parts.join('') + node(nodes);
+  const LOOP = 'M22 20H138V80H22Z';
+  // protoboard: rieles + y −, dos grupos de tiras de 5 agujeros, una resistencia y un LED con sus cables
+  const board = () => {
+    let h = '<rect class="pb" x="10" y="8" width="140" height="84" rx="4"/><path class="w pos" d="M16 14H144"/><path class="w neg" d="M16 84H144"/>';
+    for (let c = 0; c < 15; c++) for (const y of [30, 37, 44, 56, 63, 70]) h += `<circle class="h" cx="${22 + 8 * c}" cy="${y}" r="1.4"/>`;
+    h += '<path class="w pos" d="M38 14V30"/><path class="lead" d="M38 37H70"/><rect class="body" x="46" y="34" width="16" height="6" rx="2.5"/>'
+      + '<path class="w" d="M50 34v6M54 34v6M58 34v6" style="stroke-width:1.4"/>'
+      + '<path class="lead" d="M70 30v-4M78 30v-4"/><path class="led" d="M67 27v-4a7 7 0 0 1 14 0v4z"/><path class="w neg" d="M78 44q18 20 0 40"/>';
+    return h;
+  };
+  const MINI = {
+    'voltaje-presion': () => circ(LOOP, [at('r', 80, 20), at('bat', 80, 80)]),
+    'como-medir': () => circ(LOOP, [at('r', 62, 20), at('r', 98, 20), at('bat', 80, 80)], [[80, 20]]),
+    'resistencia': () => circ(LOOP, [at('rv', 80, 20), at('bat', 80, 80)]),
+    'resistencias-serie-paralelo': () => circ(LOOP + 'M52 20V42H108V20', [at('r', 80, 20), at('r', 80, 42), at('bat', 80, 80)], [[52, 20], [108, 20]]),
+    'interruptor-led': () => circ(LOOP, [at('sw', 48, 20), at('r', 80, 20), at('led', 112, 20), at('bat', 80, 80)]),
+    'serie-paralelo': () => circ(LOOP, [at('r', 48, 20), at('led', 80, 20), at('led', 112, 20), at('bat', 80, 80)]),
+    'protoboard': board,
+    'capacitores': () => circ(LOOP, [at('r', 62, 20), at('cp', 100, 20), at('bat', 80, 80)]),
+    'osciloscopio': () => circ(LOOP, [at('r', 62, 20), at('led', 100, 20), at('gen', 80, 80)]),
+    'osciloscopio-rc': () => circ(LOOP, [at('r', 62, 20), at('c', 100, 20), at('gen', 80, 80)]),
+    'osciloscopio-diodo': () => circ(LOOP, [at('r', 62, 20), at('d', 100, 20), at('gen', 80, 80)]),
+    // media onda: diodo, carga a la derecha y el capacitor de filtro en paralelo
+    'osciloscopio-rectificador': () => circ(LOOP + 'M110 20V80', [at('d', 62, 20), at('cp', 110, 50, 90), at('r', 138, 50, 90), at('gen', 66, 80)], [[110, 20], [110, 80]]),
+    // puente: D1 y D2 llegan al + de la carga, D3 y D4 salen de su −; el generador entre las dos esquinas
+    'osciloscopio-onda-completa': () => circ('M22 16H138V86H22ZM22 54H138M80 16V54', [at('d', 50, 16), at('d', 110, 16, 180), at('d', 50, 54, 180), at('d', 110, 54), at('r', 80, 35, 90), at('gen', 80, 86)], [[22, 54], [138, 54], [80, 16], [80, 54]])
+  };
+  const svg = p => `<svg viewBox="8 5 144 90" aria-hidden="true">${MINI[p]()}</svg>`;
+  document.querySelectorAll('.mini[data-p]').forEach(m => { if (MINI[m.dataset.p]) m.innerHTML = svg(m.dataset.p); });
+
+  // Seguir donde te quedaste: lo guarda cada simulación al abrirse y al cambiar de paso (Sim.last en sim.js).
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem('sim-last') || 'null'); } catch (e) {}
+  const card = last && MINI[last.p] && document.querySelector(`.card[href="simulaciones/${last.p}/"]`);
+  if (!card) return;
+  const r = document.querySelector('.resume');
+  const k = Number.isInteger(last.k) && Number.isInteger(last.n) && last.k >= 1 && last.k <= last.n ? last.k : 0;
+  r.href = card.getAttribute('href') + (k > 1 ? `#paso-${k}` : '');
+  r.querySelector('.mini').innerHTML = svg(last.p);
+  r.querySelector('b').textContent = `${card.querySelector('.n').textContent} · ${card.querySelector('h3').lastChild.textContent}`;
+  r.querySelector('.p').textContent = k ? `Paso ${k} de ${last.n}` + (typeof last.name === 'string' ? ` · ${last.name}` : '') : '';
+  r.hidden = false;
 })();
 </script>
 </body>

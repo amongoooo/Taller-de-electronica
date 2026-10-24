@@ -1112,24 +1112,28 @@
     ['osciloscopio-rectificador', 'Rectificador de media onda'],
     ['osciloscopio-onda-completa', 'Rectificador de onda completa']
   ];
+  const here = /\/simulaciones\/([^/]+)\//.exec(location.pathname);
+  const cur = here ? Sim.ORDER.findIndex(s => s[0] === here[1]) : -1;
+  // «Seguir donde te quedaste» de la página de inicio: la última simulación abierta y, si tiene pasos, el
+  // paso en que va (Sim.steps lo pone al cambiar de paso).
+  Sim.last = s => { if (cur >= 0) try { localStorage.setItem('sim-last', JSON.stringify({ p: Sim.ORDER[cur][0], ...s })); } catch (e) {} };
+  Sim.last({});
   if (foot) {
-    const m = /\/simulaciones\/([^/]+)\//.exec(location.pathname);
-    const i = m ? Sim.ORDER.findIndex(s => s[0] === m[1]) : -1;
     const N = Sim.ORDER.length;
     const link = (j, cls) => {
-      const s = i >= 0 && Sim.ORDER[j];
+      const s = cur >= 0 && Sim.ORDER[j];
       if (!s) return `<span class="sim-go ${cls}" aria-hidden="true"></span>`;
       const what = (cls === 'prev' ? 'Simulación anterior' : 'Siguiente simulación') + `: ${j + 1}. ${s[1]}`;
       return `<a class="sim-go ${cls}" href="../${s[0]}/" title="${what}" aria-label="${what}">` + Sim.goHTML(cls, 'Siguiente', `${j + 1} ${s[1]}`) + '</a>';
     };
-    foot.innerHTML = link(i - 1, 'prev') +
-      `<span class="sim-where" aria-live="polite"><span class="k">${i >= 0 ? `Simulación ${i + 1} de ${N}` : ''}</span><b class="nm"></b></span>` +
-      link(i + 1, 'next');
+    foot.innerHTML = link(cur - 1, 'prev') +
+      `<span class="sim-where" aria-live="polite"><span class="k">${cur >= 0 ? `Simulación ${cur + 1} de ${N}` : ''}</span><b class="nm"></b></span>` +
+      link(cur + 1, 'next');
     foot.setAttribute('role', 'navigation'); foot.setAttribute('aria-label', 'Pasos y simulaciones');
     // El título dice cuál es de las N, así que ningún número queda suelto.
     const h1 = bar.querySelector('h1');
-    if (h1 && i >= 0) {
-      const t = el('div', 'sim-title', `<span class="of">Simulación ${i + 1} de ${N}</span>`);
+    if (h1 && cur >= 0) {
+      const t = el('div', 'sim-title', `<span class="of">Simulación ${cur + 1} de ${N}</span>`);
       h1.replaceWith(t); t.appendChild(h1);
     }
     bar.appendChild(foot);
@@ -1441,6 +1445,7 @@
       segs.forEach((b, i) => { b.dataset.on = String(i <= k); b.toggleAttribute('aria-current', i === k); });
       fit();
       if (where) { where.querySelector('.k').textContent = `Paso ${k + 1} de ${n}`; where.querySelector('.nm').textContent = steps[k]; }
+      Sim.last({ k: k + 1, n, name: steps[k] });
       if (foot) foot.dataset.last = String(k === n - 1);
       if (k === n - 1 && !done) pulseOnce();
       mark(); syncGo();

@@ -5,7 +5,7 @@ https://amongoooo.github.io/Taller-de-electronica/
 
 ## Estructura
 
-- `index.html`: página de inicio con la lista de simulaciones.
+- `index.html`: página de inicio, en tres bloques que siguen el curso (corriente directa con fuente y multímetro, armar y guardar carga, señales con generador y osciloscopio), con la miniatura de cada circuito (un SVG dibujado en la misma página, con los colores del tema) y, arriba, «Seguir donde te quedaste»: la última simulación abierta y su paso, que cada simulación guarda en el navegador (`sim-last` en `localStorage`, con `Sim.last`).
 - `assets/sim.css` y `assets/sim.js`: el formato común que comparten todas las simulaciones.
 - `assets/banco.js`: el banco de agua y electricidad (bomba y fuente de un canal enlazadas, medidores con puntas, mangueras, pinza e inercia); cada simulación solo dibuja su parte del circuito.
 - `assets/osciloscopio.js`: el generador de funciones y el osciloscopio de dos canales (`Sim.scope`), con sus puntas, el disparo, el color de las partículas, las tarjetas y el dibujo de los componentes; cada página del osciloscopio solo da su circuito y sus valores del taller.
@@ -107,7 +107,7 @@ La primera versión con las 4 en pestañas (con textos y preguntas para el grupo
 ## Agregar una simulación
 
 1. Crear una carpeta nueva en `simulaciones/` con su `index.html`.
-2. Agregar una tarjeta numerada en `index.html` que apunte a esa carpeta, en su lugar del orden, y su renglón en `Sim.ORDER` (`assets/sim.js`) para las flechas y Siguiente.
+2. Agregar una tarjeta numerada en `index.html` que apunte a esa carpeta, en su bloque y su lugar del orden, con su miniatura (`MINI` en la misma página), y su renglón en `Sim.ORDER` (`assets/sim.js`) para las flechas, Siguiente y «Seguir donde te quedaste».
 3. Subir los cambios a `main`; la página se actualiza sola en uno o dos minutos.
 
 Para probar en local basta con abrir el archivo en el navegador o correr `python3 -m http.server` en la raíz.
