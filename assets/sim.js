@@ -1144,7 +1144,6 @@
     ['protoboard', 'Protoboard'],
     ['como-medir', 'Cómo medir'],
     ['resistencia', 'Ley de Ohm'],
-    ['resistencias-serie-paralelo', 'Resistencias en serie y paralelo'],
     ['interruptor-led', 'Interruptor y LED'],
     ['serie-paralelo', 'LEDs en serie y paralelo'],
     ['capacitores', 'Capacitores'],
