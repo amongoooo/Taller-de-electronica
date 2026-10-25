@@ -7,7 +7,7 @@ description: Probar las simulaciones con Playwright y capturas en PC (1440 y 136
 
 1. Si cambiaste `assets/*.js` o `assets/*.css`, sube el `?v=` en todas las páginas antes de probar:
    `V=$(date -u +%Y%m%d%H%M%S); sed -i -E "s/\?v=[0-9]+/?v=$V/g" simulaciones/*/index.html`
-2. Barrido completo (15 páginas × 4 tamaños × claro y oscuro; levanta su propio servidor):
+2. Barrido completo (16 páginas × 4 tamaños × claro y oscuro; levanta su propio servidor):
    `node tools/capturas.js --salida <carpeta temporal>/barrido`
    Debe terminar con «errores de JavaScript: 0». Si no, corrige antes de seguir.
    Para revisar el acomodo en más pantallas: `--tamaños cel360,cel360-h,tableta,pc1024`.
