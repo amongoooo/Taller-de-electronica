@@ -143,7 +143,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   `resistencia-concepto` (una barra de carbón con largo y grosor en su tarjeta, y su calor) no usan el banco ni instrumentos. `voltaje-concepto`: su propio dibujo (dos pilas o bombas, la resistencia entre sus +,
   la tierra que se arrastra a un nodo, acomodo `h` o `v` según la caja). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
   la resistencia equivalente) no usa el multímetro. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
-  `osciloscopio-rc`, `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
+  `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
   `agua-electricidad` es la versión vieja (no está en `Sim.ORDER`). Las páginas que se quitaron dejan en su carpeta una
