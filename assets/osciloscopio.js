@@ -666,12 +666,18 @@
     //   pc (un solo panel en la PC): el generador a la derecha del circuito y abajo el osciloscopio completo.
     //   ancho (el celular acostado): el osciloscopio corto (mini) a la derecha del circuito y el generador; de frente se
     //     ve solo él, completo y grande (solo: el mismo dibujo, recortado alrededor del osciloscopio).
+    // En el celular, con el generador abierto el osciloscopio se guarda (abajo, fuera de la vista: g.stow) y el dibujo
+    // llega hasta el generador (en el ancho, el generador va a la derecha del circuito, como en la pc). Se abren con sus
+    // teclas o con el menú de abajo (Sim.instMenu).
     const BAND = 110;   // en el alto, franja arriba del circuito para el selector del color de las partículas
+    const GEN_END = CIRC.BOT + 46 + GEN_H + 20;   // hasta dónde llega el generador abierto (con su margen)
     const size = (w, h) => {
-      const fit = (W, H) => Math.min(w / W, h / H), altoH = st.front ? 1060 : st.gfront || !Sim.phone ? 1000 : 1000 - (GEN_H - GMINI.h);
+      const stow = Sim.phone && st.gfront;
+      const fit = (W, H) => Math.min(w / W, h / H), altoH = st.front ? 1060 : stow ? GEN_END : st.gfront || !Sim.phone ? 1000 : 1000 - (GEN_H - GMINI.h);
       const pc = fit(1200, 840), cands = [];
       if (pc >= 0.62) cands.push({ s: pc * 1.15, r: [1200, 840, 0, 'pc-wide', 0] });
       else if (st.front) cands.push({ s: fit(1010, 500), r: [1010, 500, 622, 'solo-wide', 90] });
+      else if (stow) cands.push({ s: fit(1200, 350), r: [1200, 350, 0, 'ancho-compact', 0] });
       else cands.push({ s: fit(1260, 570), r: [1260, 570, 0, 'ancho-compact', 0] });
       cands.push({ s: fit(640, altoH + BAND), r: [640, altoH + BAND, 0, 'alto-' + (st.front ? 'tall' : 'compact'), -BAND] });
       const best = cands.reduce((a, b) => b.s > a.s ? b : a), r = [...best.r];
@@ -690,6 +696,8 @@
       if (g.phone && g.lay === 'compact') g.lay = 'mini';   // en el celular, el corto solo se lee
       g.gmini = g.phone && !st.gfront;   // el generador corto (en el celular, mientras no se abre)
       if (g.gmini) { g.GH = GMINI.h; if (g.alto && g.lay !== 'tall') g.SY -= GEN_H - GMINI.h; }
+      g.stow = g.phone && st.gfront && !g.solo && g.lay !== 'tall';   // el generador abierto: el osciloscopio, guardado
+      if (g.stow) { g.SY = GEN_END + 2000; if (!g.alto) { g.GX = 620; g.GY = 110; } }
       g.L = placeLayout(LAYOUTS[g.lay], g.SX, g.SY);
       if (g.solo) g.L.fold = [g.SX + g.L.w - 32, g.SY + 22];   // para regresarlo a la mesa
       g.SW = g.L.w; g.SH = g.L.h;
@@ -859,6 +867,7 @@
     const pw = Sim.panel(document.getElementById('pw'), size), pe = Sim.panel(document.getElementById('pe'), size);
     pw.mirror = pe; pe.mirror = pw; panels.w = pw; panels.e = pe;
     let refreshFn = null;   // refresh, cuando ya existe: al cambiar de acomodo, los controles cambian de lugar y tamaño
+    let syncInst = null;   // el menú de los instrumentos (ver más abajo)
     const relayout = (side, mode) => {
       geos[side] = geometry(side, mode);
       Sim.compact = mode.endsWith('-c');
@@ -878,7 +887,7 @@
       return { v: ['lento', 'rápido'], p: [pre + '−' + VS + ' ' + v, VS + ' ' + v], q: [pre + '0', o.ifull + ' ' + i] }[Sim.shownColorMode()];
     };
     const syncColors = Sim.colorPicker(panels, { top: true, ends: colorEnds,
-      spot: side => { const g = geos[side]; return g.alto ? [g.X1 + 50, 4 - BAND] : g.pc ? [g.GX + g.GW, 4] : g.solo ? [-2000, -2000] : [g.SX + g.SW, 4]; } });
+      spot: side => { const g = geos[side]; return g.alto ? [g.X1 + 50, 4 - BAND] : g.pc || g.stow ? [g.GX + g.GW, 4] : g.solo ? [-2000, -2000] : [g.SX + g.SW, 4]; } });
     let colorKey = '';
     const inercia = document.getElementById('inercia'), oIn = document.getElementById('oInercia');
     Sim.snapRange(inercia, { magnet: 0.5 });   // pasa de 0,1 en 0,1 s y se engancha en 0, 0,5, 1… s
@@ -914,7 +923,7 @@
       });
       pw.replace(); pe.replace();
     };
-    refreshFn = refresh;
+    refreshFn = () => { refresh(); if (syncInst) syncInst(); };
     Sim.onView(() => refresh());
     const linkedButton = ({ pos, text, label, attrs, hidden, dim, onClick, cls = 'sim-btn small', html, act, side: dup }) => {
       const pair = ['w', 'e'].map(side => {
@@ -1014,6 +1023,12 @@
       label: side => st.gfront ? `Cerrar ${side === 'w' ? 'la bomba' : 'el generador'}: la versión corta` : `Abrir ${side === 'w' ? 'la bomba' : 'el generador'}, con todos sus mandos`,
       attrs: () => ({ 'aria-pressed': String(!!st.gfront) }),
       onClick: () => { st.gfront = !st.gfront; if (st.gfront) st.front = false; reflow(); } });
+
+    // El menú de los instrumentos (en el celular, abajo del panel): abrir uno guarda el otro; cerrarlo deja los dos cortos.
+    syncInst = Sim.instMenu(panels, {
+      items: side => [['gen', side === 'w' ? 'Bomba de vaivén' : 'Generador'], ['osc', side === 'w' ? 'Registrador' : 'Osciloscopio']],
+      get: () => st.front ? 'osc' : st.gfront ? 'gen' : null,
+      set: k => { st.gfront = k === 'gen'; st.front = k === 'osc'; reflow(); refresh(); syncInst(); } });
 
     // Componentes: tocarlos abre su tarjeta, como en las demás páginas.
     const setR = R => { st.R = R; rebuild(); };

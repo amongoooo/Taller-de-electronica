@@ -365,6 +365,16 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 .sim-seg button:hover { color: var(--ink); }
 .sim-seg button[aria-pressed="true"] { background: var(--sel); color: var(--card); }
 
+/* Menú de los instrumentos (Sim.instMenu): solo en el celular, abajo al centro del panel, en la franja que el
+   dibujo le deja (Sim.INSET). El abierto va lleno con su × para cerrarlo. */
+.sim-inst {
+  display: none; position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 4;
+  max-width: calc(100% - 16px); box-shadow: 0 1px 4px rgb(0 0 0 / .12);
+}
+.sim-inst button { font-size: 15px; height: 36px; padding: 0 .85em; }
+.sim-inst button[aria-pressed="true"]::after { content: '×'; margin-left: .4em; font-size: 1.15em; line-height: 0; }
+@media (max-width: 600px), (max-height: 500px) { .sim-inst { display: inline-flex; } }
+
 /* Columna de menús a la derecha del dibujo, en pantallas anchas (Sim.menu). */
 .sim-dock { position: absolute; right: 0; z-index: 5; display: grid; align-content: start; padding: 4px 16px 36px; max-height: calc(100% - 24px); overflow-y: auto; --fold-gap: 14px; }
 /* Cada tarjeta acoplada va en una fila que se abre de 0fr a 1fr (200 ms) y se cierra en 120 ms, así lo de

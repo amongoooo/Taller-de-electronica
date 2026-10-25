@@ -38,10 +38,11 @@
     const p = { box, canvas, W: 0, H: 0, scale: 1, ox: 0, oy: 0, dpr: 1, items: [], onLayout: null };
     Sim.panels.push(p);
     // pos() puede dar null: ese control no va en el acomodo de ahora y se esconde (.sim-off)
+    // (también lo que queda muy abajo del dibujo: un instrumento guardado, ver Sim.instMenu)
     const place = it => {
-      const q = it.pos();
-      it.el.classList.toggle('sim-off', !q);
-      if (!q) return;
+      const q = it.pos(), off = !q || q[1] > p.H + 60;
+      it.el.classList.toggle('sim-off', off);
+      if (off) return;
       const [x, y] = q;
       it.el.style.left = (p.ox + x * p.scale) + 'px';
       it.el.style.top = (p.oy + y * p.scale) + 'px';
@@ -51,6 +52,9 @@
       // un panel oculto se acomoda igual que el otro, para que los dos compartan el mismo dibujo
       if ((!w || !h) && p.mirror) { w = p.mirror.box.clientWidth; h = p.mirror.box.clientHeight; }
       if (!w || !h) return;
+      // p.inset(): los px de abajo que el dibujo deja libres (el menú de los instrumentos del celular)
+      const full = h;
+      h -= p.inset ? p.inset() : 0;
       // [W, H, x0, modo, y0]: x0 es la x del dibujo que queda en el borde izquierdo y y0 la y que queda arriba
       // (negativa: una franja libre arriba del dibujo)
       const [W, H, x0 = 0, mode = '', y0 = 0] = typeof size === 'function' ? size(w, h) : size;
@@ -61,7 +65,7 @@
       p.oy = (h - H * p.scale) / 2 - y0 * p.scale;
       p.dpr = window.devicePixelRatio || 1;
       canvas.width = Math.round(w * p.dpr);
-      canvas.height = Math.round(h * p.dpr);
+      canvas.height = Math.round(full * p.dpr);
       box.style.setProperty('--s', p.scale);
       if (changed && p.onLayout) p.onLayout(W, H, mode);
       p.items.forEach(place);
@@ -786,6 +790,41 @@
         });
       }
     };
+  };
+
+  // En el celular, el menú chico de los instrumentos de la página, abajo de cada panel (el dibujo le deja su franja,
+  // p.inset): tocar uno lo abre, grande y con todos sus mandos, y los demás se guardan; tocarlo otra vez lo cierra y
+  // se ven todos en su versión corta. panels: { w, e }; items(side) → [[clave, nombre], …]; get() → la clave del
+  // abierto (o null); set(clave o null). Devuelve sync(), que vuelve a poner sus nombres y cuál está abierto.
+  Sim.INSET = 56;   // px que deja libres abajo del panel
+  Sim.instMenu = (panels, { items, get, set }) => {
+    const els = ['w', 'e'].map(side => {
+      const el = document.createElement('div'), q = panels[side];
+      el.className = 'sim-seg sim-inst'; el.setAttribute('role', 'group');
+      el.setAttribute('aria-label', 'Instrumentos: tocar uno lo abre y guarda los demás');
+      el.addEventListener('click', e => {
+        const bt = e.target.closest('button');
+        if (bt) set(get() === bt.dataset.k ? null : bt.dataset.k);
+      });
+      q.box.appendChild(el);
+      q.inset = () => Sim.phone ? Sim.INSET : 0;
+      q.refit();
+      return [el, side];
+    });
+    const sync = () => els.forEach(([el, side]) => {
+      const list = items(side), open = get();
+      if (el.dataset.keys !== list.map(([k, t]) => k + t).join()) {
+        el.dataset.keys = list.map(([k, t]) => k + t).join();
+        el.innerHTML = list.map(([k, t]) => `<button type="button" data-k="${k}">${t}</button>`).join('');
+      }
+      el.querySelectorAll('button').forEach(bt => {
+        const on = bt.dataset.k === open;
+        bt.setAttribute('aria-pressed', String(on));
+        bt.setAttribute('aria-label', (on ? 'Cerrar ' : 'Abrir ') + bt.textContent.toLowerCase());
+      });
+    });
+    sync();
+    return sync;
   };
 
   // Selector del color de las partículas, en cada panel: un selector pequeño con el nombre de cada modo
