@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025073510">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025073939">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -46,7 +46,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025073510"></script>
+<script src="../../assets/sim.js?v=20261025073939"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -750,14 +750,12 @@
   });
 
   // ---------- pasos ----------
-  // 1: tocar un agujero resalta su tira (un nodo) con su voltaje. 2: dos resistencias con corriente. Reto: una tira
-  // (no un riel) en 4,5 V, con dos resistencias iguales en serie.
-  // Si no se ha movido nada, cada paso pone su ejemplo; el reto deja lo que haya.
-  const STEPS = ['Las tiras son nodos', 'Armar con resistencias', 'Reto · 4.5 V'];
+  // 1: tocar un agujero resalta su tira (un nodo) con su voltaje. 2: dos resistencias con corriente.
+  // Si no se ha movido nada, cada paso pone su ejemplo.
+  const STEPS = ['Las tiras son nodos', 'Armar con resistencias'];
   const live = t => st.comps.filter(k => k.type === t && !k.burnt && Math.abs(k.I) > 0.05);
-  Sim.steps(STEPS, k => { const was = st.step; st.step = Math.min(k, 1); if (!st.touched && k < 2 && st.step !== was) example(); }, k =>
-    k === 0 ? !!st.sel : k === 1 ? live('res').length >= 2
-      : Object.keys(st.V).some(n => (n[0] === 'T' || n[0] === 'B') && st.reach.has(n) && Math.abs(st.V[n] - 4.5) < 0.05) && st.Ibat > 0.05);
+  Sim.steps(STEPS, k => { const was = st.step; st.step = k; if (!st.touched && st.step !== was) example(); }, k =>
+    k === 0 ? !!st.sel : live('res').length >= 2);
 })();
 </script>
 </body>

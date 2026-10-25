@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025073510">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025073939">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025073510"></script>
-<script src="../../assets/osciloscopio.js?v=20261025073510"></script>
+<script src="../../assets/sim.js?v=20261025073939"></script>
+<script src="../../assets/osciloscopio.js?v=20261025073939"></script>
 <script>
 // Rectificador de onda completa: puente de cuatro 1N4007 entre el generador y la resistencia de carga, con o sin
 // el capacitor de filtro en paralelo. El generador y el osciloscopio están en assets/osciloscopio.js.
@@ -50,8 +50,6 @@
 // P a N, y en ella caen 2 × 0,7 V menos que la entrada.
 (() => {
   const { X0, X1, TOP, BOT, PATH, VF, RD, rcOf } = Sim.scope;
-  // Rizado de la salida: lo que va de lo más bajo a lo más alto en el último periodo de la entrada (para el reto).
-  const rip = { t: 0, lo: Infinity, hi: -Infinity, val: null, mean: 0, sum: 0 };
   let gen = null;
   const YN = 210, MN = (TOP + YN) / 2;   // cable de N (adentro del circuito) y la mitad entre él y el de arriba
   const XA = 180, XB = 460, XC = 280, XRr = 360;   // diodos de la izquierda y de la derecha; capacitor; resistencia
@@ -84,14 +82,8 @@
       { pts: [[XRr, YN], [X1, YN]], br: 'b4' },
       ...(st.filt ? [{ pts: [[XC, TOP], [XC, YN]], br: 'c' }] : [])],
     dots: st => [[X0, YN], [X1, YN], [XRr, TOP], [XRr, YN], ...(st.filt ? [[XC, TOP], [XC, YN]] : [])],
-    // el circuito en cada paso (solve, abajo), y de paso el rizado de la salida para el reto
-    solve: (e, h, st) => {
-      const m = solve(e, h, st);
-      gen = st;
-      rip.t += h; rip.sum += m.VR * h; rip.lo = Math.min(rip.lo, m.VR); rip.hi = Math.max(rip.hi, m.VR);
-      if (st.freq > 0 && rip.t >= 1 / st.freq) { rip.val = rip.hi - rip.lo; rip.mean = rip.sum / rip.t; rip.t = rip.sum = 0; rip.lo = Infinity; rip.hi = -Infinity; }
-      return m;
-    },
+    // el circuito en cada paso (solve, abajo)
+    solve: (e, h, st) => { gen = st; return solve(e, h, st); },
     ifull: 5, rValues: Sim.series(1000, 10000), filter: true
   });
   // Voltajes contra el borne − del generador (B = 0, A = e). Conduce un par cuando la entrada pasa de lo que
@@ -121,11 +113,9 @@
       diodes: { D1: [e - vP, f], D2: [-vP, b], D3: [vN - e, b], D4: [vN, f] } };
   }
 
-  // Pasos que se revisan solos: prender la salida del generador (dos jorobas por ciclo), poner el capacitor y, como
-  // reto del bloque, dejar el rizado abajo de 0,1 V con la salida en más de 2 V (con 100 µF y 1 kΩ es de unos
-  // 0,16 V: hace falta más resistencia, más capacitor o más frecuencia).
-  const STEPS = ['Dos jorobas', 'Con capacitor', 'Reto · rizado < 0.1 V'];
-  Sim.steps(STEPS, () => {}, k => !!gen && gen.on && (k === 0 || (gen.filt && (k === 1 || (rip.val != null && rip.val < 0.1 && rip.mean > 2)))));
+  // Pasos que se revisan solos: prender la salida del generador (dos jorobas por ciclo) y poner el capacitor.
+  const STEPS = ['Dos jorobas', 'Con capacitor'];
+  Sim.steps(STEPS, () => {}, k => !!gen && gen.on && (k === 0 || gen.filt));
 })();
 </script>
 </body>
