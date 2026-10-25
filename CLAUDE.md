@@ -114,7 +114,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
   - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado). Inercia: `inertia`. Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
     tramo de la fuente, para que el − (y la tierra, `b.ground`) quede en 0 V a la izquierda.
-- `assets/osciloscopio.js` (`Sim.scope(o)`), el generador de funciones y el osciloscopio que usan las páginas 9 a 13:
+- `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
+  medidas con `update`, sus mandos con `ui.button`/`ui.knob` y su dibujo con `draw(ctx, L, side)`; sin circuito ni puntas), y
+  `Sim.scope(o)`, el generador de funciones con el osciloscopio que usan las páginas del bloque de señales:
   dos canales y caimán de tierra, puntas en cualquier cable (`wires`), `frames` (cada cuadro integra el circuito y guarda
   lo que marca cada canal, ya con su acoplamiento), disparo por nivel (`scan`, `updateScope`), `measure` (MEASURE,
   AUTOSET, SET TO 50%), los acomodos del osciloscopio (`LAYOUTS`: `wide` completo, `tall` de frente en la mesa angosta,

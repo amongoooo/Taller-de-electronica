@@ -160,119 +160,77 @@
       gnd: mv(L.gnd), fold: mv(L.fold), bezel: L.bezel && [L.bezel[0] + x, ...L.bezel.slice(1)], bncLab: L.bncLab && L.bncLab + y };
   };
 
-  Sim.scope = o => {
-    // Acomodos del dibujo (el modo dice cuál y qué acomodo del osciloscopio lleva):
-    //   alto (celular, o los dos paneles en la PC): el circuito arriba y en la mesa el generador y el osciloscopio
-    //     compacto (en el celular, el corto: mini, solo para leer); de frente (st.front), el generador se guarda y el osciloscopio ocupa la mesa con todos sus mandos.
-    //     En el celular el generador va corto (GMINI) hasta que se abre (st.gfront); abrir uno cierra el otro.
-    //   pc (un solo panel en la PC): el generador a la derecha del circuito y abajo el osciloscopio completo.
-    //   ancho (el celular acostado): el osciloscopio corto (mini) a la derecha del circuito y el generador; de frente se
-    //     ve solo él, completo y grande (solo: el mismo dibujo, recortado alrededor del osciloscopio).
-    const BAND = 110;   // en el alto, franja arriba del circuito para el selector del color de las partículas
-    const size = (w, h) => {
-      const fit = (W, H) => Math.min(w / W, h / H), altoH = st.front ? 1060 : st.gfront || !Sim.phone ? 1000 : 1000 - (GEN_H - GMINI.h);
-      const pc = fit(1200, 840), cands = [];
-      if (pc >= 0.62) cands.push({ s: pc * 1.15, r: [1200, 840, 0, 'pc-wide', 0] });
-      else if (st.front) cands.push({ s: fit(1010, 500), r: [1010, 500, 622, 'solo-wide', 90] });
-      else cands.push({ s: fit(1260, 570), r: [1260, 570, 0, 'ancho-compact', 0] });
-      cands.push({ s: fit(640, altoH + BAND), r: [640, altoH + BAND, 0, 'alto-' + (st.front ? 'tall' : 'compact'), -BAND] });
-      const best = cands.reduce((a, b) => b.s > a.s ? b : a), r = [...best.r];
-      if (Math.min(w / r[0], h / r[1]) < 0.75) r[3] += '-c';
-      return r;
-    };
-    const geometry = (side, mode) => {
-      const g = { side, mode, ...CIRC, GX: 40, GY: CIRC.BOT + 46, GW: 560, GH: GEN_H };
-      g.alto = mode.startsWith('alto');
-      g.solo = mode.startsWith('solo');
-      g.pc = mode.startsWith('pc');
-      g.lay = mode.split('-')[1];
-      [g.SX, g.SY] = g.alto ? (g.lay === 'tall' ? [20, 310] : [20, 566]) : g.pc ? [113, 400] : [640, 150];
-      if (g.pc) { g.GX = 620; g.GY = 150; }
-      g.phone = Sim.phone && !g.pc;
-      if (g.phone && g.lay === 'compact') g.lay = 'mini';   // en el celular, el corto solo se lee
-      g.gmini = g.phone && !st.gfront;   // el generador corto (en el celular, mientras no se abre)
-      if (g.gmini) { g.GH = GMINI.h; if (g.alto && g.lay !== 'tall') g.SY -= GEN_H - GMINI.h; }
-      g.L = placeLayout(LAYOUTS[g.lay], g.SX, g.SY);
-      if (g.solo) g.L.fold = [g.SX + g.L.w - 32, g.SY + 22];   // para regresarlo a la mesa
-      g.SW = g.L.w; g.SH = g.L.h;
-      g.gen = g.lay !== 'tall' && !g.solo;   // de frente, el generador se guarda
-      g.MIDY = (g.TOP + g.BOT) / 2;
-      g.jacks = [g.L.bnc[0], g.L.gnd, g.L.bnc[1]];
-      return g;
-    };
-
-    // Resistencias de la serie E12 (las de la página); calor (Sim.heat): la resistencia es de ¼ W; cada diodo
-    // aguanta 1 A promedio, con ~1 V de caída ~1 W, y su unión llega a 150 °C.
-    const rh = Sim.heat(Sim.HEAT.res), dh = {};
-    const PLACES = o.places, kind = k => k[0];
-    for (const k in PLACES) if (kind(k) === 'D') dh[k] = Sim.heat({ pMax: 1, tMax: 150, tau: 4 });
-    const popt = k => PLACES[k][3] || {};
-
-    // El generador: la salida CH1 (on), la forma de onda, sus valores (ver GP), lo que cambia la perilla (sel) y el
-    // dígito que cambia de cada valor (dig: la potencia de 10).
-    const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, freq: 1, amp: 12, off: 0, duty: 50, phs: 0, wave: 'sine',
-      sel: 'freq', dig: { freq: 0, amp: 0, off: -1, duty: 0, phs: 1 },
-      led: true, R: 470, color: 'rojo', rev: false, Cap: 0.1, filt: false, drev: false, vc: 0, rb: false, rbT: 0,
-      ph: 0, T: 0, probe: [300, 980, 640], pw: [0, 0, 0], side: [-1, -1, 1], last: [0, 0],
-      q: {}, flow: {}, dOn: {},
-      rotor: 0, rotorOm: 0, wheel: 0, wheelOm: 0, glow: 0, shut: 0, shake: 0,
-      frames: [], traces: [], beam: null, m: [null, null], status: 'auto' };
-    const { vd = [1, 1], td = 1, ch2 = false, pos = [0, 0], trig = {}, ...p0 } = o.preset;
-    Object.assign(st, p0, { probe: [...p0.probe], pw: p0.pw ? [...p0.pw] : [0, 0, 0], side: [...p0.side] });
-    // El osciloscopio: cada canal (prendido, volts por división, dónde queda su cero en divisiones, acoplamiento
-    // CC · CA · Tierra e invertido), el tiempo por división, dónde queda el disparo (hpos: divisiones a la derecha
-    // del centro), el disparo (fuente, pendiente, modo Auto · Normal y nivel en V), RUN/STOP, el menú que se ve en
-    // la pantalla (meas, ch0, ch1, trig o ninguno), las cinco medidas y si está de frente (st.front).
-    Object.assign(st, {
-      chs: [0, 1].map(k => ({ on: k === 0 || ch2, vi: nearest(VDIV, vd[k]), pos: pos[k], cpl: 'dc', inv: false })),
-      ti: nearest(TDIV, td), hpos: 0, trg: { src: 0, slope: 1, mode: 'auto', level: 0, ...trig }, run: true,
-      menu: 'meas', meas: [[0, 'pp'], [0, 'mean'], [0, 'max'], [1, 'pp'], [1, 'mean']], front: false, gfront: false,
-      hp: [{ x: 0, y: 0 }, { x: 0, y: 0 }] });
-    for (const k in dh) st.dOn[k] = 0;
-
-    // ---------- cables: dónde se ponen las puntas y el voltaje de cada punto ----------
-    const HALF = { R: 46, L: 30, D: 30, C: 30 };
-    const project = (pts, x, y) => {
-      let best = null, d0 = 0;
-      for (let i = 1; i < pts.length; i++) {
-        const [ax, ay] = pts[i - 1], [bx, by] = pts[i], s = Math.hypot(bx - ax, by - ay);
-        const t = s ? clamp01(((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (s * s)) : 0;
-        const dist = Math.hypot(x - ax - (bx - ax) * t, y - ay - (by - ay) * t);
-        if (!best || dist < best.dist) best = { d: d0 + t * s, dist };
-        d0 += s;
-      }
-      return best;
-    };
-    // Cada cable: sus nodos (en orden) y lo que abarca cada componente (en distancia por el cable).
-    const WIRES = o.wires.map(w => {
-      const nodes = w.seq.filter((x, i) => i % 2 === 0), comps = w.seq.filter((x, i) => i % 2);
-      const at = comps.map(k => project(w.pts, PLACES[k][0], PLACES[k][1]).d);
-      return { ...w, L: D.len(w.pts), nodes, comps,
-        span: () => comps.map((k, i) => { const r = w.half && w.half[k] ? w.half[k](st) : HALF[kind(k)]; return [at[i] - r, at[i] + r]; }) };
+  // ---------- formatos y piezas de dibujo comunes ----------
+  const unitV = side => side === 'w' ? 'psi' : 'V';   // 1 psi por volt: mismos números
+  const tText = ms => ms >= 1000 ? fmt(ms / 1000, 0) + ' s' : ms < 1 ? fmt(ms * 1000, 0) + ' µs' : fmt(ms, ms % 1 ? 1 : 0) + ' ms';
+  // Lecturas de la pantalla del osciloscopio, con tres cifras y punto decimal como en el de verdad (4.93V, 500mV,
+  // 2.50ms; la frecuencia con una más: 100.0Hz). En el agua, psi sin prefijos.
+  const eng = (v, u) => {
+    if (v == null || !isFinite(v)) return '?';
+    const a = Math.abs(v), bare = u === 'psi';
+    const [k, p] = bare || (a >= 1 && a < 1000) || a === 0 ? [1, ''] : a >= 1000 ? [1e-3, 'k'] : a >= 1e-3 ? [1e3, 'm'] : [1e6, 'µ'];
+    const x = v * k, ax = Math.abs(x), d = (ax >= 99.95 ? 0 : ax >= 9.995 ? 1 : ax >= 0.995 || !bare ? 2 : 3) + (u === 'Hz' ? 1 : 0);
+    return x.toFixed(d) + p + u;
+  };
+  const pen = (ctx, col) => {
+    ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(12, -2.5); ctx.lineTo(12, 2.5); ctx.closePath();
+    ctx.fillStyle = '#9aa6af'; ctx.fill();
+    D.roundRect(ctx, 12, -4, 6, 8, 1.5, C.ink);
+    D.roundRect(ctx, 17, -7, 8, 14, 2, col, C.ink, 1.5);
+    D.roundRect(ctx, 24, -5.5, 18, 11, 3, col, C.ink, 1.5);
+    D.roundRect(ctx, 41, -3.5, 6, 7, 1.5, C.ink);
+  };
+  // Caimán de tierra: dos quijadas que muerden el cable.
+  const gator = ctx => {
+    ctx.fillStyle = C.ink;
+    ctx.beginPath(); ctx.moveTo(1, -1.5); ctx.lineTo(20, -9); ctx.lineTo(20, -2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(1, 1.5); ctx.lineTo(20, 9); ctx.lineTo(20, 2); ctx.closePath(); ctx.fill();
+    D.roundRect(ctx, 18, -8, 28, 16, 4, C.ink);
+  };
+  const hoseTip = (ctx, col) => {
+    const P = Sim.PIPE;
+    D.roundRect(ctx, P + 2, -7, 10, 14, 2.5, '#9aa6af', col, 2.5);
+    D.line(ctx, [[P + 2, 0], [P + 12, 0]], 4, C.water);
+  };
+  // Papel del registrador (más oscuro en el modo oscuro) y su cuadrícula.
+  const paper = () => C.dark ? '#262420' : '#fffdf5';
+  const grid = mid => C.dark ? (mid ? '#5c5444' : '#3a362d') : (mid ? '#d6c7a6' : '#ece2cc');
+  const tipColor = k => k === 1 ? C.neg : CH[k ? 1 : 0].cable;
+  // Tecla con su nombre impreso (la misma base que Sim.draw.key); fill: la tapa de color (CH1 y CH2 MENU).
+  const keyCap = (ctx, [x, y, kw, kh], label, { down = 0, fill } = {}) => {
+    D.roundRect(ctx, x - kw / 2, y - kh / 2 + 2, kw, kh, 5, '#1b242c');
+    D.roundRect(ctx, x - kw / 2, y - kh / 2 + down * 1.5, kw, kh - 1.5, 5, fill || (down ? '#8e9aa4' : '#b4bec6'), '#1b242c', 1.2);
+    if (label) D.text(ctx, label, x, y + down * 1.5 - 0.5, '#15212a', { size: 14, max: kw - 8 });
+  };
+  // Entrada BNC (con un anillo del color de su canal) y borne de tierra.
+  const bnc = (ctx, x, y, col) => {
+    D.circle(ctx, x, y, 17, null, col, 3);
+    D.circle(ctx, x, y, 13, '#b9c4cc', C.ink, 1.5); D.circle(ctx, x, y, 8, '#2a333b'); D.circle(ctx, x, y, 2.5, '#e9edf0');
+  };
+  const groundSym = (ctx, x, y, col) => {
+    D.line(ctx, [[x, y - 9], [x, y]], 2, col);
+    [[10, 0], [6.5, 4], [3, 8]].forEach(([hw, dy]) => D.line(ctx, [[x - hw, y + dy], [x + hw, y + dy]], 2, col, 'butt'));
+  };
+  const arc = (ctx, x, y, r, col) => { ctx.beginPath(); ctx.arc(x, y, r, -1.1, 0.7); ctx.lineWidth = 4; ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.stroke(); };
+  // Icono de la tecla de frente: dos flechas hacia afuera (o hacia adentro, para regresarlo).
+  const foldIcon = (ctx, x, y, out) => {
+    const a = out ? 9 : 3, b = out ? 3 : 9;
+    [[1, -1], [-1, 1]].forEach(([sx, sy]) => {
+      D.line(ctx, [[x + sx * b, y + sy * b], [x + sx * a, y + sy * a]], 2.4, '#15212a');
+      D.line(ctx, [[x + sx * a - sx * 5, y + sy * a], [x + sx * a, y + sy * a], [x + sx * a, y + sy * a - sy * 5]], 2.4, '#15212a');
     });
-    const live = w => !w.when || w.when(st);
-    // Voltaje en el punto d del cable: el de su nodo, o de un nodo al otro por lo largo de cada componente.
-    const vOn = (w, d, v, spans = w.span()) => {
-      let x = v[w.nodes[0]];
-      for (let i = 0; i < spans.length; i++) x -= (v[w.nodes[i]] - v[w.nodes[i + 1]]) * clamp01((d - spans[i][0]) / (spans[i][1] - spans[i][0]));
-      return x;
-    };
-    // Las puntas no se pueden poner encima de un componente ni del generador.
-    const snapD = (wi, d) => {
-      const w = WIRES[wi], sp = w.span().filter((c, i) => kind(w.comps[i]) !== 'L' || st.led);
-      for (const [a, b] of sp) if (d > a - 8 && d < b + 8) d = d - a < b - d ? a - 8 : b + 8;
-      return Math.max(10, Math.min(w.L - 10, d));
-    };
-    const nearWire = (x, y, probe) => {
-      let best = null;
-      WIRES.forEach((w, i) => {
-        if (!live(w) || (probe && w.probe === false)) return;
-        const p = project(w.pts, x, y);
-        if (!best || p.dist < best.dist) best = { ...p, w: i };
-      });
-      return best;
-    };
+  };
+  const ink = (ch, w) => w ? CH[ch].paper[C.dark ? 1 : 0] : CH[ch].lcd;
+  const STATUS = { trig: ['Disparado', '#5be08a'], auto: ['Auto', '#ffd166'], armed: ['Armado', '#ffd166'], stop: ['Detenido', '#ff6b5f'] };
 
+  // ---------- el osciloscopio ----------
+  // Sim.scopeUnit(st, ui): el osciloscopio del taller, con su pantalla, sus mandos y lo que guarda, sin el circuito
+  // ni las puntas (eso lo pone quien lo usa: Sim.scope, con el generador). st trae su estado (chs, ti, hpos, trg, run,
+  // menu, meas, front, hp, frames, T, last…); ui: button y knob (crean un control en cada panel; pos(g) con g la
+  // geometría de ese lado), L(g) (el acomodo del osciloscopio ya puesto en su lugar), lay() (el del panel eléctrico,
+  // para saber qué mandos lleva), fold() y foldLabel() (la tecla de ponerlo de frente). Da record (lo que entra en
+  // cada cuadro), update (barrido, disparo y medidas), draw(ctx, L, side), measure, sweepS y syncKnobs.
+  Sim.scopeUnit = (st, ui) => {
     // ---------- lo que marca el osciloscopio ----------
     // Cada cuadro guarda, paso por paso, lo que marca cada canal (a: canal 1, b: canal 2, contra el caimán de
     // tierra), su mínimo, su máximo y su promedio, y la fase del generador al empezar (para el disparo).
@@ -423,21 +381,14 @@
       }
     };
 
-    // ---------- animación del circuito ----------
-    // Se integra con pasos pequeños: al menos 64 por ciclo del generador y 40 por división de la pantalla. El
-    // agua (y las cargas) de cada rama avanza lo que pasó en el cuadro, aunque la señal vaya y venga muchas veces.
+    // Lo que entra en un cuadro: record(n, h) da put(k, xa, xb) para cada uno de sus n pasos de h segundos (lo que
+    // marca cada canal contra el caimán de tierra) y end(f, dt) lo guarda (f: la frecuencia de la señal, para ver si
+    // en una columna de la pantalla caben varios ciclos). Lo que entra a cada canal según su acoplamiento: CC tal cual;
+    // CA por su capacitor de entrada (un filtro pasa altas, con su solución exacta si la señal va en línea recta entre
+    // dos pasos; se carga aunque no se use, como el de verdad); Tierra, 0. Invertido, al revés.
     let dense = 0;   // cuántos valores guardados hay (para no guardar de más)
-    const FAST = 5, VS = 10;
-    st.avg = { on: false, v: {}, i: {} };
-    const advance = dt => {
-      st.level = st.ramp.step(st.on ? 1 : 0, st.tau, dt);
-      const f = st.wave === 'dc' ? 0 : st.freq, S = sweepS(), du = st.duty / 100, p0 = st.ph + st.phs / 360;
-      const n = Math.max(1, Math.min(4000, Math.ceil(Math.max(dt * f * 64, dt * 400 / S)))), h = dt / n;
-      const at = [0, 1, 2].map(k => { const w = WIRES[st.pw[k]]; return { w, d: st.probe[k], sp: w.span() }; });
+    const record = (n, h) => {
       const a = new Float32Array(n + 1), b = new Float32Array(n + 1);
-      // Lo que entra a cada canal (contra el caimán de tierra) según su acoplamiento: CC tal cual; CA por su
-      // capacitor de entrada (un filtro pasa altas, con su solución exacta si la señal va en línea recta entre dos
-      // pasos; se carga aunque no se use, como el de verdad); Tierra, 0. Invertido, al revés.
       const ex = Math.exp(-h / AC_TAU), kx = AC_TAU / h * (1 - ex);
       const input = (c, x) => {
         const s = st.chs[c], f = st.hp[c];
@@ -446,6 +397,390 @@
         return s.inv ? -v : v;
       };
       a[0] = st.last[0]; b[0] = st.last[1];
+      return {
+        put: (k, xa, xb) => { a[k + 1] = input(0, xa); b[k + 1] = input(1, xb); },
+        end: (f, dt) => {
+          const S = sweepS(), F = { t0: st.T, h, n, a, b, f, ph0: st.ph, mn: [Infinity, Infinity], mx: [-Infinity, -Infinity], sm: [0, 0] };
+          [a, b].forEach((v, ch) => {
+            let mn = v[0], mx = v[0], sm = 0;
+            for (let k = 1; k <= n; k++) { const x = v[k]; if (x < mn) mn = x; if (x > mx) mx = x; sm += (v[k - 1] + x) / 2 * h; }
+            F.mn[ch] = mn; F.mx[ch] = mx; F.sm[ch] = sm;
+          });
+          frames.push(F); dense += n + 1;
+          st.last = [a[n], b[n]];
+          st.T += dt;
+          // Se guarda lo de los últimos 30 s; los valores paso por paso solo lo que puede pedir la pantalla.
+          while (frames.length > 2 && frames[1].t0 < st.T - 30) { const G = frames.shift(); if (G.a) dense -= G.n + 1; }
+          const keep = st.T - (6 * S + 1);
+          for (const G of frames) {
+            if (G.t0 >= keep && dense < 3e6) break;
+            if (G === F) break;
+            if (G.a) { dense -= G.n + 1; G.a = G.b = null; }
+          }
+        }
+      };
+    };
+
+    // Osciloscopio: los mandos del de verdad. Cada uno dice en qué acomodo está (los del compacto también van en el
+    // completo) y se acomoda donde lo pone ese acomodo.
+    const lay = ui.lay;
+    const has = (grp, id) => () => !lay()[grp][id];
+    const VTXT = (side, v) => side === 'w' ? fmt(v, v < 0.01 ? 3 : v < 1 ? 2 : 0) + ' psi' : v < 1 ? fmt(v * 1000, 0) + ' mV' : fmt(v, 0) + ' V';
+    const chName = (c, side) => (side === 'w' ? 'manguera ' : 'canal ') + (c + 1);
+    // Perillas: volts por división y POSITION de cada canal, SEC/DIV y POSITION horizontal, y LEVEL del disparo.
+    const K = {};
+    const knob = (id, o2) => { K[id] = ui.knob({ pos: g => ui.L(g).knobs[id] || [-999, -999], act: 'med', hidden: has('knobs', id),
+      dim: g => (ui.L(g).knobs[id] || [0, 0, 40])[2], ...o2 }); };
+    [0, 1].forEach(c => {
+      knob('vd' + c, { min: 0, max: VDIV.length - 1, step: 1, value: st.chs[c].vi,
+        label: side => `VOLTS/DIV del ${chName(c, side)}`, format: (v, side) => VTXT(side, VDIV[v]) + ' por división',
+        onInput: v => { st.chs[c].vi = v; if (st.trg.src === c) syncLevel(); } });
+      knob('pos' + c, { min: -40, max: 40, step: 1, magnet: 10, value: Math.round(st.chs[c].pos * 10),
+        label: side => `POSITION del ${chName(c, side)}: sube o baja su cero`, format: v => fmt(v / 10, 1) + ' divisiones',
+        onInput: v => { st.chs[c].pos = v / 10; } });
+    });
+    knob('td', { min: 0, max: TDIV.length - 1, step: 1, value: st.ti, label: () => 'SEC/DIV: tiempo por división',
+      format: v => tText(TDIV[v]) + ' por división', onInput: v => { st.ti = v; resetSweep(); } });
+    knob('hpos', { min: -50, max: 50, step: 1, magnet: 10, value: 0, label: () => 'POSITION horizontal: mueve el punto de disparo',
+      format: v => fmt(v / 10, 1) + ' divisiones', onInput: v => { st.hpos = v / 10; resetSweep(); } });
+    // LEVEL: el nivel del disparo, en décimas de división de su fuente (al cambiar su escala se queda en los mismos volts).
+    const lvlDiv = () => VDIV[st.chs[st.trg.src].vi] / 10;
+    knob('lvl', { min: -60, max: 60, step: 1, value: Math.round(st.trg.level / lvlDiv()),
+      label: side => 'LEVEL: nivel del disparo', format: (v, side) => eng(v * lvlDiv(), unitV(side)),
+      onInput: v => { st.trg.level = v * lvlDiv(); rearm(st.T); } });
+    function syncLevel() { K.lvl.set(Math.max(-60, Math.min(60, Math.round(st.trg.level / lvlDiv())))); }
+    const syncKnobs = () => {
+      [0, 1].forEach(c => { K['vd' + c].set(st.chs[c].vi); K['pos' + c].set(Math.round(st.chs[c].pos * 10)); });
+      K.td.set(st.ti); K.hpos.set(Math.round(st.hpos * 10)); syncLevel();
+    };
+    // Teclas
+    const key = (id, label, onClick, attrs) => ui.button({ pos: g => ui.L(g).keys[id] || [-999, -999], act: 'med', cls: 'sim-trig',
+      hidden: has('keys', id), dim: g => (ui.L(g).keys[id] || [0, 0, 40, 30]).slice(2), label, attrs, onClick });
+    const menuKey = m => () => { st.menu = st.menu === m ? null : m; };
+    key('meas', () => 'MEASURE: medidas automáticas en la pantalla', menuKey('meas'), () => ({ 'aria-pressed': String(st.menu === 'meas') }));
+    [0, 1].forEach(c => key('ch' + c, side => `CH${c + 1} MENU: ${st.chs[c].on ? (st.menu === 'ch' + c ? 'apaga el ' : 'menú del ') : 'prende el '}${chName(c, side)}`, () => {
+      const s2 = st.chs[c];
+      if (!s2.on) { s2.on = true; st.menu = 'ch' + c; } else if (st.menu === 'ch' + c) { s2.on = false; st.menu = null; } else st.menu = 'ch' + c;
+    }, () => ({ 'aria-pressed': String(st.chs[c].on) })));
+    key('trig', () => 'TRIG MENU: fuente, pendiente y modo del disparo', menuKey('trig'), () => ({ 'aria-pressed': String(st.menu === 'trig') }));
+    // SET TO 50%: el nivel a la mitad de la señal de la fuente del disparo.
+    const recent = ch => measure(ch, st.T - Math.max(1, 2 * sweepS()), st.T);
+    key('half', () => 'SET TO 50%: el nivel del disparo a la mitad de la señal', () => {
+      const m = recent(st.trg.src);
+      if (m) { st.trg.level = (m.mn + m.mx) / 2; syncLevel(); rearm(st.T); }
+    });
+    key('run', () => st.run ? 'RUN/STOP: congela la imagen' : 'RUN/STOP: sigue barriendo', () => { st.run = !st.run; if (st.run) resetSweep(); },
+      () => ({ 'aria-pressed': String(!st.run) }));
+    // AUTOSET: escoge las escalas y el disparo para ver bien la señal de cada canal prendido.
+    key('auto', () => 'AUTOSET: escoge las escalas solo', () => {
+      const ms = [0, 1].map(recent);
+      [0, 1].forEach(c => {
+        const s2 = st.chs[c], m = ms[c];
+        if (!s2.on || !m) return;
+        s2.cpl = 'dc';
+        const span = Math.max(m.pp / 6.4, Math.abs((m.mn + m.mx) / 2) / 3.5, 0.002);   // unas seis divisiones
+        s2.vi = VDIV.findIndex(v => v >= span * 0.999); if (s2.vi < 0) s2.vi = VDIV.length - 1;
+        s2.pos = m.pp > 0.02 ? Math.max(-4, Math.min(4, -(m.mn + m.mx) / 2 / VDIV[s2.vi])) : 0;
+      });
+      const src = [0, 1].find(c => st.chs[c].on && ms[c] && ms[c].freq) ?? 0, f = ms[src] && ms[src].freq;
+      // dos ciclos y medio en la pantalla
+      if (f) { st.ti = TDIV.findIndex(t => t >= 250 / f * 0.999); if (st.ti < 0) st.ti = TDIV.length - 1; }
+      Object.assign(st.trg, { src, slope: 1, mode: 'auto', level: ms[src] ? (ms[src].mn + ms[src].mx) / 2 : 0 });
+      st.hpos = 0;
+      syncKnobs(); resetSweep();
+    });
+    // Los cinco botones junto a la pantalla: cada uno cambia la casilla del menú que tiene enfrente.
+    const MENUS = {
+      meas: i => { const cur = st.meas[i], j = MEAS_ALL.findIndex(x => cur ? x && x[0] === cur[0] && x[1] === cur[1] : !x); st.meas[i] = MEAS_ALL[(j + 1) % MEAS_ALL.length]; },
+      ch: (c, i) => { const s2 = st.chs[c]; if (i === 0) s2.cpl = { dc: 'ac', ac: 'gnd', gnd: 'dc' }[s2.cpl]; if (i === 1) s2.inv = !s2.inv; },
+      trig: i => {
+        const T = st.trg;
+        if (i === 0) { T.src = 1 - T.src; syncLevel(); }
+        if (i === 1) T.slope = -T.slope;
+        if (i === 2) T.mode = T.mode === 'auto' ? 'normal' : 'auto';
+        rearm(st.T);
+      }
+    };
+    // Las casillas del menú van del renglón de arriba al pie de la cuadrícula (abajo queda el renglón de las escalas).
+    const boxH = L => (L.scr[1] + L.scr[3] - L.menu[1] - L.top) / 5;
+    const bezelAt = (L, i) => {return [L.bezel[0], L.menu[1] + L.top + boxH(L) * (i + 0.5)]; };
+    [0, 1, 2, 3, 4].forEach(i => ui.button({ pos: g => ui.L(g).bezel ? bezelAt(ui.L(g), i) : [-999, -999], act: 'med', cls: 'sim-trig',
+      hidden: () => !lay().bezel, dim: g => ui.L(g).bezel ? ui.L(g).bezel.slice(1) : [30, 30],
+      label: () => `Botón ${i + 1} del menú de la pantalla`,
+      onClick: () => { const m = st.menu; if (m === 'meas') MENUS.meas(i); else if (m === 'trig') MENUS.trig(i); else if (m) MENUS.ch(+m[2], i); } }));
+    // De frente (en la mesa angosta): el osciloscopio grande con todos sus mandos; el generador se guarda.
+    ui.button({ pos: g => ui.L(g).fold || [-999, -999], act: 'med', cls: 'sim-trig', hidden: () => !lay().fold, dim: () => [44, 34],
+      label: ui.foldLabel,
+      attrs: () => ({ 'aria-pressed': String(st.front) }),
+      onClick: () => { st.front = !st.front; ui.fold(); } });
+
+    // Pantalla: la cuadrícula con las trazas, sus marcas (el cero de cada canal a la izquierda, el nivel del disparo
+    // a la derecha, el punto de disparo arriba), el estado y las escalas en sus renglones, y la columna del menú.
+    const drawScreen = (ctx, L, side) => {
+      const w = side === 'w', [sx, sy, sw, sh] = L.scr, dv = L.div, cy = sy + sh / 2, [mx, my, mw, mh] = L.menu;
+      const [fx, fy, fw, fh] = L.frame, u = unitV(side);
+      const bg = w ? paper() : '#070b0f', txt = w ? C.ink : '#e2e9ef', dim = w ? C.muted : '#8b98a5';
+      D.roundRect(ctx, fx, fy, fw, fh, 8, '#2b3440');
+      D.roundRect(ctx, fx + 6, fy + 6, fw - 12, fh - 12, 3, bg);
+      // cuadrícula: punteada, con los ejes del centro marcados
+      const gl = w ? grid(false) : '#2f3b47', gm = w ? grid(true) : '#4d5b68';
+      ctx.save(); ctx.setLineDash([1.5, 5]);
+      for (let i = 1; i < 10; i++) if (i !== 5) D.line(ctx, [[sx + i * dv, sy], [sx + i * dv, sy + sh]], 1, gl, 'butt');
+      for (let i = 1; i < 8; i++) if (i !== 4) D.line(ctx, [[sx, sy + i * dv], [sx + sw, sy + i * dv]], 1, gl, 'butt');
+      ctx.restore();
+      D.line(ctx, [[sx + 5 * dv, sy], [sx + 5 * dv, sy + sh]], 1.2, gm, 'butt'); D.line(ctx, [[sx, cy], [sx + sw, cy]], 1.2, gm, 'butt');
+      for (let i = 0; i <= 50; i++) { const X = sx + i * dv / 5; D.line(ctx, [[X, cy - 3], [X, cy + 3]], 1, gm, 'butt'); }
+      for (let i = 0; i <= 40; i++) { const Y = sy + i * dv / 5; D.line(ctx, [[sx + 5 * dv - 3, Y], [sx + 5 * dv + 3, Y]], 1, gm, 'butt'); }
+      D.roundRect(ctx, sx, sy, sw, sh, 0, null, gm, 1.2);
+      // trazas
+      ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
+      const Y = (ch, v) => cy - (v / VDIV[st.chs[ch].vi] + st.chs[ch].pos) * dv;
+      for (const ch of [1, 0]) {   // el canal 1 encima
+        if (!st.chs[ch].on) continue;
+        for (const tr of st.traces) {
+          const pts = tr.pts[ch];
+          if (pts.length < 2) continue;
+          ctx.beginPath();
+          pts.forEach(([x, v], i) => { const X = sx + x * sw, yy = Math.max(sy - 10, Math.min(sy + sh + 10, Y(ch, v))); i ? ctx.lineTo(X, yy) : ctx.moveTo(X, yy); });
+          ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+          if (!w) { ctx.globalAlpha = 0.22 * tr.a; ctx.lineWidth = 6; ctx.strokeStyle = ink(ch, w); ctx.stroke(); }
+          ctx.globalAlpha = tr.a; ctx.lineWidth = w ? 2.2 : 2.4; ctx.strokeStyle = ink(ch, w); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+        const bm = st.beam && st.beam[ch];
+        if (bm) {
+          const X = sx + bm[0] * sw, yy = Y(ch, bm[1]);
+          if (w) { D.line(ctx, [[X, yy], [X + 14, yy - 22]], 4, C.ink); D.circle(ctx, X, yy, 3, ink(ch, w)); }   // la plumilla del registrador
+          else { ctx.globalAlpha = 0.35; D.circle(ctx, X, yy, 7, ink(ch, w)); ctx.globalAlpha = 1; D.circle(ctx, X, yy, 3.5, '#ffffff'); }
+        }
+      }
+      ctx.restore();
+      // marcas: el cero de cada canal (con su número), el nivel del disparo y el punto de disparo
+      const clampY = y => Math.max(sy + 6, Math.min(sy + sh - 6, y));
+      [0, 1].forEach(ch => {
+        if (!st.chs[ch].on) return;
+        const y0 = clampY(cy - st.chs[ch].pos * dv);
+        ctx.beginPath(); ctx.moveTo(sx, y0 - 8); ctx.lineTo(sx + 13, y0); ctx.lineTo(sx, y0 + 8); ctx.closePath(); ctx.fillStyle = ink(ch, w); ctx.fill();
+        D.text(ctx, String(ch + 1), sx + 22, y0, ink(ch, w), { size: 14, align: 'left' });
+      });
+      const T = st.trg, ly = clampY(Y(T.src, T.level));
+      ctx.beginPath(); ctx.moveTo(sx + sw, ly - 7); ctx.lineTo(sx + sw - 12, ly); ctx.lineTo(sx + sw, ly + 7); ctx.closePath(); ctx.fillStyle = ink(T.src, w); ctx.fill();
+      const tx = sx + (5 + st.hpos) * dv;
+      ctx.beginPath(); ctx.moveTo(tx - 7, sy); ctx.lineTo(tx + 7, sy); ctx.lineTo(tx, sy + 10); ctx.closePath(); ctx.fillStyle = w ? C.charge : '#ff9f1c'; ctx.fill();
+      // renglón de arriba: el estado y dónde quedó el disparo; abajo: las escalas, el disparo y su frecuencia
+      const ty = my + L.top / 2, by = sy + sh + L.top / 2, [stt, stc] = STATUS[st.status || 'auto'];
+      D.circle(ctx, sx + 6, ty, 4.5, w ? { trig: C.ok, stop: C.danger }[st.status] || C.charge : stc);
+      D.text(ctx, stt, sx + 16, ty, txt, { size: 14, align: 'left', font: Sim.MONO, weight: 600 });
+      if (st.hpos) D.text(ctx, 'M Pos ' + eng(st.hpos * TDIV[st.ti] / 1000, 's'), sx + sw, ty, dim, { size: 14, align: 'right', font: Sim.MONO, weight: 500 });
+      const cpl = c => ({ ac: ' ~', gnd: ' ⏚', dc: '' })[st.chs[c].cpl];
+      const items = [];
+      [0, 1].forEach(c => { if (st.chs[c].on) items.push([`CH${c + 1} ${eng(VDIV[st.chs[c].vi], u)}${cpl(c)}`, ink(c, w), 3]); });
+      items.push([`M ${eng(TDIV[st.ti] / 1000, 's')}`, txt, 3]);
+      items.push([`CH${T.src + 1} ${T.slope > 0 ? '↗' : '↘'} ${eng(T.level, u)}`, ink(T.src, w), 2]);
+      items.push([st.tf >= 10 ? eng(st.tf, 'Hz') : '<10Hz', txt, 1]);
+      D.font(ctx, 14, Sim.MONO, 600);
+      const gap = Sim.px(14, ctx) * 0.8, room = mx + mw - sx;
+      let shown = items, wid = () => shown.reduce((a, [t]) => a + ctx.measureText(t).width, 0) + gap * (shown.length - 1);
+      for (let p = 1; p <= 2 && wid() > room; p++) shown = shown.filter(it => it[2] > p);
+      let x = sx;
+      shown.forEach(([t, col]) => { D.text(ctx, t, x, by, col, { size: 14, align: 'left', font: Sim.MONO, weight: 600 }); x += ctx.measureText(t).width + gap; });
+      // columna del menú
+      const title = { meas: 'MEDIDAS', ch0: 'CH1', ch1: 'CH2', trig: 'DISPARO' }[st.menu];
+      const tcol = st.menu === 'ch0' ? ink(0, w) : st.menu === 'ch1' ? ink(1, w) : txt;
+      if (title) D.text(ctx, title, mx + mw / 2, ty, tcol, { size: 14, font: Sim.MONO, weight: 700, max: mw - 4 });
+      const bh = boxH(L), rows = menuRows(side);
+      // el mismo largo de rótulo en todas las casillas (el más largo que quepa en todas)
+      D.font(ctx, 14, Sim.MONO, 600);
+      const pick = Math.max(0, ...rows.map(r => r ? r[0].findIndex(t => ctx.measureText(t).width <= mw - 14) : 0).map((k, i, a) => k < 0 ? rows[i][0].length - 1 : k));
+      rows.forEach((r, i) => {
+        const y0 = my + L.top + i * bh;
+        if (!r) return;
+        D.roundRect(ctx, mx + 2, y0 + 2, mw - 4, bh - 4, 4, w ? (C.dark ? '#2f2c26' : '#f1e9d2') : '#122230', w ? grid(true) : '#3b4855', 1);
+        D.text(ctx, r[0][Math.min(pick, r[0].length - 1)], mx + 8, y0 + bh * 0.32, r[2] || dim, { size: 14, align: 'left', font: Sim.MONO, weight: 600, max: mw - 14 });
+        D.text(ctx, r[1], mx + 8, y0 + bh * 0.7, txt, { size: 15, align: 'left', font: Sim.MONO, weight: 700, max: mw - 14 });
+      });
+    };
+    // Las cinco casillas del menú que se ve: [rótulos, valor, color del rótulo] (null: vacía).
+    const menuRows = side => {
+      const w = side === 'w', u = unitV(side), m = st.menu;
+      if (m === 'meas') return st.meas.map(x => {
+        if (!x) return [['Ninguna'], '', null];
+        const [c, t] = x, on = st.chs[c].on, v = on ? measValue(st.m[c], t) : null;
+        const un = { freq: 'Hz', period: 's' }[t] || u;
+        return [[`CH${c + 1} ${MEAS[t]}`, `CH${c + 1} ${MEAS_SHORT[t]}`, MEAS_SHORT[t]], on ? eng(v, un) : 'Apagado', ink(c, w)];
+      });
+      if (m === 'ch0' || m === 'ch1') {
+        const s2 = st.chs[+m[2]];
+        return [[['Acoplamiento', 'Acopl.'], { dc: 'CC', ac: 'CA', gnd: 'Tierra' }[s2.cpl]], [['Invertir'], s2.inv ? 'Sí' : 'No'], null, null, null];
+      }
+      if (m === 'trig') {
+        const T = st.trg;
+        return [[['Fuente'], 'CH' + (T.src + 1)], [['Pendiente'], T.slope > 0 ? '↗ Subida' : '↘ Bajada'],
+          [['Modo'], T.mode === 'auto' ? 'Auto' : 'Normal'], [['Nivel'], eng(T.level, u)], null];
+      }
+      return [null, null, null, null, null];
+    };
+    const drawScope = (ctx, L, side) => {
+      const w = side === 'w';
+      D.chassis(ctx, L.x, L.y, L.w, L.h, w, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO');
+      // secciones: fondo más oscuro y su nombre en una franja arriba
+      L.secs.forEach(([x, y, sw2, sh2, names]) => {
+        D.roundRect(ctx, x, y, sw2, sh2, 8, C.dark ? '#2c3843' : '#d3dbe1');
+        ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, sw2, sh2, 8); ctx.clip();
+        ctx.fillStyle = C.dark ? '#46566a' : '#bccad4'; ctx.fillRect(x, y, sw2, 24); ctx.restore();
+        D.text(ctx, names, x + sw2 / 2, y + 12.5, C.ink, { size: 14, font: Sim.WIDE, max: sw2 - 10 });
+      });
+      L.labels.forEach(([t, x, y, lw]) => D.text(ctx, t, x, y, C.muted, { size: 14, max: lw }));
+      drawScreen(ctx, L, side);
+      // teclas
+      const K2 = L.keys, kd = { meas: st.menu === 'meas', ch0: st.chs[0].on, ch1: st.chs[1].on, trig: st.menu === 'trig', run: !st.run };
+      const KL = { meas: ['MEASURE', 'MEAS.'], auto: ['AUTOSET', 'AUTO'], run: ['RUN/STOP', 'RUN'], ch0: ['CH1 MENU', 'CH1'], ch1: ['CH2 MENU', 'CH2'],
+        trig: ['TRIG MENU', 'TRIG'], half: ['SET TO 50%', '50%'] };
+      for (const id in K2) keyCap(ctx, K2[id], KL[id], { down: kd[id] ? 1 : 0, fill: id === 'ch0' ? CH[0].key : id === 'ch1' ? CH[1].key : null });
+      if (K2.run) { const [x, y, kw, kh] = K2.run; D.circle(ctx, x + kw / 2 - 6, y - kh / 2 + 6 + (st.run ? 0 : 1.5), 3, st.run ? '#22e06b' : '#ff5a4f'); }
+      if (L.bezel) [0, 1, 2, 3, 4].forEach(i => { const [x, y] = bezelAt(L, i); keyCap(ctx, [x, y, L.bezel[1], L.bezel[2]], ''); });
+      if (L.fold) { keyCap(ctx, [L.fold[0], L.fold[1], 44, 34], ''); foldIcon(ctx, L.fold[0], L.fold[1] - 0.5, !st.front); }
+      // perillas: VOLTS/DIV con el arco del color de su canal
+      [0, 1].forEach(c => { const k = L.knobs['vd' + c]; if (k) arc(ctx, k[0], k[1], k[2] / 2 + 7, CH[c].cable); });
+      // entradas y tierra
+      L.bnc.forEach(([x, y], c) => {
+        bnc(ctx, x, y, CH[c].cable);
+        if (L.bncSide) D.text(ctx, `CH${c + 1}`, x + 24, y, C.muted, { size: 14, align: 'left' });
+        else if (L.bncLab) D.text(ctx, `CH ${c + 1}`, x, L.bncLab, C.ink, { size: 14 });
+      });
+      const [gx, gy] = L.gnd;
+      D.circle(ctx, gx, gy, 9, '#8a99a5', C.ink, 1.5); D.circle(ctx, gx, gy, 4, '#3a4652');
+      if (L.bncSide) groundSym(ctx, gx + 28, gy - 2, C.muted);
+      else groundSym(ctx, gx - 30, gy - 2, C.muted);
+    };
+    return { record, update: updateScope, draw: drawScope, measure, sweepS, resetSweep, syncKnobs };
+  };
+
+  Sim.scope = o => {
+    // Acomodos del dibujo (el modo dice cuál y qué acomodo del osciloscopio lleva):
+    //   alto (celular, o los dos paneles en la PC): el circuito arriba y en la mesa el generador y el osciloscopio
+    //     compacto (en el celular, el corto: mini, solo para leer); de frente (st.front), el generador se guarda y el osciloscopio ocupa la mesa con todos sus mandos.
+    //     En el celular el generador va corto (GMINI) hasta que se abre (st.gfront); abrir uno cierra el otro.
+    //   pc (un solo panel en la PC): el generador a la derecha del circuito y abajo el osciloscopio completo.
+    //   ancho (el celular acostado): el osciloscopio corto (mini) a la derecha del circuito y el generador; de frente se
+    //     ve solo él, completo y grande (solo: el mismo dibujo, recortado alrededor del osciloscopio).
+    const BAND = 110;   // en el alto, franja arriba del circuito para el selector del color de las partículas
+    const size = (w, h) => {
+      const fit = (W, H) => Math.min(w / W, h / H), altoH = st.front ? 1060 : st.gfront || !Sim.phone ? 1000 : 1000 - (GEN_H - GMINI.h);
+      const pc = fit(1200, 840), cands = [];
+      if (pc >= 0.62) cands.push({ s: pc * 1.15, r: [1200, 840, 0, 'pc-wide', 0] });
+      else if (st.front) cands.push({ s: fit(1010, 500), r: [1010, 500, 622, 'solo-wide', 90] });
+      else cands.push({ s: fit(1260, 570), r: [1260, 570, 0, 'ancho-compact', 0] });
+      cands.push({ s: fit(640, altoH + BAND), r: [640, altoH + BAND, 0, 'alto-' + (st.front ? 'tall' : 'compact'), -BAND] });
+      const best = cands.reduce((a, b) => b.s > a.s ? b : a), r = [...best.r];
+      if (Math.min(w / r[0], h / r[1]) < 0.75) r[3] += '-c';
+      return r;
+    };
+    const geometry = (side, mode) => {
+      const g = { side, mode, ...CIRC, GX: 40, GY: CIRC.BOT + 46, GW: 560, GH: GEN_H };
+      g.alto = mode.startsWith('alto');
+      g.solo = mode.startsWith('solo');
+      g.pc = mode.startsWith('pc');
+      g.lay = mode.split('-')[1];
+      [g.SX, g.SY] = g.alto ? (g.lay === 'tall' ? [20, 310] : [20, 566]) : g.pc ? [113, 400] : [640, 150];
+      if (g.pc) { g.GX = 620; g.GY = 150; }
+      g.phone = Sim.phone && !g.pc;
+      if (g.phone && g.lay === 'compact') g.lay = 'mini';   // en el celular, el corto solo se lee
+      g.gmini = g.phone && !st.gfront;   // el generador corto (en el celular, mientras no se abre)
+      if (g.gmini) { g.GH = GMINI.h; if (g.alto && g.lay !== 'tall') g.SY -= GEN_H - GMINI.h; }
+      g.L = placeLayout(LAYOUTS[g.lay], g.SX, g.SY);
+      if (g.solo) g.L.fold = [g.SX + g.L.w - 32, g.SY + 22];   // para regresarlo a la mesa
+      g.SW = g.L.w; g.SH = g.L.h;
+      g.gen = g.lay !== 'tall' && !g.solo;   // de frente, el generador se guarda
+      g.MIDY = (g.TOP + g.BOT) / 2;
+      g.jacks = [g.L.bnc[0], g.L.gnd, g.L.bnc[1]];
+      return g;
+    };
+
+    // Resistencias de la serie E12 (las de la página); calor (Sim.heat): la resistencia es de ¼ W; cada diodo
+    // aguanta 1 A promedio, con ~1 V de caída ~1 W, y su unión llega a 150 °C.
+    const rh = Sim.heat(Sim.HEAT.res), dh = {};
+    const PLACES = o.places, kind = k => k[0];
+    for (const k in PLACES) if (kind(k) === 'D') dh[k] = Sim.heat({ pMax: 1, tMax: 150, tau: 4 });
+    const popt = k => PLACES[k][3] || {};
+
+    // El generador: la salida CH1 (on), la forma de onda, sus valores (ver GP), lo que cambia la perilla (sel) y el
+    // dígito que cambia de cada valor (dig: la potencia de 10).
+    const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, freq: 1, amp: 12, off: 0, duty: 50, phs: 0, wave: 'sine',
+      sel: 'freq', dig: { freq: 0, amp: 0, off: -1, duty: 0, phs: 1 },
+      led: true, R: 470, color: 'rojo', rev: false, Cap: 0.1, filt: false, drev: false, vc: 0, rb: false, rbT: 0,
+      ph: 0, T: 0, probe: [300, 980, 640], pw: [0, 0, 0], side: [-1, -1, 1], last: [0, 0],
+      q: {}, flow: {}, dOn: {},
+      rotor: 0, rotorOm: 0, wheel: 0, wheelOm: 0, glow: 0, shut: 0, shake: 0,
+      frames: [], traces: [], beam: null, m: [null, null], status: 'auto' };
+    const { vd = [1, 1], td = 1, ch2 = false, pos = [0, 0], trig = {}, ...p0 } = o.preset;
+    Object.assign(st, p0, { probe: [...p0.probe], pw: p0.pw ? [...p0.pw] : [0, 0, 0], side: [...p0.side] });
+    // El osciloscopio: cada canal (prendido, volts por división, dónde queda su cero en divisiones, acoplamiento
+    // CC · CA · Tierra e invertido), el tiempo por división, dónde queda el disparo (hpos: divisiones a la derecha
+    // del centro), el disparo (fuente, pendiente, modo Auto · Normal y nivel en V), RUN/STOP, el menú que se ve en
+    // la pantalla (meas, ch0, ch1, trig o ninguno), las cinco medidas y si está de frente (st.front).
+    Object.assign(st, {
+      chs: [0, 1].map(k => ({ on: k === 0 || ch2, vi: nearest(VDIV, vd[k]), pos: pos[k], cpl: 'dc', inv: false })),
+      ti: nearest(TDIV, td), hpos: 0, trg: { src: 0, slope: 1, mode: 'auto', level: 0, ...trig }, run: true,
+      menu: 'meas', meas: [[0, 'pp'], [0, 'mean'], [0, 'max'], [1, 'pp'], [1, 'mean']], front: false, gfront: false,
+      hp: [{ x: 0, y: 0 }, { x: 0, y: 0 }] });
+    for (const k in dh) st.dOn[k] = 0;
+
+    // ---------- cables: dónde se ponen las puntas y el voltaje de cada punto ----------
+    const HALF = { R: 46, L: 30, D: 30, C: 30 };
+    const project = (pts, x, y) => {
+      let best = null, d0 = 0;
+      for (let i = 1; i < pts.length; i++) {
+        const [ax, ay] = pts[i - 1], [bx, by] = pts[i], s = Math.hypot(bx - ax, by - ay);
+        const t = s ? clamp01(((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / (s * s)) : 0;
+        const dist = Math.hypot(x - ax - (bx - ax) * t, y - ay - (by - ay) * t);
+        if (!best || dist < best.dist) best = { d: d0 + t * s, dist };
+        d0 += s;
+      }
+      return best;
+    };
+    // Cada cable: sus nodos (en orden) y lo que abarca cada componente (en distancia por el cable).
+    const WIRES = o.wires.map(w => {
+      const nodes = w.seq.filter((x, i) => i % 2 === 0), comps = w.seq.filter((x, i) => i % 2);
+      const at = comps.map(k => project(w.pts, PLACES[k][0], PLACES[k][1]).d);
+      return { ...w, L: D.len(w.pts), nodes, comps,
+        span: () => comps.map((k, i) => { const r = w.half && w.half[k] ? w.half[k](st) : HALF[kind(k)]; return [at[i] - r, at[i] + r]; }) };
+    });
+    const live = w => !w.when || w.when(st);
+    // Voltaje en el punto d del cable: el de su nodo, o de un nodo al otro por lo largo de cada componente.
+    const vOn = (w, d, v, spans = w.span()) => {
+      let x = v[w.nodes[0]];
+      for (let i = 0; i < spans.length; i++) x -= (v[w.nodes[i]] - v[w.nodes[i + 1]]) * clamp01((d - spans[i][0]) / (spans[i][1] - spans[i][0]));
+      return x;
+    };
+    // Las puntas no se pueden poner encima de un componente ni del generador.
+    const snapD = (wi, d) => {
+      const w = WIRES[wi], sp = w.span().filter((c, i) => kind(w.comps[i]) !== 'L' || st.led);
+      for (const [a, b] of sp) if (d > a - 8 && d < b + 8) d = d - a < b - d ? a - 8 : b + 8;
+      return Math.max(10, Math.min(w.L - 10, d));
+    };
+    const nearWire = (x, y, probe) => {
+      let best = null;
+      WIRES.forEach((w, i) => {
+        if (!live(w) || (probe && w.probe === false)) return;
+        const p = project(w.pts, x, y);
+        if (!best || p.dist < best.dist) best = { ...p, w: i };
+      });
+      return best;
+    };
+
+
+    // ---------- animación del circuito ----------
+    // Se integra con pasos pequeños: al menos 64 por ciclo del generador y 40 por división de la pantalla. El
+    // agua (y las cargas) de cada rama avanza lo que pasó en el cuadro, aunque la señal vaya y venga muchas veces.
+    const FAST = 5, VS = 10;
+    st.avg = { on: false, v: {}, i: {} };
+    const advance = dt => {
+      st.level = st.ramp.step(st.on ? 1 : 0, st.tau, dt);
+      const f = st.wave === 'dc' ? 0 : st.freq, S = unit.sweepS(), du = st.duty / 100, p0 = st.ph + st.phs / 360;
+      const n = Math.max(1, Math.min(4000, Math.ceil(Math.max(dt * f * 64, dt * 400 / S)))), h = dt / n;
+      const at = [0, 1, 2].map(k => { const w = WIRES[st.pw[k]]; return { w, d: st.probe[k], sp: w.span() }; });
+      const rec = unit.record(n, h);
       let qa = 0, peak = 0, last = 0, back = 0, ER = 0, se = 0;
       const qi = {}, ai = {}, sv = {}, ED = {}, on = {};
       for (const k in dh) { ED[k] = 0; on[k] = 0; }
@@ -464,26 +799,10 @@
           ED[d] += vd * id / 1000 * h;
         }
         const vg = vOn(at[1].w, at[1].d, m.v, at[1].sp);
-        a[k + 1] = input(0, vOn(at[0].w, at[0].d, m.v, at[0].sp) - vg); b[k + 1] = input(1, vOn(at[2].w, at[2].d, m.v, at[2].sp) - vg);
+        rec.put(k, vOn(at[0].w, at[0].d, m.v, at[0].sp) - vg, vOn(at[2].w, at[2].d, m.v, at[2].sp) - vg);
       }
-      const F = { t0: st.T, h, n, a, b, f, ph0: st.ph, mn: [Infinity, Infinity], mx: [-Infinity, -Infinity], sm: [0, 0] };
-      [a, b].forEach((v, ch) => {
-        let mn = v[0], mx = v[0], sm = 0;
-        for (let k = 1; k <= n; k++) { const x = v[k]; if (x < mn) mn = x; if (x > mx) mx = x; sm += (v[k - 1] + x) / 2 * h; }
-        F.mn[ch] = mn; F.mx[ch] = mx; F.sm[ch] = sm;
-      });
-      frames.push(F); dense += n + 1;
-      st.last = [a[n], b[n]];
+      rec.end(f, dt);
       st.ph = frac(st.ph + f * dt);
-      st.T += dt;
-      // Se guarda lo de los últimos 30 s; los valores paso por paso solo lo que puede pedir la pantalla.
-      while (frames.length > 2 && frames[1].t0 < st.T - 30) { const G = frames.shift(); if (G.a) dense -= G.n + 1; }
-      const keep = st.T - (6 * S + 1);
-      for (const G of frames) {
-        if (G.t0 >= keep && dense < 3e6) break;
-        if (G === F) break;
-        if (G.a) { dense -= G.n + 1; G.a = G.b = null; }
-      }
       // Calor: la potencia promedio del cuadro.
       if (rh.step(ER / dt, dt) && o.burn) { st.rb = true; st.rbT = 0; }
       for (const d in dh) dh[d].step(ED[d] / dt, dt);
@@ -622,18 +941,7 @@
       if (hidden || dim) buttons.push({ pair, hidden, dim: dim && (g => [dim(g), dim(g)]) });
       return ks;
     };
-    const unitV = side => side === 'w' ? 'psi' : 'V';   // 1 psi por volt: mismos números
     const val = (v, side, d = 1) => fmt(v, d) + ' ' + unitV(side);
-    const tText = ms => ms >= 1000 ? fmt(ms / 1000, 0) + ' s' : ms < 1 ? fmt(ms * 1000, 0) + ' µs' : fmt(ms, ms % 1 ? 1 : 0) + ' ms';
-    // Lecturas de la pantalla del osciloscopio, con tres cifras y punto decimal como en el de verdad (4.93V, 500mV,
-    // 2.50ms; la frecuencia con una más: 100.0Hz). En el agua, psi sin prefijos.
-    const eng = (v, u) => {
-      if (v == null || !isFinite(v)) return '?';
-      const a = Math.abs(v), bare = u === 'psi';
-      const [k, p] = bare || (a >= 1 && a < 1000) || a === 0 ? [1, ''] : a >= 1000 ? [1e-3, 'k'] : a >= 1e-3 ? [1e3, 'm'] : [1e6, 'µ'];
-      const x = v * k, ax = Math.abs(x), d = (ax >= 99.95 ? 0 : ax >= 9.995 ? 1 : ax >= 0.995 || !bare ? 2 : 3) + (u === 'Hz' ? 1 : 0);
-      return x.toFixed(d) + p + u;
-    };
     const ohm = Sim.ohm;
 
     // Generador, como el del taller (un JDS-2900): una sola perilla sin fin; las cinco teclas junto a la pantalla
@@ -743,98 +1051,10 @@
       if (Sim.side) Sim.side.part({ anchor: () => pt.els[shownSide() === 'w' ? 0 : 1], menu: () => pt.menu(shownSide()) });
     }
 
-    // Osciloscopio: los mandos del de verdad. Cada uno dice en qué acomodo está (los del compacto también van en el
-    // completo) y se acomoda donde lo pone ese acomodo.
-    const lay = () => geos.e.L;
-    const has = (grp, id) => () => !lay()[grp][id];
-    const VTXT = (side, v) => side === 'w' ? fmt(v, v < 0.01 ? 3 : v < 1 ? 2 : 0) + ' psi' : v < 1 ? fmt(v * 1000, 0) + ' mV' : fmt(v, 0) + ' V';
-    const chName = (c, side) => (side === 'w' ? 'manguera ' : 'canal ') + (c + 1);
-    // Perillas: volts por división y POSITION de cada canal, SEC/DIV y POSITION horizontal, y LEVEL del disparo.
-    const K = {};
-    const knob = (id, o2) => { K[id] = linkedKnob({ pos: g => g.L.knobs[id] || [-999, -999], act: 'med', hidden: has('knobs', id),
-      dim: g => (g.L.knobs[id] || [0, 0, 40])[2], ...o2 }); };
-    [0, 1].forEach(c => {
-      knob('vd' + c, { min: 0, max: VDIV.length - 1, step: 1, value: st.chs[c].vi,
-        label: side => `VOLTS/DIV del ${chName(c, side)}`, format: (v, side) => VTXT(side, VDIV[v]) + ' por división',
-        onInput: v => { st.chs[c].vi = v; if (st.trg.src === c) syncLevel(); } });
-      knob('pos' + c, { min: -40, max: 40, step: 1, magnet: 10, value: Math.round(st.chs[c].pos * 10),
-        label: side => `POSITION del ${chName(c, side)}: sube o baja su cero`, format: v => fmt(v / 10, 1) + ' divisiones',
-        onInput: v => { st.chs[c].pos = v / 10; } });
-    });
-    knob('td', { min: 0, max: TDIV.length - 1, step: 1, value: st.ti, label: () => 'SEC/DIV: tiempo por división',
-      format: v => tText(TDIV[v]) + ' por división', onInput: v => { st.ti = v; resetSweep(); } });
-    knob('hpos', { min: -50, max: 50, step: 1, magnet: 10, value: 0, label: () => 'POSITION horizontal: mueve el punto de disparo',
-      format: v => fmt(v / 10, 1) + ' divisiones', onInput: v => { st.hpos = v / 10; resetSweep(); } });
-    // LEVEL: el nivel del disparo, en décimas de división de su fuente (al cambiar su escala se queda en los mismos volts).
-    const lvlDiv = () => VDIV[st.chs[st.trg.src].vi] / 10;
-    knob('lvl', { min: -60, max: 60, step: 1, value: Math.round(st.trg.level / lvlDiv()),
-      label: side => 'LEVEL: nivel del disparo', format: (v, side) => eng(v * lvlDiv(), unitV(side)),
-      onInput: v => { st.trg.level = v * lvlDiv(); rearm(st.T); } });
-    function syncLevel() { K.lvl.set(Math.max(-60, Math.min(60, Math.round(st.trg.level / lvlDiv())))); }
-    const syncKnobs = () => {
-      [0, 1].forEach(c => { K['vd' + c].set(st.chs[c].vi); K['pos' + c].set(Math.round(st.chs[c].pos * 10)); });
-      K.td.set(st.ti); K.hpos.set(Math.round(st.hpos * 10)); syncLevel();
-    };
-    // Teclas
-    const key = (id, label, onClick, attrs) => linkedButton({ pos: g => g.L.keys[id] || [-999, -999], act: 'med', cls: 'sim-trig',
-      hidden: has('keys', id), dim: g => (g.L.keys[id] || [0, 0, 40, 30]).slice(2), label, attrs, onClick });
-    const menuKey = m => () => { st.menu = st.menu === m ? null : m; };
-    key('meas', () => 'MEASURE: medidas automáticas en la pantalla', menuKey('meas'), () => ({ 'aria-pressed': String(st.menu === 'meas') }));
-    [0, 1].forEach(c => key('ch' + c, side => `CH${c + 1} MENU: ${st.chs[c].on ? (st.menu === 'ch' + c ? 'apaga el ' : 'menú del ') : 'prende el '}${chName(c, side)}`, () => {
-      const s2 = st.chs[c];
-      if (!s2.on) { s2.on = true; st.menu = 'ch' + c; } else if (st.menu === 'ch' + c) { s2.on = false; st.menu = null; } else st.menu = 'ch' + c;
-    }, () => ({ 'aria-pressed': String(st.chs[c].on) })));
-    key('trig', () => 'TRIG MENU: fuente, pendiente y modo del disparo', menuKey('trig'), () => ({ 'aria-pressed': String(st.menu === 'trig') }));
-    // SET TO 50%: el nivel a la mitad de la señal de la fuente del disparo.
-    const recent = ch => measure(ch, st.T - Math.max(1, 2 * sweepS()), st.T);
-    key('half', () => 'SET TO 50%: el nivel del disparo a la mitad de la señal', () => {
-      const m = recent(st.trg.src);
-      if (m) { st.trg.level = (m.mn + m.mx) / 2; syncLevel(); rearm(st.T); }
-    });
-    key('run', () => st.run ? 'RUN/STOP: congela la imagen' : 'RUN/STOP: sigue barriendo', () => { st.run = !st.run; if (st.run) resetSweep(); },
-      () => ({ 'aria-pressed': String(!st.run) }));
-    // AUTOSET: escoge las escalas y el disparo para ver bien la señal de cada canal prendido.
-    key('auto', () => 'AUTOSET: escoge las escalas solo', () => {
-      const ms = [0, 1].map(recent);
-      [0, 1].forEach(c => {
-        const s2 = st.chs[c], m = ms[c];
-        if (!s2.on || !m) return;
-        s2.cpl = 'dc';
-        const span = Math.max(m.pp / 6.4, Math.abs((m.mn + m.mx) / 2) / 3.5, 0.002);   // unas seis divisiones
-        s2.vi = VDIV.findIndex(v => v >= span * 0.999); if (s2.vi < 0) s2.vi = VDIV.length - 1;
-        s2.pos = m.pp > 0.02 ? Math.max(-4, Math.min(4, -(m.mn + m.mx) / 2 / VDIV[s2.vi])) : 0;
-      });
-      const src = [0, 1].find(c => st.chs[c].on && ms[c] && ms[c].freq) ?? 0, f = ms[src] && ms[src].freq;
-      // dos ciclos y medio en la pantalla
-      if (f) { st.ti = TDIV.findIndex(t => t >= 250 / f * 0.999); if (st.ti < 0) st.ti = TDIV.length - 1; }
-      Object.assign(st.trg, { src, slope: 1, mode: 'auto', level: ms[src] ? (ms[src].mn + ms[src].mx) / 2 : 0 });
-      st.hpos = 0;
-      syncKnobs(); resetSweep();
-    });
-    // Los cinco botones junto a la pantalla: cada uno cambia la casilla del menú que tiene enfrente.
-    const MENUS = {
-      meas: i => { const cur = st.meas[i], j = MEAS_ALL.findIndex(x => cur ? x && x[0] === cur[0] && x[1] === cur[1] : !x); st.meas[i] = MEAS_ALL[(j + 1) % MEAS_ALL.length]; },
-      ch: (c, i) => { const s2 = st.chs[c]; if (i === 0) s2.cpl = { dc: 'ac', ac: 'gnd', gnd: 'dc' }[s2.cpl]; if (i === 1) s2.inv = !s2.inv; },
-      trig: i => {
-        const T = st.trg;
-        if (i === 0) { T.src = 1 - T.src; syncLevel(); }
-        if (i === 1) T.slope = -T.slope;
-        if (i === 2) T.mode = T.mode === 'auto' ? 'normal' : 'auto';
-        rearm(st.T);
-      }
-    };
-    // Las casillas del menú van del renglón de arriba al pie de la cuadrícula (abajo queda el renglón de las escalas).
-    const boxH = L => (L.scr[1] + L.scr[3] - L.menu[1] - L.top) / 5;
-    const bezelAt = (g, i) => { const L = g.L; return [L.bezel[0], L.menu[1] + L.top + boxH(L) * (i + 0.5)]; };
-    [0, 1, 2, 3, 4].forEach(i => linkedButton({ pos: g => g.L.bezel ? bezelAt(g, i) : [-999, -999], act: 'med', cls: 'sim-trig',
-      hidden: () => !lay().bezel, dim: g => g.L.bezel ? g.L.bezel.slice(1) : [30, 30],
-      label: () => `Botón ${i + 1} del menú de la pantalla`,
-      onClick: () => { const m = st.menu; if (m === 'meas') MENUS.meas(i); else if (m === 'trig') MENUS.trig(i); else if (m) MENUS.ch(+m[2], i); } }));
-    // De frente (en la mesa angosta): el osciloscopio grande con todos sus mandos; el generador se guarda.
-    linkedButton({ pos: g => g.L.fold || [-999, -999], act: 'med', cls: 'sim-trig', hidden: () => !lay().fold, dim: () => [44, 34],
-      label: () => st.front ? 'Regresar el osciloscopio a la mesa (y sacar el generador)' : 'Poner el osciloscopio de frente, con todos sus mandos',
-      attrs: () => ({ 'aria-pressed': String(st.front) }),
-      onClick: () => { st.front = !st.front; if (st.front) st.gfront = false; reflow(); } });
+    // Osciloscopio (Sim.scopeUnit): sus mandos van aquí, después de los del generador y los componentes.
+    const unit = Sim.scopeUnit(st, { button: linkedButton, knob: linkedKnob, lay: () => geos.e.L, L: g => g.L,
+      foldLabel: () => st.front ? 'Regresar el osciloscopio a la mesa (y sacar el generador)' : 'Poner el osciloscopio de frente, con todos sus mandos',
+      fold: () => { if (st.front) st.gfront = false; reflow(); } });
 
     // ---------- puntas: la del canal 1 (roja), el caimán de tierra (negro) y la del canal 2 (rosa) ----------
     const frame = k => {
@@ -877,30 +1097,6 @@
     buttons.push({ pair: tipEls[0].concat(tipEls[1]), hidden: () => geos.e.solo }, { pair: tipEls[2], hidden: () => !st.chs[1].on || geos.e.solo });
 
     // ---------- dibujo ----------
-    const pen = (ctx, col) => {
-      ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(12, -2.5); ctx.lineTo(12, 2.5); ctx.closePath();
-      ctx.fillStyle = '#9aa6af'; ctx.fill();
-      D.roundRect(ctx, 12, -4, 6, 8, 1.5, C.ink);
-      D.roundRect(ctx, 17, -7, 8, 14, 2, col, C.ink, 1.5);
-      D.roundRect(ctx, 24, -5.5, 18, 11, 3, col, C.ink, 1.5);
-      D.roundRect(ctx, 41, -3.5, 6, 7, 1.5, C.ink);
-    };
-    // Caimán de tierra: dos quijadas que muerden el cable.
-    const gator = ctx => {
-      ctx.fillStyle = C.ink;
-      ctx.beginPath(); ctx.moveTo(1, -1.5); ctx.lineTo(20, -9); ctx.lineTo(20, -2); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(1, 1.5); ctx.lineTo(20, 9); ctx.lineTo(20, 2); ctx.closePath(); ctx.fill();
-      D.roundRect(ctx, 18, -8, 28, 16, 4, C.ink);
-    };
-    const hoseTip = (ctx, col) => {
-      const P = Sim.PIPE;
-      D.roundRect(ctx, P + 2, -7, 10, 14, 2.5, '#9aa6af', col, 2.5);
-      D.line(ctx, [[P + 2, 0], [P + 12, 0]], 4, C.water);
-    };
-    // Papel del registrador (más oscuro en el modo oscuro) y su cuadrícula.
-    const paper = () => C.dark ? '#262420' : '#fffdf5';
-    const grid = mid => C.dark ? (mid ? '#5c5444' : '#3a362d') : (mid ? '#d6c7a6' : '#ece2cc');
-    const tipColor = k => k === 1 ? C.neg : CH[k ? 1 : 0].cable;
     const tips = () => st.chs[1].on ? [0, 1, 2] : [0, 1];
     const drawCables = (ctx, g) => tips().forEach(k => {
       const f = frame(k), L = tipLen(g.side), [jx, jy] = g.jacks[k];
@@ -1040,171 +1236,6 @@
         if (c === 0) { D.circle(ctx, bx, by, 11, '#2a333b', C.ink, 1.5); D.circle(ctx, bx, by, 4.5, '#56616b'); }
       });
     };
-    // Tecla con su nombre impreso (la misma base que Sim.draw.key); fill: la tapa de color (CH1 y CH2 MENU).
-    const keyCap = (ctx, [x, y, kw, kh], label, { down = 0, fill } = {}) => {
-      D.roundRect(ctx, x - kw / 2, y - kh / 2 + 2, kw, kh, 5, '#1b242c');
-      D.roundRect(ctx, x - kw / 2, y - kh / 2 + down * 1.5, kw, kh - 1.5, 5, fill || (down ? '#8e9aa4' : '#b4bec6'), '#1b242c', 1.2);
-      if (label) D.text(ctx, label, x, y + down * 1.5 - 0.5, '#15212a', { size: 14, max: kw - 8 });
-    };
-    // Entrada BNC (con un anillo del color de su canal) y borne de tierra.
-    const bnc = (ctx, x, y, col) => {
-      D.circle(ctx, x, y, 17, null, col, 3);
-      D.circle(ctx, x, y, 13, '#b9c4cc', C.ink, 1.5); D.circle(ctx, x, y, 8, '#2a333b'); D.circle(ctx, x, y, 2.5, '#e9edf0');
-    };
-    const groundSym = (ctx, x, y, col) => {
-      D.line(ctx, [[x, y - 9], [x, y]], 2, col);
-      [[10, 0], [6.5, 4], [3, 8]].forEach(([hw, dy]) => D.line(ctx, [[x - hw, y + dy], [x + hw, y + dy]], 2, col, 'butt'));
-    };
-    const arc = (ctx, x, y, r, col) => { ctx.beginPath(); ctx.arc(x, y, r, -1.1, 0.7); ctx.lineWidth = 4; ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.stroke(); };
-    // Icono de la tecla de frente: dos flechas hacia afuera (o hacia adentro, para regresarlo).
-    const foldIcon = (ctx, x, y, out) => {
-      const a = out ? 9 : 3, b = out ? 3 : 9;
-      [[1, -1], [-1, 1]].forEach(([sx, sy]) => {
-        D.line(ctx, [[x + sx * b, y + sy * b], [x + sx * a, y + sy * a]], 2.4, '#15212a');
-        D.line(ctx, [[x + sx * a - sx * 5, y + sy * a], [x + sx * a, y + sy * a], [x + sx * a, y + sy * a - sy * 5]], 2.4, '#15212a');
-      });
-    };
-    const ink = (ch, w) => w ? CH[ch].paper[C.dark ? 1 : 0] : CH[ch].lcd;
-    const STATUS = { trig: ['Disparado', '#5be08a'], auto: ['Auto', '#ffd166'], armed: ['Armado', '#ffd166'], stop: ['Detenido', '#ff6b5f'] };
-    // Pantalla: la cuadrícula con las trazas, sus marcas (el cero de cada canal a la izquierda, el nivel del disparo
-    // a la derecha, el punto de disparo arriba), el estado y las escalas en sus renglones, y la columna del menú.
-    const drawScreen = (ctx, g) => {
-      const w = g.side === 'w', L = g.L, [sx, sy, sw, sh] = L.scr, dv = L.div, cy = sy + sh / 2, [mx, my, mw, mh] = L.menu;
-      const [fx, fy, fw, fh] = L.frame, u = unitV(g.side);
-      const bg = w ? paper() : '#070b0f', txt = w ? C.ink : '#e2e9ef', dim = w ? C.muted : '#8b98a5';
-      D.roundRect(ctx, fx, fy, fw, fh, 8, '#2b3440');
-      D.roundRect(ctx, fx + 6, fy + 6, fw - 12, fh - 12, 3, bg);
-      // cuadrícula: punteada, con los ejes del centro marcados
-      const gl = w ? grid(false) : '#2f3b47', gm = w ? grid(true) : '#4d5b68';
-      ctx.save(); ctx.setLineDash([1.5, 5]);
-      for (let i = 1; i < 10; i++) if (i !== 5) D.line(ctx, [[sx + i * dv, sy], [sx + i * dv, sy + sh]], 1, gl, 'butt');
-      for (let i = 1; i < 8; i++) if (i !== 4) D.line(ctx, [[sx, sy + i * dv], [sx + sw, sy + i * dv]], 1, gl, 'butt');
-      ctx.restore();
-      D.line(ctx, [[sx + 5 * dv, sy], [sx + 5 * dv, sy + sh]], 1.2, gm, 'butt'); D.line(ctx, [[sx, cy], [sx + sw, cy]], 1.2, gm, 'butt');
-      for (let i = 0; i <= 50; i++) { const X = sx + i * dv / 5; D.line(ctx, [[X, cy - 3], [X, cy + 3]], 1, gm, 'butt'); }
-      for (let i = 0; i <= 40; i++) { const Y = sy + i * dv / 5; D.line(ctx, [[sx + 5 * dv - 3, Y], [sx + 5 * dv + 3, Y]], 1, gm, 'butt'); }
-      D.roundRect(ctx, sx, sy, sw, sh, 0, null, gm, 1.2);
-      // trazas
-      ctx.save(); ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
-      const Y = (ch, v) => cy - (v / VDIV[st.chs[ch].vi] + st.chs[ch].pos) * dv;
-      for (const ch of [1, 0]) {   // el canal 1 encima
-        if (!st.chs[ch].on) continue;
-        for (const tr of st.traces) {
-          const pts = tr.pts[ch];
-          if (pts.length < 2) continue;
-          ctx.beginPath();
-          pts.forEach(([x, v], i) => { const X = sx + x * sw, yy = Math.max(sy - 10, Math.min(sy + sh + 10, Y(ch, v))); i ? ctx.lineTo(X, yy) : ctx.moveTo(X, yy); });
-          ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-          if (!w) { ctx.globalAlpha = 0.22 * tr.a; ctx.lineWidth = 6; ctx.strokeStyle = ink(ch, w); ctx.stroke(); }
-          ctx.globalAlpha = tr.a; ctx.lineWidth = w ? 2.2 : 2.4; ctx.strokeStyle = ink(ch, w); ctx.stroke();
-          ctx.globalAlpha = 1;
-        }
-        const bm = st.beam && st.beam[ch];
-        if (bm) {
-          const X = sx + bm[0] * sw, yy = Y(ch, bm[1]);
-          if (w) { D.line(ctx, [[X, yy], [X + 14, yy - 22]], 4, C.ink); D.circle(ctx, X, yy, 3, ink(ch, w)); }   // la plumilla del registrador
-          else { ctx.globalAlpha = 0.35; D.circle(ctx, X, yy, 7, ink(ch, w)); ctx.globalAlpha = 1; D.circle(ctx, X, yy, 3.5, '#ffffff'); }
-        }
-      }
-      ctx.restore();
-      // marcas: el cero de cada canal (con su número), el nivel del disparo y el punto de disparo
-      const clampY = y => Math.max(sy + 6, Math.min(sy + sh - 6, y));
-      [0, 1].forEach(ch => {
-        if (!st.chs[ch].on) return;
-        const y0 = clampY(cy - st.chs[ch].pos * dv);
-        ctx.beginPath(); ctx.moveTo(sx, y0 - 8); ctx.lineTo(sx + 13, y0); ctx.lineTo(sx, y0 + 8); ctx.closePath(); ctx.fillStyle = ink(ch, w); ctx.fill();
-        D.text(ctx, String(ch + 1), sx + 22, y0, ink(ch, w), { size: 14, align: 'left' });
-      });
-      const T = st.trg, ly = clampY(Y(T.src, T.level));
-      ctx.beginPath(); ctx.moveTo(sx + sw, ly - 7); ctx.lineTo(sx + sw - 12, ly); ctx.lineTo(sx + sw, ly + 7); ctx.closePath(); ctx.fillStyle = ink(T.src, w); ctx.fill();
-      const tx = sx + (5 + st.hpos) * dv;
-      ctx.beginPath(); ctx.moveTo(tx - 7, sy); ctx.lineTo(tx + 7, sy); ctx.lineTo(tx, sy + 10); ctx.closePath(); ctx.fillStyle = w ? C.charge : '#ff9f1c'; ctx.fill();
-      // renglón de arriba: el estado y dónde quedó el disparo; abajo: las escalas, el disparo y su frecuencia
-      const ty = my + L.top / 2, by = sy + sh + L.top / 2, [stt, stc] = STATUS[st.status || 'auto'];
-      D.circle(ctx, sx + 6, ty, 4.5, w ? { trig: C.ok, stop: C.danger }[st.status] || C.charge : stc);
-      D.text(ctx, stt, sx + 16, ty, txt, { size: 14, align: 'left', font: Sim.MONO, weight: 600 });
-      if (st.hpos) D.text(ctx, 'M Pos ' + eng(st.hpos * TDIV[st.ti] / 1000, 's'), sx + sw, ty, dim, { size: 14, align: 'right', font: Sim.MONO, weight: 500 });
-      const cpl = c => ({ ac: ' ~', gnd: ' ⏚', dc: '' })[st.chs[c].cpl];
-      const items = [];
-      [0, 1].forEach(c => { if (st.chs[c].on) items.push([`CH${c + 1} ${eng(VDIV[st.chs[c].vi], u)}${cpl(c)}`, ink(c, w), 3]); });
-      items.push([`M ${eng(TDIV[st.ti] / 1000, 's')}`, txt, 3]);
-      items.push([`CH${T.src + 1} ${T.slope > 0 ? '↗' : '↘'} ${eng(T.level, u)}`, ink(T.src, w), 2]);
-      items.push([st.tf >= 10 ? eng(st.tf, 'Hz') : '<10Hz', txt, 1]);
-      D.font(ctx, 14, Sim.MONO, 600);
-      const gap = Sim.px(14, ctx) * 0.8, room = mx + mw - sx;
-      let shown = items, wid = () => shown.reduce((a, [t]) => a + ctx.measureText(t).width, 0) + gap * (shown.length - 1);
-      for (let p = 1; p <= 2 && wid() > room; p++) shown = shown.filter(it => it[2] > p);
-      let x = sx;
-      shown.forEach(([t, col]) => { D.text(ctx, t, x, by, col, { size: 14, align: 'left', font: Sim.MONO, weight: 600 }); x += ctx.measureText(t).width + gap; });
-      // columna del menú
-      const title = { meas: 'MEDIDAS', ch0: 'CH1', ch1: 'CH2', trig: 'DISPARO' }[st.menu];
-      const tcol = st.menu === 'ch0' ? ink(0, w) : st.menu === 'ch1' ? ink(1, w) : txt;
-      if (title) D.text(ctx, title, mx + mw / 2, ty, tcol, { size: 14, font: Sim.MONO, weight: 700, max: mw - 4 });
-      const bh = boxH(L), rows = menuRows(g.side);
-      // el mismo largo de rótulo en todas las casillas (el más largo que quepa en todas)
-      D.font(ctx, 14, Sim.MONO, 600);
-      const pick = Math.max(0, ...rows.map(r => r ? r[0].findIndex(t => ctx.measureText(t).width <= mw - 14) : 0).map((k, i, a) => k < 0 ? rows[i][0].length - 1 : k));
-      rows.forEach((r, i) => {
-        const y0 = my + L.top + i * bh;
-        if (!r) return;
-        D.roundRect(ctx, mx + 2, y0 + 2, mw - 4, bh - 4, 4, w ? (C.dark ? '#2f2c26' : '#f1e9d2') : '#122230', w ? grid(true) : '#3b4855', 1);
-        D.text(ctx, r[0][Math.min(pick, r[0].length - 1)], mx + 8, y0 + bh * 0.32, r[2] || dim, { size: 14, align: 'left', font: Sim.MONO, weight: 600, max: mw - 14 });
-        D.text(ctx, r[1], mx + 8, y0 + bh * 0.7, txt, { size: 15, align: 'left', font: Sim.MONO, weight: 700, max: mw - 14 });
-      });
-    };
-    // Las cinco casillas del menú que se ve: [rótulos, valor, color del rótulo] (null: vacía).
-    const menuRows = side => {
-      const w = side === 'w', u = unitV(side), m = st.menu;
-      if (m === 'meas') return st.meas.map(x => {
-        if (!x) return [['Ninguna'], '', null];
-        const [c, t] = x, on = st.chs[c].on, v = on ? measValue(st.m[c], t) : null;
-        const un = { freq: 'Hz', period: 's' }[t] || u;
-        return [[`CH${c + 1} ${MEAS[t]}`, `CH${c + 1} ${MEAS_SHORT[t]}`, MEAS_SHORT[t]], on ? eng(v, un) : 'Apagado', ink(c, w)];
-      });
-      if (m === 'ch0' || m === 'ch1') {
-        const s2 = st.chs[+m[2]];
-        return [[['Acoplamiento', 'Acopl.'], { dc: 'CC', ac: 'CA', gnd: 'Tierra' }[s2.cpl]], [['Invertir'], s2.inv ? 'Sí' : 'No'], null, null, null];
-      }
-      if (m === 'trig') {
-        const T = st.trg;
-        return [[['Fuente'], 'CH' + (T.src + 1)], [['Pendiente'], T.slope > 0 ? '↗ Subida' : '↘ Bajada'],
-          [['Modo'], T.mode === 'auto' ? 'Auto' : 'Normal'], [['Nivel'], eng(T.level, u)], null];
-      }
-      return [null, null, null, null, null];
-    };
-    const drawScope = (ctx, g) => {
-      const w = g.side === 'w', L = g.L;
-      D.chassis(ctx, L.x, L.y, L.w, L.h, w, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO');
-      // secciones: fondo más oscuro y su nombre en una franja arriba
-      L.secs.forEach(([x, y, sw2, sh2, names]) => {
-        D.roundRect(ctx, x, y, sw2, sh2, 8, C.dark ? '#2c3843' : '#d3dbe1');
-        ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, sw2, sh2, 8); ctx.clip();
-        ctx.fillStyle = C.dark ? '#46566a' : '#bccad4'; ctx.fillRect(x, y, sw2, 24); ctx.restore();
-        D.text(ctx, names, x + sw2 / 2, y + 12.5, C.ink, { size: 14, font: Sim.WIDE, max: sw2 - 10 });
-      });
-      L.labels.forEach(([t, x, y, lw]) => D.text(ctx, t, x, y, C.muted, { size: 14, max: lw }));
-      drawScreen(ctx, g);
-      // teclas
-      const K2 = L.keys, kd = { meas: st.menu === 'meas', ch0: st.chs[0].on, ch1: st.chs[1].on, trig: st.menu === 'trig', run: !st.run };
-      const KL = { meas: ['MEASURE', 'MEAS.'], auto: ['AUTOSET', 'AUTO'], run: ['RUN/STOP', 'RUN'], ch0: ['CH1 MENU', 'CH1'], ch1: ['CH2 MENU', 'CH2'],
-        trig: ['TRIG MENU', 'TRIG'], half: ['SET TO 50%', '50%'] };
-      for (const id in K2) keyCap(ctx, K2[id], KL[id], { down: kd[id] ? 1 : 0, fill: id === 'ch0' ? CH[0].key : id === 'ch1' ? CH[1].key : null });
-      if (K2.run) { const [x, y, kw, kh] = K2.run; D.circle(ctx, x + kw / 2 - 6, y - kh / 2 + 6 + (st.run ? 0 : 1.5), 3, st.run ? '#22e06b' : '#ff5a4f'); }
-      if (L.bezel) [0, 1, 2, 3, 4].forEach(i => { const [x, y] = bezelAt(g, i); keyCap(ctx, [x, y, L.bezel[1], L.bezel[2]], ''); });
-      if (L.fold) { keyCap(ctx, [L.fold[0], L.fold[1], 44, 34], ''); foldIcon(ctx, L.fold[0], L.fold[1] - 0.5, !st.front); }
-      // perillas: VOLTS/DIV con el arco del color de su canal
-      [0, 1].forEach(c => { const k = L.knobs['vd' + c]; if (k) arc(ctx, k[0], k[1], k[2] / 2 + 7, CH[c].cable); });
-      // entradas y tierra
-      L.bnc.forEach(([x, y], c) => {
-        bnc(ctx, x, y, CH[c].cable);
-        if (L.bncSide) D.text(ctx, `CH${c + 1}`, x + 24, y, C.muted, { size: 14, align: 'left' });
-        else if (L.bncLab) D.text(ctx, `CH ${c + 1}`, x, L.bncLab, C.ink, { size: 14 });
-      });
-      const [gx, gy] = L.gnd;
-      D.circle(ctx, gx, gy, 9, '#8a99a5', C.ink, 1.5); D.circle(ctx, gx, gy, 4, '#3a4652');
-      if (L.bncSide) groundSym(ctx, gx + 28, gy - 2, C.muted);
-      else groundSym(ctx, gx - 30, gy - 2, C.muted);
-    };
 
     // ---------- componentes ----------
     // Capacitor: tanque con una membrana elástica que no deja pasar el agua: se estira según el voltaje (la
@@ -1331,7 +1362,7 @@
     const each = (K, fn) => { for (const k in PLACES) if (kind(k) === K) fn(k, ...PLACES[k]); };
     function drawWater() {
       const g = geos.w, ctx = pw.begin();
-      if (g.solo) return drawScope(ctx, g);   // de frente en el celular acostado: solo el registrador
+      if (g.solo) return unit.draw(ctx, g.L, g.side);   // de frente en el celular acostado: solo el registrador
       drawDesk(ctx, g);
       drawCables(ctx, g);   // las mangueras pasan siempre por debajo del dibujo
       branches.forEach(b => D.pipe(ctx, b.pts));
@@ -1343,14 +1374,14 @@
       if (capOn()) each('C', (k, x, y, or) => tank(ctx, x, y, or));
       tags(ctx, g, true);
       marks(ctx, g);
-      drawScope(ctx, g);
+      unit.draw(ctx, g.L, g.side);
       drawGen(ctx, g);
       D.pump(ctx, g.PX, g.BOT, st.rotor, st.rotorOm);
       drawTips(ctx, g);
     }
     function drawElectric() {
       const g = geos.e, ctx = pe.begin();
-      if (g.solo) return drawScope(ctx, g);   // de frente en el celular acostado: solo el osciloscopio
+      if (g.solo) return unit.draw(ctx, g.L, g.side);   // de frente en el celular acostado: solo el osciloscopio
       drawDesk(ctx, g);
       drawCables(ctx, g);   // los cables pasan siempre por debajo del dibujo
       branches.forEach(b => D.wire(ctx, b.pts));
@@ -1366,7 +1397,7 @@
       if (capOn()) each('C', (k, x, y, or) => capSym(ctx, x, y, or));
       tags(ctx, g, false);
       marks(ctx, g);
-      drawScope(ctx, g);
+      unit.draw(ctx, g.L, g.side);
       drawGen(ctx, g);
       genSymbol(ctx, g.PX, g.BOT);
       drawTips(ctx, g);
@@ -1379,7 +1410,7 @@
       advance(dt);
       const ck = String(st.avg.on);
       if (ck !== colorKey) { colorKey = ck; syncColors(); }
-      updateScope();
+      unit.update();
       drawWater(); drawElectric();
     });
     return { st };
