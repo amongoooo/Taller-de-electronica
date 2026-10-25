@@ -161,17 +161,18 @@
     const fit = (lay, w) => Math.min(1, w / SL[lay].w);
     // En el celular (alto y lateral) cada instrumento tiene dos versiones: la corta, que solo deja leer (los
     // multímetros) o hacer lo de siempre (la fuente: POWER y COARSE), y la abierta (st.front: 'src',
-    // 'a' o 'b'), grande y con todos sus mandos. Se abre uno a la vez con su tecla (FOLD). Sin ninguno abierto, las
-    // versiones cortas van en un renglón: multímetro · fuente · segundo multímetro (donde sobra alto, los
-    // multímetros arriba de la fuente y más grandes). La fuente abierta va a lo ancho
-    // con las demás cortas en un renglón arriba; un multímetro abierto, con las demás cortas en una columna a su
-    // lado (los multímetros arriba de la fuente). Todos alineados por su base; da dónde empieza lo de arriba.
+    // 'a' o 'b'), grande y con todos sus mandos. Se abre uno a la vez con su tecla (FOLD) o con el menú de abajo
+    // (Sim.instMenu). Sin ninguno abierto, las versiones cortas van en un renglón: multímetro · fuente · segundo
+    // multímetro (donde sobra alto, los multímetros arriba de la fuente y más grandes). El abierto va solo, centrado
+    // en la mesa: los demás se guardan abajo, fuera de la vista (sus cables y mangueras siguen puestos y bajan hasta
+    // ellos). Todos alineados por su base; da dónde empieza lo de arriba.
     // Apilados van siempre en el lateral y en el alto si así salen más grandes. top: hasta dónde pueden subir (en el
     // alto, hasta el tope del circuito; en el lateral, la orilla de arriba o la gráfica de la página, ver geometry).
     // PH: el espacio entre ellos, lo que sobresalen los bornes de un multímetro, la escala más grande de las
     // versiones cortas en un renglón (k) y apiladas (kl en el lateral, kt en el alto), la del multímetro abierto (open;
     // openL en el lateral) y la de la fuente abierta (src).
-    const PH = { gap: 12, plate: 16, k: 1.2, kl: 1.5, kt: 1.7, open: 1.3, openL: 1.35, src: 1.4 };
+    const PH = { gap: 12, plate: 16, k: 1.2, kl: 1.5, kt: 1.7, open: 1.6, openL: 1.5, src: 1.55 };
+    const STOW = 2000;   // qué tan abajo de la mesa van los guardados
     // Con o.scope también va el osciloscopio ('o'): en la mesa del celular, su versión corta (solo se lee), del ancho
     // de la fuente corta (OSW × OSH, la forma de su acomodo de 600 × 420).
     const OSW = 160, OSH = OSW * 460 / 440;   // el osciloscopio de la mesa (ver DESKL en el osciloscopio del banco)
@@ -191,14 +192,13 @@
         items.forEach(k => { put(k, x + cw(k) * s / 2, y, s); x += (cw(k) + PH.gap) * s; });
         return y - Math.max(...items.map(chh)) * s;
       };
+      if (f) rest.forEach(k => put(k, cx, base + STOW, 1));   // guardados
       if (f === 'src') {
-        // la fuente abierta y arriba el renglón de las cortas; si no cabe a lo alto, todo se achica parejo
-        let ks = Math.min(PH.src, avail / SL.wide.w), kr = rest.length ? Math.min(lateral ? PH.kl : PH.k, avail / rowW(rest)) : 0;
-        const need = SL.wide.h * ks + (rest.length ? PH.gap + Math.max(...rest.map(chh)) * kr : 0);
-        if (need > room) { const t = (room - (rest.length ? PH.gap : 0)) / (need - (rest.length ? PH.gap : 0)); ks *= t; kr *= t; }
-        box('wide', ks); g.BX = cx - g.BW / 2; g.BY = base - g.BH;
-        return row(rest, g.BY - PH.gap, kr);
+        // la fuente abierta a lo ancho (si no cabe a lo alto, más chica)
+        box('wide', Math.min(PH.src, avail / SL.wide.w, room / SL.wide.h)); g.BX = cx - g.BW / 2; g.BY = base - g.BH;
+        return g.BY;
       }
+      if (f === 'o') return base;   // el osciloscopio de frente tapa el panel (ver OSC)
       if (!f) {
         const ms = rest.filter(k => k !== 'src'), hh = SL.mini.h + (ms.length ? chh('a') + PH.gap : 0);
         const s = Math.min(lateral ? PH.kl : PH.kt, avail / Math.max(ms.length ? rowW(ms) : 0, SL.mini.w), room / hh);
@@ -208,13 +208,9 @@
         }
         return row(rest, base, Math.min(PH.k, room / Math.max(...rest.map(chh))));
       }
-      const mk = lateral ? PH.openL : PH.open, mw = MW.full * mk, colN = Math.max(...rest.map(cw));
-      const s = Math.min(PH.k, (avail - mw - PH.gap) / colN), colW = colN * s, x0 = cx - (mw + PH.gap + colW) / 2, left = f === 'a';
-      g.mk[f] = mk; g.meters[f] = [left ? x0 + mw / 2 : x0 + colW + PH.gap + mw / 2, base];
-      const colX = left ? x0 + mw + PH.gap + colW / 2 : x0 + colW / 2;
-      let y = base;
-      for (const k of [...rest].sort((p, q) => (q === 'src') - (p === 'src'))) { put(k, colX, y, s); y -= chh(k) * s + PH.gap; }
-      return Math.min(y + PH.gap, base - (MW.h + PH.plate) * mk);
+      const mk = Math.min(lateral ? PH.openL : PH.open, room / (MW.h + PH.plate));
+      g.mk[f] = mk; g.meters[f] = [cx, base];
+      return base - (MW.h + PH.plate) * mk;
     };
     // Dónde empieza el circuito (top, o más abajo) cuando la escala de colores va arriba a la derecha del dibujo:
     // mide lo mismo en la pantalla, así que en una pantalla chica ocupa más del dibujo y baja más; con rótulos altos
@@ -3073,7 +3069,7 @@
       };
       const unit = Sim.scopeUnit(os, { button, knob, L: Lof, lay: () => Lof(b.ge),
         foldLabel: () => os.front ? 'Regresar el osciloscopio a la mesa' : 'Poner el osciloscopio de frente, con todos sus mandos',
-        fold: () => {} });
+        fold: () => { if (phoneNow()) setFront(os.front ? 'o' : null); } });
 
       // ---------- sus puntas ----------
       const tipLen = side => side === 'w' ? Sim.PIPE + 12 : 46;
@@ -3187,6 +3183,18 @@
       return { st: os, unit, tip, sample, cables, tips, desk, front, refresh };
     })() : null;
     b.scope = OSC;
+    // El menú de los instrumentos (en el celular, abajo del panel): el que se toca se abre y los demás se guardan (ver
+    // phoneDesk); el osciloscopio se abre de frente.
+    const syncInst = Sim.instMenu({ w: b.pw, e: b.pe }, {
+      items: side => [...MS.filter(k => st.show[k]).map(k => [k, cap(meterName(k, side))]),
+        ['src', side === 'w' ? 'Bomba' : 'Fuente'], ...(OSC ? [['o', side === 'w' ? 'Registrador' : 'Osciloscopio']] : [])]
+        .sort((p, q) => ['a', 'src', 'b', 'o'].indexOf(p[0]) - ['a', 'src', 'b', 'o'].indexOf(q[0])),
+      get: () => st.front,
+      set: k => {
+        if (OSC && OSC.st.front !== (k === 'o')) { OSC.st.front = k === 'o'; OSC.refresh(); }
+        setFront(k);
+      } });
+    syncs.push(syncInst);
 
     const instruments = (ctx, g) => {
       if (OSC) OSC.desk(ctx, g);

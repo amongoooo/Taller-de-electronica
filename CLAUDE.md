@@ -71,6 +71,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - Color de las partículas: `Sim.colorMode` (rapidez/normal, presión/voltaje, caudal/corriente), `Sim.field(x, y)` →
     [presión, caudal] de 0 a 1 que pone cada página (o el banco), y `Sim.colorPicker(panels, { ends, spot, top })`: el
     selector con su escala arriba a la derecha de cada panel. Lo usan el banco, la protoboard y el osciloscopio.
+  - `Sim.instMenu(panels, { items, get, set })`: en el celular, el menú chico de los instrumentos abajo de cada panel
+    (`p.inset` le deja su franja; `Sim.panel` esconde los controles de lo que queda muy abajo del dibujo, lo guardado).
   - `Sim.menu`: tarjetas. `Sim.menu.toggle(anchor, { title, rows, float, ignore })`. Filas: `values` (deslizador
     de valores comunes), `options` (colores), `seg` (segmentado), `range` (deslizador corto), `heat`
     (potencia y calor), `actions` (botones de contorno; `primary` = el lleno azul, uno por tarjeta, arriba).
@@ -92,7 +94,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     base] con su escala `g.mk[k]` (`homeAt`, `meterAt`). En `alto` y `lateral` la caja va aparte del símbolo (`apart`);
     si no, `hoses`: de sus bornes + y − suben mangueras (cables) a la rueda (al símbolo).
   - Celular (`alto` y `lateral`, `phoneDesk`): versión corta y abierta de cada instrumento; `st.front` ('src', 'a', 'b'
-    o null) dice cuál está abierto (`setFront`, `b.setFront`; tecla `FOLD` con `foldArrows`). Multímetro corto
+    o null; 'o' el osciloscopio de frente) dice cuál está abierto (`setFront`, `b.setFront`; tecla `FOLD` con `foldArrows`, o
+    el menú de los instrumentos); el abierto va solo y los demás se guardan abajo del dibujo (`STOW`). Multímetro corto
     (`shape` con `ph`, `isCompact`): solo se lee. Fuente corta: `SL.mini`. Al cambiar, `relayout` mueve las puntas
     con el circuito. En `alto` el circuito llega a lo más a `TALL` (`o.tall`, 0.8 de su ancho) y las cortas se apilan
     más grandes si cabe; en `lateral` la página puede pedir una franja arriba de la mesa para su gráfica (`o.deskGraph`
