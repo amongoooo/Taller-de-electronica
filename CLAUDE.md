@@ -112,6 +112,10 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     donde las partículas se quedan quietas en `D.flow` y `Sim.water`). `b.iOut()` es lo que de verdad da la fuente; `b.flowI(m)`,
     la corriente con la que las páginas mueven las partículas de su vuelta (con un corto, la de la fuente).
   - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
+  - Osciloscopio en la mesa (`o.scope`, la página carga `osciloscopio.js` antes): `OSC` con `Sim.scopeUnit`; en la mesa en
+    lugar del segundo multímetro (`g.OS`: corto, solo se lee, acomodo `DESKL`; en el celular es otro de `phoneDesk`, 'o') y de
+    frente encima del panel (`os.front`, `.sim-ofront` esconde lo demás); tres puntas que se pegan al circuito con `snap` y
+    cada cuadro `sample` guarda lo que marca cada canal contra el caimán. `b.scope` da su estado.
   - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado). Inercia: `inertia`. Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
     tramo de la fuente, para que el − (y la tierra, `b.ground`) quede en 0 V a la izquierda.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
@@ -135,7 +139,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   `voltaje-concepto`, `corriente-concepto` (una pila y una resistencia con contadores que se arrastran por la vuelta) y
   `resistencia-concepto` (una barra de carbón con largo y grosor en su tarjeta, y su calor) no usan el banco ni instrumentos. `voltaje-concepto`: su propio dibujo (dos pilas o bombas, la resistencia entre sus +,
   la tierra que se arrastra a un nodo, acomodo `h` o `v` según la caja). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas) no
-  usa el multímetro. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  usa el multímetro. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc`, `osciloscopio-diodo`, `osciloscopio-rectificador` (media onda) y `osciloscopio-onda-completa`
   (puente de cuatro diodos) solo dan su circuito a `Sim.scope`.
   `agua-electricidad` es la versión vieja (no está en `Sim.ORDER`).

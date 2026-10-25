@@ -223,7 +223,9 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
 /* Lugar punteado del segundo multímetro en la mesa: tocarlo lo saca. */
 .sim-slot { padding: 0; background: transparent; border: 2px solid transparent; border-radius: 12px; cursor: pointer; }
 .sim-slot[hidden] { display: none; }
-.sim-layer > .sim-off { display: none !important; }   /* no va en el acomodo de ahora (ver Sim.panel) */
+.sim-layer > .sim-off { display: none !important; }
+/* El osciloscopio del banco de frente (encima del panel): solo se ven sus controles y sus puntas. */
+.sim-panel.sim-ofront .sim-layer > :not(.sim-o), .sim-panel.sim-ofront > .sim-tag { visibility: hidden; }   /* no va en el acomodo de ahora (ver Sim.panel) */
 .sim-slot:hover, .sim-slot:focus-visible { border-color: var(--act, var(--muted)); }
 /* El bloque de la fuente se dibuja encima de los medidores: sus controles también van encima de ellos,
    y las puntas encima de todo. */

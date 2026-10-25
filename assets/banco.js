@@ -172,11 +172,18 @@
     // versiones cortas en un renglón (k) y apiladas (kl en el lateral, kt en el alto), la del multímetro abierto (open;
     // openL en el lateral) y la de la fuente abierta (src).
     const PH = { gap: 12, plate: 16, k: 1.2, kl: 1.5, kt: 1.7, open: 1.3, openL: 1.35, src: 1.4 };
-    const cw = k => k === 'src' ? SL.mini.w : MW.cs, chh = k => k === 'src' ? SL.mini.h : MW.hs + PH.plate;
+    // Con o.scope también va el osciloscopio ('o'): en la mesa del celular, su versión corta (solo se lee), del ancho
+    // de la fuente corta (OSW × OSH, la forma de su acomodo de 600 × 420).
+    const OSW = 160, OSH = OSW * 460 / 440;   // el osciloscopio de la mesa (ver DESKL en el osciloscopio del banco)
+    const cw = k => k === 'src' ? SL.mini.w : k === 'o' ? OSW : MW.cs, chh = k => k === 'src' ? SL.mini.h : k === 'o' ? OSH : MW.hs + PH.plate;
     const rowW = items => items.reduce((t, k) => t + cw(k), 0) + PH.gap * (items.length - 1);
     const phoneDesk = (g, box, cx, base, avail, lateral, top) => {
-      const f = st.front, rest = ['a', 'src', 'b'].filter(k => k !== f && (k === 'src' || st.show[k])), room = base - top;
-      const put = (k, x, y, s) => { if (k === 'src') { box('mini', s); g.BX = x - g.BW / 2; g.BY = y - g.BH; } else { g.mk[k] = s; g.meters[k] = [x, y]; } };
+      const f = st.front, rest = ['a', 'src', 'b', ...(o.scope ? ['o'] : [])].filter(k => k !== f && (k === 'src' || k === 'o' || st.show[k])), room = base - top;
+      const put = (k, x, y, s) => {
+        if (k === 'src') { box('mini', s); g.BX = x - g.BW / 2; g.BY = y - g.BH; }
+        else if (k === 'o') g.OS = { x: x - OSW * s / 2, y: y - OSH * s, k: s * OSW / 440 };
+        else { g.mk[k] = s; g.meters[k] = [x, y]; }
+      };
       const row = (items, y, kMax = lateral ? PH.kl : PH.k) => {
         if (!items.length) return y;   // la fuente abierta sin multímetros a la vista
         const nat = rowW(items), s = Math.min(kMax, avail / nat);
@@ -219,7 +226,7 @@
     // g.meters[k] = [x del centro, y de su base] y g.mk[k] su escala; g.DESK es dónde empieza la mesa (y, o x en
     // el lateral).
     const geometry = (side, W, H, mode = 'ancho') => {
-      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, mk: { a: 1, b: 1 }, meters: { a: [400, H], b: [400, H] } };
+      const g = { side, W, H, mode, X0: 180, X1: 640, PX: 400, TOP: 140, mk: { a: 1, b: 1 }, meters: { a: [400, H], b: [400, H] }, OS: null };
       const box = (lay, k) => { g.FL = lay; g.FK = k; g.BW = SL[lay].w * k; g.BH = SL[lay].h * k; };
       if (mode === 'lateral') {
         g.DESK = 668;
@@ -242,12 +249,24 @@
         g.BOT = g.DESK - 56;
         g.COL = [660, 10];
       } else {
-        // multímetro · fuente · segundo multímetro
-        const medio = mode === 'medio', slot = medio ? MW.full : MW.small - 14, gap = 12;
-        box('wide', fit('wide', W - 16 - 2 * slot - 2 * gap));
-        const base = H - 20, x0 = g.PX - (2 * slot + g.BW + 2 * gap) / 2;
-        g.BX = x0 + slot + gap; g.BY = base - g.BH;
-        g.meters = { a: [x0 + slot / 2, base], b: [g.BX + g.BW + gap + slot / 2, base] };
+        // multímetro · fuente · segundo multímetro; con o.scope, multímetro · fuente · osciloscopio (el de la mesa, solo
+        // para leer: del alto de la fuente o del multímetro, el que sea más alto; la fuente se achica si no caben)
+        const medio = mode === 'medio', slot = medio ? MW.full : MW.small - 14, gap = 12, base = H - 20;
+        if (o.scope) {
+          const avail = W - 16 - slot - 2 * gap, asp = 440 / 460;
+          let k = Math.min(1, avail / (SL.wide.w + asp * SL.wide.h));
+          if (SL.wide.h * k < MW.h) k = Math.min(1, (avail - asp * MW.h) / SL.wide.w);
+          box('wide', k);
+          const oh = Math.max(g.BH, MW.h), ow = asp * oh, x0 = g.PX - (slot + g.BW + ow + 2 * gap) / 2;
+          g.BX = x0 + slot + gap; g.BY = base - g.BH;
+          g.meters = { a: [x0 + slot / 2, base], b: [x0 + slot / 2, base] };
+          g.OS = { x: g.BX + g.BW + gap, y: base - oh, k: oh / 460 };
+        } else {
+          box('wide', fit('wide', W - 16 - 2 * slot - 2 * gap));
+          const x0 = g.PX - (2 * slot + g.BW + 2 * gap) / 2;
+          g.BX = x0 + slot + gap; g.BY = base - g.BH;
+          g.meters = { a: [x0 + slot / 2, base], b: [g.BX + g.BW + gap + slot / 2, base] };
+        }
         g.DESK = Math.min(base - MW.h - 24, g.BY - 44);   // con lugar para el cuello de la fuente
         g.BOT = g.DESK - 26;
         g.COL = [W - 12, 10];
@@ -1746,7 +1765,7 @@
     let syncMed = () => {};
     // Sacar otro multímetro (desde Medir o tocando su lugar punteado en la mesa).
     b.addMeter = () => {
-      const kind = MS.find(k => !st.show[k]);
+      const kind = MS.find(k => !st.show[k] && !(o.scope && k === 'b'));   // con el osciloscopio en la mesa, uno solo
       if (!kind) return;
       b.showMeters({ [kind]: true });
       st.placed[kind] = [false, false];   // sale guardado: se toca el circuito para ponerlo
@@ -1754,7 +1773,7 @@
       setPlacing({ kind, i: 0 });
     };
     // Su lugar en la mesa, punteado, mientras solo está el primero.
-    const slotOpen = () => st.show.a && !st.show.b && !phoneNow();   // en el celular la mesa no lo lleva
+    const slotOpen = () => st.show.a && !st.show.b && !phoneNow() && !o.scope;   // en el celular (o con el osciloscopio) la mesa no lo lleva
     ['w', 'e'].forEach(side => {
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'sim-slot'; el.dataset.act = 'med';
@@ -1796,7 +1815,7 @@
           rows.forEach(o => { o.nm.textContent = cap(meterName(kind, o.side)); });
         });
         const some = MS.some(k => st.show[k]), what = w ? 'medidor' : 'multímetro';
-        add.hidden = MS.every(k => st.show[k]);
+        add.hidden = MS.every(k => st.show[k] || (o.scope && k === 'b'));
         add.textContent = (some ? '+ Sacar otro ' : '+ Sacar un ') + what;
       };
       Sim.onView(syncMed); syncMed(); syncs.push(syncMed);
@@ -2968,7 +2987,209 @@
       D.roundRect(ctx, x - sh.hw * k, y + sh.top * k, 2 * sh.hw * k, (sh.bottom - sh.top) * k, Sim.CHASSIS.r, null, C.muted, 2);
       ctx.restore();
     };
+    // ---------- el osciloscopio en la mesa (o.scope) ----------
+    // El del taller (Sim.scopeUnit, de assets/osciloscopio.js, que la página carga antes que este archivo): en la mesa
+    // va corto, junto a la fuente (solo se lee: su pantalla con las medidas, como el multímetro corto del celular). Su
+    // tecla de las flechas lo pone de frente, grande y con todos sus mandos, encima del panel (lo demás se esconde
+    // mientras). Sus tres puntas (el canal 1, el caimán de tierra y el canal 2) se ponen en cualquier punto del
+    // circuito, como las del multímetro: cada cuadro marca el voltaje de cada canal contra el caimán.
+    // o.scope: { vd: [V/div de cada canal], td: ms/div, pos: [cero de cada canal, en divisiones], ch2: el canal 2
+    // prendido, trig: { src, slope, mode, level }, meas: las cinco medidas, probes(g): dónde empiezan las puntas }.
+    const OSC = o.scope && Sim.scopeUnit ? (() => {
+      const P = Sim.scopeParts, cfg = o.scope, vd = cfg.vd || [1, 1], pos0 = cfg.pos || [0, 0];
+      const os = { chs: [0, 1].map(k => ({ on: k === 0 || !!cfg.ch2, vi: P.nearest(P.VDIV, vd[k]), pos: pos0[k], cpl: 'dc', inv: false })),
+        ti: P.nearest(P.TDIV, cfg.td || 1), hpos: 0, trg: { src: 0, slope: 1, mode: 'auto', level: 0, ...(cfg.trig || {}) }, run: true,
+        menu: 'meas', meas: cfg.meas || [[0, 'max'], [0, 'min'], [0, 'mean'], [1, 'max'], [1, 'mean']], front: false,
+        hp: [{ x: 0, y: 0 }, { x: 0, y: 0 }], frames: [], traces: [], beam: null, m: [null, null], status: 'auto', T: 0, last: [0, 0], ph: 0 };
+      // dónde está cada punta (como st.clamps: en el dibujo, pegada al circuito cada cuadro) y de qué lado del cable sale
+      const tip = { at: (cfg.probes ? cfg.probes(b.gw) : [[b.gw.X0, b.gw.MIDY], [b.gw.X1, b.gw.MIDY], [b.gw.X1, b.gw.TOP + 40]]).map(q => q.slice()),
+        side: [-1, -1, -1], snap: [null, null, null] };
+      // En la mesa, más chico: solo la pantalla (10 × 8 divisiones) con su estado y sus escalas, sin la columna del menú
+      // (las medidas se ven de frente), y abajo sus entradas; arriba a la derecha la tecla para ponerlo de frente.
+      const DESKL = { w: 440, h: 460, div: 38, frame: [14, 40, 412, 364], scr: [30, 70, 380, 304], menu: [410, 46, 0, 328], top: 24,
+        keys: {}, knobs: {}, secs: [], labels: [], bnc: [[48, 430], [158, 430]], bncSide: true, gnd: [270, 430], fold: [408, 22] };
+      // Su acomodo puesto en el dibujo con su escala k: posiciones y tamaños en unidades del dibujo (para los controles);
+      // el dibujo usa el acomodo sin escalar (raw) y lo escala el canvas.
+      const scaled = (L, x, y, k) => {
+        const pt = a => a && [x + a[0] * k, y + a[1] * k, ...a.slice(2).map(v => v * k)];
+        const obj = q => Object.fromEntries(Object.entries(q).map(([id, a]) => [id, pt(a)]));
+        return { ...L, x, y, k, w: L.w * k, h: L.h * k, div: L.div * k, top: L.top * k, frame: pt(L.frame), scr: pt(L.scr), menu: pt(L.menu),
+          keys: obj(L.keys), knobs: obj(L.knobs), fold: pt(L.fold), bnc: L.bnc.map(pt), gnd: pt(L.gnd),
+          bezel: L.bezel && [x + L.bezel[0] * k, L.bezel[1] * k, L.bezel[2] * k] };
+      };
+      // El acomodo de ahora en un lado: en la mesa (g.OS, ver geometry y phoneDesk) o, de frente, el completo (a lo ancho
+      // si el panel es ancho; si no, el alto) centrado en lo que se ve del panel.
+      const cur = g => {
+        if (os.front) {
+          const vx = g.VX || 0, wide = g.W / g.H > 1.25, L0 = P.LAYOUTS[wide ? 'wide' : 'tall'], raw = { ...L0, fold: L0.fold || [L0.w - 32, 22] };
+          const k = Math.min((g.W - 24) / raw.w, (g.H - 24) / raw.h);
+          return { raw, L: scaled(raw, vx + (g.W - raw.w * k) / 2, (g.H - raw.h * k) / 2, k) };
+        }
+        return g.OS && { raw: DESKL, L: scaled(DESKL, g.OS.x, g.OS.y, g.OS.k), desk: true };
+      };
+      const NONE = { keys: {}, knobs: {}, bnc: [], secs: [], labels: [] };
+      const Lof = g => { const c = cur(g); return c ? c.L : NONE; };
+      // Sus controles, uno en cada panel (los mismos de Sim.scope): botones y perillas con su tamaño en el dibujo (dim).
+      const items = [];
+      const sizeEl = (el, [w, h]) => {
+        el.style.width = `max(28px, calc(var(--s, 1) * ${w}px))`;
+        el.style.height = `max(28px, calc(var(--s, 1) * ${h}px))`;
+      };
+      const refresh = () => {
+        items.forEach(({ pair, label, attrs, hidden, dim }) => pair.forEach((el, i) => {
+          const side = i ? 'e' : 'w', g = geo(side);
+          if (label) el.setAttribute('aria-label', label(side));
+          if (attrs) for (const [a, v] of Object.entries(attrs())) el.setAttribute(a, v);
+          el.hidden = !!(hidden && hidden());
+          if (dim && !el.hidden) sizeEl(el, dim(g));
+        }));
+        [b.pw, b.pe].forEach(p => p.box.classList.toggle('sim-ofront', os.front));
+        b.pw.replace(); b.pe.replace();
+      };
+      const button = ({ pos, label, attrs, hidden, dim, onClick, cls = 'sim-btn small', act }) => {
+        const pair = ['w', 'e'].map(side => {
+          const el = document.createElement('button');
+          el.type = 'button'; el.className = cls + ' sim-o';
+          if (act) el.dataset.act = act;
+          el.addEventListener('click', () => { onClick(); refresh(); });
+          return b.place(side, el, pos);
+        });
+        items.push({ pair, label, attrs, hidden, dim });
+        return pair;
+      };
+      const knob = ({ pos, min, max, step, magnet, value, label, format, onInput, act, hidden, dim }) => {
+        const ks = {}, pair = [];
+        ['w', 'e'].forEach(side => {
+          const el = b.place(side, document.createElement('div'), pos);
+          el.classList.add('sim-o');
+          if (act) el.dataset.act = act;
+          pair.push(el);
+          ks[side] = Sim.knob(el, { min, max, step, magnet, value, label: label(side), format: v => format(v, side),
+            onInput: v => { onInput(v); ks[side === 'w' ? 'e' : 'w'].set(v, true); } });
+        });
+        ks.set = v => { ks.w.set(v, true); ks.e.set(v, true); };
+        items.push({ pair, hidden, dim: dim && (g => [dim(g), dim(g)]) });
+        return ks;
+      };
+      const unit = Sim.scopeUnit(os, { button, knob, L: Lof, lay: () => Lof(b.ge),
+        foldLabel: () => os.front ? 'Regresar el osciloscopio a la mesa' : 'Poner el osciloscopio de frente, con todos sus mandos',
+        fold: () => {} });
+
+      // ---------- sus puntas ----------
+      const tipLen = side => side === 'w' ? Sim.PIPE + 12 : 46;
+      const frameOf = k => {
+        const q = tip.snap[k], sg = q && st.segs && st.segs[q.k];
+        if (!sg) return null;
+        const [x, y, tx, ty] = D.frameAt(sg.pts, q.d), s = tip.side[k];
+        return { x, y, n: [-ty * s, tx * s] };
+      };
+      const shown = () => os.chs[1].on ? [0, 1, 2] : [0, 1];
+      const NAMES = { w: ['Manguera roja del registrador (canal 1)', 'Manguera negra del registrador', 'Manguera rosa del registrador (canal 2)'],
+        e: ['Punta del canal 1 del osciloscopio', 'Caimán de tierra del osciloscopio', 'Punta del canal 2 del osciloscopio'] };
+      [0, 1, 2].forEach(k => {
+        const pair = ['w', 'e'].map(side => {
+          const el = document.createElement('button'), p = panel(side);
+          el.type = 'button'; el.className = 'sim-clamp sim-o'; el.dataset.act = 'med';
+          el.setAttribute('aria-label', `${NAMES[side][k]}: arrástrala o usa las flechas para moverla por el circuito`);
+          b.place(side, el, () => { const f = frameOf(k), Lh = tipLen(side) * 0.55; return f ? [f.x + f.n[0] * Lh, f.y + f.n[1] * Lh] : [-999, -999]; });
+          const toXY = e => { const r = p.box.getBoundingClientRect(); return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale]; };
+          el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); el.focus(); e.preventDefault(); });
+          el.addEventListener('pointermove', e => {
+            if (!el.hasPointerCapture(e.pointerId) || !st.segs) return;
+            const [x, y] = toXY(e), q = snap(st.segs, x, y, false, 'o');
+            if (!q) return;
+            tip.at[k] = [q.x, q.y]; tip.snap[k] = q;
+            // la punta queda del lado del cable donde está el puntero (adentro o afuera del circuito)
+            const [px, py, tx, ty] = D.frameAt(st.segs[q.k].pts, q.d), dot = (x - px) * -ty + (y - py) * tx;
+            if (Math.hypot(x - px, y - py) > 3) tip.side[k] = dot < 0 ? -1 : 1;
+            b.pw.replace(); b.pe.replace();
+          });
+          el.addEventListener('keydown', e => {
+            const d = { ArrowUp: 12, ArrowRight: 12, ArrowDown: -12, ArrowLeft: -12 }[e.key], q = tip.snap[k];
+            if (!d || !q || !st.segs) return;
+            const sg = st.segs[q.k];
+            tip.at[k] = D.pointAt(sg.pts, Math.max(0, Math.min(sg.L, q.d + d)));
+            e.preventDefault();
+          });
+          return el;
+        });
+        items.push({ pair, hidden: () => os.front || (k === 2 && !os.chs[1].on) });
+      });
+      // Cada cuadro: cada punta se pega al circuito y el osciloscopio guarda lo que marca cada canal contra el caimán.
+      const sample = dt => {
+        if (!st.segs) return;
+        const v = [0, 1, 2].map(k => {
+          const q = snap(st.segs, ...tip.at[k], false, 'o');
+          if (!q) return 0;
+          tip.snap[k] = q; tip.at[k] = [q.x, q.y];
+          return st.segs[q.k].v(q.d);
+        });
+        const rec = unit.record(1, dt);
+        rec.put(0, v[0] - v[1], v[2] - v[1]);
+        rec.end(0, dt);
+        unit.update();
+      };
+
+      // ---------- dibujo ----------
+      // Cables (mangueras) de las puntas a sus entradas, por debajo de todo; las puntas, encima.
+      const cables = (ctx, g) => {
+        const c = cur(g);
+        if (!c || os.front) return;
+        const J = [c.L.bnc[0], c.L.gnd, c.L.bnc[1]];
+        shown().forEach(k => {
+          const f = frameOf(k);
+          if (!f) return;
+          const Lh = tipLen(g.side), [jx, jy] = J[k], ax = f.x + f.n[0] * Lh, ay = f.y + f.n[1] * Lh;
+          const c1 = [ax + f.n[0] * 90, ay + f.n[1] * 90], c2 = [jx, jy + (apart(g) ? -90 : 90)], col = P.tipColor(k);
+          if (g.side === 'w') {
+            const pts = [];
+            for (let i = 0; i <= 24; i++) {
+              const t = i / 24, u = 1 - t, a = u * u * u, bb = 3 * u * u * t, cc = 3 * u * t * t, d = t * t * t;
+              pts.push([a * ax + bb * c1[0] + cc * c2[0] + d * jx, a * ay + bb * c1[1] + cc * c2[1] + d * jy]);
+            }
+            D.hose(ctx, pts, col);
+          } else {
+            ctx.beginPath(); ctx.moveTo(ax, ay); ctx.bezierCurveTo(c1[0], c1[1], c2[0], c2[1], jx, jy);
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.lineWidth = 7; ctx.strokeStyle = C.card; ctx.stroke();
+            ctx.lineWidth = 4.5; ctx.strokeStyle = C.ink; ctx.stroke();
+            ctx.lineWidth = 2.5; ctx.strokeStyle = col; ctx.stroke();
+          }
+        });
+      };
+      const tips = (ctx, g) => {
+        if (os.front) return;
+        shown().forEach(k => {
+          const f = frameOf(k);
+          if (!f) return;
+          ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(Math.atan2(f.n[1], f.n[0]));
+          if (g.side === 'w') P.hoseTip(ctx, P.tipColor(k)); else if (k === 1) P.gator(ctx); else P.pen(ctx, P.tipColor(k));
+          ctx.restore();
+        });
+      };
+      const scope = (ctx, g, c) => {
+        ctx.save(); ctx.translate(c.L.x, c.L.y); ctx.scale(c.L.k, c.L.k);
+        const menu = os.menu;
+        if (c.desk) os.menu = null;   // en la mesa no lleva la columna del menú
+        unit.draw(ctx, P.placeLayout(c.raw, 0, 0), g.side);
+        os.menu = menu;
+        ctx.restore();
+      };
+      // en la mesa; de frente, encima de todo con lo de abajo tapado
+      const desk = (ctx, g) => { const c = !os.front && cur(g); if (c) scope(ctx, g, c); };
+      const front = (ctx, g) => {
+        if (!os.front) return;
+        ctx.save(); ctx.globalAlpha = 0.94; ctx.fillStyle = C.card; ctx.fillRect(-4000, -4000, 8000, 8000); ctx.restore();
+        scope(ctx, g, cur(g));
+      };
+      setInterval(refresh, 300);
+      refresh();
+      return { st: os, unit, tip, sample, cables, tips, desk, front, refresh };
+    })() : null;
+    b.scope = OSC;
+
     const instruments = (ctx, g) => {
+      if (OSC) OSC.desk(ctx, g);
       if (apart(g)) { drawSource(ctx, g); hoses(ctx, g); MS.forEach(k => drawMeter(ctx, g, k)); return; }
       MS.forEach(k => drawMeter(ctx, g, k)); drawSource(ctx, g); hoses(ctx, g);
     };
@@ -2976,6 +3197,7 @@
       const g = b.gw, m = st.m, ctx = b.pw.begin();
       drawDesk(ctx, g);
       hoses(ctx, g, true);
+      if (OSC) OSC.cables(ctx, g);
       circuitAndCables(ctx, g, m, o.drawW);
       drawGround(ctx, g);
       knobScales(ctx, g);
@@ -2985,12 +3207,15 @@
       D.pump(ctx, ...symAt(g), st.rotor, st.omega);
       drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
+      if (OSC) OSC.tips(ctx, g);
       o.overlay && o.overlay(ctx, g, m);
+      if (OSC) OSC.front(ctx, g);
     }
     function drawElectric() {
       const g = b.ge, m = st.m, ctx = b.pe.begin();
       drawDesk(ctx, g);
       hoses(ctx, g, true);
+      if (OSC) OSC.cables(ctx, g);
       circuitAndCables(ctx, g, m, o.drawE);
       drawGround(ctx, g);
       knobScales(ctx, g);
@@ -2998,7 +3223,9 @@
       { const [x, y] = symAt(g); ctx.save(); ctx.translate(x, y); ctx.scale(sgn(), 1); D.source(ctx, 0, 0); ctx.restore(); }   // invertida, al revés
       drawPosts(ctx, g);
       MS.forEach(k => drawTips(ctx, g, k));
+      if (OSC) OSC.tips(ctx, g);
       o.overlay && o.overlay(ctx, g, m);
+      if (OSC) OSC.front(ctx, g);
     }
 
     // ---------- animación ----------
@@ -3149,6 +3376,7 @@
       st.omega = -st.rpm / 60 * 2 * Math.PI;                       // rad/s, a la velocidad real
       st.rotor += st.omega * dt;
       o.step && o.step(dt, st.m);
+      if (OSC) OSC.sample(dt);
       drawWater(); drawElectric();
     });
     Sim.benchNow = b;   // el banco de la página, para probar desde la consola

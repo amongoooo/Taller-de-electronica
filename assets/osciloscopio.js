@@ -574,14 +574,15 @@
       if (st.hpos) D.text(ctx, 'M Pos ' + eng(st.hpos * TDIV[st.ti] / 1000, 's'), sx + sw, ty, dim, { size: 14, align: 'right', font: Sim.MONO, weight: 500 });
       const cpl = c => ({ ac: ' ~', gnd: ' ⏚', dc: '' })[st.chs[c].cpl];
       const items = [];
-      [0, 1].forEach(c => { if (st.chs[c].on) items.push([`CH${c + 1} ${eng(VDIV[st.chs[c].vi], u)}${cpl(c)}`, ink(c, w), 3]); });
+      // si no caben, se quitan primero los de menos prioridad (el último número); el canal 1 siempre se queda
+      [0, 1].forEach(c => { if (st.chs[c].on) items.push([`CH${c + 1} ${eng(VDIV[st.chs[c].vi], u)}${cpl(c)}`, ink(c, w), c ? 3 : 4]); });
       items.push([`M ${eng(TDIV[st.ti] / 1000, 's')}`, txt, 3]);
       items.push([`CH${T.src + 1} ${T.slope > 0 ? '↗' : '↘'} ${eng(T.level, u)}`, ink(T.src, w), 2]);
       items.push([st.tf >= 10 ? eng(st.tf, 'Hz') : '<10Hz', txt, 1]);
       D.font(ctx, 14, Sim.MONO, 600);
       const gap = Sim.px(14, ctx) * 0.8, room = mx + mw - sx;
       let shown = items, wid = () => shown.reduce((a, [t]) => a + ctx.measureText(t).width, 0) + gap * (shown.length - 1);
-      for (let p = 1; p <= 2 && wid() > room; p++) shown = shown.filter(it => it[2] > p);
+      for (let p = 1; p <= 3 && wid() > room; p++) shown = shown.filter(it => it[2] > p);
       let x = sx;
       shown.forEach(([t, col]) => { D.text(ctx, t, x, by, col, { size: 14, align: 'left', font: Sim.MONO, weight: 600 }); x += ctx.measureText(t).width + gap; });
       // columna del menú
@@ -622,7 +623,8 @@
     };
     const drawScope = (ctx, L, side) => {
       const w = side === 'w';
-      D.chassis(ctx, L.x, L.y, L.w, L.h, w, w ? 'REGISTRADOR DE PRESIÓN' : 'OSCILOSCOPIO');
+      // el nombre, sin llegar a la tecla de ponerlo de frente (si no cabe, el corto)
+      D.chassis(ctx, L.x, L.y, L.w, L.h, w, w ? ['REGISTRADOR DE PRESIÓN', 'REGISTRADOR'] : ['OSCILOSCOPIO', 'OSCILOSC.'], false, (L.fold ? L.fold[0] - 30 : L.x + L.w) - L.x - 24);
       // secciones: fondo más oscuro y su nombre en una franja arriba
       L.secs.forEach(([x, y, sw2, sh2, names]) => {
         D.roundRect(ctx, x, y, sw2, sh2, 8, C.dark ? '#2c3843' : '#d3dbe1');
@@ -1417,4 +1419,7 @@
   };
   // Lo que usan las páginas para describir su circuito.
   Object.assign(Sim.scope, { ...CIRC, MIDY, SRC, PATH, VF, RD, rcOf });
+  // Lo que usa el banco para poner el osciloscopio en su mesa (Sim.bench con o.scope): sus acomodos, sus escalas y el
+  // dibujo de las puntas.
+  Sim.scopeParts = { LAYOUTS, placeLayout, VDIV, TDIV, nearest, CH, pen, gator, hoseTip, tipColor, keyCap, foldIcon };
 })();
