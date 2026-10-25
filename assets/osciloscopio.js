@@ -717,7 +717,7 @@
 
     // El generador: la salida CH1 (on), la forma de onda, sus valores (ver GP), lo que cambia la perilla (sel) y el
     // dígito que cambia de cada valor (dig: la potencia de 10).
-    const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 1, freq: 1, amp: 12, off: 0, duty: 50, phs: 0, wave: 'sine',
+    const st = { on: false, ramp: Sim.ramp(), level: 0, tau: 0, freq: 1, amp: 12, off: 0, duty: 50, phs: 0, wave: 'sine',
       sel: 'freq', dig: { freq: 0, amp: 0, off: -1, duty: 0, phs: 1 },
       led: true, R: 470, color: 'rojo', rev: false, Cap: 0.1, filt: false, drev: false, vc: 0, rb: false, rbT: 0,
       ph: 0, T: 0, probe: [300, 980, 640], pw: [0, 0, 0], side: [-1, -1, 1], last: [0, 0],
