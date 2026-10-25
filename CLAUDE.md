@@ -80,7 +80,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     (renglón de Componentes que abre la misma tarjeta; sin `visible`, se esconde si su marcador queda fuera del dibujo).
   - `Sim.fmt` (números con punto decimal, es-MX) y `Sim.ohm` (470 Ω, 1 kΩ, 2.2 kΩ): los formatos de todas las páginas.
   - `Sim.ORDER` (orden de las simulaciones; `Sim.last` guarda la abierta y su paso en `sim-last` para «Seguir donde te quedaste» del inicio), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre; con `done(k)` el paso se revisa solo y, al
-    cumplirse, lleva su palomita y Siguiente late (Voltaje = presión, Corriente = caudal, Nodos, Voltaje y corriente y Cómo medir; estas dos con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
+    cumplirse, lleva su palomita y Siguiente late (Voltaje = presión, Corriente = caudal, Resistencia, Nodos, Voltaje y corriente y Cómo medir; estas dos con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
@@ -130,8 +130,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 - `index.html` (inicio): bloques que siguen el curso (conceptos · nodos y protoboard · armar y medir · señales), miniaturas SVG de cada circuito
   (`MINI`, piezas en `PIECE`) y «Seguir donde te quedaste» (lee `sim-last`). Sin descripciones.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
-  `voltaje-concepto` y `corriente-concepto` (una pila y una resistencia con contadores que se arrastran por la vuelta)
-  no usan el banco ni instrumentos. `voltaje-concepto`: su propio dibujo (dos pilas o bombas, la resistencia entre sus +,
+  `voltaje-concepto`, `corriente-concepto` (una pila y una resistencia con contadores que se arrastran por la vuelta) y
+  `resistencia-concepto` (una barra de carbón con largo y grosor en su tarjeta, y su calor) no usan el banco ni instrumentos. `voltaje-concepto`: su propio dibujo (dos pilas o bombas, la resistencia entre sus +,
   la tierra que se arrastra a un nodo, acomodo `h` o `v` según la caja). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas) no
   usa el multímetro. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc`, `osciloscopio-diodo`, `osciloscopio-rectificador` (media onda) y `osciloscopio-onda-completa`
@@ -197,7 +197,7 @@ y multímetro → señales. Las direcciones de las páginas no cambian, solo el 
 - [x] Reordenar y página **Nodos** (`simulaciones/nodos/`); Cómo medir sin su paso «Los nodos».
 - [x] **Voltaje = presión** (`simulaciones/voltaje-concepto/`, concepto, sin instrumentos): solo hay corriente si hay diferencia entre dos puntos; la tierra es 0 V.
 - [x] **Corriente = caudal** (`simulaciones/corriente-concepto/`): lo que cruza una línea por segundo; es la misma en toda la vuelta (no se gasta).
-- [ ] **Resistencia**: más angosto o más largo deja pasar menos; con la misma presión, menos caudal y calor.
+- [x] **Resistencia** (`simulaciones/resistencia-concepto/`): más angosto o más largo deja pasar menos; con la misma presión, menos caudal y calor.
 - [ ] Protoboard: el primer paso solo con resistencias (el LED se explica después, en Interruptor y LED).
 - [ ] Un «Reto» al final de cada bloque que se revise solo (como el de Cómo medir).
 
