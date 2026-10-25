@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025072358">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025072622">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 .sim-bar .ctl { gap: 8px; }
@@ -40,13 +40,13 @@
     </div>
     <div class="sim-panel" id="pe">
       <span class="sim-tag e">Electricidad</span>
-      <canvas aria-label="Protoboard con pila de 9 V, cables, resistencias y LEDs que se arrastran a los agujeros"></canvas>
+      <canvas aria-label="Protoboard con pila de 9 V, cables y resistencias que se arrastran a los agujeros"></canvas>
       <div class="sim-layer"></div>
     </div>
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025072358"></script>
+<script src="../../assets/sim.js?v=20261025072622"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -67,8 +67,8 @@
   // Las piezas de la bandeja (tipo y v). En vertical van paradas y el valor de la resistencia queda a su lado:
   // se separan para que no tape al LED.
   const TRAYITEMS = { h: [['wire', 8.7], ['res', 11.05], ['led', 13.4]], v: [['wire', 8.3], ['res', 10.3], ['led', 13.9]] };
-  // En los dos primeros pasos la bandeja no trae LEDs (el LED se explica en Interruptor y LED).
-  const trayItems = mode => TRAYITEMS[mode].filter(([t]) => t !== 'led' || st.step >= 2);
+  // La bandeja no trae LEDs: el LED se explica en Interruptor y LED (lo demás del LED se queda, por si vuelve).
+  const trayItems = mode => TRAYITEMS[mode].filter(([t]) => t !== 'led');
   const V0 = 9, RINT = 1, FUSE = 1, RD = 15, IMAX = Sim.LED_IMAX;
   const VIOLET = '#8b5cf6', OKC = '#0ea371', REDW = '#d6392b';
   const RVALUES = Sim.series(100, 10000);   // valores comunes (serie E12)
@@ -103,19 +103,16 @@
   // Calor de una resistencia (¼ W) o de un LED (Vf · 30 mA), ver Sim.heat; su menú lo muestra.
   const heatOf = k => k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 } : Sim.HEAT.res));
   const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(0, 1), { color: '#15212a' })];
-  // El ejemplo de cada paso: una resistencia de 1 kΩ (9 mA, 0,08 W); dos de 1 kΩ en serie (la tira del medio queda
-  // en 4,5 V); y la resistencia de 470 Ω con un LED rojo.
+  // El ejemplo de cada paso: una resistencia de 1 kΩ (9 mA, 0,08 W) y dos de 1 kΩ en serie (la tira del medio queda
+  // en 4,5 V).
   const example = () => {
     const k = st.step, red = { color: REDW }, black = { color: '#15212a' };
     st.comps = [...defaultLeads(), make('wire', hole(2, 0), hole(2, 2), red), ...(k === 0 ? [
       make('res', hole(2, 4), hole(6, 4), { R: 1000 }),
-      make('wire', hole(6, 2), hole(6, 1), black)] : k === 1 ? [
+      make('wire', hole(6, 2), hole(6, 1), black)] : [
       make('res', hole(2, 4), hole(6, 4), { R: 1000 }),
       make('res', hole(6, 5), hole(10, 5), { R: 1000 }),
-      make('wire', hole(10, 2), hole(10, 1), black)] : [
-      make('res', hole(2, 4), hole(6, 4), { R: 470 }),
-      make('led', hole(6, 5), hole(7, 5)),
-      make('wire', hole(7, 2), hole(7, 1), black)])];
+      make('wire', hole(10, 2), hole(10, 1), black)])];
     st.sel = null; st.fuse = true; st.fuseHeat = 0; st.touched = false;
   };
   const clearAll = () => { st.comps = defaultLeads(); st.sel = null; st.fuse = true; st.fuseHeat = 0; st.touched = true; };
@@ -753,13 +750,13 @@
   });
 
   // ---------- pasos ----------
-  // 1: tocar un agujero resalta su tira (un nodo) con su voltaje. 2: dos resistencias con corriente. 3: con un LED
-  // encendido (la bandeja ya trae LEDs). Reto: una tira (no un riel) en 4,5 V, con dos resistencias iguales en serie.
+  // 1: tocar un agujero resalta su tira (un nodo) con su voltaje. 2: dos resistencias con corriente. Reto: una tira
+  // (no un riel) en 4,5 V, con dos resistencias iguales en serie.
   // Si no se ha movido nada, cada paso pone su ejemplo; el reto deja lo que haya.
-  const STEPS = ['Las tiras son nodos', 'Armar con resistencias', 'Con un LED', 'Reto · 4.5 V'];
+  const STEPS = ['Las tiras son nodos', 'Armar con resistencias', 'Reto · 4.5 V'];
   const live = t => st.comps.filter(k => k.type === t && !k.burnt && Math.abs(k.I) > 0.05);
-  Sim.steps(STEPS, k => { const was = st.step; st.step = Math.min(k, 2); if (!st.touched && k < 3 && st.step !== was) example(); }, k =>
-    k === 0 ? !!st.sel : k === 1 ? live('res').length >= 2 : k === 2 ? live('led').some(l => l.on)
+  Sim.steps(STEPS, k => { const was = st.step; st.step = Math.min(k, 1); if (!st.touched && k < 2 && st.step !== was) example(); }, k =>
+    k === 0 ? !!st.sel : k === 1 ? live('res').length >= 2
       : Object.keys(st.V).some(n => (n[0] === 'T' || n[0] === 'B') && st.reach.has(n) && Math.abs(st.V[n] - 4.5) < 0.05) && st.Ibat > 0.05);
 })();
 </script>
