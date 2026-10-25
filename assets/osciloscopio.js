@@ -29,6 +29,7 @@
 //   ifull     mA de la punta de la escala de color de la corriente
 //   rValues   valores de la resistencia; burn: la resistencia se puede quemar; filter: el capacitor se pone y
 //             se quita desde su tarjeta
+// Da { st, apply }: apply(p) pone otros valores del taller (los campos de preset sin las puntas), para los pasos.
 (() => {
   const { C, draw: D, fmt } = Sim;
   const RPM_PER_MA = 100;
@@ -1430,7 +1431,20 @@
       unit.update();
       drawWater(); drawElectric();
     });
-    return { st };
+    // Para las páginas que van por pasos: otros valores del taller, con los mismos campos que preset (sin las puntas).
+    // La salida del generador se queda como esté.
+    const apply = p => {
+      const { vd, td, ch2, pos, trig, ...g } = p;
+      Object.assign(st, g);
+      if (vd) vd.forEach((v, c) => { st.chs[c].vi = nearest(VDIV, v); });
+      if (pos) pos.forEach((v, c) => { st.chs[c].pos = v; });
+      if (ch2 != null) st.chs[1].on = ch2;
+      if (td) st.ti = nearest(TDIV, td);
+      if (trig) Object.assign(st.trg, trig);
+      st.vc = 0; st.hpos = 0;
+      rebuild(); unit.syncKnobs(); unit.resetSweep(); refreshFn();
+    };
+    return { st, apply };
   };
   // Lo que usan las páginas para describir su circuito.
   Object.assign(Sim.scope, { ...CIRC, MIDY, SRC, PATH, VF, RD, rcOf });
