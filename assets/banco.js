@@ -108,7 +108,7 @@
     // st.v, st.vo y st.cc son los de su canal.
     const v0 = Math.max(0, Math.min(VMAX, o.v0 ?? 6)), lim0 = Sim.nearest(LIMS, o.lim0 ?? 100);
     const channel = () => ({ co: Math.round(v0 * 2) / 2, fi: 0, lim: lim0, disp: 'V', peek: null, v: 0, vo: 0, io: 0, cc: false, level: Sim.ramp(), press: 0 });
-    const st = { on: false, ch: { A: channel() }, v: 0, vo: 0, cc: false, tau: 1, m: { I: 0 },
+    const st = { on: false, ch: { A: channel() }, v: 0, vo: 0, cc: false, tau: 0, m: { I: 0 },
       rpm: 0, omega: 0, rotor: 0, segs: [], probe: { a: null, b: null }, pinned: { a: false, b: false }, show: { a: true, b: false },
       // la perilla de cada multímetro
       dial: { a: 'V', b: 'A' },
