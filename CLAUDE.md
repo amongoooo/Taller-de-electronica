@@ -80,7 +80,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     (renglón de Componentes que abre la misma tarjeta; sin `visible`, se esconde si su marcador queda fuera del dibujo).
   - `Sim.fmt` (números con punto decimal, es-MX) y `Sim.ohm` (470 Ω, 1 kΩ, 2.2 kΩ): los formatos de todas las páginas.
   - `Sim.ORDER` (orden de las simulaciones; `Sim.last` guarda la abierta y su paso en `sim-last` para «Seguir donde te quedaste» del inicio), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre; con `done(k)` el paso se revisa solo y, al
-    cumplirse, lleva su palomita y Siguiente late (las páginas 1 y 2, con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
+    cumplirse, lleva su palomita y Siguiente late (Nodos, Voltaje y corriente y Cómo medir; estas dos con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
@@ -127,10 +127,11 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   orden), `branches` (ramas del agua con su corriente), `dots`, `solve(e, h, st)` → corriente, voltaje de cada nodo
   y corriente de cada rama, `ifull`, `rValues`, `burn` y `filter` (el capacitor se pone y se quita en su tarjeta).
   `Sim.oscNow` da su estado para probar (`st.chs`, `st.trg`, `st.m`: las medidas del último barrido).
-- `index.html` (inicio): tres bloques (corriente directa · armar y guardar carga · señales), miniaturas SVG de cada circuito
+- `index.html` (inicio): bloques que siguen el curso (nodos y protoboard · armar y medir · señales), miniaturas SVG de cada circuito
   (`MINI`, piezas en `PIECE`) y «Seguir donde te quedaste» (lee `sim-last`). Sin descripciones.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
-  `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas) no
+  usa el multímetro. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc`, `osciloscopio-diodo`, `osciloscopio-rectificador` (media onda) y `osciloscopio-onda-completa`
   (puente de cuatro diodos) solo dan su circuito a `Sim.scope`.
   `agua-electricidad` es la versión vieja (no está en `Sim.ORDER`).
@@ -188,6 +189,15 @@ Celular · Instrumentos cortos y abiertos (un PR):
 - [x] El osciloscopio corto del celular solo se lee, como el multímetro corto (`LAYOUTS.mini`: la pantalla más grande y
   centrada, sin VOLTS/DIV ni SEC/DIV; se abre con su tecla de las flechas). En la PC con los dos paneles sigue el
   compacto con sus tres perillas.
+
+Orden del curso (aprobado; un PR por parte): conceptos sin instrumentos → nodos y protoboard → armar y medir con fuente
+y multímetro → señales. Las direcciones de las páginas no cambian, solo el orden (`Sim.ORDER`, inicio, `tools/capturas.js`).
+- [x] Reordenar y página **Nodos** (`simulaciones/nodos/`); Cómo medir sin su paso «Los nodos».
+- [ ] **Voltaje = presión** (concepto, sin instrumentos): solo hay corriente si hay diferencia entre dos puntos; la tierra es 0 V.
+- [ ] **Corriente = caudal**: lo que cruza una línea por segundo; es la misma en toda la vuelta (no se gasta).
+- [ ] **Resistencia**: más angosto o más largo deja pasar menos; con la misma presión, menos caudal y calor.
+- [ ] Protoboard: el primer paso solo con resistencias (el LED se explica después, en Interruptor y LED).
+- [ ] Un «Reto» al final de cada bloque que se revise solo (como el de Cómo medir).
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
 paralelo de la fuente, ni un segundo canal (la fuente y la bomba son de uno).
