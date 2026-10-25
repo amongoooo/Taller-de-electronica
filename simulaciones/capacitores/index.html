@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025071916">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025072358">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,9 +40,9 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025071916"></script>
-<script src="../../assets/osciloscopio.js?v=20261025071916"></script>
-<script src="../../assets/banco.js?v=20261025071916"></script>
+<script src="../../assets/sim.js?v=20261025072358"></script>
+<script src="../../assets/osciloscopio.js?v=20261025072358"></script>
+<script src="../../assets/banco.js?v=20261025072358"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -349,7 +349,7 @@
   b.start();
 
   // Pasos que se revisan solos: cargarlo casi hasta el voltaje de la fuente (95 %), descargarlo después de haberlo
-  // cargado y, como reto del bloque, una carga o descarga con τ = R·C = 1 s que pase de su τ (63 %): solo sale con
+  // cargado y, como reto, una carga o descarga con τ = R·C = 1 s que pase de su τ (63 %): solo sale con
   // 1 kΩ y 1000 µF.
   let charged = false;
   const STEPS = ['Cargar', 'Descargar', 'Reto · τ = 1 s'];
