@@ -212,8 +212,6 @@ y multímetro → señales. Las direcciones de las páginas no cambian, solo el 
 - [x] **Corriente = caudal** (`simulaciones/corriente-concepto/`): lo que cruza una línea por segundo; es la misma en toda la vuelta (no se gasta).
 - [x] **Resistencia** (`simulaciones/resistencia-concepto/`): más angosto o más largo deja pasar menos; con la misma presión, menos caudal y calor.
 - [x] Protoboard: el primer paso solo con resistencias (el LED se explica después, en Interruptor y LED).
-- [x] Un «Reto» al final de cada bloque que se revise solo: 3 mA (Resistencia), una tira en 4.5 V (Protoboard), τ = 1 s
-  (Capacitores) y rizado < 0.1 V (Onda completa).
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
 paralelo de la fuente, ni un segundo canal (la fuente y la bomba son de uno).

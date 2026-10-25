@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025073510">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025073939">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -31,7 +31,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025073510"></script>
+<script src="../../assets/sim.js?v=20261025073939"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -213,11 +213,9 @@
 
   // ---------- pasos ----------
   // 1: más angosta (delgada) deja pasar menos. 2: más larga (6 cm o más) también. 3: se calienta: con más voltaje o
-  // menos resistencia la barra pasa de 60 °C. Reto (el del bloque de conceptos): que pasen exactamente 3 mA; hay
-  // varias maneras (3 V y 1 kΩ, 6 V y 2 kΩ, 9 V y 3 kΩ, 12 V y 4 kΩ, 1.5 V y 500 Ω, 4.5 V y 1.5 kΩ).
-  const STEPS = ['Más angosto, menos pasa', 'Más largo, menos pasa', 'Se calienta', 'Reto · 3 mA'];
-  Sim.steps(STEPS, () => {}, k => k === 0 ? st.area === 1 : k === 1 ? st.len >= 6 : k === 2 ? heat.T >= 60
-    : Math.abs(st.V / R() * 1000 - 3) < 1e-6 && Math.abs(st.I.x - 3) < 0.02);
+  // menos resistencia la barra pasa de 60 °C.
+  const STEPS = ['Más angosto, menos pasa', 'Más largo, menos pasa', 'Se calienta'];
+  Sim.steps(STEPS, () => {}, k => k === 0 ? st.area === 1 : k === 1 ? st.len >= 6 : heat.T >= 60);
 })();
 </script>
 </body>

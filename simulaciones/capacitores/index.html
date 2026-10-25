@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025073510">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025073939">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,9 +40,9 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025073510"></script>
-<script src="../../assets/osciloscopio.js?v=20261025073510"></script>
-<script src="../../assets/banco.js?v=20261025073510"></script>
+<script src="../../assets/sim.js?v=20261025073939"></script>
+<script src="../../assets/osciloscopio.js?v=20261025073939"></script>
+<script src="../../assets/banco.js?v=20261025073939"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -62,10 +62,9 @@
   const uF = c => c + ' µF';
   const K = 6;                     // px que avanzan las partículas por cada mC (como I·6 en las demás)
   const XR = 300, XC = 520;        // resistencia y capacitor, en el cable de arriba
-  const st = { R: 1000, C: 2200, charge: true, Vc: 0, t: 0, ev: null, target: null, rb: false, burnT: 9, cb: false, cbT: 9, P: 0,
+  const st = { R: 1000, C: 2200, charge: true, Vc: 0, rb: false, burnT: 9, cb: false, cbT: 9, P: 0,
     ph: { A: 0, C: 0, B: 0, N: 0 }, I: { A: 0, C: 0, B: 0, N: 0 } };
   const sides = {};
-  const tau = () => st.R * st.C * 1e-6;
   // La resistencia (¼ W) se calienta con I²·R mientras pasa corriente (Sim.heat), y su menú lo muestra. Al
   // empezar a cargar recibe V²/R solo un instante; si la carga dura (un capacitor grande), se calienta más: con
   // 35 V, 470 Ω y 4700 µF (τ = 2,2 s) llega a 161 °C y se quema (con 1 kΩ, 137 °C; con 12 V, 41 °C). Quemada
@@ -180,13 +179,6 @@
       if (rh.step(st.rb ? 0 : (I / 1000) ** 2 * st.R, dt) && !st.rb) { st.rb = true; st.burnT = 0; b.halt(); b.refresh(); }
       if (ch.step(st.cb ? 0 : st.P, dt) && !st.cb) { st.cb = true; st.cbT = 0; b.halt(); b.refresh(); }
       st.burnT += dt; st.cbT += dt;
-      // Cada cambio de lo que alimenta al capacitor marca desde dónde contar τ (para el reto).
-      const target = st.charge && b.st.on ? (b.st.rev ? -1 : 1) * b.st.set : 0;
-      st.t += dt;
-      if (target !== st.target) { st.target = target; st.ev = { t: st.t, v0: st.Vc, v1: target }; }
-      // si la fuente llega a su límite (CC) carga con corriente fija, no con τ = R·C, y al revés (o dañado) el
-      // capacitor conduce: ya no se marca τ
-      if (st.ev && (st.charge && b.st.cc || st.cb || st.Vc < -VK)) st.ev.cc = true;
     },
     drawW(ctx, g, m) {
       const s = sides.w, n = nodes(g), rc = rcOf(st.C), c = split(g, rc - 2);
@@ -348,17 +340,14 @@
   b.st.clamps.a = [[(XR + 46 + XC - RCMAX) / 2, b.gw.TOP], [b.gw.X1, b.gw.MY]];
   b.start();
 
-  // Pasos que se revisan solos: cargarlo casi hasta el voltaje de la fuente (95 %), descargarlo después de haberlo
-  // cargado y, como reto, una carga o descarga con τ = R·C = 1 s que pase de su τ (63 %): solo sale con
-  // 1 kΩ y 1000 µF.
+  // Pasos que se revisan solos: cargarlo casi hasta el voltaje de la fuente (95 %) y descargarlo después de haberlo
+  // cargado.
   let charged = false;
-  const STEPS = ['Cargar', 'Descargar', 'Reto · τ = 1 s'];
+  const STEPS = ['Cargar', 'Descargar'];
   Sim.steps(STEPS, () => {}, k => {
     if (st.Vc >= 1) charged = true;
     if (k === 0) return st.charge && b.st.on && b.st.set > 0.5 && st.Vc >= 0.95 * b.st.set;
-    if (k === 1) return charged && !st.charge && Math.abs(st.Vc) < 0.1;
-    const e = st.ev;
-    return Math.abs(tau() - 1) < 1e-6 && !!e && !e.cc && Math.abs(e.v1 - e.v0) > 0.5 && st.t - e.t >= tau();
+    return charged && !st.charge && Math.abs(st.Vc) < 0.1;
   });
 })();
 </script>
