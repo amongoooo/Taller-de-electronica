@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025072924">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025073237">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,17 +36,21 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025072924"></script>
-<script src="../../assets/osciloscopio.js?v=20261025072924"></script>
+<script src="../../assets/sim.js?v=20261025073237"></script>
+<script src="../../assets/osciloscopio.js?v=20261025073237"></script>
 <script>
-// Carga y descarga RC (C2, C3): generador → R → C a tierra. El generador y el osciloscopio están en
-// assets/osciloscopio.js.
+// Carga y descarga RC (C2, C3): generador → R → C a tierra, la frecuencia frente a τ. El generador y el osciloscopio
+// están en assets/osciloscopio.js.
 (() => {
   const { X0, X1, TOP, BOT, XR, XL, PATH } = Sim.scope;
-  Sim.scope({
-    // C2: cuadrada de 0 a 5 V a 100 Hz, 10 kΩ y 100 nF: τ = R·C = 1 ms, una división. C3: 10 µF y 1 Hz, τ = 0,1 s.
-    // El canal 1 ve el capacitor y el canal 2 el generador.
-    preset: { wave: 'square', freq: 100, amp: 5, off: 2.5, R: 10000, Cap: 0.1, vd: [1, 2], td: 1, ch2: true, pos: [-2.5, -3.5], trig: { src: 1, level: 2.5 }, probe: [640, 980, 300], side: [1, -1, -1] },
+  // Cuadrada de 0 a 5 V, 10 kΩ y 100 nF: τ = R·C = 1 ms. El canal 1 ve el capacitor y el canal 2 el generador; el
+  // disparo, en la subida del generador. Los valores del taller de cada paso: a 50 Hz medio periodo es de 10 ms, 10 τ,
+  // y el capacitor se carga y se descarga completo (2.5 ms por división); a 100 Hz (C2), 5 τ, con τ en una división;
+  // a 1 kHz (lo más que da el generador) medio periodo es de 0.5 ms.
+  const BASE = { wave: 'square', amp: 5, off: 2.5, duty: 50, sel: 'freq', vd: [1, 2], pos: [-2.5, -3.5], trig: { src: 1, level: 2.5 } };
+  const PRE = [{ ...BASE, freq: 50, td: 2.5 }, { ...BASE, freq: 100, td: 1 }, { ...BASE, freq: 1000, td: 0.5 }];
+  const S = Sim.scope({
+    preset: { ...PRE[0], R: 10000, Cap: 0.1, ch2: true, probe: [640, 980, 300], side: [1, -1, -1] },
     places: { R: [XR, TOP, 'h'], C: [XL, TOP, 'h'] },
     wires: [{ pts: PATH, seq: ['a', 'R', 'b', 'C', 'g'] }],
     branches: () => [{ pts: Sim.draw.rect(X0, TOP, X1, BOT), br: 's', dc: (BOT - TOP) + (XR - X0) }],
@@ -60,6 +64,18 @@
       return { I, i: { s: I }, v: { a: e, b: v1, g: 0 }, VR: e - v1 };
     },
     ifull: 1, rValues: Sim.series(1000, 10000)
+  });
+
+  // Pasos que se revisan solos, con la cuadrada y la salida prendida: medio periodo (T/2 = 1 / 2f) contra τ = R·C.
+  // Carga completa: T/2 de 5 τ para arriba (llega a más del 99 %). Medio periodo = τ: T/2 a menos del 10 % de τ (con
+  // 10 kΩ y 100 nF, 500 Hz; la curva sube a 2.3 V de pico a pico). Se queda en el promedio: T/2 de τ / 10 para abajo
+  // (el generador llega a 1 kHz, así que hace falta más R·C, como 10 µF): casi no cambia, alrededor de 2.5 V.
+  const STEPS = ['Carga completa', 'Medio periodo = τ', 'Se queda en el promedio'];
+  Sim.steps(STEPS, k => S.apply(PRE[k]), k => {
+    const st = S.st;
+    if (!st.on || st.wave !== 'square' || !(st.freq > 0)) return false;
+    const r = 1 / (2 * st.freq) / (st.R * st.Cap * 1e-6);
+    return k === 0 ? r >= 5 : k === 1 ? Math.abs(r - 1) <= 0.1 : r <= 0.1;
   });
 })();
 </script>
