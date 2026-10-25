@@ -213,9 +213,11 @@
 
   // ---------- pasos ----------
   // 1: más angosta (delgada) deja pasar menos. 2: más larga (6 cm o más) también. 3: se calienta: con más voltaje o
-  // menos resistencia la barra pasa de 60 °C.
-  const STEPS = ['Más angosto, menos pasa', 'Más largo, menos pasa', 'Se calienta'];
-  Sim.steps(STEPS, () => {}, k => k === 0 ? st.area === 1 : k === 1 ? st.len >= 6 : heat.T >= 60);
+  // menos resistencia la barra pasa de 60 °C. Reto (el del bloque de conceptos): que pasen exactamente 3 mA; hay
+  // varias maneras (3 V y 1 kΩ, 6 V y 2 kΩ, 9 V y 3 kΩ, 12 V y 4 kΩ, 1.5 V y 500 Ω, 4.5 V y 1.5 kΩ).
+  const STEPS = ['Más angosto, menos pasa', 'Más largo, menos pasa', 'Se calienta', 'Reto · 3 mA'];
+  Sim.steps(STEPS, () => {}, k => k === 0 ? st.area === 1 : k === 1 ? st.len >= 6 : k === 2 ? heat.T >= 60
+    : Math.abs(st.V / R() * 1000 - 3) < 1e-6 && Math.abs(st.I.x - 3) < 0.02);
 })();
 </script>
 </body>

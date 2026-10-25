@@ -50,6 +50,9 @@
 // P a N, y en ella caen 2 × 0,7 V menos que la entrada.
 (() => {
   const { X0, X1, TOP, BOT, PATH, VF, RD, rcOf } = Sim.scope;
+  // Rizado de la salida: lo que va de lo más bajo a lo más alto en el último periodo de la entrada (para el reto).
+  const rip = { t: 0, lo: Infinity, hi: -Infinity, val: null, mean: 0, sum: 0 };
+  let gen = null;
   const YN = 210, MN = (TOP + YN) / 2;   // cable de N (adentro del circuito) y la mitad entre él y el de arriba
   const XA = 180, XB = 460, XC = 280, XRr = 360;   // diodos de la izquierda y de la derecha; capacitor; resistencia
   Sim.scope({
@@ -81,34 +84,48 @@
       { pts: [[XRr, YN], [X1, YN]], br: 'b4' },
       ...(st.filt ? [{ pts: [[XC, TOP], [XC, YN]], br: 'c' }] : [])],
     dots: st => [[X0, YN], [X1, YN], [XRr, TOP], [XRr, YN], ...(st.filt ? [[XC, TOP], [XC, YN]] : [])],
-    // Voltajes contra el borne − del generador (B = 0, A = e). Conduce un par cuando la entrada pasa de lo que
-    // tiene la salida más 2 × 0,7 V. Sin capacitor la salida es |e| − 1,4 V (y 0 si no llega); con él, sigue a
-    // |e| − 1,4 V mientras conduce y, si no, se descarga por R (τ = R·C): el rizado, ahora dos veces por ciclo.
-    // Mientras no conduce ningún par, P y N quedan sueltos del generador: a la mitad, con la salida entre ellos.
+    // el circuito en cada paso (solve, abajo), y de paso el rizado de la salida para el reto
     solve: (e, h, st) => {
-      const R = st.R, ae = Math.abs(e), s = e < 0 ? -1 : 1, R2 = 2 * RD;
-      let out, iR, iC = 0, on;
-      if (!st.filt) {
-        on = ae > 2 * VF;
-        out = on ? (ae - 2 * VF) * R / (R + R2) : 0;
-        iR = out / R * 1000;
-      } else {
-        const Cf = st.Cap * 1e-6, v0 = st.vc;
-        on = ae - v0 > 2 * VF;
-        const vi = on ? (ae - 2 * VF) * R / (R + R2) : 0, tau = on ? Cf * R * R2 / (R + R2) : R * Cf;
-        const x = Math.exp(-h / tau);
-        out = vi + (v0 - vi) * x; st.vc = out;
-        iR = (vi * h + (v0 - vi) * tau * (1 - x)) / h / R * 1000; iC = Cf * (out - v0) / h * 1000;
-      }
-      const I = iR + iC, vd = VF + I / 1000 * RD;
-      const [vP, vN] = !on ? [(e + out) / 2, (e - out) / 2] : s > 0 ? [vd + out, vd] : [-vd, -vd - out];
-      const f = on && s > 0 ? I : 0, b = on && s < 0 ? I : 0;   // por D1 y D4; por D2 y D3
-      return { I: s * I, i: { s: s * I, a1: f, b4: f, b2: b, a3: b, r: iR, c: iC, p: f - iC, n: iC - b },
-        v: { A: e, B: 0, P: vP, N: vN }, VR: out,
-        diodes: { D1: [e - vP, f], D2: [-vP, b], D3: [vN - e, b], D4: [vN, f] } };
+      const m = solve(e, h, st);
+      gen = st;
+      rip.t += h; rip.sum += m.VR * h; rip.lo = Math.min(rip.lo, m.VR); rip.hi = Math.max(rip.hi, m.VR);
+      if (st.freq > 0 && rip.t >= 1 / st.freq) { rip.val = rip.hi - rip.lo; rip.mean = rip.sum / rip.t; rip.t = rip.sum = 0; rip.lo = Infinity; rip.hi = -Infinity; }
+      return m;
     },
     ifull: 5, rValues: Sim.series(1000, 10000), filter: true
   });
+  // Voltajes contra el borne − del generador (B = 0, A = e). Conduce un par cuando la entrada pasa de lo que
+  // tiene la salida más 2 × 0,7 V. Sin capacitor la salida es |e| − 1,4 V (y 0 si no llega); con él, sigue a
+  // |e| − 1,4 V mientras conduce y, si no, se descarga por R (τ = R·C): el rizado, ahora dos veces por ciclo.
+  // Mientras no conduce ningún par, P y N quedan sueltos del generador: a la mitad, con la salida entre ellos.
+  function solve(e, h, st) {
+    const R = st.R, ae = Math.abs(e), s = e < 0 ? -1 : 1, R2 = 2 * RD;
+    let out, iR, iC = 0, on;
+    if (!st.filt) {
+      on = ae > 2 * VF;
+      out = on ? (ae - 2 * VF) * R / (R + R2) : 0;
+      iR = out / R * 1000;
+    } else {
+      const Cf = st.Cap * 1e-6, v0 = st.vc;
+      on = ae - v0 > 2 * VF;
+      const vi = on ? (ae - 2 * VF) * R / (R + R2) : 0, tau = on ? Cf * R * R2 / (R + R2) : R * Cf;
+      const x = Math.exp(-h / tau);
+      out = vi + (v0 - vi) * x; st.vc = out;
+      iR = (vi * h + (v0 - vi) * tau * (1 - x)) / h / R * 1000; iC = Cf * (out - v0) / h * 1000;
+    }
+    const I = iR + iC, vd = VF + I / 1000 * RD;
+    const [vP, vN] = !on ? [(e + out) / 2, (e - out) / 2] : s > 0 ? [vd + out, vd] : [-vd, -vd - out];
+    const f = on && s > 0 ? I : 0, b = on && s < 0 ? I : 0;   // por D1 y D4; por D2 y D3
+    return { I: s * I, i: { s: s * I, a1: f, b4: f, b2: b, a3: b, r: iR, c: iC, p: f - iC, n: iC - b },
+      v: { A: e, B: 0, P: vP, N: vN }, VR: out,
+      diodes: { D1: [e - vP, f], D2: [-vP, b], D3: [vN - e, b], D4: [vN, f] } };
+  }
+
+  // Pasos que se revisan solos: prender la salida del generador (dos jorobas por ciclo), poner el capacitor y, como
+  // reto del bloque, dejar el rizado abajo de 0,1 V con la salida en más de 2 V (con 100 µF y 1 kΩ es de unos
+  // 0,16 V: hace falta más resistencia, más capacitor o más frecuencia).
+  const STEPS = ['Dos jorobas', 'Con capacitor', 'Reto · rizado < 0.1 V'];
+  Sim.steps(STEPS, () => {}, k => !!gen && gen.on && (k === 0 || (gen.filt && (k === 1 || (rip.val != null && rip.val < 0.1 && rip.mean > 2)))));
 })();
 </script>
 </body>

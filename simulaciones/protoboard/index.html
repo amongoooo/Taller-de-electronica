@@ -67,6 +67,8 @@
   // Las piezas de la bandeja (tipo y v). En vertical van paradas y el valor de la resistencia queda a su lado:
   // se separan para que no tape al LED.
   const TRAYITEMS = { h: [['wire', 8.7], ['res', 11.05], ['led', 13.4]], v: [['wire', 8.3], ['res', 10.3], ['led', 13.9]] };
+  // En los dos primeros pasos la bandeja no trae LEDs (el LED se explica en Interruptor y LED).
+  const trayItems = mode => TRAYITEMS[mode].filter(([t]) => t !== 'led' || st.step >= 2);
   const V0 = 9, RINT = 1, FUSE = 1, RD = 15, IMAX = Sim.LED_IMAX;
   const VIOLET = '#8b5cf6', OKC = '#0ea371', REDW = '#d6392b';
   const RVALUES = Sim.series(100, 10000);   // valores comunes (serie E12)
@@ -89,8 +91,10 @@
   for (let c = 0; c < N; c++) GROUPS.push('T' + c, 'B' + c);
 
   // ---------- estado ----------
+  // step: el paso de la barra; touched: si se movió algo desde el último ejemplo (entonces cambiar de paso ya no
+  // pone el ejemplo de ese paso).
   const st = { on: true, fuse: true, fuseHeat: 0, inside: true, comps: [], sel: null, drag: null, nextId: 1, colorK: 0,
-    V: {}, reach: new Set(), Ibat: 0, phase: new Map(), pump: 0, blowT: 9 };
+    V: {}, reach: new Set(), Ibat: 0, phase: new Map(), pump: 0, blowT: 9, step: 0, touched: false };
   try { st.inside = localStorage.getItem('pb-dentro') !== '0'; } catch (e) {}
   const legUV = l => l.term ? TERM[l.term] : l.c != null ? [l.c, ROWV[l.r]] : [l.u, l.v];
   const legNode = l => l.term ? (l.term === '+' ? 'bp' : 'bn') : l.c != null ? group(l.c, l.r) : null;
@@ -99,15 +103,22 @@
   // Calor de una resistencia (¼ W) o de un LED (Vf · 30 mA), ver Sim.heat; su menú lo muestra.
   const heatOf = k => k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 } : Sim.HEAT.res));
   const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(0, 1), { color: '#15212a' })];
+  // El ejemplo de cada paso: una resistencia de 1 kΩ (9 mA, 0,08 W); dos de 1 kΩ en serie (la tira del medio queda
+  // en 4,5 V); y la resistencia de 470 Ω con un LED rojo.
   const example = () => {
-    st.comps = [...defaultLeads(),
-      make('wire', hole(2, 0), hole(2, 2), { color: REDW }),
+    const k = st.step, red = { color: REDW }, black = { color: '#15212a' };
+    st.comps = [...defaultLeads(), make('wire', hole(2, 0), hole(2, 2), red), ...(k === 0 ? [
+      make('res', hole(2, 4), hole(6, 4), { R: 1000 }),
+      make('wire', hole(6, 2), hole(6, 1), black)] : k === 1 ? [
+      make('res', hole(2, 4), hole(6, 4), { R: 1000 }),
+      make('res', hole(6, 5), hole(10, 5), { R: 1000 }),
+      make('wire', hole(10, 2), hole(10, 1), black)] : [
       make('res', hole(2, 4), hole(6, 4), { R: 470 }),
       make('led', hole(6, 5), hole(7, 5)),
-      make('wire', hole(7, 2), hole(7, 1), { color: '#15212a' })];
-    st.sel = null; st.fuse = true; st.fuseHeat = 0;
+      make('wire', hole(7, 2), hole(7, 1), black)])];
+    st.sel = null; st.fuse = true; st.fuseHeat = 0; st.touched = false;
   };
-  const clearAll = () => { st.comps = defaultLeads(); st.sel = null; st.fuse = true; st.fuseHeat = 0; };
+  const clearAll = () => { st.comps = defaultLeads(); st.sel = null; st.fuse = true; st.fuseHeat = 0; st.touched = true; };
   example();
 
   const occupied = skip => {
@@ -493,7 +504,7 @@
   }
   function drawTray(ctx, g, side, dt) {
     D.roundRect(ctx, ...rectW(g, ...TRAY), 10, C.bg || '#eaf0f3', C.line, 1.5);
-    for (const [type, vy] of TRAYITEMS[g === GEO.v ? 'v' : 'h']) {
+    for (const [type, vy] of trayItems(g === GEO.v ? 'v' : 'h')) {
       const k = trayComp(type, vy);
       drawComp(ctx, k, g.pt(...legUV(k.a)), g.pt(...legUV(k.b)), side, dt, false);
     }
@@ -649,7 +660,7 @@
         }
       }
       // 3) la bandeja: sale un componente nuevo
-      if (!d.kind) for (const [type, vy] of TRAYITEMS[p.mode === 'v' ? 'v' : 'h']) {
+      if (!d.kind) for (const [type, vy] of trayItems(p.mode === 'v' ? 'v' : 'h')) {
         if (Math.abs(q[1] - vy) < 0.7 && q[0] > TRAY[0] && q[0] < TRAY[2]) {
           const k = trayComp(type, vy); k.id = st.nextId++; st.colorK++;
           st.comps.push(k);
@@ -678,6 +689,7 @@
       const d = st.drag;
       if (!d || d.id !== e.pointerId) return;
       st.drag = null;
+      if (d.moved || d.isNew) st.touched = true;
       const q = toUV(e);
       const setLeg = (l, h) => { Object.keys(l).forEach(x => delete l[x]); Object.assign(l, h); };
       const restore = () => { if (d.kind === 'leg') setLeg(d.leg, d.orig); else { setLeg(d.k.a, d.orig[0]); setLeg(d.k.b, d.orig[1]); } };
@@ -739,6 +751,16 @@
     st.pump += (st.on && st.fuse ? Math.min(40, st.Ibat * 0.6) : 0) * dt;
     render('w', dt); render('e', dt);
   });
+
+  // ---------- pasos ----------
+  // 1: tocar un agujero resalta su tira (un nodo) con su voltaje. 2: dos resistencias con corriente. 3: con un LED
+  // encendido (la bandeja ya trae LEDs). Reto: una tira (no un riel) en 4,5 V, con dos resistencias iguales en serie.
+  // Si no se ha movido nada, cada paso pone su ejemplo; el reto deja lo que haya.
+  const STEPS = ['Las tiras son nodos', 'Armar con resistencias', 'Con un LED', 'Reto · 4.5 V'];
+  const live = t => st.comps.filter(k => k.type === t && !k.burnt && Math.abs(k.I) > 0.05);
+  Sim.steps(STEPS, k => { const was = st.step; st.step = Math.min(k, 2); if (!st.touched && k < 3 && st.step !== was) example(); }, k =>
+    k === 0 ? !!st.sel : k === 1 ? live('res').length >= 2 : k === 2 ? live('led').some(l => l.on)
+      : Object.keys(st.V).some(n => (n[0] === 'T' || n[0] === 'B') && st.reach.has(n) && Math.abs(st.V[n] - 4.5) < 0.05) && st.Ibat > 0.05);
 })();
 </script>
 </body>

@@ -384,6 +384,19 @@
   // El multímetro (en V) empieza conectado al capacitor: la roja entre la resistencia y el capacitor, la negra a la derecha.
   b.st.clamps.a = [[(XR + 46 + XC - RCMAX) / 2, b.gw.TOP], [b.gw.X1, b.gw.MY]];
   b.start();
+
+  // Pasos que se revisan solos: cargarlo casi hasta el voltaje de la fuente (95 %), descargarlo después de haberlo
+  // cargado y, como reto del bloque, una carga o descarga con τ = R·C = 1 s que pase de su τ (63 %): solo sale con
+  // 1 kΩ y 1000 µF.
+  let charged = false;
+  const STEPS = ['Cargar', 'Descargar', 'Reto · τ = 1 s'];
+  Sim.steps(STEPS, () => {}, k => {
+    if (st.Vc >= 1) charged = true;
+    if (k === 0) return st.charge && b.st.on && b.st.set > 0.5 && st.Vc >= 0.95 * b.st.set;
+    if (k === 1) return charged && !st.charge && Math.abs(st.Vc) < 0.1;
+    const e = st.ev;
+    return Math.abs(tau() - 1) < 1e-6 && !!e && !e.cc && Math.abs(e.v1 - e.v0) > 0.5 && st.t - e.t >= tau();
+  });
 })();
 </script>
 </body>
