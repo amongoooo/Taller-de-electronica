@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025073237">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025073510">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025073237"></script>
-<script src="../../assets/banco.js?v=20261025073237"></script>
+<script src="../../assets/sim.js?v=20261025073510"></script>
+<script src="../../assets/banco.js?v=20261025073510"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -291,6 +291,16 @@
   // La punta roja empieza más arriba en el tubo de la izquierda, para no taparle el nombre a la válvula.
   b.st.clamps.a[0] = [b.gw.X0, b.gw.TOP + 0.4 * (b.gw.BOT - b.gw.TOP)];
   b.start();
+
+  // Pasos que se revisan solos: medir la corriente con el multímetro en serie, medirla con dos resistencias distintas
+  // (más resistencia, menos corriente: I = V / R), quemar la resistencia (más de ¼ W) y fundir el fusible con un corto.
+  const measured = new Set();
+  const STEPS = ['Medir la corriente', 'Más R, menos corriente', 'Se quema', 'Cortocircuito'];
+  Sim.steps(STEPS, () => {}, k => {
+    const A = b.measuring().includes('A');
+    if (A && !st.burnt && !st.blown) measured.add(st.R);
+    return k === 0 ? A : k === 1 ? measured.size >= 2 : k === 2 ? st.burnt : st.blown && !st.R;
+  });
 })();
 </script>
 </body>

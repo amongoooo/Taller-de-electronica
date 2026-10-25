@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025073237">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025073510">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025073237"></script>
-<script src="../../assets/banco.js?v=20261025073237"></script>
+<script src="../../assets/sim.js?v=20261025073510"></script>
+<script src="../../assets/banco.js?v=20261025073510"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -50,7 +50,7 @@
   const IMAX = Sim.LED_IMAX, vf = () => Sim.led(st.led).vf;
   const lh = Sim.heat({ ...Sim.HEAT.led, pMax: () => vf() * IMAX / 1000 }), rh = Sim.heat(Sim.HEAT.res);
   const XV = 270, XL = 545;              // válvula (interruptor) y LED; la resistencia va al centro
-  const st = { closed: true, R: 470, led: 'rojo', rev: false, broken: false, rburnt: false, burnT: 9, ang: 0, om: 0, breakT: 9, debris: [], sparks: [] };
+  const st = { hot: false, closed: true, R: 470, led: 'rojo', rev: false, broken: false, rburnt: false, burnT: 9, ang: 0, om: 0, breakT: 9, debris: [], sparks: [] };
   const sides = {};
   const ohm = Sim.ohm;
   const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
@@ -94,7 +94,7 @@
       // El LED (la rueda) se calienta con su potencia Vf · I, aunque la inercia esté en 0: arriba de 30 mA
       // se pasa de lo que aguanta y se quema, más rápido entre más se pasa (con 66 mA, en 1,5 s); si la
       // corriente baja antes, se enfría. La resistencia igual, con I²·R arriba de ¼ W.
-      if (lh.step(st.broken ? 0 : vf() * Math.abs(m.I) / 1000, dt) && !st.broken) breakIt();
+      if (lh.step(st.broken ? 0 : vf() * Math.abs(m.I) / 1000, dt) && !st.broken) { breakIt(); st.hot = true; }   // hot: se quemó por la corriente
       if (rh.step(st.rburnt ? 0 : (m.I / 1000) ** 2 * st.R, dt) && !st.rburnt) burnR();
       st.burnT += dt;
       st.breakT += dt;
@@ -214,7 +214,7 @@
       actions: side => [
         { text: side === 'w' ? 'Girar la rueda' : 'Girar el LED', onClick: () => { st.rev = !st.rev; } },
         { text: () => st.broken ? (side === 'w' ? 'Poner una rueda nueva' : 'Poner un LED nuevo') : (side === 'w' ? 'Romper la rueda' : 'Fundir el LED'),
-          danger: true, onClick: () => { if (st.broken) { st.broken = false; lh.reset(); st.breakT = 9; } else breakIt(); } }
+          danger: true, onClick: () => { if (st.broken) { st.broken = st.hot = false; lh.reset(); st.breakT = 9; } else breakIt(); } }
       ]
     })
   });
@@ -228,6 +228,13 @@
       actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rburnt, onClick: renewR }] })
   });
   b.start();
+
+  // Pasos que se revisan solos: encender el LED (con la fuente), abrir el interruptor con la fuente encendida, girar el
+  // LED (al revés no enciende) y quemarlo con más de 30 mA (con poca resistencia o sin ella; fundirlo desde su tarjeta
+  // no cuenta).
+  const STEPS = ['Encender el LED', 'El interruptor', 'Al revés no enciende', 'Demasiada corriente'];
+  Sim.steps(STEPS, () => {}, k => k === 0 ? !st.broken && st.closed && Math.abs(b.st.m.I) > 1
+    : k === 1 ? b.st.on && !st.closed : k === 2 ? b.st.on && st.closed && st.rev && !b.st.rev && !st.broken : st.broken && st.hot);
 })();
 </script>
 </body>
