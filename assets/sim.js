@@ -1100,6 +1100,7 @@
   Sim.ORDER = [
     ['voltaje-concepto', 'Voltaje = presión'],
     ['corriente-concepto', 'Corriente = caudal'],
+    ['resistencia-concepto', 'Resistencia'],
     ['nodos', 'Nodos'],
     ['protoboard', 'Protoboard'],
     ['voltaje-presion', 'Voltaje y corriente'],
