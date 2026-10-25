@@ -80,7 +80,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     (renglón de Componentes que abre la misma tarjeta; sin `visible`, se esconde si su marcador queda fuera del dibujo).
   - `Sim.fmt` (números con punto decimal, es-MX) y `Sim.ohm` (470 Ω, 1 kΩ, 2.2 kΩ): los formatos de todas las páginas.
   - `Sim.ORDER` (orden de las simulaciones; `Sim.last` guarda la abierta y su paso en `sim-last` para «Seguir donde te quedaste» del inicio), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre; con `done(k)` el paso se revisa solo y, al
-    cumplirse, lleva su palomita y Siguiente late (Voltaje = presión, Corriente = caudal, Resistencia, Nodos, Voltaje y corriente y Cómo medir; estas dos con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
+    cumplirse, lleva su palomita y Siguiente late (Voltaje = presión, Corriente = caudal, Resistencia, Nodos, Protoboard, Voltaje y corriente, Cómo medir, Capacitores y Onda completa; estas dos con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
@@ -198,8 +198,9 @@ y multímetro → señales. Las direcciones de las páginas no cambian, solo el 
 - [x] **Voltaje = presión** (`simulaciones/voltaje-concepto/`, concepto, sin instrumentos): solo hay corriente si hay diferencia entre dos puntos; la tierra es 0 V.
 - [x] **Corriente = caudal** (`simulaciones/corriente-concepto/`): lo que cruza una línea por segundo; es la misma en toda la vuelta (no se gasta).
 - [x] **Resistencia** (`simulaciones/resistencia-concepto/`): más angosto o más largo deja pasar menos; con la misma presión, menos caudal y calor.
-- [ ] Protoboard: el primer paso solo con resistencias (el LED se explica después, en Interruptor y LED).
-- [ ] Un «Reto» al final de cada bloque que se revise solo (como el de Cómo medir).
+- [x] Protoboard: el primer paso solo con resistencias (el LED se explica después, en Interruptor y LED).
+- [x] Un «Reto» al final de cada bloque que se revise solo: 3 mA (Resistencia), una tira en 4.5 V (Protoboard), τ = 1 s
+  (Capacitores) y rizado < 0.1 V (Onda completa).
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
 paralelo de la fuente, ni un segundo canal (la fuente y la bomba son de uno).
