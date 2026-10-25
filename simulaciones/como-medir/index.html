@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261024070502">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025001012">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,15 +36,15 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261024070502"></script>
-<script src="../../assets/banco.js?v=20261024070502"></script>
+<script src="../../assets/sim.js?v=20261025001012"></script>
+<script src="../../assets/banco.js?v=20261025001012"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
   // Fuente de 9 V con dos resistencias en serie: R1 de 1 kΩ y R2 de 2 kΩ. Quedan tres nodos: 9 V,
-  // 6 V y la tierra (0 V), y pasan 3 mA. Por pasos: los cables se juntan en nodos, luego se mide el
-  // voltaje con el multímetro en V (comparar dos nodos), la corriente en A (abrir el camino y meterlo en
-  // serie), la resistencia en Ω (con la fuente apagada) y al final un reto: medir las dos cosas.
+  // 6 V y la tierra (0 V), y pasan 3 mA. Por pasos, en la vista de nodos: se mide el voltaje con el
+  // multímetro en V (comparar dos nodos), la corriente en A (abrir el camino y meterlo en serie), la resistencia
+  // en Ω (con la fuente apagada) y al final un reto: medir las dos cosas.
   // Son de ½ W: con los 35 V de la fuente pasan 11,7 mA y R2 recibe 0,27 W, así que no se queman.
   const RS = [1000, 2000], XR = [300, 500];
   const hn = RS.map(R => Sim.narrowHalf(R));
@@ -86,23 +86,21 @@
   document.querySelector('#pe .sim-power').click();
   b.start();
 
-  // Al empezar, en el circuito normal, y al momento se transforma en nodos. El multímetro aparece al
-  // medir voltaje (con la perilla en V); para la corriente y la resistencia hay que girar su perilla.
-  // En el reto se miden las dos cosas.
-  const STEPS = ['Los nodos', 'Medir voltaje', 'Medir corriente', 'Medir resistencia', 'Reto'];
+  // Los nodos ya se vieron en su página: al empezar se ve el circuito normal y al momento se transforma en
+  // nodos, con el multímetro en V para medir voltaje; para la corriente y la resistencia hay que girar su
+  // perilla. En el reto se miden las dos cosas.
+  const STEPS = ['Medir voltaje', 'Medir corriente', 'Medir resistencia', 'Reto'];
   let timer = 0;
   Sim.steps(STEPS, k => {
-    b.showMeters({ a: k > 0 });
-    if (k === 1) b.setDial('a', 'V');
-    if (k === 4 && !b.st.on) document.querySelector('#pe .sim-power').click();
+    if (k === 0) b.setDial('a', 'V');
+    if (k === 3 && !b.st.on) document.querySelector('#pe .sim-power').click();
     clearTimeout(timer);
-    if (k === 0) { b.setNodes(false); timer = setTimeout(() => b.setNodes(true), 900); } else b.setNodes(true);
+    if (k === 0 && !b.nodesOn()) { b.setNodes(false); timer = setTimeout(() => b.setNodes(true), 900); } else b.setNodes(true);
   }, k => {
-    // Cada paso se cumple solo: los nodos ya formados; el multímetro en V entre dos nodos, en A abriendo un
-    // cable o en Ω con la fuente apagada; en el reto, uno en V y el otro en A a la vez.
-    if (k === 0) return !!b.net();
+    // Cada paso se cumple solo: el multímetro en V entre dos nodos, en A abriendo un cable o en Ω con la fuente
+    // apagada; en el reto, uno en V y el otro en A a la vez.
     const m = b.measuring();
-    return k === 4 ? m.includes('V') && m.includes('A') : m.includes('VAR'[k - 1]);
+    return k === 3 ? m.includes('V') && m.includes('A') : m.includes('VAR'[k]);
   });
 })();
 </script>

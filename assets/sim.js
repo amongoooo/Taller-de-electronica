@@ -1098,13 +1098,14 @@
   // Palomita de un paso cumplido (Sim.steps).
   const CHECK = '<svg class="ok" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>';
   Sim.ORDER = [
+    ['nodos', 'Nodos'],
+    ['protoboard', 'Protoboard'],
     ['voltaje-presion', 'Voltaje y corriente'],
     ['como-medir', 'Cómo medir'],
     ['resistencia', 'Ley de Ohm'],
     ['resistencias-serie-paralelo', 'Resistencias en serie y paralelo'],
     ['interruptor-led', 'Interruptor y LED'],
     ['serie-paralelo', 'LEDs en serie y paralelo'],
-    ['protoboard', 'Protoboard'],
     ['capacitores', 'Capacitores'],
     ['osciloscopio', 'LED y osciloscopio'],
     ['osciloscopio-rc', 'Carga y descarga RC'],
