@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025071347">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025071916">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025071347"></script>
-<script src="../../assets/banco.js?v=20261025071347"></script>
+<script src="../../assets/sim.js?v=20261025071916"></script>
+<script src="../../assets/banco.js?v=20261025071916"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -135,15 +135,19 @@
     drawW(ctx, g, m) {
       const ps = pieces(g, m);
       if (labels()) halo(ctx, g, true);
+      if (equiv()) bracket(ctx, g, true);
       ps.forEach(s => D.pipe(ctx, s.pts));
       drawComps(ctx, g, m, true, () => ps.forEach(s => waterOf(g, s).draw(ctx)));
+      if (equiv()) drawEquiv(ctx, g, m, true);
     },
     drawE(ctx, g, m) {
       const ps = pieces(g, m);
       if (labels()) halo(ctx, g, false);
+      if (equiv()) bracket(ctx, g, false);
       ps.forEach(s => D.wire(ctx, s.pts));
       ps.forEach(s => D.flow(ctx, s.pts, phase[s.id] || 0, C.charge, { gap: 30, r: 4.5 }));
       drawComps(ctx, g, m, false);
+      if (equiv()) drawEquiv(ctx, g, m, false);
     }
   });
   // Los componentes, con sus asas y su etiqueta; en el agua, el agua pasa por encima de los tramos angostos.
@@ -177,6 +181,32 @@
     D.line(ctx, [[XA + 46, g.TOP], [XB, g.TOP], [XB, y[P[P.length - 1]]]], wd, C.sel);
     P.forEach(k => D.line(ctx, [[XB, y[k]], [XR - 46, y[k]]], wd, C.sel));
     ctx.restore();
+  }
+  // Paso 4: la resistencia equivalente. Los renglones, que van entre los mismos dos nodos, quedan en un recuadro
+  // punteado con la equivalente de su paralelo (1 / Rp = 1 / R2 + 1 / R3 + …) abajo, y adentro de la vuelta la de
+  // todo el circuito, Req = R1 + Rp, con la corriente que da la fuente: V / Req.
+  const equiv = () => step === 3 && !b.nodesOn();
+  const par = () => { const G = [1, 2, 3].reduce((s, i) => s + (st.on[i] ? 1 / st.R[i] : 0), 0); return G ? 1 / G : Infinity; };
+  const ohm3 = R => ohm(+R.toPrecision(3));
+  const box = (g, w) => {
+    const y = ys(g), P = rows(), pad = w ? Sim.PIPE + 14 : 26;
+    return [XB - 26, y[P[0]] - pad - 44, g.X1 + 26, y[P[P.length - 1]] + pad];
+  };
+  function bracket(ctx, g, w) {
+    const [x0, y0, x1, y1] = box(g, w);
+    ctx.save(); ctx.setLineDash([8, 6]);
+    D.roundRect(ctx, x0, y0, x1 - x0, y1 - y0, 12, null, C.sel, 2);
+    ctx.restore();
+  }
+  function drawEquiv(ctx, g, m, w) {
+    const [, , , y1] = box(g, w), on = [1, 2, 3].filter(i => st.on[i]);
+    // el paralelo: abajo del recuadro, con los nombres de sus resistencias
+    b.tag(ctx, null, XR, y1 + 24, on.map(i => 'R' + (i + 1)).join(' ∥ '), ohm3(par()));
+    // todo el circuito, adentro de la vuelta, con lo que da la fuente
+    const x = (g.X0 + XB) / 2, y = (g.TOP + g.BOT) / 2, Req = st.R[0] + par();
+    b.tag(ctx, null, x, y - 18, 'Req', ohm3(Req));
+    const cw = current(ctx, false, 0, 0, m.I, w);
+    current(ctx, true, x - cw / 2, y + 18, m.I, w);
   }
   // Pastilla verde con una flecha y la corriente, que empieza en x; da su ancho (y la dibuja si draw).
   function current(ctx, draw, x, y, I, w) {
@@ -229,7 +259,7 @@
     st.on[i] = false; touched(); sync();
   }
   let changed = false;
-  function touched() { if (step === 2) changed = true; }
+  function touched() { if (step >= 2) changed = true; }
 
   // La bomba y la fuente empiezan encendidas; esta página no usa el multímetro.
   document.querySelector('#pe .sim-power').click();
@@ -238,9 +268,9 @@
   b.start();
 
   // Por pasos: al empezar se ve el circuito y al momento se transforma en nodos; luego aparecen los lugares
-  // punteados para conectar más resistencias entre los mismos dos nodos; al final, en el circuito, lo que entra
-  // al nodo B y lo que sale de él.
-  const STEPS = ['Los nodos', 'Agregar componentes', 'Lo que entra, sale'];
+  // punteados para conectar más resistencias entre los mismos dos nodos; luego, en el circuito, lo que entra
+  // al nodo B y lo que sale de él, y al final la resistencia equivalente.
+  const STEPS = ['Los nodos', 'Agregar componentes', 'Lo que entra, sale', 'Resistencia equivalente'];
   let timer = 0;
   Sim.steps(STEPS, k => {
     step = k; st.slots = k > 0; changed = false;
@@ -248,7 +278,7 @@
     if (k === 0) { b.setNodes(false); timer = setTimeout(() => b.setNodes(true), 900); }
     else b.setNodes(k === 1);
     sync();
-  }, k => k === 0 ? !!b.net() : k === 1 ? st.on[2] || st.on[3] : changed);
+  }, k => k === 0 ? !!b.net() : k === 1 ? st.on[2] || st.on[3] : k === 3 ? changed && st.on[2] + st.on[3] > 0 : changed);
 })();
 </script>
 </body>
