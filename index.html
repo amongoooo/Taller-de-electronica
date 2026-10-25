@@ -58,7 +58,6 @@ h2 .ins { color: var(--muted); font-weight: 500; }
 .mini .h { fill: var(--hole); }
 .mini .lead { fill: none; stroke: var(--hole); stroke-width: 1.2; }
 .mini .body { fill: #d8b781; stroke: none; }
-.mini .led { fill: #e2483d; stroke: none; }
 /* Seguir donde te quedaste: la última simulación abierta, con su paso. */
 .resume { display: grid; grid-template-columns: 168px 1fr; gap: 16px; align-items: center; background: var(--card); border: 2px solid var(--sel); border-radius: 12px; padding: 12px; color: inherit; text-decoration: none; transition: scale .12s; }
 .resume:active { scale: .97; }
@@ -170,13 +169,13 @@ footer a { color: var(--water); }
   // cables (con sus cargas) y, encima, las piezas y los nodos
   const circ = (wire, parts, nodes = []) => `<path class="w" d="${wire}"/><path class="q" d="${wire}"/>` + parts.join('') + node(nodes);
   const LOOP = 'M22 20H138V80H22Z';
-  // protoboard: rieles + y −, dos grupos de tiras de 5 agujeros, una resistencia y un LED con sus cables
+  // protoboard: rieles + y −, dos grupos de tiras de 5 agujeros y dos resistencias en serie con sus cables
   const board = () => {
     let h = '<rect class="pb" x="10" y="8" width="140" height="84" rx="4"/><path class="w pos" d="M16 14H144"/><path class="w neg" d="M16 84H144"/>';
     for (let c = 0; c < 15; c++) for (const y of [30, 37, 44, 56, 63, 70]) h += `<circle class="h" cx="${22 + 8 * c}" cy="${y}" r="1.4"/>`;
-    h += '<path class="w pos" d="M38 14V30"/><path class="lead" d="M38 37H70"/><rect class="body" x="46" y="34" width="16" height="6" rx="2.5"/>'
-      + '<path class="w" d="M50 34v6M54 34v6M58 34v6" style="stroke-width:1.4"/>'
-      + '<path class="lead" d="M70 30v-4M78 30v-4"/><path class="led" d="M67 27v-4a7 7 0 0 1 14 0v4z"/><path class="w neg" d="M78 44q18 20 0 40"/>';
+    const res = (x, y) => `<path class="lead" d="M${x} ${y}h32"/><rect class="body" x="${x + 8}" y="${y - 3}" width="16" height="6" rx="2.5"/>`
+      + `<path class="w" d="M${x + 12} ${y - 3}v6M${x + 16} ${y - 3}v6M${x + 20} ${y - 3}v6" style="stroke-width:1.4"/>`;
+    h += '<path class="w pos" d="M38 14V30"/>' + res(38, 37) + res(70, 44) + '<path class="w neg" d="M102 44q18 20 0 40"/>';
     return h;
   };
   const MINI = {
