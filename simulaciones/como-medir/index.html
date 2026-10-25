@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025060350">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025071347">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,15 +36,15 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025060350"></script>
-<script src="../../assets/banco.js?v=20261025060350"></script>
+<script src="../../assets/sim.js?v=20261025071347"></script>
+<script src="../../assets/banco.js?v=20261025071347"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
   // Fuente de 9 V con dos resistencias en serie: R1 de 1 kΩ y R2 de 2 kΩ. Quedan tres nodos: 9 V,
-  // 6 V y la tierra (0 V), y pasan 3 mA. Por pasos, en la vista de nodos: se mide el voltaje con el
-  // multímetro en V (comparar dos nodos), la corriente en A (abrir el camino y meterlo en serie), la resistencia
-  // en Ω (con la fuente apagada) y al final un reto: medir las dos cosas.
+  // 6 V y la tierra (0 V), y pasan 3 mA. Por pasos: primero la fuente sola y luego, en la vista de nodos,
+  // el voltaje con el multímetro en V (comparar dos nodos), la corriente en A (abrir el camino y meterlo en
+  // serie), la resistencia en Ω (con la fuente apagada) y al final un reto: medir las dos cosas.
   // Son de ½ W: con los 35 V de la fuente pasan 11,7 mA y R2 recibe 0,27 W, así que no se queman.
   const RS = [1000, 2000], XR = [300, 500];
   const hn = RS.map(R => Sim.narrowHalf(R));
@@ -82,25 +82,31 @@
     }
   });
 
-  // La bomba y la fuente empiezan encendidas.
-  document.querySelector('#pe .sim-power').click();
   b.start();
 
-  // Los nodos ya se vieron en su página: al empezar se ve el circuito normal y al momento se transforma en
-  // nodos, con el multímetro en V para medir voltaje; para la corriente y la resistencia hay que girar su
-  // perilla. En el reto se miden las dos cosas.
-  const STEPS = ['Medir voltaje', 'Medir corriente', 'Medir resistencia', 'Reto'];
-  let timer = 0;
+  // Va por pasos: primero solo la fuente (encender, apagar y sus perillas; empieza apagada, en el circuito
+  // normal y sin multímetro). Luego el circuito se transforma en nodos (ya se vieron en su página) y aparece el
+  // multímetro en V para medir voltaje; para la corriente y la resistencia hay que girar su perilla. En el reto
+  // se miden las dos cosas.
+  const STEPS = ['La fuente', 'Medir voltaje', 'Medir corriente', 'Medir resistencia', 'Reto'];
+  const power = on => { if (b.st.on !== on) document.querySelector('#pe .sim-power').click(); };
+  const v0 = b.st.set;
+  let timer = 0, turned = false;
   Sim.steps(STEPS, k => {
-    if (k === 0) b.setDial('a', 'V');
-    if (k === 3 && !b.st.on) document.querySelector('#pe .sim-power').click();
+    b.showMeters({ a: k > 0 });
+    if (k === 1) b.setDial('a', 'V');
+    // para medir voltaje y corriente la fuente va encendida
+    if (k === 1 || k === 2 || k === 4) power(true);
     clearTimeout(timer);
-    if (k === 0 && !b.nodesOn()) { b.setNodes(false); timer = setTimeout(() => b.setNodes(true), 900); } else b.setNodes(true);
+    if (k === 0) b.setNodes(false);
+    else if (k === 1 && !b.nodesOn()) timer = setTimeout(() => b.setNodes(true), 900);
+    else b.setNodes(true);
   }, k => {
-    // Cada paso se cumple solo: el multímetro en V entre dos nodos, en A abriendo un cable o en Ω con la fuente
-    // apagada; en el reto, uno en V y el otro en A a la vez.
+    // Cada paso se cumple solo: la fuente encendida después de girar su perilla; el multímetro en V entre dos
+    // nodos, en A abriendo un cable o en Ω con la fuente apagada; en el reto, uno en V y el otro en A a la vez.
+    if (k === 0) return (turned = turned || b.st.set !== v0) && b.st.on;
     const m = b.measuring();
-    return k === 3 ? m.includes('V') && m.includes('A') : m.includes('VAR'[k]);
+    return k === 4 ? m.includes('V') && m.includes('A') : m.includes('VAR'[k - 1]);
   });
 })();
 </script>

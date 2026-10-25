@@ -113,24 +113,23 @@ footer a { color: var(--water); }
   <section>
     <h2>Armar y medir <span class="ins">·&nbsp;fuente y multímetro</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/voltaje-presion/"><span class="mini" data-p="voltaje-presion"></span><h3><span class="n">6</span>Voltaje y corriente</h3></a>
-      <a class="card" href="simulaciones/como-medir/"><span class="mini" data-p="como-medir"></span><h3><span class="n">7</span>Cómo medir</h3></a>
-      <a class="card" href="simulaciones/resistencia/"><span class="mini" data-p="resistencia"></span><h3><span class="n">8</span>Ley de Ohm</h3></a>
-      <a class="card" href="simulaciones/resistencias-serie-paralelo/"><span class="mini" data-p="resistencias-serie-paralelo"></span><h3><span class="n">9</span>Resistencias en serie y paralelo</h3></a>
-      <a class="card" href="simulaciones/interruptor-led/"><span class="mini" data-p="interruptor-led"></span><h3><span class="n">10</span>Interruptor y LED</h3></a>
-      <a class="card" href="simulaciones/serie-paralelo/"><span class="mini" data-p="serie-paralelo"></span><h3><span class="n">11</span>LEDs en serie y paralelo</h3></a>
-      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">12</span>Capacitores</h3></a>
+      <a class="card" href="simulaciones/como-medir/"><span class="mini" data-p="como-medir"></span><h3><span class="n">6</span>Cómo medir</h3></a>
+      <a class="card" href="simulaciones/resistencia/"><span class="mini" data-p="resistencia"></span><h3><span class="n">7</span>Ley de Ohm</h3></a>
+      <a class="card" href="simulaciones/resistencias-serie-paralelo/"><span class="mini" data-p="resistencias-serie-paralelo"></span><h3><span class="n">8</span>Resistencias en serie y paralelo</h3></a>
+      <a class="card" href="simulaciones/interruptor-led/"><span class="mini" data-p="interruptor-led"></span><h3><span class="n">9</span>Interruptor y LED</h3></a>
+      <a class="card" href="simulaciones/serie-paralelo/"><span class="mini" data-p="serie-paralelo"></span><h3><span class="n">10</span>LEDs en serie y paralelo</h3></a>
+      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">11</span>Capacitores</h3></a>
     </div>
   </section>
 
   <section>
     <h2>Señales <span class="ins">·&nbsp;generador y osciloscopio</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">13</span>LED y osciloscopio</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">14</span>Carga y descarga RC</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-diodo/"><span class="mini" data-p="osciloscopio-diodo"></span><h3><span class="n">15</span>Diodo 1N4007</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">16</span>Rectificador de media onda</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">17</span>Rectificador de onda completa</h3></a>
+      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">12</span>LED y osciloscopio</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">13</span>Carga y descarga RC</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-diodo/"><span class="mini" data-p="osciloscopio-diodo"></span><h3><span class="n">14</span>Diodo 1N4007</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">15</span>Rectificador de media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">16</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -190,7 +189,6 @@ footer a { color: var(--water); }
     'voltaje-concepto': () => circ(LOOP, [at('r', 80, 20), at('bat', 22, 50, 90), at('bat', 138, 50, 90)]) + '<path class="w" d="M80 80v6M73 86h14M76 89.5h8M78.5 93h3"/>',
     // R1 y, después del nodo de la barra, dos resistencias entre los mismos dos nodos
     'nodos': () => circ(LOOP + 'M70 20V50H138', [at('r', 46, 20), at('r', 104, 20), at('r', 104, 50), at('bat', 80, 80)], [[70, 20], [70, 50], [138, 20], [138, 50]]),
-    'voltaje-presion': () => circ(LOOP, [at('r', 80, 20), at('bat', 80, 80)]),
     'como-medir': () => circ(LOOP, [at('r', 62, 20), at('r', 98, 20), at('bat', 80, 80)], [[80, 20]]),
     'resistencia': () => circ(LOOP, [at('rv', 80, 20), at('bat', 80, 80)]),
     'resistencias-serie-paralelo': () => circ(LOOP + 'M52 20V42H108V20', [at('r', 80, 20), at('r', 80, 42), at('bat', 80, 80)], [[52, 20], [108, 20]]),
@@ -210,8 +208,11 @@ footer a { color: var(--water); }
   document.querySelectorAll('.mini[data-p]').forEach(m => { if (MINI[m.dataset.p]) m.innerHTML = svg(m.dataset.p); });
 
   // Seguir donde te quedaste: lo guarda cada simulación al abrirse y al cambiar de paso (Sim.last en sim.js).
+  // Las que se quitaron (su dirección redirige) siguen en la que las tiene ahora, desde su primer paso.
+  const MOVED = { 'voltaje-presion': 'como-medir' };
   let last = null;
   try { last = JSON.parse(localStorage.getItem('sim-last') || 'null'); } catch (e) {}
+  if (last && MOVED[last.p]) last = { p: MOVED[last.p] };
   const card = last && MINI[last.p] && document.querySelector(`.card[href="simulaciones/${last.p}/"]`);
   if (!card) return;
   const r = document.querySelector('.resume');

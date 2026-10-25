@@ -1142,7 +1142,6 @@
     ['resistencia-concepto', 'Resistencia'],
     ['nodos', 'Nodos'],
     ['protoboard', 'Protoboard'],
-    ['voltaje-presion', 'Voltaje y corriente'],
     ['como-medir', 'Cómo medir'],
     ['resistencia', 'Ley de Ohm'],
     ['resistencias-serie-paralelo', 'Resistencias en serie y paralelo'],

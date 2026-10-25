@@ -2,101 +2,20 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Voltaje y corriente · Taller de Electrónica</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025060350">
-<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
-</head>
-<body>
-<div class="sim-page">
-  <div class="sim-bar">
-    <a class="back" href="../../">← Simulaciones</a>
-    <h1>Voltaje y corriente</h1>
-    <div class="ctl">
-      <label for="inercia">Inercia</label>
-      <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
-      <output id="oInercia" for="inercia"></output>
-    </div>
-  </div>
-
-  <main class="sim-stage">
-    <div class="sim-panel" id="pw">
-      <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Circuito de agua: controlador de la bomba con interruptor ON/OFF, LED, perilla de presión con su pantallita y medidor de presión de salida; tramo angosto y medidor de agua con perilla (presión, caudal, resistencia)"></canvas>
-      <div class="sim-layer"></div>
-    </div>
-    <div class="sim-panel" id="pe">
-      <span class="sim-tag e">Electricidad</span>
-      <canvas aria-label="Circuito eléctrico: fuente con interruptor ON/OFF, LED, perilla de voltaje con su pantallita y medidor; resistencia de 1 kΩ y multímetro con perilla (V, A, Ω)"></canvas>
-      <div class="sim-layer"></div>
-    </div>
-  </main>
-</div>
-
-<script src="../../assets/sim.js?v=20261025060350"></script>
-<script src="../../assets/banco.js?v=20261025060350"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cómo medir · Taller de Electrónica</title>
+<!-- Voltaje y corriente pasó a ser el primer paso de Cómo medir: esta dirección se queda para los que la
+     tienen guardada. Sus pasos van a los mismos de Cómo medir (la fuente, la corriente y el voltaje). -->
+<meta http-equiv="refresh" content="0; url=../como-medir/">
+<link rel="canonical" href="../como-medir/">
 <script>
 (() => {
-  const { C, draw: D } = Sim;
-  // Ohmios; el tramo angosto equivale a esta resistencia. Es de 2 W: con los 35 V de la fuente recibe 1,2 W y
-  // no se quema (el calor se ve desde la Ley de Ohm, con las de ¼ W).
-  const R = 1000;
-  const hn = Sim.narrowHalf(R);
-  const sides = {};
-
-  const b = Sim.bench({
-    iFull: 12,
-    layout(g) {
-      const s = sides[g.side] = { phase: 0 };
-      if (g.side === 'w') s.water = Sim.water(g.loop, Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), hn));
-    },
-    model: V => ({ I: V / R * 1000 }),
-    circuit: (g, m, V) => [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [{ at: [g.PX, g.TOP], half: 46, dV: V, R,
-      draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, hn) : D.resistor(ctx, g.PX, g.TOP),
-      tag: w => [w ? 'tramo angosto' : 'resistencia', '1 kΩ'] }] }],
-    step(dt, m) {
-      const I = b.flowI(m);   // con un multímetro en A haciendo un corto, la que de verdad da la fuente
-      sides.w.water.step(I * 12, dt);
-      sides.e.phase += I * 12 * dt;
-    },
-    drawW(ctx, g) {
-      D.pipe(ctx, g.loop);
-      D.narrow(ctx, g.PX, g.TOP, hn);
-      sides.w.water.draw(ctx);
-      b.tag(ctx, null, g.PX, g.TOP - hn - 42, 'tramo angosto', '1 kΩ');
-    },
-    drawE(ctx, g) {
-      D.wire(ctx, g.loop);
-      D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
-      D.resistor(ctx, g.PX, g.TOP);
-      b.tag(ctx, null, g.PX, g.TOP - hn - 42, 'resistencia', '1 kΩ');
-    }
-  });
-  b.start();
-
-  // Va por pasos: primero solo la fuente (encender, apagar y la perilla), luego aparece el multímetro
-  // en A para la corriente (caudal) y al final con la perilla en V para el voltaje (presión). Aparece sin
-  // conectar: se toca para poner sus puntas (en A, las dos en el mismo cable, que se corta entre ellas; en
-  // V, a los dos lados de la resistencia).
-  const STEPS = [
-    ['La fuente', () => b.showMeters({ a: false })],
-    ['La corriente', () => { b.showMeters({ a: true }); b.setDial('a', 'A'); }],
-    ['El voltaje', () => { b.showMeters({ a: true }); b.setDial('a', 'V'); }]
-  ];
-  // Cada paso se cumple solo: la fuente encendida después de girar su perilla, el multímetro en serie con
-  // corriente y luego en V a los lados de la resistencia.
-  const v0 = b.st.set;
-  let turned = false;
-  const DONE = [
-    () => (turned = turned || b.st.set !== v0) && b.st.on,
-    () => b.measuring().includes('A'),
-    () => b.measuring().includes('V')
-  ];
-  Sim.steps(STEPS.map(s => s[0]), k => STEPS[k][1](), k => DONE[k]());
+  const m = /^#paso-(\d+)$/.exec(location.hash), k = { 2: 3, 3: 2 }[m && m[1]];
+  location.replace('../como-medir/' + (k ? '#paso-' + k : ''));
 })();
 </script>
+</head>
+<body>
+<p><a href="../como-medir/">Cómo medir</a></p>
 </body>
 </html>
