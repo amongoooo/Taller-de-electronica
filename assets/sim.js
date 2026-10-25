@@ -1098,6 +1098,7 @@
   // Palomita de un paso cumplido (Sim.steps).
   const CHECK = '<svg class="ok" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>';
   Sim.ORDER = [
+    ['voltaje-concepto', 'Voltaje = presión'],
     ['nodos', 'Nodos'],
     ['protoboard', 'Protoboard'],
     ['voltaje-presion', 'Voltaje y corriente'],
