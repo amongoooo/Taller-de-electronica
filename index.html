@@ -125,9 +125,8 @@ footer a { color: var(--water); }
       <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">10</span>LED y osciloscopio</h3></a>
       <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">11</span>Capacitores</h3></a>
       <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">12</span>Carga y descarga RC</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-diodo/"><span class="mini" data-p="osciloscopio-diodo"></span><h3><span class="n">13</span>Diodo 1N4007</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">14</span>Rectificador de media onda</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">15</span>Rectificador de onda completa</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">13</span>Diodo y media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">14</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -195,7 +194,6 @@ footer a { color: var(--water); }
     'capacitores': () => circ(LOOP, [at('r', 62, 20), at('cp', 100, 20), at('bat', 80, 80)]),
     'osciloscopio': () => circ(LOOP, [at('r', 62, 20), at('led', 100, 20), at('gen', 80, 80)]),
     'osciloscopio-rc': () => circ(LOOP, [at('r', 62, 20), at('c', 100, 20), at('gen', 80, 80)]),
-    'osciloscopio-diodo': () => circ(LOOP, [at('r', 62, 20), at('d', 100, 20), at('gen', 80, 80)]),
     // media onda: diodo, carga a la derecha y el capacitor de filtro en paralelo
     'osciloscopio-rectificador': () => circ(LOOP + 'M110 20V80', [at('d', 62, 20), at('cp', 110, 50, 90), at('r', 138, 50, 90), at('gen', 66, 80)], [[110, 20], [110, 80]]),
     // puente: D1 y D2 llegan al + de la carga, D3 y D4 salen de su −; el generador entre las dos esquinas
@@ -208,7 +206,8 @@ footer a { color: var(--water); }
   // Las que se quitaron (su dirección redirige) siguen en la que las tiene ahora, en el paso que eran.
   const MOVED = {
     'voltaje-presion': { p: 'como-medir', k: 1, n: 5, name: 'La fuente' },
-    'resistencias-serie-paralelo': { p: 'nodos', k: 4, n: 4, name: 'Resistencia equivalente' }
+    'resistencias-serie-paralelo': { p: 'nodos', k: 4, n: 4, name: 'Resistencia equivalente' },
+    'osciloscopio-diodo': { p: 'osciloscopio-rectificador', k: 1, n: 3, name: 'Directa e inversa' }
   };
   let last = null;
   try { last = JSON.parse(localStorage.getItem('sim-last') || 'null'); } catch (e) {}

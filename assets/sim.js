@@ -1149,8 +1149,7 @@
     ['osciloscopio', 'LED y osciloscopio'],
     ['capacitores', 'Capacitores'],
     ['osciloscopio-rc', 'Carga y descarga RC'],
-    ['osciloscopio-diodo', 'Diodo 1N4007'],
-    ['osciloscopio-rectificador', 'Rectificador de media onda'],
+    ['osciloscopio-rectificador', 'Diodo y media onda'],
     ['osciloscopio-onda-completa', 'Rectificador de onda completa']
   ];
   const here = /\/simulaciones\/([^/]+)\//.exec(location.pathname);

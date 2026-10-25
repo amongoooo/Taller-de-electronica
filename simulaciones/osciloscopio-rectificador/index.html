@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Rectificador de media onda · Taller de Electrónica</title>
+<title>Diodo y media onda · Taller de Electrónica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025072622">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261025072924">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
 <div class="sim-page">
   <div class="sim-bar">
     <a class="back" href="../../">← Simulaciones</a>
-    <h1>Rectificador de media onda</h1>
+    <h1>Diodo y media onda</h1>
     <div class="ctl">
       <label for="inercia">Inercia</label>
       <input type="range" id="inercia" min="0" max="3" step="0.1" value="1">
@@ -36,18 +36,25 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025072622"></script>
-<script src="../../assets/osciloscopio.js?v=20261025072622"></script>
+<script src="../../assets/sim.js?v=20261025072924"></script>
+<script src="../../assets/osciloscopio.js?v=20261025072924"></script>
 <script>
-// Rectificador de media onda (D4): generador → 1N4007 → R de carga, con o sin el capacitor de filtro en
-// paralelo. El generador y el osciloscopio están en assets/osciloscopio.js.
+// Diodo y rectificador de media onda (D3 y D4): generador → 1N4007 → R de carga, con o sin el capacitor de filtro
+// en paralelo. El generador y el osciloscopio están en assets/osciloscopio.js.
 (() => {
   const { X0, X1, TOP, BOT, XR, MIDY, PATH, VF, RD, rcOf } = Sim.scope;
   const XP = 400;   // rama del capacitor (parada, entre el cable de arriba y el de abajo)
-  Sim.scope({
-    // Senoidal de 10 Vpp (5 Vp) a 100 Hz y 1 kΩ: el canal 1 ve la entrada y el canal 2 la salida, de 4,3 Vp y solo los
-    // semiciclos positivos. Con el capacitor de 100 µF la salida queda casi fija, con un rizado de unos 0,4 V.
-    preset: { wave: 'sine', freq: 100, amp: 10, off: 0, R: 1000, Cap: 100, filt: false, vd: [2, 2], td: 2.5, ch2: true, pos: [1, -2.5], probe: [300, 1050, 800], side: [-1, -1, 1] },
+  // Los valores del taller de cada paso. Directa e inversa (D3): 5 V de corriente directa (la forma de onda DC: solo
+  // el offset, que cambia la perilla) con 1 kΩ: en el diodo caen 0,7 V y la salida queda en 4,3 V con 4,3 mA; girado
+  // en su tarjeta (o con offset negativo) no conduce y todo el voltaje queda en él. Media onda (D4): senoidal de
+  // 10 Vpp (5 Vp) a 100 Hz: la salida, de 4,3 Vp, solo con los semiciclos positivos; con el capacitor de 100 µF queda
+  // casi fija, con un rizado de unos 0,4 V. El canal 1 ve la entrada y el canal 2 la salida.
+  const DC = { wave: 'dc', off: 5, sel: 'off', drev: false, filt: false, vd: [2, 2], td: 10, pos: [1, -2.5] };
+  const AC = { wave: 'sine', freq: 100, amp: 10, off: 0, sel: 'freq', drev: false, filt: false, vd: [2, 2], td: 2.5, pos: [1, -2.5] };
+  // Lo que ya hizo el diodo: conducir y no conducir con voltaje al revés, con la corriente directa y con la senoidal.
+  const seen = { dc: [false, false], ac: [false, false] };
+  const S = Sim.scope({
+    preset: { ...DC, freq: 100, amp: 10, R: 1000, Cap: 100, ch2: true, probe: [300, 1050, 800], side: [-1, -1, 1] },
     // Las etiquetas de los parados a su izquierda: la del capacitor hasta la orilla, la de la resistencia hasta el tanque.
     places: { D: [XR, TOP, 'h'], R: [X1, MIDY, 'v', { lim: st => XP + rcOf(st.Cap) + 14 }], C: [XP, MIDY, 'v', { lim: () => X0 + 20 }] },
     wires: [{ pts: PATH, seq: ['a', 'D', 'b', 'R', 'g'] },
@@ -59,6 +66,7 @@
     dots: st => st.filt ? [[XP, TOP], [XP, BOT]] : [],
     solve: (e, h, st) => {
       const R = st.R, s = st.drev ? -1 : 1;
+      if (st.on && !st.filt) { const k = seen[st.wave === 'dc' ? 'dc' : 'ac']; if (s * e > VF + 0.5) k[0] = true; if (s * e < -0.5) k[1] = true; }
       // Sin capacitor la salida es e − 0,7 V mientras el diodo conduce, y 0 si no.
       if (!st.filt) {
         const out = s * e > VF ? (e - s * VF) * R / (R + RD) : 0, I = out / R * 1000;
@@ -74,6 +82,17 @@
       return { I, i: { s: I, r: iR, c: iC }, v: { a: e, b: v1, g: 0 }, VR: v1, diodes: { D: [on ? e - v1 : 0, I] } };
     },
     ifull: 5, rValues: Sim.series(1000, 10000), filter: true
+  });
+
+  // Pasos que se revisan solos: el diodo en directa (conduce) y en inversa (girado o con el offset negativo: no
+  // conduce), la media onda con la senoidal (conduce en un semiciclo y en el otro no) y el capacitor de filtro puesto.
+  // Cada paso pone sus valores del taller.
+  const STEPS = ['Directa e inversa', 'Media onda', 'Con capacitor'];
+  Sim.steps(STEPS, k => S.apply(k ? AC : DC), k => {
+    const st = S.st;
+    if (k === 0) return seen.dc[0] && seen.dc[1];
+    if (k === 1) return seen.ac[0] && seen.ac[1];
+    return st.on && st.filt && st.wave !== 'dc';
   });
 })();
 </script>
