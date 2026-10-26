@@ -97,7 +97,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   - `Sim.side`: columna/hoja de controles. `sec(k)`, `row`, `button`, `part({ anchor, menu, isOpen, toggle, visible })`
     (renglón de Componentes que abre la misma tarjeta; sin `visible`, se esconde si su marcador queda fuera del dibujo).
   - `Sim.fmt` (números con punto decimal, es-MX) y `Sim.ohm` (470 Ω, 1 kΩ, 2.2 kΩ): los formatos de todas las páginas.
-  - `Sim.ORDER` (orden de las simulaciones; `Sim.last` guarda la abierta y su paso en `sim-last` para «Seguir donde te quedaste» del inicio), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre; con `done(k)` el paso se revisa solo y, al
+  - `Sim.ORDER` (orden de las simulaciones; `Sim.last` guarda la abierta y su paso en `sim-last` para «Seguir donde te quedaste» del inicio), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre y con `bare`, si ni el número cabe, los demás solo su raya; con `done(k)` el paso se revisa solo y, al
     cumplirse, lleva su palomita y Siguiente late (todas las páginas del curso; Cómo medir con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
@@ -158,7 +158,12 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   TO-92: patas `a` emisor, `w` base y `b` colector en tres columnas seguidas, en una fila de las tiras; el cuerpo hacia el canal, en su
   marco con `NPN`, y su nombre con su estado en `drawNpnTag`, encima de todo; en `solve` es un `{ type: 'npn' }` de `Sim.nodal`;
   calor `Sim.HEAT.bjt`);
-  `legsOf` y `legCurrents` dan sus patas y sus corrientes.
+  `legsOf` y `legCurrents` dan sus patas y sus corrientes. `pnp` es igual que `npn` (`isQ` las dos; `qName` su nombre) con la física del
+  PNP; con `dir: -1` en la pieza del paso, el transistor va volteado (`potHoles(c, r, d)`: su emisor a la derecha y su cuerpo hacia el
+  otro lado; al moverlo no se voltea). `motor` (`makeMotor`, `Sim.motor` en `k.m`): sus dos cables `a` y `b` a dos agujeros y su cuerpo
+  en `at` [u, v], fuera de los agujeros (se arrastra con sus cables); `drawMotor` y `drawMotorTag` (gira, frenado o parado). Una
+  resistencia con `side: -1` lleva su valor del otro lado. Opciones: `o.cols` (16 si falta; `GEO` crece con `N`), `o.volts` (la pila,
+  9 V) y `o.minus` (el agujero de la punta negra, [0, 1]). `put(j)` pone la pieza del paso j (para probar).
   `Sim.pbNow` para probar.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
   medidas con `update`, sus mandos con `ui.button`/`ui.knob` y su dibujo con `draw(ctx, L, side)`; sin circuito ni puntas), y
@@ -198,7 +203,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   después de Transistor en la protoboard; dos pasos: «Un lado» y «Los dos sentidos») resuelve con `Sim.nodal` y mueve el motor con
   `Sim.motor`; se dibuja en su cuadrícula local (`X`, `Y`: columnas de la mitad izquierda, la derecha es su espejo `mx`; renglones
   relativos a la salida) que `frame(g)` lleva a las coordenadas del banco y achica (`k`) si no cabe en el alto (`NEED`); las etiquetas van
-  en las del banco (para la letra mínima); los dos pulsadores son `b.pushKey`; `Sim.hNow` para probar. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED, cable negro y, al final, el pull-down de 10 kΩ de la tira del pulsador (la 5) al riel − (sin él, con el pulsador suelto y el LED apagado, las tiras 5 y 9 flotan: «sin conexión»). `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `transistor-armado` (Transistor en la protoboard, después de Transistor): transistor en b7–b9 (E, B, C), cable negro del emisor al riel −, 470 Ω del riel + a a10, LED de e10 al colector (e9), cable rojo a la tira 2, 10 kΩ de la base de d2 a d6, pulsador de la tira 6 a la 8 (la base) y el pull-down de 10 kΩ de a8 al riel − (sin él, con el pulsador suelto la base flota: «sin conexión»). `osciloscopio` (LED),
+  en las del banco (para la letra mínima); los dos pulsadores son `b.pushKey`; `Sim.hNow` para probar. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED, cable negro y, al final, el pull-down de 10 kΩ de la tira del pulsador (la 5) al riel − (sin él, con el pulsador suelto y el LED apagado, las tiras 5 y 9 flotan: «sin conexión»). `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `transistor-armado` (Transistor en la protoboard, después de Transistor): transistor en b7–b9 (E, B, C), cable negro del emisor al riel −, 470 Ω del riel + a a10, LED de e10 al colector (e9), cable rojo a la tira 2, 10 kΩ de la base de d2 a d6, pulsador de la tira 6 a la 8 (la base) y el pull-down de 10 kΩ de a8 al riel − (sin él, con el pulsador suelto la base flota: «sin conexión»). `puente-h-armado` (Puente H en la protoboard, después de Puente H) es su armado guiado:
+  en 20 columnas y con la pila de 6 V (punta negra al riel − de abajo); por lado, PNP en la fila b, NPN volteado en la fila i, el cable
+  verde de la salida sobre el canal, el pulsador en la orilla, 4,7 kΩ, 1 kΩ y el pull-down; al final el motor en medio. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -300,8 +307,8 @@ Proyecto final: Puente H (después de Transistor en la protoboard, antes del blo
 - [x] **Puente H** (`simulaciones/puente-h/`, con `Sim.bench`): dos medios puentes complementarios (PNP arriba, NPN abajo, bases a
   su entrada por 4,7 kΩ y 1 kΩ), cada entrada con su pulsador al + y su pull-down de 470 Ω (con 10 kΩ y 1 kΩ en las dos bases, como se pidió primero, la base
   del PNP sube la entrada a casi 3 V y prende también el NPN); el motor en medio (en el agua, una turbina con volante). Medible con los multímetros.
-- [ ] **Puente H en la protoboard** (`simulaciones/puente-h-armado/`): piezas `pnp` y `motor` (fuera de la protoboard, con sus dos
-  cables), un paso por pieza.
+- [x] **Puente H en la protoboard** (`simulaciones/puente-h-armado/`): piezas `pnp` y `motor` (fuera de la protoboard, con sus dos
+  cables), un paso por pieza (21), en una protoboard de 20 columnas y con la pila de 6 V.
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
 paralelo de la fuente, ni un segundo canal (la fuente y la bomba son de uno), ni páginas de fotorresistencia (LDR)

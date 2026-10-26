@@ -480,6 +480,8 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 .sim-steps.tight .seg:not([aria-current]) { flex: 0 1 44px; }
 .sim-steps.tight .seg:not([aria-current]) .name { display: none; }
 .sim-steps.tight .seg[aria-current] { flex: 1 1 auto; }
+.sim-steps.bare { gap: 4px; }
+.sim-steps.bare .seg:not([aria-current]) .t { visibility: hidden; }
 
 /* Botón de la barra: Controles (secundario: sin color propio). */
 .sim-ctl-btn {
