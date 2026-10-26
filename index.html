@@ -116,19 +116,20 @@ footer a { color: var(--water); }
       <a class="card" href="simulaciones/interruptor-led-armado/"><span class="mini" data-p="interruptor-led-armado"></span><h3><span class="n">6</span>Interruptor y LED en la protoboard</h3></a>
       <a class="card" href="simulaciones/serie-paralelo/"><span class="mini" data-p="serie-paralelo"></span><h3><span class="n">7</span>LEDs en serie y paralelo</h3></a>
       <a class="card" href="simulaciones/potenciometro/"><span class="mini" data-p="potenciometro"></span><h3><span class="n">8</span>Potenciómetro</h3></a>
-      <a class="card" href="simulaciones/botones/"><span class="mini" data-p="botones"></span><h3><span class="n">9</span>Botones</h3></a>
-      <a class="card" href="simulaciones/transistor/"><span class="mini" data-p="transistor"></span><h3><span class="n">10</span>Transistor</h3></a>
+      <a class="card" href="simulaciones/potenciometro-armado/"><span class="mini" data-p="potenciometro-armado"></span><h3><span class="n">9</span>Potenciómetro en la protoboard</h3></a>
+      <a class="card" href="simulaciones/botones/"><span class="mini" data-p="botones"></span><h3><span class="n">10</span>Botones</h3></a>
+      <a class="card" href="simulaciones/transistor/"><span class="mini" data-p="transistor"></span><h3><span class="n">11</span>Transistor</h3></a>
     </div>
   </section>
 
   <section>
     <h2>Señales <span class="ins">·&nbsp;generador y osciloscopio</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">11</span>LED y osciloscopio</h3></a>
-      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">12</span>Capacitores</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">13</span>Carga y descarga RC</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">14</span>Diodo y media onda</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">15</span>Rectificador de onda completa</h3></a>
+      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">12</span>LED y osciloscopio</h3></a>
+      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">13</span>Capacitores</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">14</span>Carga y descarga RC</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">15</span>Diodo y media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">16</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -193,6 +194,17 @@ footer a { color: var(--water); }
       + '<path class="lead" d="M86 44h8"/><circle cx="90" cy="44" r="4.5" style="fill:#e5484d"/><path class="w neg" d="M94 44q18 20 0 40"/>';
     return h;
   };
+  // armado de Potenciómetro: el potenciómetro con su perilla (el cuerpo arriba de sus patas), sus cables a los rieles, y del
+  // cursor la resistencia que baja por el canal, el LED y el cable que regresa
+  const boardPot = () => {
+    let h = '<rect class="pb" x="10" y="8" width="140" height="84" rx="4"/><path class="w pos" d="M16 14H144"/><path class="w neg" d="M16 84H144"/>';
+    for (let c = 0; c < 15; c++) for (const y of [30, 37, 44, 56, 63, 70]) h += `<circle class="h" cx="${22 + 8 * c}" cy="${y}" r="1.4"/>`;
+    h += '<path class="w pos" d="M70 14V30"/><path class="w neg" d="M38 84Q28 36 54 30"/>'
+      + '<rect class="f" x="49" y="32" width="26" height="11" rx="2"/><circle class="bg" cx="62" cy="37.5" r="4.2"/><path class="w" d="M62 37.5l2.5-3"/>'
+      + '<path class="lead" d="M62 44v19"/><rect class="body" x="59" y="47" width="6" height="12" rx="2.5"/>'
+      + '<path class="lead" d="M54 70h8"/><circle cx="58" cy="70" r="4.5" style="fill:#e5484d"/><path class="w neg" d="M54 70V45"/>';
+    return h;
+  };
   // Los conceptos (Sim.piezo): la bomba a la izquierda, el tubo con dos tramos angostos (n: [x, medio largo, medio
   // ancho]) y tres tubitos con el agua a la presión de su punto (lv, de 0 a 12 psi), unidos por la línea morada.
   const piezo = (lv, extra = '', n = [[60, 8, 0.7], [100, 8, 0.7]]) => {
@@ -217,6 +229,7 @@ footer a { color: var(--water); }
     // el divisor: la fuente entre las dos patas de la pista y el cursor a su terminal (sin corriente)
     'potenciometro': () => circ('M22 20H110V80H22Z', [at('pot', 110, 50, 90), at('bat', 66, 80)])
       + '<path class="w" d="M122 50H133"/><circle class="bg" cx="136" cy="50" r="2.6"/><circle class="w" cx="136" cy="50" r="2.6"/>',
+    'potenciometro-armado': boardPot,
     // el pull-down: pulsador, el nodo de la entrada (baja a su terminal) y la resistencia al −
     'botones': () => circ(LOOP, [at('pb', 46, 20), at('r', 104, 20), at('bat', 80, 80)], [[70, 20]])
       + '<path class="w" d="M70 20V47.4"/><circle class="bg" cx="70" cy="50" r="2.6"/><circle class="w" cx="70" cy="50" r="2.6"/>',

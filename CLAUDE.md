@@ -143,7 +143,10 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   b, R, led, color } }], un paso de `Sim.steps` por pieza; `drawSpot` su lugar punteado, `fits(j)` lo revisa por tiras, el LED con su
   polaridad; ir a un paso pone las piezas anteriores con `putTarget` y quita las de ese en adelante). Piezas: `wire`, `res`, `led`
   y `push` (el pulsador de 6 mm, cuatro patas `a`, `b`, `a2`, `b2`, sobre el canal; `a`–`a2` y `b`–`b2` unidas, apretado une `a`–`b`;
-  su tapa es `Sim.pushKey` con una `.sim-hit` en cada panel, `keyOf`); `legsOf` y `legCurrents` dan sus patas y sus corrientes.
+  su tapa es `Sim.pushKey` con una `.sim-hit` en cada panel, `keyOf`) y `pot` (el potenciómetro de 10 kΩ: patas `a`, `w` (el cursor) y
+  `b` en tres columnas seguidas, `potHoles`; `x` de 0 en `a` a 1 en `b`; dibujado en su marco `potFrame` con `POT`, el cuerpo arriba de
+  las patas; su perilla es una `.sim-hit pb-knob` en cada panel, `knobOf`, que se gira con `setX`); `legsOf` y `legCurrents` dan sus
+  patas y sus corrientes.
   `Sim.pbNow` para probar.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
   medidas con `update`, sus mandos con `ui.button`/`ui.knob` y su dibujo con `draw(ctx, L, side)`; sin circuito ni puntas), y
@@ -179,7 +182,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   Vce 0,2 V saturado (`solve(V)`: corrientes, voltajes y estado; `model` da `branch` [Ic, Ib, Ibot] para la inercia); son dos
   componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (sin dibujo
   propio: separa el nodo de la base del emisor, para medir Vbe); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
-  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED y cable negro. `osciloscopio` (LED),
+  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED y cable negro. `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -270,7 +273,7 @@ este orden, porque cada una usa la anterior):
 Armado en protoboard (aprobado; con agua, una página aparte después de cada simulación y sin multímetro; un PR por fase):
 - [x] Fase 1: la protoboard en `assets/protoboard.js` con el armado guiado y **Interruptor y LED en la protoboard**
   (`simulaciones/interruptor-led-armado/`).
-- [ ] Fase 2: Potenciómetro en la protoboard.
+- [x] Fase 2: Potenciómetro en la protoboard (`simulaciones/potenciometro-armado/`).
 - [ ] Fase 3: Botones en la protoboard.
 - [ ] Fase 4: Transistor en la protoboard.
 
