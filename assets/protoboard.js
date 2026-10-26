@@ -86,7 +86,7 @@
     // Calor de una resistencia o del potenciómetro (¼ W), de un LED (Vf · 30 mA) o del transistor (625 mW, con su unión
     // hasta 150 °C, como en Transistor), ver Sim.heat; su menú lo muestra.
     const heatOf = k => k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 }
-      : k.type === 'npn' ? { pMax: 0.625, tMax: 150, tau: 4 } : Sim.HEAT.res));
+      : k.type === 'npn' ? Sim.HEAT.bjt : Sim.HEAT.res));
     const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(0, 1), { color: BLACKW })];
 
     const occupied = skip => {
@@ -109,137 +109,49 @@
     const inBoard = (u, v) => u > BOARD[0] && u < BOARD[2] && v > BOARD[1] && v < BOARD[3];
 
     // ---------- el circuito: análisis de nodos ----------
-    // Cada tira de 5 agujeros y cada riel es un nodo. La pila es una fuente de 9 V con 1 Ω por dentro
+    // Cada tira de 5 agujeros y cada riel es un nodo (Sim.nodal). La pila es una fuente de 9 V con 1 Ω por dentro
     // y un fusible de 1 A; el LED necesita el voltaje de su color (1,8 V el rojo) y tiene 15 Ω; los cables
-    // y los contactos del pulsador, 0,05 Ω.
-    // El transistor (como en Transistor): de la base al emisor, un diodo de 0,7 V (Vbe, con RBE); del colector al emisor,
-    // según su estado: en corte (la base no conduce), abierto; activo, Ic = β · Ib (β = 100), lo que manda la base; y
-    // saturado, cuando lo demás del colector ya no deja pasar β · Ib: ahí quedan 0,2 V (Vce, con RSAT).
-    const BETA = 100, VBE = 0.7, VSAT = 0.2, RBE = 1, RSAT = 0.1;
+    // y los contactos del pulsador, 0,05 Ω. El transistor, como en Transistor (Sim.BJT): de la base al emisor un diodo de
+    // 0,7 V y del colector al emisor, según su estado, abierto (en corte), β · Ib (activo) o 0,2 V (saturado).
+    const VSAT = Sim.BJT.vsat;
     function solve() {
-      const idx = new Map(), names = [];
-      const id = n => { if (n === 'bn') return -1; if (!idx.has(n)) { idx.set(n, names.length); names.push(n); } return idx.get(n); };
-      id('bp');
-      // cada elemento: entre dos nodos, con su resistencia y a dónde va su corriente (put, en mA); un diodo (el LED y la
-      // base del transistor) lleva además su voltaje (vf) y dónde guarda si conduce (k[key]); el colector del transistor
-      // lleva su base (ce: el elemento de la base al emisor)
+      // cada elemento: entre las tiras de dos patas, con su resistencia y a dónde va su corriente (put, en mA); el LED
+      // guarda en k.on si conduce y el transistor en k.be, k.q, k.Ib y k.Ic
       const els = [];
-      const add2 = (k, l1, l2, R, put, x = {}) => {
-        const n1 = legNode(l1), n2 = legNode(l2);
-        if (!n1 || !n2 || n1 === n2) return null;
-        const e = { k, n1, n2, i: id(n1), j: id(n2), R, put, ...x };
-        els.push(e);
-        return e;
-      };
-      const npns = [];
+      const add2 = (l1, l2, R, put, x = {}) => els.push({ a: legNode(l1), b: legNode(l2), R, put, ...x });
+      if (st.on && st.fuse) els.push({ a: 'bp', b: 'bn', V: V0, R: RINT });
       for (const k of st.comps) {
         k.I = 0;
         if (k.type === 'push') {
           k.Ia = k.Ib = 0;
-          add2(k, k.a, k.a2, RW, I => { k.Ia = I; });
-          add2(k, k.b, k.b2, RW, I => { k.Ib = I; });
-          if (k.press) add2(k, k.a, k.b, RW, I => { k.I = I; });
+          add2(k.a, k.a2, RW, I => { k.Ia = I; });
+          add2(k.b, k.b2, RW, I => { k.Ib = I; });
+          if (k.press) add2(k.a, k.b, RW, I => { k.I = I; });
           continue;
         }
         // el potenciómetro: de a al cursor y del cursor a b (quemado, queda abierto)
         if (k.type === 'pot') {
           k.Ia = k.Ib = 0;
           if (k.burnt) continue;
-          add2(k, k.a, k.w, Math.max(RW, k.x * k.R), I => { k.Ia = I; });
-          add2(k, k.w, k.b, Math.max(RW, (1 - k.x) * k.R), I => { k.Ib = I; });
+          add2(k.a, k.w, Math.max(RW, k.x * k.R), I => { k.Ia = I; });
+          add2(k.w, k.b, Math.max(RW, (1 - k.x) * k.R), I => { k.Ib = I; });
           continue;
         }
         // el transistor (quemado, queda abierto)
         if (k.type === 'npn') {
-          k.Ib = k.Ic = 0; k.ce = false;
-          if (k.burnt) { k.be = false; k.q = 'corte'; continue; }
-          npns.push(k);
-          const be = add2(k, k.w, k.a, RBE, I => { k.Ib = I; }, { vf: VBE, key: 'be' });
-          if (!be) { k.be = false; continue; }
-          k.ce = !!add2(k, k.b, k.a, RSAT, I => { k.Ic = I; }, { ce: be });
+          if (k.burnt) { k.Ib = k.Ic = 0; k.be = false; k.q = 'corte'; continue; }
+          els.push({ type: 'npn', b: legNode(k.w), e: legNode(k.a), c: legNode(k.b), s: k });
           continue;
         }
         if (k.burnt) { if (k.type === 'led') k.on = false; continue; }
-        const n = els.length;
-        add2(k, k.a, k.b, k.type === 'res' ? k.R : k.type === 'led' ? RD : RW, I => { k.I = I; }, k.type === 'led' ? { vf: vf(k), key: 'on' } : {});
-        if (k.type === 'led' && els.length === n) k.on = false;
+        const a = legNode(k.a), b = legNode(k.b);
+        if (k.type === 'led' && (!a || !b || a === b)) k.on = false;
+        add2(k.a, k.b, k.type === 'res' ? k.R : k.type === 'led' ? RD : RW, I => { k.I = I; }, k.type === 'led' ? { vf: vf(k), s: k } : {});
       }
-      const n = names.length, src = st.on && st.fuse;
-      let V = new Float64Array(n);
-      const v = i => i >= 0 ? V[i] : 0;
-      // la corriente de la base de un transistor (b: su elemento de la base al emisor), si conduce
-      const ib = b => (v(b.i) - v(b.j) - VBE) / RBE;
-      for (let iter = 0; iter < 20; iter++) {
-        const G = Array.from({ length: n }, () => new Float64Array(n + 1));
-        const add = (i, j, g) => { if (i >= 0) G[i][i] += g; if (j >= 0) G[j][j] += g; if (i >= 0 && j >= 0) { G[i][j] -= g; G[j][i] -= g; } };
-        const inj = (i, x) => { if (i >= 0) G[i][n] += x; };
-        const drop = (e, vd) => { add(e.i, e.j, 1 / e.R); inj(e.i, vd / e.R); inj(e.j, -vd / e.R); };
-        for (let i = 0; i < n; i++) G[i][i] += 1e-9;
-        if (src) { add(0, -1, 1 / RINT); inj(0, V0 / RINT); }
-        for (const e of els) {
-          if (e.ce) {
-            // activo: del colector sale β · Ib = β (Vb − Ve − Vbe) / RBE y entra al emisor
-            if (e.k.q === 'saturado') drop(e, VSAT);
-            else if (e.k.q === 'activo') {
-              const g = BETA / RBE, b = e.ce;
-              for (const [r, sg] of [[e.i, 1], [e.j, -1]]) if (r >= 0) {
-                if (b.i >= 0) G[r][b.i] += sg * g;
-                if (b.j >= 0) G[r][b.j] -= sg * g;
-                G[r][n] += sg * g * VBE;
-              }
-            }
-          } else if (e.vf != null) { if (e.k[e.key]) drop(e, e.vf); }
-          else add(e.i, e.j, 1 / e.R);
-        }
-        V = gauss(G, n);
-        let changed = false;
-        for (const e of els) if (e.vf != null) {
-          const dv = v(e.i) - v(e.j), was = e.k[e.key];
-          const on = was ? dv - e.vf > -1e-9 : dv > e.vf;
-          if (on !== was) { e.k[e.key] = on; changed = true; }
-        }
-        // el estado de cada transistor: sin base, en corte; con base, activo hasta que el colector baja a 0,2 V
-        // (saturado), y saturado mientras lo demás no deje pasar más de β · Ib
-        for (const e of els) if (e.ce) {
-          const k = e.k, vce = v(e.i) - v(e.j);
-          let q = k.q;
-          if (!k.be) q = 'corte';
-          else if (q === 'corte') q = 'activo';
-          else if (q === 'activo' && vce < VSAT - 1e-9) q = 'saturado';
-          else if (q === 'saturado' && (vce - VSAT) / RSAT > BETA * ib(e.ce) + 1e-9) q = 'activo';
-          if (q !== k.q) { k.q = q; changed = true; }
-        }
-        if (!changed) break;
-      }
-      for (const e of els) {
-        const dv = v(e.i) - v(e.j);
-        e.put(1000 * (e.ce ? (e.k.q === 'saturado' ? (dv - VSAT) / RSAT : e.k.q === 'activo' ? BETA * ib(e.ce) : 0)
-          : e.vf != null ? (e.k[e.key] ? (dv - e.vf) / e.R : 0) : dv / e.R));
-      }
-      // sin nada en el colector (o unido al emisor) no pasa Ic: con base, ya está saturado
-      for (const k of npns) if (!k.ce) k.q = k.be ? 'saturado' : 'corte';
-      st.Ibat = src ? 1000 * (V0 - v(0)) / RINT : 0;
-      st.V = { bn: 0 };
-      names.forEach((nm, i) => st.V[nm] = V[i]);
-      // Qué nodos están unidos a la pila por algo que conduce (para no mostrar voltaje en tiras sueltas).
-      const adj = new Map(), link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); };
-      for (const e of els) if (e.ce ? e.k.q !== 'corte' : e.vf == null || e.k[e.key]) { link(e.n1, e.n2); link(e.n2, e.n1); }
-      const seen = new Set(['bp', 'bn']), q = ['bp', 'bn'];
-      while (q.length) for (const m of adj.get(q.pop()) || []) if (!seen.has(m)) { seen.add(m); q.push(m); }
-      st.reach = seen;
-    }
-    function gauss(A, n) {
-      for (let c = 0; c < n; c++) {
-        let p = c;
-        for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
-        [A[c], A[p]] = [A[p], A[c]];
-        const d = A[c][c] || 1e-12;
-        for (let r = 0; r < n; r++) if (r !== c && A[r][c]) {
-          const f = A[r][c] / d;
-          for (let k = c; k <= n; k++) A[r][k] -= f * A[c][k];
-        }
-      }
-      return Float64Array.from({ length: n }, (_, i) => A[i][n] / (A[i][i] || 1e-12));
+      const r = Sim.nodal(els, { ground: 'bn', nodes: ['bp'], roots: ['bp', 'bn'] });
+      st.Ibat = st.on && st.fuse ? els[0].I : 0;
+      st.V = r.V;
+      st.reach = r.reach;
     }
     // Lo que entra a la tira por cada pata (mA): la corriente de un componente va de a a b por dentro.
     const legCurrents = k => k.type === 'push'

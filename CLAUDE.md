@@ -72,6 +72,15 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     tocarlo otra vez, con un anillo azul), su animación (`step`, `draw`) y `Sim.pushMenu` (su tarjeta: NA · NC); en el banco
     `b.pushKey({ at, set })` pone su tapa en los dos lados.
   - `Sim.fadeSel(key, on)`: 0→1 en 120 ms (aparece y se va el contorno).
+  - `Sim.nodal(els, { ground, nodes, roots })`: la red de nodos de corriente directa que usan la protoboard y el Puente H.
+    Elementos entre dos nodos con nombre: resistencia `{ a, b, R }`, fuente `{ a, b, V, R }` (a el +), contraelectromotriz
+    `{ a, b, R, E }` (el motor), diodo `{ a, b, R, vf, s, key }` (conduce de a a b; `s[key]` guarda si conduce) y transistor
+    `{ type: 'npn' | 'pnp', b, e, c, s }` (`Sim.BJT`: β = 100, Vbe 0,7 V, Vce 0,2 V saturado, para el 2N2222 y el 2N2907; en `s`
+    su estado `q` corte · activo · saturado, `be`, `Ib` e `Ic` en mA; saturado conduce en los dos sentidos). Repite hasta que
+    ningún estado cambia; pone `e.I` (mA, de a a b; `e.put(I)` si lo trae) y da `{ V, v, reach }`. Calor: `Sim.HEAT.bjt` (625 mW).
+  - `Sim.motor(o)` (`Sim.MOTOR`): el motor de CD chico de 6 V del taller, R = 20 Ω y E = k · ω, con su volante (J) y su fricción
+    (fija `Tc` y `b · ω`); `w`, `ang` (el del dibujo, `show` vueltas por vuelta), `E` para `Sim.nodal`, `rpm`, `heat` (su
+    bobina, I² · R) y `step(I, dt)`.
   - `Sim.knob`, `Sim.encoder` (perilla sin fin: pasos por muesca), `Sim.snapRange` (imán, zona muerta, rueda del
     ratón), `Sim.ramp`, `Sim.needle`, `Sim.heat`.
   - `Sim.water` (agua en una vuelta cerrada) y `Sim.stream` (agua en un tramo abierto: una rama con su corriente).
@@ -138,7 +147,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     con `o.nodeRow: false` (Ley de Ohm y nodos pone Circuito · Nodos flotando con `b.linkedChoice`); los nodos van del color de su voltaje
     (`nodeColor`) y en V y Ω las puntas solo se pegan a los nodos, por un lado sin cables (`nodeDir`). Inercia: `inertia` (empieza en 0: `value="0"` del `#inercia` de cada página). Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
     tramo de la fuente, para que el − (y la tierra, `b.ground`, sin símbolo) quede en 0 V a la izquierda.
-- `assets/protoboard.js`: `Sim.protoboard(o)`, la protoboard con su pila (bomba), su bandeja y su red de nodos (`solve`), que usan
+- `assets/protoboard.js`: `Sim.protoboard(o)`, la protoboard con su pila (bomba), su bandeja y su red de nodos (`solve`, con `Sim.nodal`), que usan
   `protoboard` (libre: `o.tray`, sus pasos y `load`/`clear`) y las páginas del armado guiado (`o.guide`: [{ name, piece: { type, a,
   b, R, led, color } }], un paso de `Sim.steps` por pieza; `drawSpot` su lugar punteado, `fits(j)` lo revisa por tiras, el LED con su
   polaridad; ir a un paso pone las piezas anteriores con `putTarget` y quita las de ese en adelante). Piezas: `wire`, `res`, `led`,
@@ -147,8 +156,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   `b` en tres columnas seguidas, `potHoles`; `x` de 0 en `a` a 1 en `b`; dibujado en su marco `frameOf` con `POT`, el cuerpo arriba de
   las patas; su perilla es una `.sim-hit pb-knob` en cada panel, `knobOf`, que se gira con `setX`) y `npn` (el transistor 2N2222 en
   TO-92: patas `a` emisor, `w` base y `b` colector en tres columnas seguidas, en una fila de las tiras; el cuerpo hacia el canal, en su
-  marco con `NPN`, y su nombre con su estado en `drawNpnTag`, encima de todo; en `solve`, la base al emisor es un diodo de `VBE` y el
-  colector al emisor va por su estado `q`: corte abierto, activo una fuente de β · Ib (`BETA`) y saturado `VSAT`; calor 625 mW);
+  marco con `NPN`, y su nombre con su estado en `drawNpnTag`, encima de todo; en `solve` es un `{ type: 'npn' }` de `Sim.nodal`;
+  calor `Sim.HEAT.bjt`);
   `legsOf` y `legCurrents` dan sus patas y sus corrientes.
   `Sim.pbNow` para probar.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
@@ -280,6 +289,14 @@ Armado en protoboard (aprobado; con agua, una página aparte después de cada si
 - [x] Fase 3: Botones en la protoboard, como último paso de Interruptor y LED en la protoboard (el pull-down;
   `botones-armado/` redirige ahí). Con un LED el pull-down casi no se nota: donde importa es en la base del transistor (fase 4).
 - [x] Fase 4: Transistor en la protoboard (`simulaciones/transistor-armado/`, con la pieza `npn` y el pull-down de la base al final).
+
+Proyecto final: Puente H (después de Transistor en la protoboard, antes del bloque de señales; un PR por casilla, en este orden):
+- [x] Física común: `Sim.nodal` en `assets/sim.js` (la red de nodos de la protoboard, que da lo mismo que antes), el PNP 2N2907 y
+  el motor de CD (`Sim.motor`).
+- [ ] **Puente H** (`simulaciones/puente-h/`, con `Sim.bench`): dos medios puentes complementarios (PNP arriba, NPN abajo), cada
+  entrada con su pulsador al + y su pull-down; el motor en medio (en el agua, una turbina con volante). Medible con los multímetros.
+- [ ] **Puente H en la protoboard** (`simulaciones/puente-h-armado/`): piezas `pnp` y `motor` (fuera de la protoboard, con sus dos
+  cables), un paso por pieza.
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
 paralelo de la fuente, ni un segundo canal (la fuente y la bomba son de uno), ni páginas de fotorresistencia (LDR)

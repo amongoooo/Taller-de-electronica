@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026213941">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026220216">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026213941"></script>
-<script src="../../assets/banco.js?v=20261026213941"></script>
+<script src="../../assets/sim.js?v=20261026220216"></script>
+<script src="../../assets/banco.js?v=20261026220216"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -76,7 +76,7 @@
   const ohm = Sim.ohm, OFF = [-999, -999];
   const vf = () => Sim.led(st.led).vf;
   const lh = Sim.heat({ ...Sim.HEAT.led, pMax: () => vf() * Sim.LED_IMAX / 1000 }), rh = Sim.heat(Sim.HEAT.res), bh = Sim.heat(Sim.HEAT.res);
-  const ph = Sim.heat(Sim.HEAT.res), qh = Sim.heat({ pMax: 0.625, tMax: 150, tau: 4 });
+  const ph = Sim.heat(Sim.HEAT.res), qh = Sim.heat(Sim.HEAT.bjt);
   // type: 'na' o 'nc' y press: el pulsador (key, con su tapa para el dibujo); R: la del LED (rb quemada); RB: la de la base (bb);
   // a: el cursor del potenciómetro, de A (0) a B (1), y crack: dónde se quemó su pista; qb: el transistor quemado
   const st = { step: 0, type: 'na', press: false, R: 220, led: 'rojo', broken: false, rb: false, burnT: 9, ang: 0, om: 0,

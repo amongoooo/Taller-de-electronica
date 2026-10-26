@@ -1633,11 +1633,13 @@
   //   capacitor electrolítico al revés: de 1 V para arriba su óxido ya no aísla y conduce; esa corriente
   //   descompone el electrolito y lo calienta por dentro (gas y calor en el centro del rollo, donde casi no se
   //   enfría): con 5 mW llega a 105 °C, su temperatura máxima. Al derecho no se calienta.
+  //   transistor en TO-92 (el 2N2222 y el 2N2907): 625 mW, con su unión hasta 150 °C
   Sim.HEAT = {
     res: { pMax: 0.25, tMax: 155, tau: 8 },
     led: { pMax: 0.054, tMax: 125, tau: 2.5 },
     fuse: { pMax: 1, tMax: 125, tau: 25 },
-    cap: { pMax: 0.005, tMax: 105, tau: 3 }
+    cap: { pMax: 0.005, tMax: 105, tau: 3 },
+    bjt: { pMax: 0.625, tMax: 150, tau: 4 }
   };
   Sim.LED_IMAX = 30;   // mA
   Sim.heat = (o = Sim.HEAT.res) => {
@@ -1679,6 +1681,167 @@
       };
     }
   });
+
+  // ---------- la red de nodos: Sim.nodal ----------
+  // Resuelve un circuito de corriente directa por nodos (como la protoboard, el Puente H y su armado): cada elemento va
+  // entre dos nodos con nombre (null o el mismo nodo en los dos lados: no se pone) y el nodo ground es 0 V. Elementos:
+  //   { a, b, R }               resistencia (también cables y contactos, con R chica)
+  //   { a, b, V, R }            fuente de V volts con R por dentro: a es su +
+  //   { a, b, R, E }            resistencia con una fuerza contraelectromotriz E (el motor: de a a b le quita E)
+  //   { a, b, R, vf, s, key }   diodo (el LED, la base de un transistor): solo conduce de a a b, con más de vf; s[key] guarda
+  //                             si conduce (s es el componente: el estado sigue de un cuadro al otro y así arranca de ahí)
+  //   { type: 'npn' | 'pnp', b, e, c, s }   transistor (Sim.BJT): de la base al emisor (al revés en el PNP) un diodo de Vbe
+  //                             con RBE; del colector al emisor (del emisor al colector en el PNP), según su estado s.q:
+  //                             en corte (la base no conduce), abierto; activo, Ic = β · Ib, lo que manda la base; y
+  //                             saturado, cuando lo demás ya no deja pasar β · Ib: ahí quedan Vsat (con RSAT, y conduce en
+  //                             los dos sentidos, como un interruptor cerrado). Sin nada en el colector (o unido al emisor),
+  //                             con base ya está saturado. Pone s.be, s.q, s.Ib (lo que entra a la base del NPN, o sale de la
+  //                             del PNP) y s.Ic (lo que entra al colector del NPN, o sale del del PNP), en mA; s.ce dice si
+  //                             tiene algo en el colector.
+  // Pone la corriente (mA, de a a b; en la fuente, la que sale de su +) en e.I y, si lo trae, la da a e.put(I). Repite
+  // hasta que ningún diodo ni transistor cambia de estado (a lo más iters veces). Da { V, v, reach }: el voltaje de
+  // cada nodo, v(nombre) y reach, los nodos unidos a roots (de entrada, ground y los de las fuentes) por algo que conduce.
+  // Los transistores del taller, el NPN 2N2222 y el PNP 2N2907, con los mismos valores: β = 100 (su hFE a unos 10 mA), Vbe
+  // (Veb en el PNP) de 0,7 V y Vce (Vec) de 0,2 V saturado; se calientan con Sim.HEAT.bjt.
+  Sim.BJT = { beta: 100, vbe: 0.7, vsat: 0.2, rbe: 1, rsat: 0.1 };
+  Sim.nodal = (list, { ground = 'gnd', nodes = [], roots = null, iters = 20 } = {}) => {
+    const idx = new Map(), names = [];
+    const id = n => { if (n === ground) return -1; if (!idx.has(n)) { idx.set(n, names.length); names.push(n); } return idx.get(n); };
+    nodes.forEach(id);
+    const els = [], bjts = [];
+    const add = (e, a, b, x = {}) => {
+      if (a == null || b == null || a === b) return null;
+      const el = { ...x, src: e, a, b, i: id(a), j: id(b), R: x.R ?? e.R };
+      els.push(el);
+      return el;
+    };
+    for (const e of list) {
+      e.I = 0;
+      if (!e.type) { add(e, e.a, e.b, { V: e.V, E: e.E, vf: e.vf, s: e.s || e, key: e.key || 'on' }); continue; }
+      // el transistor: el diodo de su base (d) y su paso principal (m), de su lado alto (hi) a su lado bajo (lo)
+      const s = e.s || e, P = { ...Sim.BJT, ...e }, n = e.type === 'npn';
+      s.Ib = s.Ic = 0; s.ce = false;
+      const d = add(e, n ? e.b : e.e, n ? e.e : e.b, { R: P.rbe, vf: P.vbe, s, key: 'be', base: true });
+      if (!d) { s.be = false; s.q = 'corte'; continue; }
+      const m = add(e, n ? e.c : e.e, n ? e.e : e.c, { R: P.rsat, s, bjt: d, P });
+      s.ce = !!m;
+      bjts.push({ s, d, m });
+    }
+    const n = names.length;
+    let V = new Float64Array(n);
+    const v = i => i >= 0 ? V[i] : 0;
+    // la corriente de la base de un transistor (d: el diodo de su base), si conduce
+    const ib = d => (v(d.i) - v(d.j) - d.vf) / d.R;
+    for (let it = 0; it < iters; it++) {
+      const G = Array.from({ length: n }, () => new Float64Array(n + 1));
+      const cond = (i, j, g) => { if (i >= 0) G[i][i] += g; if (j >= 0) G[j][j] += g; if (i >= 0 && j >= 0) { G[i][j] -= g; G[j][i] -= g; } };
+      const inj = (i, x) => { if (i >= 0) G[i][n] += x; };
+      const drop = (e, vd) => { cond(e.i, e.j, 1 / e.R); inj(e.i, vd / e.R); inj(e.j, -vd / e.R); };
+      for (let i = 0; i < n; i++) G[i][i] += 1e-9;
+      for (const e of els) {
+        if (e.bjt) {
+          // activo: del lado alto sale β · Ib = β (Vd1 − Vd2 − Vbe) / RBE y entra al bajo
+          const q = e.s.q;
+          if (q === 'saturado') drop(e, e.P.vsat);
+          else if (q === 'activo') {
+            const g = e.P.beta / e.bjt.R, d = e.bjt;
+            for (const [r, sg] of [[e.i, 1], [e.j, -1]]) if (r >= 0) {
+              if (d.i >= 0) G[r][d.i] += sg * g;
+              if (d.j >= 0) G[r][d.j] -= sg * g;
+              G[r][n] += sg * g * d.vf;
+            }
+          }
+        } else if (e.V != null) { cond(e.i, e.j, 1 / e.R); inj(e.i, e.V / e.R); inj(e.j, -e.V / e.R); }
+        else if (e.vf != null) { if (e.s[e.key]) drop(e, e.vf); }
+        else if (e.E) drop(e, e.E);
+        else cond(e.i, e.j, 1 / e.R);
+      }
+      V = gauss(G, n);
+      let changed = false;
+      for (const e of els) if (e.vf != null) {
+        const dv = v(e.i) - v(e.j), was = e.s[e.key];
+        const on = was ? dv - e.vf > -1e-9 : dv > e.vf;
+        if (on !== was) { e.s[e.key] = on; changed = true; }
+      }
+      // el estado de cada transistor: sin base, en corte; con base, activo hasta que su paso baja a Vsat (saturado), y
+      // saturado mientras lo demás no deje pasar más de β · Ib
+      for (const e of els) if (e.bjt) {
+        const s = e.s, vce = v(e.i) - v(e.j);
+        let q = s.q || 'corte';
+        if (!s.be) q = 'corte';
+        else if (q === 'corte') q = 'activo';
+        else if (q === 'activo' && vce < e.P.vsat - 1e-9) q = 'saturado';
+        else if (q === 'saturado' && (vce - e.P.vsat) / e.R > e.P.beta * ib(e.bjt) + 1e-9) q = 'activo';
+        if (q !== s.q) { s.q = q; changed = true; }
+      }
+      if (!changed) break;
+    }
+    for (const e of els) {
+      const dv = v(e.i) - v(e.j);
+      const I = 1000 * (e.bjt ? (e.s.q === 'saturado' ? (dv - e.P.vsat) / e.R : e.s.q === 'activo' ? e.P.beta * ib(e.bjt) : 0)
+        : e.V != null ? (e.V - dv) / e.R
+        : e.vf != null ? (e.s[e.key] ? (dv - e.vf) / e.R : 0) : (dv - (e.E || 0)) / e.R);
+      if (e.bjt) e.s.Ic = I;
+      else if (e.base) e.s.Ib = I;
+      else { e.src.I = I; if (e.src.put) e.src.put(I); }
+    }
+    for (const { s, m } of bjts) if (!m) s.q = s.be ? 'saturado' : 'corte';
+    const out = { [ground]: 0 };
+    names.forEach((nm, i) => out[nm] = V[i]);
+    // qué nodos están unidos a roots por algo que conduce (para no mostrar voltaje en lo que está suelto)
+    const adj = new Map(), link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); };
+    for (const e of els) if (e.bjt ? e.s.q !== 'corte' : e.vf == null || e.s[e.key]) { link(e.a, e.b); link(e.b, e.a); }
+    const r0 = roots || [ground, ...list.filter(e => e.V != null).flatMap(e => [e.a, e.b])];
+    const seen = new Set(r0), q = [...r0];
+    while (q.length) for (const m of adj.get(q.pop()) || []) if (!seen.has(m)) { seen.add(m); q.push(m); }
+    return { V: out, v: nm => out[nm] ?? 0, reach: seen };
+  };
+  function gauss(A, n) {
+    for (let c = 0; c < n; c++) {
+      let p = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+      [A[c], A[p]] = [A[p], A[c]];
+      const d = A[c][c] || 1e-12;
+      for (let r = 0; r < n; r++) if (r !== c && A[r][c]) {
+        const f = A[r][c] / d;
+        for (let k = c; k <= n; k++) A[r][k] -= f * A[c][k];
+      }
+    }
+    return Float64Array.from({ length: n }, (_, i) => A[i][n] / (A[i][i] || 1e-12));
+  }
+
+  // ---------- el motor de CD ----------
+  // La bobina es una resistencia R con una fuerza contraelectromotriz E = k · ω (ω en rad/s): parado, solo la R limita la
+  // corriente (la de arranque, alta) y, ya girando, E le quita voltaje y pasa mucho menos. Su par, k · I, mueve el rotor
+  // (con su volante: J) contra su fricción, una fija (Tc: necesita algo de corriente para empezar a girar) y otra que crece
+  // con ω (b · ω). El del taller: uno chico de 6 V con R = 20 Ω (300 mA parado con 6 V); sin carga, con 6 V, gira a unas
+  // 3500 rpm con unos 25 mA, y llega en unos 0,3 s (J · R / k²). Su bobina se calienta con I² · R (Sim.heat): aguanta 1,2 W
+  // seguidos, así que parado con 6 V tarda unos segundos en quemarse. show: cuánto gira el dibujo por cada vuelta de verdad
+  // (3500 rpm no se verían).
+  Sim.MOTOR = { R: 20, k: 0.015, J: 3e-6, b: 6e-7, Tc: 1.5e-4, pMax: 1.2, tMax: 130, tau: 6, show: 1 / 40 };
+  // Sim.motor(o) da su estado: w (rad/s, positiva con la corriente de a a b), ang (el ángulo del dibujo), E (la
+  // contraelectromotriz, para Sim.nodal), rpm, heat y step(I, dt), con I en mA de a a b, que devuelve true al quemarse.
+  Sim.motor = (o = {}) => {
+    const m = { ...Sim.MOTOR, ...o, w: 0, ang: 0 };
+    m.heat = Sim.heat({ pMax: m.pMax, tMax: m.tMax, tau: m.tau });
+    Object.defineProperties(m, {
+      E: { get: () => m.k * m.w },
+      rpm: { get: () => m.w * 60 / (2 * Math.PI) }
+    });
+    m.step = (I, dt) => {
+      const T = m.k * I / 1000, n = Math.max(1, Math.ceil(dt / 0.002)), h = dt / n;
+      for (let i = 0; i < n; i++) {
+        const f = T - m.b * m.w;
+        if (!m.w && Math.abs(f) <= m.Tc) continue;   // parado: la fricción fija lo detiene
+        const w = m.w + (f - Math.sign(m.w || f) * m.Tc) / m.J * h;
+        m.w = m.w && Math.sign(w) !== Math.sign(m.w) ? 0 : w;   // la fricción lo para, no lo regresa
+      }
+      m.ang += m.w * m.show * dt;
+      return m.heat.step((I / 1000) ** 2 * m.R, dt);
+    };
+    m.reset = () => { m.w = 0; m.heat.reset(); };
+    return m;
+  };
 
   // ---------- menú de un componente ----------
   // Al tocar un componente se abre una tarjetita junto a él con lo que se le puede cambiar:
