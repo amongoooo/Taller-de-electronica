@@ -1215,6 +1215,7 @@
     ['interruptor-led-armado', 'Interruptor y LED en la protoboard'],
     ['serie-paralelo', 'LEDs en serie y paralelo'],
     ['potenciometro', 'Potenciómetro'],
+    ['potenciometro-armado', 'Potenciómetro en la protoboard'],
     ['botones', 'Botones'],
     ['transistor', 'Transistor'],
     ['osciloscopio', 'LED y osciloscopio'],

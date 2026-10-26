@@ -1,12 +1,14 @@
 // Taller de Electrónica: la protoboard (Sim.protoboard), con su pila (en el agua, la bomba), su bandeja de piezas y la
 // red de nodos que la resuelve. La usan Protoboard (libre: cables y resistencias de la bandeja) y las páginas del armado
-// guiado (o.guide: cada paso pone una pieza en agujeros dados, con su lugar punteado, y se revisa solo).
+// guiado (o.guide: cada paso pone una pieza en agujeros dados, con su lugar punteado, y se revisa solo). Piezas: cable,
+// resistencia, LED, pulsador (push) y potenciómetro (pot).
 (() => {
   const { C, draw: D, fmt } = Sim;
 
   // o.tray: lo que trae la bandeja en el modo libre ('wire', 'res', 'led'); o.guide: los pasos del armado guiado,
   // [{ name, piece: { type, a: [c, r], b: [c, r], R, led, color } }] (columnas c de 0 a 15 y filas r de ROWNAME;
-  // en el LED, a es la pata + y b la −; en el pulsador, a y b son las dos patas de arriba, en la misma fila).
+  // en el LED, a es la pata + y b la −; en el pulsador, a y b son las dos patas de arriba, en la misma fila; en el
+  // potenciómetro, a es la pata de la izquierda y las otras dos van en las dos columnas siguientes).
   // Da { st, make, hole, load, clear, steps }: la página pone sus piezas con load y, si no es guiada, sus pasos.
   Sim.protoboard = (o = {}) => {
     // ---------- la protoboard ----------
@@ -59,14 +61,22 @@
     const legNode = l => l.term ? (l.term === '+' ? 'bp' : 'bn') : l.c != null ? group(l.c, l.r) : null;
     // El pulsador (de 6 mm, cuatro patas) va montado sobre el canal del centro: sus patas a y a2 (de un lado) están unidas
     // por dentro, igual que b y b2; apretarlo une un lado con el otro.
-    const legsOf = k => k.type === 'push' ? [k.a, k.b, k.a2, k.b2] : [k.a, k.b];
+    // El potenciómetro (de 10 kΩ) tiene tres patas en línea, una por columna: a, el cursor w en medio y b.
+    const legsOf = k => k.type === 'push' ? [k.a, k.b, k.a2, k.b2] : k.type === 'pot' ? [k.a, k.w, k.b] : [k.a, k.b];
     const make = (type, a, b, extra = {}) => ({ id: 'id' in extra ? extra.id : st.nextId++, type, a, b, I: 0, on: false, burnt: false, ang: 0, breakT: 9, R: 470, led: 'rojo', ...extra });
     const hole = (c, r) => ({ c, r });
     // Pulsador con su pata a en (c, r): b dos columnas a la derecha y a2, b2 en la fila siguiente (de e a f cruza el canal).
     const pushHoles = (c, r) => [hole(c, r), hole(c + 2, r), hole(c, r + 1), hole(c + 2, r + 1)];
     const okPush = (c, r) => c >= 0 && c + 2 < N && r >= 2 && r + 1 <= 11;
     const makePush = (a, b, a2, b2, extra = {}) => make('push', a, b, { a2, b2, Ia: 0, Ib: 0, press: false, ...extra });
-    // Calor de una resistencia (¼ W) o de un LED (Vf · 30 mA), ver Sim.heat; su menú lo muestra.
+    // Potenciómetro con su pata a en (c, r): el cursor y la pata b en las dos columnas siguientes, en la misma fila. x es
+    // dónde está el cursor, de 0 (junto a a) a 1 (junto a b): de a al cursor hay x · 10 kΩ y del cursor a b lo demás.
+    // Girar la perilla a la derecha lo lleva hacia b.
+    const RPOT = 10000;
+    const potHoles = (c, r) => [hole(c, r), hole(c + 1, r), hole(c + 2, r)];
+    const okPot = (c, r) => c >= 0 && c + 2 < N && r >= 0 && r < ROWV.length;
+    const makePot = (a, w, b, extra = {}) => make('pot', a, b, { w, x: 0.5, R: RPOT, Ia: 0, Ib: 0, pull: 0, ...extra });
+    // Calor de una resistencia o del potenciómetro (¼ W) o de un LED (Vf · 30 mA), ver Sim.heat; su menú lo muestra.
     const heatOf = k => k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 } : Sim.HEAT.res));
     const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(0, 1), { color: BLACKW })];
 
@@ -111,6 +121,14 @@
           add2(k, k.a, k.a2, RW, I => { k.Ia = I; });
           add2(k, k.b, k.b2, RW, I => { k.Ib = I; });
           if (k.press) add2(k, k.a, k.b, RW, I => { k.I = I; });
+          continue;
+        }
+        // el potenciómetro: de a al cursor y del cursor a b (quemado, queda abierto)
+        if (k.type === 'pot') {
+          k.Ia = k.Ib = 0;
+          if (k.burnt) continue;
+          add2(k, k.a, k.w, Math.max(RW, k.x * k.R), I => { k.Ia = I; });
+          add2(k, k.w, k.b, Math.max(RW, (1 - k.x) * k.R), I => { k.Ib = I; });
           continue;
         }
         if (k.burnt) { if (k.type === 'led') k.on = false; continue; }
@@ -170,6 +188,7 @@
     // Lo que entra a la tira por cada pata (mA): la corriente de un componente va de a a b por dentro.
     const legCurrents = k => k.type === 'push'
       ? [[k.a, -(k.I + k.Ia)], [k.b, k.I - k.Ib], [k.a2, k.Ia], [k.b2, k.Ib]]
+      : k.type === 'pot' ? [[k.a, -k.Ia], [k.w, k.Ia - k.Ib], [k.b, k.Ib]]
       : [[k.a, -k.I], [k.b, k.I]];
 
     // ---------- paneles ----------
@@ -389,8 +408,103 @@
       ctx.globalAlpha = 1;
     }
 
+    // El potenciómetro, visto desde arriba: sus tres patas en línea y, del lado contrario, el cuerpo con la pista (un arco
+    // de 270° que va de la pata a a la b), la perilla al centro y el contacto del cursor, que toca la pista donde apunta
+    // la perilla; del contacto, por el centro, baja a la pata del cursor. En el agua es el tramo con toma: la pista es un
+    // tramo angosto y la toma gira con la perilla. Se dibuja en su marco (potFrame): x a lo largo de las patas, de a a b,
+    // y y hacia las patas, en px del dibujo; las patas en y = 0 y el cuerpo arriba (y negativa). POT, en pasos entre
+    // agujeros: medio ancho del cuerpo (s), dónde empieza y acaba (y0, y1), centro de la perilla (ky), su radio (kr) y el
+    // de la pista (rho).
+    const POT = { s: 1.65, y0: 0.3, y1: 2.5, ky: 1.4, kr: 0.95, rho: 0.72 };
+    const potAng = x => (-135 + 270 * x) * Math.PI / 180;   // a dónde apunta la perilla: desde arriba, a la derecha
+    const potUV = k => {
+      const A = legUV(k.a), B = legUV(k.b), d = [B[0] - A[0], B[1] - A[1]], L = Math.hypot(...d) || 1, e = [d[0] / L, d[1] / L];
+      return { W: legUV(k.w), e, up: [e[1], -e[0]] };
+    };
+    const knobUV = k => { const { W, up } = potUV(k); return [W[0] + up[0] * POT.ky, W[1] + up[1] * POT.ky]; };
+    const potFrame = (k, g) => {
+      const { W, e, up } = potUV(k), O = g.pt(...W), E = g.pt(W[0] + e[0], W[1] + e[1]), U = g.pt(W[0] + up[0], W[1] + up[1]);
+      const ex = [(E[0] - O[0]) / P, (E[1] - O[1]) / P], dn = [(O[0] - U[0]) / P, (O[1] - U[1]) / P];
+      return { ex, dn, at: (x, y) => [O[0] + ex[0] * x + dn[0] * y, O[1] + ex[1] * x + dn[1] * y],
+        apply: ctx => ctx.transform(ex[0], ex[1], dn[0], dn[1], O[0], O[1]) };
+    };
+    function drawPot(ctx, k, g, side, dt, ghost) {
+      const water = side === 'w', F = potFrame(k, g), at = F.at, s = POT.s * P, top = -POT.y1 * P, bot = -POT.y0 * P;
+      const kc = [0, -POT.ky * P], rho = POT.rho * P;
+      const onArc = (f, r = rho) => [kc[0] + r * Math.sin(f), kc[1] - r * Math.cos(f)];
+      const arcPts = (fa, fb) => {
+        const n = Math.max(1, Math.ceil(Math.abs(fb - fa) / 0.12));
+        return Array.from({ length: n + 1 }, (_, i) => onArc(fa + (fb - fa) * i / n));
+      };
+      const f0 = potAng(0), f1 = potAng(1), fw = potAng(k.x) + k.pull * Math.PI / 180, wp = onArc(fw);
+      // de cada pata a su punta de la pista
+      const legA = [[-P, 0], [-P, -0.45 * P], onArc(f0)], legB = [[P, 0], [P, -0.45 * P], onArc(f1)];
+      if (ghost) ctx.globalAlpha = 0.45;
+      if (!k.burnt && !ghost) D.heatGlow(ctx, ...at(...kc), heatOf(k).glow, 46);
+      ctx.save(); F.apply(ctx);
+      if (water) {
+        const pipe = pts => { D.line(ctx, pts, 11, C.pipe); D.line(ctx, pts, 6, C['water-soft']); };
+        for (const x of [-P, 0, P]) pipe([[x, 0], [x, bot - 4]]);
+        D.roundRect(ctx, -s, top, 2 * s, bot - top, 8, C.metal, k.burnt ? C.danger : C.ink, 2.5);
+        pipe(legA); pipe(legB); pipe([kc, [0, 0]]);
+        // la pista: un tramo angosto
+        const arc = arcPts(f0, f1);
+        D.line(ctx, arc, 10, C.pipe); D.line(ctx, arc, 4, C['water-soft']);
+        if (k.burnt) { const y = kc[1] - rho; D.line(ctx, [[-8, y - 6], [-3, y + 1], [3, y - 5], [8, y + 2]], 2.5, C.danger); }
+        pipe([kc, wp]);   // la toma
+        for (const x of [-P, 0, P]) D.circle(ctx, x, 0, 5, C['water-soft'], C.pipe, 2);
+      } else {
+        for (const x of [-P, 0, P]) { D.line(ctx, [[x, bot - 2], [x, 0]], 4, '#a9b2b9', 'butt'); D.circle(ctx, x, 0, 3, '#b8c0c6', '#6f7a83', 1); }
+        D.roundRect(ctx, -s, top, 2 * s, bot - top, 6, '#2f3439', C.ink, 2);
+        D.circle(ctx, ...kc, POT.kr * P, '#d9dde0', '#1d2125', 1.5);
+        // los contactos de las patas: a las puntas de la pista y, la del cursor, al centro
+        for (const pts of [legA.slice(1), legB.slice(1), [[0, bot - 2], kc]]) D.line(ctx, pts, 3, '#a9b2b9');
+        D.line(ctx, arcPts(f0, f1), 7, k.burnt ? '#1b1b1b' : '#4a3b30', 'butt');   // la pista de carbón
+      }
+      ctx.restore();
+      // el agua (o las cargas): de cada pata por la pista hasta el contacto del cursor, y de ahí por el centro a su pata
+      if (!ghost) {
+        const va = vOf(k.a), vb = vOf(k.b), vw = vOf(k.w), quiet = still() && !k.burnt && va != null && vb != null;
+        const lin = (v1, v2) => t => (v1 ?? 0) + ((v2 ?? 0) - (v1 ?? 0)) * t;
+        const go = (key, pts, I, v) => {
+          if (Math.abs(I) > 0.01 || quiet) flowDots(ctx, pts.map(q => at(...q)), phaseOf(k.id + side + key, I, dt),
+            water ? C.water : C.charge, water ? 16 : 18, 3.2, { v, I });
+        };
+        go('a', [...legA, ...arcPts(f0, fw).slice(1)], k.Ia, lin(va, vw));
+        go('b', [...arcPts(fw, f1), ...legB.slice(0, 2).reverse()], k.Ib, lin(vw, vb));
+        go('w', [wp, kc, [0, 0]], k.Ia - k.Ib, () => vw ?? 0);
+      }
+      // la perilla: en el agua, el eje de la toma con su manija; en la electricidad, el rotor con su raya
+      ctx.save(); F.apply(ctx);
+      if (water) {
+        D.circle(ctx, ...wp, 5.5, C.metal, C.ink, 1.5);
+        D.circle(ctx, ...kc, 9, C.metal, k.burnt ? C.danger : C.ink, 2);
+        D.line(ctx, [kc, onArc(fw, 8)], 3.5, C.ink);
+      } else {
+        D.line(ctx, [kc, wp], 4, '#b8c0c6');
+        D.circle(ctx, ...wp, 3.5, '#d8dde1', '#6f7a83', 1);
+        const r = 0.5 * P;
+        D.circle(ctx, ...kc, r, k.burnt ? '#6b655c' : '#f1ede2', '#8d969d', 1.5);
+        for (let i = 0; i < 16; i++) { const f = fw + i * Math.PI / 8; D.line(ctx, [onArc(f, r - 3), onArc(f, r)], 1.5, '#a8a294', 'butt'); }
+        D.line(ctx, [onArc(fw + Math.PI, r * 0.55), onArc(fw, r - 2)], 3.5, '#2f3439');
+      }
+      ctx.restore();
+      if (k.burnt && !water && !ghost) D.smoke(ctx, ...at(kc[0], kc[1] - 6), k.breakT);
+      // su valor: a un lado del cuerpo (en la bandeja, o mientras se arrastra, arriba); quemado, su estado en una pastilla
+      if (!ghost) {
+        const on = placed(k), t = k.burnt ? (water ? 'reventado' : 'quemado') : ohm(k.R);
+        const dir = on ? [-F.ex[0], -F.ex[1]] : [-F.dn[0], -F.dn[1]], [bx, by] = on ? at(-s, kc[1]) : at(0, top);
+        D.font(ctx, 14, Sim.MONO, 600);
+        const ext = Math.abs(dir[0]) * (ctx.measureText(t).width / 2 + 8) + Math.abs(dir[1]) * 16 + 6;
+        if (k.burnt) D.pill(ctx, t, bx + dir[0] * ext, by + dir[1] * ext, C.danger, true);
+        else D.text(ctx, t, bx + dir[0] * ext, by + dir[1] * ext, k === menuK && selOpen() ? C.sel : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
+      }
+      ctx.globalAlpha = 1;
+    }
+
     function drawComp(ctx, k, g, side, dt, ghost) {
       if (k.type === 'push') return drawPush(ctx, k, legsOf(k).map(l => g.pt(...legUV(l))), side, dt, ghost);
+      if (k.type === 'pot') return drawPot(ctx, k, g, side, dt, ghost);
       const A = g.pt(...legUV(k.a)), B = g.pt(...legUV(k.b));
       const water = side === 'w', path = compPath(k, A, B);
       const ang = Math.atan2(B[1] - A[1], B[0] - A[0]), L = Math.hypot(B[0] - A[0], B[1] - A[1]);
@@ -433,7 +547,7 @@
           }
           ctx.restore();
         }
-        const f = ny > 0 ? -1 : 1;   // el valor va del lado de arriba (o a la izquierda si está parada)
+        const f = ny > 1e-6 ? -1 : 1;   // el valor va del lado de arriba (parada, a un lado: ny casi 0 cuenta como 0)
         const o = 19 + 20 * Math.abs(nx);   // parada, la etiqueta necesita más espacio a un lado
         const lx = M[0] + f * nx * o, ly = M[1] + f * ny * o;
         if (!ghost && k.burnt) D.pill(ctx, water ? 'reventado' : 'quemada', lx, ly, C.danger, true);   // su estado, en una pastilla
@@ -528,8 +642,13 @@
     }
 
     // ---------- la bandeja ----------
-    // Una pieza de la bandeja, centrada en (−3,9, vy) y acostada (el pulsador, con sus patas de arriba en vy − 0,75).
+    // Una pieza de la bandeja, centrada en (−3,9, vy) y acostada (el pulsador, con sus patas de arriba en vy − 0,75; el
+    // potenciómetro, con sus patas abajo y el cuerpo arriba).
     function trayComp(type, vy, extra = {}) {
+      if (type === 'pot') {
+        const v = vy + 1.2;
+        return makePot({ u: -4.9, v }, { u: -3.9, v }, { u: -2.9, v }, { id: 0, ...extra });
+      }
       if (type === 'push') {
         const u0 = -4.9, a = vy - 0.75, b = vy + 0.75;
         return makePush({ u: u0, v: a }, { u: u0 + 2, v: a }, { u: u0, v: b }, { u: u0 + 2, v: b }, { id: 0, ...extra });
@@ -557,6 +676,7 @@
     const target = j => {
       const { type, a, b, ...extra } = guide[j].piece;
       if (type === 'push') return makePush(...pushHoles(...a), { id: -1, ...extra });
+      if (type === 'pot') return makePot(...potHoles(...a), { id: -1, ...extra });
       return make(type, hole(...a), hole(...b), { id: -1, ...extra });
     };
     // Si una pieza está donde la pide el paso: sus patas en las mismas tiras (cualquier agujero de la tira es el mismo
@@ -586,6 +706,11 @@
       const col = C.muted;
       if (t.type === 'wire') D.line(ctx, compPath(t, A, B), 3, col);
       else if (t.type === 'push') D.roundRect(ctx, M[0] - PUSH_HALF, M[1] - PUSH_HALF, 2 * PUSH_HALF, 2 * PUSH_HALF, 8, null, col, 2);
+      else if (t.type === 'pot') {
+        ctx.save(); potFrame(t, g).apply(ctx);
+        D.roundRect(ctx, -POT.s * P, -POT.y1 * P, 2 * POT.s * P, (POT.y1 - POT.y0) * P, 8, null, col, 2);
+        ctx.restore();
+      }
       else {
         const L = Math.hypot(B[0] - A[0], B[1] - A[1]), hw = t.type === 'led' ? 16 : side === 'w' ? Math.min(L / 2, 26) : 24, hh = t.type === 'led' ? 16 : 11;
         ctx.save(); ctx.translate(...M); ctx.rotate(ang);
@@ -636,6 +761,10 @@
       if (sa && menuK) {
         if (menuK === BATK) { const R = rectW(g, ...CH); D.select(ctx, R[0] - 7, R[1] - 7, R[2] + 14, R[3] + 14, sa, 16); }
         else if (menuK.type === 'push') { const M = g.pt(...centerUV(menuK)), h = PUSH_HALF + 16; D.select(ctx, M[0] - h, M[1] - h, 2 * h, 2 * h, sa, 14); }
+        else if (menuK.type === 'pot') {
+          const F = potFrame(menuK, g), hh = POT.y1 * P / 2;
+          D.selectRot(ctx, ...F.at(0, -hh), Math.atan2(F.ex[1], F.ex[0]), POT.s * P + 10, hh + 10, sa, 12);
+        }
         else {
           const A = g.pt(...legUV(menuK.a)), B = g.pt(...legUV(menuK.b)), M = lerp(A, B, 0.5);
           const hh = menuK.type === 'led' ? 21 : menuK.type === 'res' ? 15 : 12;
@@ -646,14 +775,18 @@
     }
 
     // ---------- tarjeta de cada cosa ----------
-    // Tocar una resistencia, un LED, un pulsador o un cable abre su tarjeta (Sim.menu) junto a él: su valor o su color,
-    // girarlo, ponerlo nuevo y quitarlo; tocar la pila (la bomba) abre la suya: su fusible. Un marcador en cada
+    // Tocar una resistencia, un LED, un pulsador, un potenciómetro o un cable abre su tarjeta (Sim.menu) junto a él: su valor,
+    // su color o su cursor, girarlo, ponerlo nuevo y quitarlo; tocar la pila (la bomba) abre la suya: su fusible. Un marcador en cada
     // panel (sin dibujo) sirve para colocar la tarjeta; la cosa elegida (menuK) queda con su contorno azul.
     // En Componentes hay un renglón por cada una, que abre la misma tarjeta.
     const anchors = {};
     let menuK = null;
     const BATK = { type: 'bat' };
-    const centerUV = k => k === BATK ? [(CH[0] + CH[2]) / 2, (CH[1] + CH[3]) / 2] : mean(legsOf(k).map(legUV));
+    const centerUV = k => {
+      if (k === BATK) return [(CH[0] + CH[2]) / 2, (CH[1] + CH[3]) / 2];
+      if (k.type === 'pot') { const { W, up } = potUV(k), h = POT.y1 / 2; return [W[0] + up[0] * h, W[1] + up[1] * h]; }
+      return mean(legsOf(k).map(legUV));
+    };
     Object.entries(panels).forEach(([side, p]) => {
       const el = document.createElement('div');
       el.className = 'pb-anchor';
@@ -682,6 +815,11 @@
         { actions: [remove] }] };
       // el pulsador de la protoboard es normalmente abierto (como los de 6 mm del taller); se aprieta en su tapa
       if (k.type === 'push') return { title: (water ? 'Válvula con resorte ' : 'Pulsador ') + nameOf(k), rows: [{ actions: [remove] }] };
+      // el potenciómetro: el cursor (lo mismo que girar la perilla), su calor y ponerlo nuevo si se quemó
+      if (k.type === 'pot') return { title: (water ? 'Tramo con toma ' : 'Potenciómetro ') + nameOf(k), rows: [
+        { label: water ? 'Toma' : 'Cursor', range: [0, 100, 1], lo: '↺', hi: '↻', get: () => Math.round(k.x * 100), set: v => setX(k, v / 100) },
+        Sim.powerRow(heatOf(k), side, { broken: () => k.burnt }),
+        { actions: [{ text: water ? 'Poner un tramo nuevo' : 'Poner un potenciómetro nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } }, remove] }] };
       const m = k.type === 'res'
         ? Sim.resistorMenu({ values: RVALUES, get: () => k.R, set: R => { k.R = R; }, format: ohm, heat: heatOf(k), broken: () => k.burnt, actions: [
           { text: water ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } },
@@ -697,11 +835,11 @@
       menuK = k; panels.w.replace(); panels.e.replace();
       const m = menuFor(side, k);
       // tocar la protoboard no la cierra aquí: lo decide el toque (otra cosa abre su tarjeta)
-      m.ignore = t => t === panels.w.canvas || t === panels.e.canvas;
+      m.ignore = t => t === panels.w.canvas || t === panels.e.canvas || !!(t.classList && t.classList.contains('pb-knob'));
       Sim.menu.open(anchors[side], m);
     };
     const toggleMenu = (side, k) => { if (menuK === k && selOpen()) { Sim.menu.close(anchors.w); Sim.menu.close(anchors.e); } else openMenu(side, k); };
-    // Renglones de Componentes: la pila y cada resistencia, LED, pulsador y cable que está en la protoboard.
+    // Renglones de Componentes: la pila y cada resistencia, LED, pulsador, potenciómetro y cable que está en la protoboard.
     const rows = new Map();
     const syncRows = () => {
       if (!Sim.side) return;
@@ -738,6 +876,67 @@
       return k.key;
     };
 
+    // ---------- la perilla del potenciómetro ----------
+    // Es un mando: se gira arrastrando alrededor de su centro (como Sim.knob: con su zona muerta, y los múltiplos de 10 %
+    // jalan un poco), con la rueda del ratón o con las flechas, de 5 en 5 %; un toque sin girarla abre o cierra la
+    // tarjeta del potenciómetro. A la derecha lleva el cursor hacia la pata b. Una zona para tocar en cada panel.
+    const setX = (k, x) => {
+      x = Math.max(0, Math.min(1, x));
+      const t = Math.round(x * 10) / 10, old = k.x;
+      k.x = Math.abs(x - t) < 0.012 ? t : Math.round(x * 100) / 100;
+      return k.x !== old;
+    };
+    const deadZ = (d, z) => Math.sign(d) * Math.max(0, Math.abs(d) - z);
+    const knobOf = k => {
+      if (k.knob) return;
+      k.knob = true;
+      Object.entries(panels).forEach(([side, p]) => {
+        const el = document.createElement('div');
+        el.className = 'sim-hit pb-knob'; el.tabIndex = 0; el.setAttribute('role', 'slider');
+        el.setAttribute('aria-label', side === 'w' ? 'Toma del tramo (se gira)' : 'Perilla del potenciómetro');
+        el.setAttribute('aria-valuemin', '0'); el.setAttribute('aria-valuemax', '100');
+        Object.assign(el.style, { touchAction: 'none', userSelect: 'none' });
+        p.box.querySelector('.sim-layer').appendChild(el);
+        p.at(el, () => {
+          if (!st.comps.includes(k) || !placed(k) || (st.drag && st.drag.k === k)) return null;
+          el.style.width = Math.max(40, 2 * POT.kr * P * p.scale) + 'px';
+          return geo(p).pt(...knobUV(k));
+        });
+        const sync = () => { el.setAttribute('aria-valuenow', String(Math.round(k.x * 100))); el.setAttribute('aria-valuetext', ohm(k.x * k.R) + ' a un lado, ' + ohm((1 - k.x) * k.R) + ' al otro'); };
+        const turn = x => { if (setX(k, x)) { st.touched = true; sync(); return true; } return false; };
+        sync();
+        let id = null, sx = 0, sy = 0, moved = false;
+        el.addEventListener('pointerdown', e => {
+          if (id != null || e.button > 0) return;
+          id = e.pointerId; el.setPointerCapture(id); sx = e.clientX; sy = e.clientY; moved = false; e.preventDefault();
+        });
+        el.addEventListener('pointermove', e => {
+          if (e.pointerId !== id) return;
+          if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) <= Sim.DEAD.drag) return;
+          moved = true;
+          const r = p.canvas.getBoundingClientRect(), q = geo(p).uv((e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale);
+          const c = knobUV(k), { e: ex, up } = potUV(k), d = [q[0] - c[0], q[1] - c[1]];
+          const a = Math.max(-135, Math.min(135, Math.atan2(d[0] * ex[0] + d[1] * ex[1], d[0] * up[0] + d[1] * up[1]) * 180 / Math.PI));
+          const was = k.x;
+          if (Math.abs(a - (-135 + 270 * k.x)) > Sim.DEAD.knob && turn((a + 135) / 270) && Math.floor(was * 10) !== Math.floor(k.x * 10)
+            && e.pointerType === 'touch' && navigator.vibrate) try { navigator.vibrate(6); } catch (err) {}
+          k.pull = Math.max(-7, Math.min(7, 0.3 * deadZ(a - (-135 + 270 * k.x), Sim.DEAD.knob)));   // el estirón hacia el dedo
+        });
+        const up = e => {
+          if (e.pointerId !== id) return;
+          id = null; k.pull = 0;
+          if (!moved && e.type === 'pointerup') toggleMenu(side, k);
+        };
+        el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+        el.addEventListener('wheel', e => { e.preventDefault(); turn(k.x + (e.deltaY < 0 ? 0.05 : -0.05)); }, { passive: false });
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { toggleMenu(side, k); e.preventDefault(); return; }
+          const f = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
+          if (f) { turn(k.x + f * 0.05); e.preventDefault(); }
+        });
+      });
+    };
+
     // ---------- tocar y arrastrar ----------
     const distSeg = (p, a, b) => {
       const dx = b[0] - a[0], dy = b[1] - a[1], s = dx * dx + dy * dy;
@@ -749,16 +948,20 @@
     // Si un punto (u, v) toca el cuerpo de un componente.
     const onBody = (k, q) => {
       if (k.type === 'push') { const [cu, cv] = centerUV(k), h = PUSH_HALF / P + 0.1; return Math.abs(q[0] - cu) < h && Math.abs(q[1] - cv) < h; }
+      if (k.type === 'pot') {
+        const { W, e, up } = potUV(k), d = [q[0] - W[0], q[1] - W[1]], x = d[0] * e[0] + d[1] * e[1], y = d[0] * up[0] + d[1] * up[1];
+        return Math.abs(x) < POT.s + 0.1 && y > -0.35 && y < POT.y1 + 0.1;
+      }
       const a = legUV(k.a), b = legUV(k.b), m = lerp(a, b, 0.5);
       return distSeg(q, a, b) < 0.35 || Math.hypot(q[0] - m[0], q[1] - m[1]) < 0.5;
     };
-    // Los agujeros donde caería lo que se arrastra (null si no cabe). El pulsador cae con su pata a en el agujero más
-    // cercano y las demás en su lugar.
+    // Los agujeros donde caería lo que se arrastra (null si no cabe). El pulsador y el potenciómetro caen con su pata a
+    // en el agujero más cercano y las demás en su lugar.
     const holesFor = (k, occ) => {
-      if (k.type === 'push') {
+      if (k.type === 'push' || k.type === 'pot') {
         const h = nearestHole(...legUV(k.a), occ);
-        if (!h || !okPush(h.c, h.r)) return null;
-        const hs = pushHoles(h.c, h.r);
+        if (!h || !(k.type === 'push' ? okPush : okPot)(h.c, h.r)) return null;
+        const hs = (k.type === 'push' ? pushHoles : potHoles)(h.c, h.r);
         return hs.every(x => !occ.has(x.c + ',' + x.r)) ? hs : null;
       }
       const o2 = new Set(occ), ha = nearestHole(...legUV(k.a), o2);
@@ -778,9 +981,10 @@
         const t = target(st.step), hs = legsOf(t);
         if (hs.every(l => !occ.has(l.c + ',' + l.r))) { legsOf(k).forEach((l, i) => setLeg(l, { c: hs[i].c, r: hs[i].r })); return true; }
       }
-      if (k.type === 'push') {
-        for (let c = 1; c + 2 < N; c++) {
-          const hs = pushHoles(c, 6);
+      if (k.type === 'push' || k.type === 'pot') {
+        const at = k.type === 'push' ? pushHoles : potHoles;
+        for (const r of k.type === 'push' ? [6] : [5, 10, 3, 8]) for (let c = 1; c + 2 < N; c++) {
+          const hs = at(c, r);
           if (hs.every(x => !occ.has(x.c + ',' + x.r))) { legsOf(k).forEach((l, i) => setLeg(l, hs[i])); return true; }
         }
         return false;
@@ -805,7 +1009,7 @@
         let best = null, bd = hit;
         const onLed = st.comps.find(k => k.type === 'led' && Math.hypot(...lerp(legUV(k.a), legUV(k.b), 0.5).map((x, i) => x - q[i])) < 0.4);
         if (onLed) bd = 0;
-        for (const k of st.comps) if (k.type !== 'push') for (const leg of k.type === 'lead' ? ['b'] : ['a', 'b']) {
+        for (const k of st.comps) if (k.type !== 'push' && k.type !== 'pot') for (const leg of k.type === 'lead' ? ['b'] : ['a', 'b']) {
           const dd = Math.hypot(...legUV(k[leg]).map((x, i) => x - q[i]));
           if (dd < bd) { bd = dd; best = { k, leg }; }
         }
@@ -816,7 +1020,7 @@
         if (!d.kind) for (const k of [...st.comps].reverse()) if (k.type !== 'lead' && onBody(k, q)) { grab(k); break; }
         // 3) la bandeja: sale un componente nuevo
         if (!d.kind && q[0] > TRAY[0] && q[0] < TRAY[2]) for (const k of trayList(p.mode === 'v' ? 'v' : 'h')) {
-          if (onBody(k, q) || (k.type !== 'push' && Math.abs(q[1] - legUV(k.a)[1]) < 0.7)) {
+          if (onBody(k, q) || (k.type !== 'push' && k.type !== 'pot' && Math.abs(q[1] - legUV(k.a)[1]) < 0.7)) {
             k.id = st.nextId++; st.colorK++;
             st.comps.push(k);
             grab(k); d.isNew = true; break;
@@ -884,10 +1088,17 @@
       // Fusible: arriba de 1 A se calienta y se funde en unos 0,3 s (cortocircuito).
       if (st.fuse && st.Ibat > FUSE * 1000) { st.fuseHeat += dt / 0.3; if (st.fuseHeat >= 1) { st.fuse = false; st.fuseHeat = 0; } }
       else st.fuseHeat = Math.max(0, st.fuseHeat - dt);
-      // El LED se calienta con Vf · I (arriba de 30 mA se pasa) y la resistencia con I²·R (arriba de ¼ W):
+      // El LED se calienta con Vf · I (arriba de 30 mA se pasa) y la resistencia y el potenciómetro con I²·R (arriba de ¼ W):
       // si se pasan se queman, más rápido entre más se pasan (como en Interruptor y LED), y se abren.
       for (const k of st.comps) {
         if (k.type === 'push') { keyOf(k).step(dt); continue; }
+        if (k.type === 'pot') {
+          knobOf(k);
+          const Pw = k.burnt ? 0 : (k.Ia / 1000) ** 2 * Math.max(RW, k.x * k.R) + (k.Ib / 1000) ** 2 * Math.max(RW, (1 - k.x) * k.R);
+          if (heatOf(k).step(Pw, dt) && !k.burnt) { k.burnt = true; k.breakT = 0; }
+          k.breakT += dt;
+          continue;
+        }
         if (k.type !== 'led' && k.type !== 'res') continue;
         const I = Math.abs(k.I) / 1000, Pw = k.burnt ? 0 : k.type === 'led' ? Sim.led(k.led).vf * I : I * I * k.R;
         if (heatOf(k).step(Pw, dt) && !k.burnt) { k.burnt = true; k.breakT = 0; }

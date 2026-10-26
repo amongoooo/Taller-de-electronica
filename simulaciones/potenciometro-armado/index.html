@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Potenciómetro en la protoboard · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026210337">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Potenciómetro en la protoboard</h1>
+    <div class="ctl">
+      <div class="sim-seg" id="dentro" role="group" aria-label="Protoboard" data-act="ver"><button type="button" data-v="0">Por fuera</button><button type="button" data-v="1">Por dentro</button></div>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Protoboard de agua donde se arma, pieza por pieza, el tramo con toma entre la bomba y el regreso, y de su toma el tramo angosto y la rueda con compuerta"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Protoboard donde se arma, pieza por pieza, el potenciómetro de 10 kΩ como divisor de voltaje con la pila de 9 V, y de su cursor la resistencia y el LED"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261026210337"></script>
+<script src="../../assets/protoboard.js?v=20261026210337"></script>
+<script>
+(() => {
+  // El divisor de voltaje de Potenciómetro armado en la protoboard, una pieza por paso (cada una con su lugar punteado; el
+  // paso se cumple cuando la pieza queda en sus tiras). El potenciómetro de 10 kΩ va con sus patas en d5, d6 y d7 y el
+  // cuerpo hacia arriba: la pata de la tira 5 al riel − y la de la 7 al +, así que su cursor (la tira 6) tiene de 0 a
+  // 9 V, más entre más se gira la perilla a la derecha. Del cursor, la resistencia de 470 Ω baja por el canal del centro a
+  // la tira 6 de abajo, el LED rojo (1,8 V) va de ahí a la tira 5 de abajo y un cable puente lo regresa a la tira 5 de
+  // arriba, la del −. Con la perilla hasta la derecha pasan (9 − 1,8) / (470 + 15 + 1) ≈ 15 mA, la mitad de lo que
+  // aguanta el LED; a la mitad, el cursor tiene 4,5 V con 2,5 kΩ por dentro: menos de 1 mA, y abajo de un quinto no
+  // prende. Columnas c de 0 a 15 (1 a 16 en la protoboard) y filas r: 0 y 1 los rieles + y − de arriba, 2 a 6 de la a a
+  // la e y 7 a 11 de la f a la j.
+  Sim.protoboard({ guide: [
+    // sus patas en d5, d6 (el cursor) y d7
+    { name: 'Potenciómetro', piece: { type: 'pot', a: [4, 5] } },
+    // del riel + a la tira 7 de arriba
+    { name: 'Cable rojo', piece: { type: 'wire', a: [6, 0], b: [6, 2], color: '#d6392b' } },
+    // del riel − a la tira 5 de arriba
+    { name: 'Cable negro', piece: { type: 'wire', a: [4, 1], b: [4, 2], color: '#15212a' } },
+    // del cursor (e6) a la tira 6 de abajo (g6), por encima del canal
+    { name: 'Resistencia', piece: { type: 'res', a: [5, 8], b: [5, 6], R: 470 } },
+    // la pata + (la larga) en la tira 6 de abajo y la − en la 5
+    { name: 'LED', piece: { type: 'led', a: [5, 9], b: [4, 9], led: 'rojo' } },
+    // de la tira 5 de abajo (f5) a la de arriba (e5)
+    { name: 'Cable puente', piece: { type: 'wire', a: [4, 7], b: [4, 6], color: '#15212a' } }
+  ] });
+})();
+</script>
+</body>
+</html>
