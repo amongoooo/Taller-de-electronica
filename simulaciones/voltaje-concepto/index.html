@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026175213">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026184604">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -26,13 +26,13 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026175213"></script>
+<script src="../../assets/sim.js?v=20261026184604"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
   // Los tres conceptos en el mismo dibujo (Sim.piezo): la bomba (pila) sube la presión (el voltaje) y los tubitos marcan
   // la de cada punto.
-  // · Voltaje: con la válvula del regreso cerrada (en el circuito, el interruptor abierto) no hay diferencia de presión
+  // · Voltaje: con la válvula del regreso cerrada (en el circuito, el pulsador abierto) no hay diferencia de presión
   //   en los tramos y nada corre: los tres tubitos quedan a la altura de la bomba. La tierra es el punto que se llama 0:
   //   se arrastra a otro nodo y cambian todos los números (la regla también), pero no las alturas ni la corriente.
   // · Corriente: dos contadores (una raya que cruza la tubería) marcan lo que pasa por segundo (mL/s; mA = mC por
@@ -46,6 +46,7 @@
   const AREA_NAME = { 1: ['delgada', 'angosto'], 2: ['media', 'medio'], 4: ['gruesa', 'ancho'] };
   const st = { V: 9, closed: false, ground: 'g', len: [4, 4], area: [2, 1], counters: [], total: 0 };
   const heat = [Sim.heat(), Sim.heat()];
+  const key = Sim.pushKey(v => { st.closed = v; relabel(); });   // la válvula con resorte del regreso (ver abajo)
   const NODES = ['a', 'b', 'c', 'g'];
   const R = i => 1000 * (st.len[i] / 2) / st.area[i];
   let tb = null, drag = null, changed = false, touchedMove = false;
@@ -92,12 +93,12 @@
       const h = g.half[i], x0 = g.xr[i] - h, x1 = g.xr[i] + h, t = 5 * Math.sqrt(st.area[i]);
       D.roundRect(ctx, x0, g.TOP - t, x1 - x0, 2 * t, Math.min(t, 4), C.muted, C.ink, 2);
     },
-    // la válvula del regreso (en el circuito, un interruptor) y la raya de los contadores
-    drawW: (ctx, g) => { D.valve(ctx, g.vx, g.BOT, !st.closed, false); counters(ctx, g, true, false); },
-    drawE: (ctx, g) => { D.knifeSwitch(ctx, g.vx, g.BOT, !st.closed, false); counters(ctx, g, false, false); },
+    // la válvula con resorte del regreso (en el circuito, el pulsador NC) y la raya de los contadores
+    drawW: (ctx, g) => { D.pushButton(ctx, g.vx, g.BOT, true, key.draw(true)); counters(ctx, g, true, false); },
+    drawE: (ctx, g) => { D.pushButton(ctx, g.vx, g.BOT, false, key.draw(true)); counters(ctx, g, false, false); },
     tags: (ctx, g, side) => {
       const w = side === 'w', open = !st.closed;
-      D.tag(ctx, g.vx, g.BOT + (w ? 38 : 40), w ? 'válvula' : 'interruptor', '', { state: w ? (open ? 'abierta' : 'cerrada') : (open ? 'cerrado' : 'abierto'), danger: !open });
+      D.tag(ctx, g.vx, g.BOT + (w ? 40 : 34), w ? 'válvula' : 'pulsador', w ? '' : 'NC', { state: w ? (open ? 'abierta' : 'cerrada') : (open ? 'cerrado' : 'abierto'), danger: !open });
       // el regreso no tiene tubito: si la tierra no está en él, su valor va abajo de él
       if (st.ground !== 'g' && !drag) {
         const [x, y] = tb.hang(g, 'g');
@@ -111,6 +112,7 @@
     },
     over: (ctx, g, side) => counters(ctx, g, side === 'w', true),
     tick: (dt, I) => {
+      key.step(dt);
       st.total += I * dt;   // mA · s = mC (en el agua, mL/s · s = mL)
       [0, 1].forEach(i => heat[i].step(I * I * R(i) / 1e6, dt));   // P = I² · R (I en A)
     }
@@ -120,14 +122,22 @@
   // respeta el que se elija.
   try { if (!localStorage.getItem('sim-color-voltaje')) { localStorage.setItem('sim-color-voltaje', '1'); Sim.setColorMode('p'); tb.syncColors(); } } catch (e) {}
 
-  // ---------- la válvula: un mando, tocarla la abre o la cierra ----------
+  // ---------- la válvula con resorte (el pulsador NC): un mando, su tapa ----------
+  // Un clic la cierra un momento (abre el circuito); dejarla apretada la deja cerrada hasta tocarla otra vez (Sim.pushKey).
   const layer = tb.p.box.querySelector('.sim-layer');
-  const valve = document.createElement('button');
-  valve.type = 'button'; valve.className = 'sim-hit'; valve.dataset.act = 'arm';
-  const relabel = () => valve.setAttribute('aria-label', (tb.side() === 'w' ? 'Válvula: ' + (st.closed ? 'cerrada' : 'abierta') : 'Interruptor: ' + (st.closed ? 'abierto' : 'cerrado')) + '. Tocar para cambiarla');
-  valve.addEventListener('click', () => { st.closed = !st.closed; relabel(); });
+  const valve = document.createElement('div');
+  valve.className = 'sim-hit'; valve.dataset.act = 'arm'; valve.tabIndex = 0; valve.setAttribute('role', 'button');
+  Object.assign(valve.style, { aspectRatio: 'auto', borderRadius: '12px', touchAction: 'none', userSelect: 'none' });
+  const relabel = () => valve.setAttribute('aria-label', (tb.side() === 'w' ? 'Válvula con resorte: ' + (st.closed ? 'cerrada' : 'abierta') : 'Pulsador: ' + (st.closed ? 'abierto' : 'cerrado')) +
+    '. Un toque la aprieta un momento; dejarla apretada la deja así hasta tocarla otra vez');
+  key.bind(valve);
   layer.appendChild(valve);
-  tb.at(valve, g => [g.vx, g.BOT - 10]);
+  tb.at(valve, g => {
+    const w = tb.side() === 'w';
+    valve.style.width = Math.max(44, (w ? 64 : 56) * tb.p.scale) + 'px';
+    valve.style.height = Math.max(40, (w ? 46 : 36) * tb.p.scale) + 'px';
+    return [g.vx, g.BOT - (w ? 41 : 24)];
+  });
   relabel();
 
   // ---------- la tierra: se arrastra (o se mueve con las flechas) y se queda en el nodo más cercano ----------
@@ -208,7 +218,7 @@
     const off = half + 10 + Math.abs(ox) * bw / 2 + Math.abs(oy) * bh / 2;
     const tw = D.tagWidth(ctx, w ? 'bomba' : 'pila', valText(st.V, w), ''), [gx] = tb.hang(g, 'g');
     const avoid = [[g.X0 - 48, g.MID - 48, g.X0 + 62 + tw, g.MID + 60], [g.ruler - 60, g.YT - 40, g.ruler + 16, g.TOP + 12],
-      [gx - 40, g.BOT + 16, gx + 40, g.BOT + 60], [g.vx - 75, g.BOT - 48, g.vx + 75, g.BOT + 60],
+      [gx - 40, g.BOT + 16, gx + 40, g.BOT + 60], [g.vx - 75, g.BOT - 64, g.vx + 75, g.BOT + 60],
       ...g.xr.map(xr => [xr - 48, g.TOP + Sim.PIPE + 8, xr + 48, g.TOP + Sim.PIPE + 64])];
     if (w) avoid.push(...Object.values(g.x).map(tx => [tx - 13, g.YT, tx + 13, g.TOP]));
     // en el circuito: las pastillas de los nodos y el voltaje de cada resistencia, arriba del cable

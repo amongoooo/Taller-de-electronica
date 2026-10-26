@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026175213">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026184604">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -25,19 +25,19 @@
   <main class="sim-stage">
     <div class="sim-panel" id="pw">
       <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Circuito de agua con válvula, tramo angosto ajustable y rueda con compuerta de un solo sentido"></canvas>
+      <canvas aria-label="Circuito de agua con válvula con resorte, tramo angosto ajustable y rueda con compuerta de un solo sentido"></canvas>
       <div class="sim-layer"></div>
     </div>
     <div class="sim-panel" id="pe">
       <span class="sim-tag e">Electricidad</span>
-      <canvas aria-label="Circuito eléctrico con interruptor, resistencia ajustable y LED"></canvas>
+      <canvas aria-label="Circuito eléctrico con pulsador, resistencia ajustable y LED"></canvas>
       <div class="sim-layer"></div>
     </div>
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026175213"></script>
-<script src="../../assets/banco.js?v=20261026175213"></script>
+<script src="../../assets/sim.js?v=20261026184604"></script>
+<script src="../../assets/banco.js?v=20261026184604"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -49,9 +49,12 @@
   // Los dos se calientan (Sim.heat) y su menú lo muestra: el LED aguanta Vf · 30 mA, la resistencia ¼ W.
   const IMAX = Sim.LED_IMAX, vf = () => Sim.led(st.led).vf;
   const lh = Sim.heat({ ...Sim.HEAT.led, pMax: () => vf() * IMAX / 1000 }), rh = Sim.heat(Sim.HEAT.res);
-  const XV = 270, XL = 545;              // válvula (interruptor) y LED; la resistencia va al centro
-  const st = { hot: false, closed: true, R: 470, led: 'rojo', rev: false, broken: false, rburnt: false, burnT: 9, ang: 0, om: 0, breakT: 9, debris: [], sparks: [] };
+  const XV = 270, XL = 545;              // pulsador (válvula con resorte) y LED; la resistencia va al centro
+  // El interruptor es el pulsador de Botones (Sim.pushKey): un clic lo aprieta un momento y dejarlo apretado lo enclava,
+  // como un interruptor, hasta tocarlo otra vez. Empieza enclavado (el LED prendido). type: 'na' o 'nc'; press: apretado.
+  const st = { hot: false, type: 'na', press: false, R: 470, led: 'rojo', rev: false, broken: false, rburnt: false, burnT: 9, ang: 0, om: 0, breakT: 9, debris: [], sparks: [] };
   const sides = {};
+  const closed = () => st.press !== (st.type === 'nc');
   const ohm = Sim.ohm;
   const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
   const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
@@ -59,6 +62,7 @@
 
   const b = Sim.bench({
     iFull: 30, v0: 9,
+    head: 100,   // las etiquetas, arriba de la tapa del pulsador
     layout(g) {
       const s = sides[g.side] = { g, phase: 0 };
       if (g.side === 'w') s.water = Sim.water(g.loop, profile(g));
@@ -67,17 +71,16 @@
       const R = st.R;
       // el LED solo deja pasar en su sentido: al revés (st.rev) conduce si la fuente también está invertida (V < 0)
       const fwd = st.rev ? -V : V;
-      return { I: (st.closed && !st.broken && !st.rburnt) ? Math.sign(V) * Math.max(0, fwd - vf()) / (R + 5) * 1000 : 0 };
+      return { I: (closed() && !st.broken && !st.rburnt) ? Math.sign(V) * Math.max(0, fwd - vf()) / (R + 5) * 1000 : 0 };
     },
-    // Si no pasa corriente, todo el voltaje queda en el interruptor abierto o en el LED que la bloquea.
+    // Si no pasa corriente, todo el voltaje queda en el pulsador abierto o en el LED que la bloquea.
     circuit(g, m, V) {
-      const R = st.R, dR = st.rburnt ? (st.closed ? V : 0) : m.I * R / 1000;
+      const R = st.R, cl = closed(), dR = st.rburnt ? (cl ? V : 0) : m.I * R / 1000;
       // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
       const comps = [
-        { at: [XV, g.TOP], half: 28, dV: st.closed ? 0 : V, R: st.closed ? 0 : Infinity, ext: w => w ? 46 : 30,
-          draw: (ctx, w) => w ? D.valve(ctx, XV, g.TOP, st.closed) : D.knifeSwitch(ctx, XV, g.TOP, st.closed),
-          tag: w => switchTag(w) },
-        { at: [XL, g.TOP], half: 30, dV: st.closed ? V - dR : 0, pr: ledPart, ext: w => w ? 46 : 28,
+        { at: [XV, g.TOP], half: 28, dV: cl ? 0 : V, R: cl ? 0 : Infinity, pr: pushPart, ext: w => w ? 30 : 22,
+          draw: (ctx, w) => drawPush(ctx, w), tag: w => switchTag(w) },
+        { at: [XL, g.TOP], half: 30, dV: cl ? V - dR : 0, pr: ledPart, ext: w => w ? 46 : 28,
           draw: (ctx, w) => {
             const [jx, jy] = shake();
             if (w) D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, tint: `rgb(${Sim.led(st.led).rgb})` });
@@ -98,6 +101,7 @@
       if (rh.step(st.rburnt ? 0 : (m.I / 1000) ** 2 * st.R, dt) && !st.rburnt) burnR();
       st.burnT += dt;
       st.breakT += dt;
+      key.step(dt);
       for (const d of st.debris) { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 700 * dt; d.a += d.spin * dt; }
       for (const p of st.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; }
       const I = b.flowI(m);   // con un multímetro en A haciendo un corto, la que de verdad da la fuente
@@ -112,7 +116,7 @@
       sides.w.water.draw(ctx);
       if (st.R) D.burstPipe(ctx, g.PX, g.TOP, half(st.R), st.burnT, st.rburnt, rh.glow, '');
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
-      D.valve(ctx, XV, g.TOP, st.closed, false);
+      drawPush(ctx, true);
       const [jx, jy] = shake();
       if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 60, 30, 46, lh.glow);
       D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, tint: `rgb(${Sim.led(st.led).rgb})`, tag: false });
@@ -128,7 +132,7 @@
         if (st.rburnt) D.burntResistor(ctx, g.PX, g.TOP, st.burnT, '');
       }
       b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
-      D.knifeSwitch(ctx, XV, g.TOP, st.closed, false);
+      drawPush(ctx, false);
       const [jx, jy] = shake();
       if (lh.glow > 0 && !st.broken) glow(ctx, XL, g.TOP, 255, 230, 140, 56, lh.glow);
       D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: Math.abs(m.I), broken: st.broken, rev: st.rev, rgb: Sim.led(st.led).rgb, tag: false });
@@ -138,15 +142,18 @@
   });
 
   // Etiquetas en una línea arriba de cada componente («nombre valor» y su estado en una pastilla), todas a
-  // la misma altura: en el agua más arriba, sobre la manija de la válvula, la flecha de la rueda y su contorno.
-  const switchTag = w => [w ? 'válvula' : 'interruptor', '', !st.closed, w ? (st.closed ? 'abierta' : 'cerrada') : (st.closed ? 'cerrado' : 'abierto')];
+  // la misma altura, arriba de la tapa del pulsador.
+  const switchTag = w => [w ? 'válvula' : 'pulsador', w ? '' : st.type.toUpperCase(), false,
+    closed() ? (w ? 'abierta' : 'cerrado') : (w ? 'cerrada' : 'abierto')];
+  // El pulsador (D.pushButton), con su tapa arriba.
+  const drawPush = (ctx, w) => D.pushButton(ctx, XV, b[w ? 'gw' : 'ge'].TOP, w, key.draw(st.type === 'nc'));
   const ledTag = w => [w ? 'rueda' : 'LED', w ? st.led.replace(/o$/, 'a') : st.led, st.broken || st.rev,
     st.broken ? (w ? 'rota' : 'quemado') : st.rev ? (w ? 'compuerta cerrada' : 'al revés') : ''];
   const rTag = w => st.R ? [w ? 'tramo angosto' : 'resistencia', ohm(st.R), st.rburnt, st.rburnt ? (w ? 'reventado' : 'quemada') : '']
     : [w ? 'sin estrechamiento' : 'sin resistencia', '0 Ω', true];
-  const SHORT = { 'tramo angosto': 'tramo', 'resistencia': 'R', 'interruptor': 'interr.', 'sin estrechamiento': 'sin tramo', 'sin resistencia': 'sin R' };
+  const SHORT = { 'tramo angosto': 'tramo', 'resistencia': 'R', 'sin estrechamiento': 'sin tramo', 'sin resistencia': 'sin R' };
   function tags(ctx, g, w) {
-    b.tagRow(ctx, g, g.TOP - (w ? 68 : 44), [[switchTag(w), XV, null], [rTag(w), g.PX, pinch], [ledTag(w), XL, ledPart]]
+    b.tagRow(ctx, g, g.TOP - (w ? 84 : 56), [[switchTag(w), XV, pushPart], [rTag(w), g.PX, pinch], [ledTag(w), XL, ledPart]]
       .map(([t, x, pr]) => ({ x, pr, name: SHORT[t[0]] ? [t[0], SHORT[t[0]]] : t[0], value: t[1], danger: t[2], state: t[3] })));
   }
   // Mientras se calienta, la rueda (el LED) brilla y tiembla cada vez más.
@@ -200,11 +207,15 @@
     ctx.globalAlpha = 1;
   }
 
-  b.linkedButton({
-    cls: 'sim-hit', pos: g => [XV, g.TOP],
-    label: side => (st.closed ? (side === 'w' ? 'Cerrar la válvula' : 'Abrir el interruptor') : (side === 'w' ? 'Abrir la válvula' : 'Cerrar el interruptor')),
-    onClick: () => { st.closed = !st.closed; }
+  // El pulsador: tocar su tapa lo aprieta (un clic, un momento; dejarlo apretado, enclavado); tocar su cuerpo abre su
+  // tarjeta (NA o NC).
+  const pushPart = b.part({
+    pos: g => b.nodesOn() ? [-999, -999] : [XV, g.TOP + 8],
+    label: side => side === 'w' ? 'Válvula con resorte' : 'Pulsador',
+    menu: Sim.pushMenu({ get: () => st.type, set: v => { st.type = v; } })
   });
+  const key = b.pushKey({ at: g => [XV, g.TOP], set: v => { st.press = v; } });
+  key.reset(true);
   // Tocar la rueda (o el LED) abre su menú: su color, girarlo y romperlo o poner uno nuevo.
   const ledPart = b.part({
     pos: g => [XL, g.TOP],
