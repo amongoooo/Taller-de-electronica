@@ -230,12 +230,12 @@ medir, Ley de Ohm y nodos, Protoboard, Interruptor y LED, LEDs en serie y parale
 
 Componentes de proyecto (aprobado; una página y un PR por cada una, con el banco, después de LEDs en serie y paralelo y en
 este orden, porque cada una usa la anterior):
-- [ ] **Potenciómetro** (10 kΩ lineal, si el taller no dice otro): en agua, un tramo angosto largo con una toma que se desliza
+- [ ] **Potenciómetro** (10 kΩ lineal, el del taller): en agua, un tramo angosto largo con una toma que se desliza
   (el cursor). Divisor de voltaje medido en el cursor; luego resistencia variable en serie con un LED y su resistencia de
   protección (brillo y corriente máxima).
 - [ ] **Botones**: pulsador normalmente abierto y cerrado (en agua, una válvula con resorte que se cierra sola al soltarla);
   resistencia de pull-down o pull-up (sin ella el nodo queda flotando).
-- [ ] **Transistor** NPN como interruptor (2N2222 o BC547, si el taller no dice otro; en agua, una compuerta grande que abre un
+- [ ] **Transistor** NPN como interruptor (2N2222, el del taller; en agua, una compuerta grande que abre un
   chorrito, la base): el botón en la base prende un LED; luego el potenciómetro en la base (Ic = β·Ib hasta saturar,
   Vbe ≈ 0,7 V y Vce ≈ 0,2 V medibles).
 
