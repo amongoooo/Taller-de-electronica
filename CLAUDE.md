@@ -124,7 +124,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     frente encima del panel (`os.front`, `.sim-ofront` esconde lo demás); tres puntas que se pegan al circuito con `snap` y
     cada cuadro `sample` guarda lo que marca cada canal contra el caimán. `b.scope` da su estado.
   - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado); la página
-    puede dar su acomodo con `o.nodeLayout(nodes, comps, g)` (`p` y `out` de cada nodo, `mid`, `a1` y `tagUp` de cada componente; lo usa Nodos). Inercia: `inertia` (empieza en 0: `value="0"` del `#inercia` de cada página). Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
+    puede dar su acomodo con `o.nodeLayout(nodes, comps, g)` (`p` y `out` de cada nodo, `mid`, `a1` y `tagUp` de cada componente; lo usa Nodos) y quitar la fila Dibujo de Ver
+    con `o.nodeRow: false` (Nodos pone Circuito · Nodos flotando con `b.linkedChoice`); los nodos van del color de su voltaje
+    (`nodeColor`) y en V y Ω las puntas solo se pegan a los nodos, por un lado sin cables (`nodeDir`). Inercia: `inertia` (empieza en 0: `value="0"` del `#inercia` de cada página). Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
     tramo de la fuente, para que el − (y la tierra, `b.ground`) quede en 0 V a la izquierda.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
   medidas con `update`, sus mandos con `ui.button`/`ui.knob` y su dibujo con `draw(ctx, L, side)`; sin circuito ni puntas), y
