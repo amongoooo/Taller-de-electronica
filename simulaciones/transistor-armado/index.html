@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Transistor en la protoboard · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026213941">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Transistor en la protoboard</h1>
+    <div class="ctl">
+      <div class="sim-seg" id="dentro" role="group" aria-label="Protoboard" data-act="ver"><button type="button" data-v="0">Por fuera</button><button type="button" data-v="1">Por dentro</button></div>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Protoboard de agua donde se arma, pieza por pieza, la compuerta con el tramo angosto y la rueda en su colector, y la válvula con resorte y su tramo angosto en su base, con la bomba"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Protoboard donde se arma, pieza por pieza, el transistor 2N2222 como interruptor: la resistencia y el LED en su colector, y el pulsador con su resistencia en su base, con la pila de 9 V"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261026213941"></script>
+<script src="../../assets/protoboard.js?v=20261026213941"></script>
+<script>
+(() => {
+  // El botón en la base de Transistor armado en la protoboard, una pieza por paso (cada una con su lugar punteado; el paso
+  // se cumple cuando la pieza queda en sus tiras). El transistor NPN 2N2222 va con sus patas en b7 (emisor), b8 (base) y
+  // b9 (colector), con su cara plana hacia el canal. Primero lo del colector: el emisor al riel −, y del riel + la
+  // resistencia de 470 Ω a la tira 10 y el LED rojo de ahí (e10) al colector (e9); sin corriente en la base el transistor está en
+  // corte y el LED no prende aunque tenga la pila. Luego la base: del riel + a la tira 2, la resistencia de 10 kΩ a la
+  // tira 6 y el pulsador sobre el canal, de la tira 6 a la 8, la base. Apretado, Ib = (9 − 0,7) / 10 kΩ ≈ 0,83 mA, que
+  // pediría β · Ib = 83 mA en el colector; la resistencia y el LED solo dejan pasar (9 − 1,8 − 0,2) / (470 + 15 + 1)
+  // ≈ 14 mA: saturado, con 0,2 V entre el colector y el emisor. Suelto, la base no está unida a nada: flota (al tocarla
+  // dice «sin conexión»); al final, el pull-down de 10 kΩ de la base al riel − la deja en 0 V. Con él, apretado, se lleva
+  // 0,7 V / 10 kΩ = 0,07 mA de lo que da la resistencia de la base: quedan 0,76 mA, y sigue saturado.
+  // Columnas c de 0 a 15 (1 a 16 en la protoboard) y filas r: 0 y 1 los rieles + y − de arriba, 2 a 6 de la a a la e y
+  // 7 a 11 de la f a la j.
+  Sim.protoboard({ guide: [
+    // el emisor en b7, la base en b8 y el colector en b9
+    { name: 'Transistor', piece: { type: 'npn', a: [6, 3] } },
+    // del emisor (a7) al riel −
+    { name: 'Cable negro', piece: { type: 'wire', a: [6, 2], b: [6, 1], color: '#15212a' } },
+    // del riel + a la tira 10 (a10)
+    { name: 'Resistencia', piece: { type: 'res', a: [10, 0], b: [9, 2], R: 470 } },
+    // la pata + (la larga) en la tira 10 y la − en la 9, el colector (e10 y e9)
+    { name: 'LED', piece: { type: 'led', a: [9, 6], b: [8, 6], led: 'rojo' } },
+    // del riel + a la tira 2
+    { name: 'Cable rojo', piece: { type: 'wire', a: [1, 0], b: [1, 2], color: '#d6392b' } },
+    // de la tira 2 a la 6 (d2 a d6)
+    { name: 'Resistencia de la base', piece: { type: 'res', a: [1, 5], b: [5, 5], R: 10000 } },
+    // sobre el canal del centro, en e6, e8, f6 y f8: apretado une la tira 6 con la 8, la base
+    { name: 'Pulsador', piece: { type: 'push', a: [5, 6] } },
+    // de la base (a8) al riel −
+    { name: 'Pull-down', piece: { type: 'res', a: [7, 2], b: [7, 1], R: 10000 } }
+  ] });
+})();
+</script>
+</body>
+</html>

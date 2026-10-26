@@ -18,7 +18,7 @@ const pw = (() => {
 
 const ROOT = path.resolve(__dirname, '..');
 const ORDER = ['voltaje-concepto', 'como-medir', 'resistencia', 'protoboard',
-  'interruptor-led', 'interruptor-led-armado', 'serie-paralelo', 'potenciometro', 'potenciometro-armado', 'botones', 'transistor',
+  'interruptor-led', 'interruptor-led-armado', 'serie-paralelo', 'potenciometro', 'potenciometro-armado', 'botones', 'transistor', 'transistor-armado',
   'osciloscopio', 'capacitores', 'osciloscopio-rc',
   'osciloscopio-rectificador', 'osciloscopio-onda-completa'];
 const SIZES = {
