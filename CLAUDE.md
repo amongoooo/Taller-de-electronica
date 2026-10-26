@@ -85,6 +85,10 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     cumplirse, lleva su palomita y Siguiente late (todas las páginas del curso; Cómo medir y Ley de Ohm con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
+  - `Sim.piezo(o)`: el dibujo de los conceptos en un solo panel (`data-view="solo"`, sin `Sim.viewSwitch`): bomba, dos tramos
+    angostos en serie y tres tubitos (a, b, c; el regreso es g) con su regla en psi, la línea morada y el escalón de cada tramo;
+    `setView('e')` pasa al circuito con su transición (Ver: Dibujo Agua · Circuito). La página da `V`, `R`, `closed`, `ground`,
+    `parts` (tarjetas) y lo que dibuja encima; `Sim.piezoNow` para probar. `D.narrow(ctx, x, y, hn, half)`: `half` es su medio largo.
 - `assets/banco.js` (`Sim.bench(o)`), el banco de agua y electricidad que usan 7 de las páginas:
   - Acomodos `ancho` (PC), `medio` (PC con los dos paneles), `alto` (celular vertical, o PC tan angosta que `medio`
     saldría a menos de 0.7) y `lateral` (celular acostado) (`MODES`, `geometry`): circuito de x 180 a 640 y la mesa en
@@ -140,8 +144,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   (`MINI`, piezas en `PIECE`) y «Seguir donde te quedaste» (lee `sim-last`). Sin descripciones.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
   `voltaje-concepto`, `corriente-concepto` (una pila y una resistencia con contadores que se arrastran por la vuelta) y
-  `resistencia-concepto` (una barra de carbón con largo y grosor en su tarjeta, y su calor) no usan el banco ni instrumentos. `voltaje-concepto`: su propio dibujo (dos pilas o bombas, la resistencia entre sus +,
-  la tierra que se arrastra a un nodo, acomodo `h` o `v` según la caja). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
+  `resistencia-concepto` (una barra de carbón con largo y grosor en su tarjeta, y su calor) no usan el banco ni instrumentos. `voltaje-concepto` usa
+  `Sim.piezo` (la válvula del regreso y la tierra que se arrastra a un tubito o al regreso). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
   la resistencia equivalente) no usa el multímetro. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen

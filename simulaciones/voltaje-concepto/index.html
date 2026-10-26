@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261025074144">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026003001">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -17,248 +17,98 @@
     <h1>Voltaje = presión</h1>
   </div>
 
-  <main class="sim-stage">
+  <main class="sim-stage" data-view="solo">
     <div class="sim-panel" id="pw">
       <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Dos bombas, A a la izquierda y B a la derecha, que toman el agua de la misma tubería de abajo (0 psi) y la empujan hacia arriba; arriba las une un tramo angosto: el agua solo corre si las presiones son distintas"></canvas>
-      <div class="sim-layer"></div>
-    </div>
-    <div class="sim-panel" id="pe">
-      <span class="sim-tag e">Electricidad</span>
-      <canvas aria-label="Dos pilas, A a la izquierda y B a la derecha, con su − en el mismo cable de abajo (la tierra, 0 V); arriba las une una resistencia de 1 kΩ: solo pasa corriente si los voltajes son distintos"></canvas>
+      <canvas aria-label="Una bomba a la izquierda empuja el agua por un tubo con dos tramos angostos en serie y la regresa por abajo; de tres puntos del tubo suben tubitos donde el agua llega a la presión de ese punto: junto a la bomba la de la bomba, y después de cada tramo angosto un escalón más abajo, hasta 0 después del último. Una válvula en el regreso: cerrada, nada corre y los tres tubitos quedan a la misma altura"></canvas>
       <div class="sim-layer"></div>
     </div>
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261025074144"></script>
+<script src="../../assets/sim.js?v=20261026003001"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
-  // Dos pilas (en el agua, dos bombas) con su − en el mismo cable de abajo y, arriba, una resistencia de 1 kΩ
-  // entre sus +. Por la resistencia pasa I = (VA − VB) / R: depende de la diferencia, no de cuánto vale cada
-  // una; con las dos iguales no pasa nada aunque las dos tengan voltaje (presión). La tierra es el punto que se
-  // llama 0 V: se arrastra a otro nodo y todos los voltajes cambian, pero la diferencia y la corriente no.
-  // Pilas comunes de 0 a 12 V: con 12 V de diferencia pasan 12 mA y la resistencia recibe 0,14 W (es de ¼ W).
-  const R = 1000, VALUES = [0, 1.5, 3, 4.5, 6, 9, 12], IMAX = 12, VMAX = 12;
-  const st = { V: { a: 9, b: 0 }, ground: 'g', I: Sim.ramp(), phase: 0, rotor: { a: 0, b: 0 } };
-  const vname = { a: 'A', b: 'B' };
-
-  // ---------- paneles ----------
-  // Ancho fijo y alto según la caja; en una caja alta (el celular vertical) el dibujo es más angosto y más alto.
-  const fit = (w, h) => h / w > 1.25 ? [540, Math.round(Math.max(760, Math.min(1150, 540 * h / w))), 0, 'v']
-    : [820, Math.round(Math.max(470, Math.min(1000, 820 * h / w))), 0, 'h'];
-  const panels = { w: Sim.panel(document.getElementById('pw'), fit), e: Sim.panel(document.getElementById('pe'), fit) };
-  panels.w.mirror = panels.e; panels.e.mirror = panels.w;
-  Sim.viewSwitch();
-  // En el vertical los valores de los nodos van arriba de la etiqueta de la resistencia (pill: su altura).
-  const geo = p => {
-    const v = p.mode === 'v', X0 = v ? 110 : 190, X1 = v ? 430 : 630, TOP = v ? 290 : 170, BOT = p.H - 70;
-    return { v, X0, X1, XR: (X0 + X1) / 2, TOP, BOT, MID: (TOP + BOT) / 2, pill: TOP - (v ? 86 : 44), loop: D.rect(X0, TOP, X1, BOT) };
-  };
-  // Los tres nodos: a (el + de A, arriba a la izquierda), b (el + de B) y g (el − de las dos, abajo), y dónde
-  // cuelga la tierra de cada uno.
-  const NODES = ['a', 'b', 'g'];
-  const hang = (g, n) => n === 'a' ? [g.X0 + 60, g.TOP] : n === 'b' ? [g.X1 - 60, g.TOP] : [g.XR, g.BOT];
-  // Voltaje de cada nodo con la tierra en 0 V.
-  const vAbs = n => n === 'g' ? 0 : st.V[n];
-  const vRel = n => vAbs(n) - vAbs(st.ground);
-  // La escala de colores de la presión (voltaje): de 0 a 12 V, o de −12 a 12 si algún nodo queda abajo de 0.
-  const scaleLo = () => NODES.some(n => vRel(n) < -0.001) ? -VMAX : 0;
+  // La bomba (pila) sube la presión (el voltaje) del agua; los tubitos marcan la presión de cada punto (Sim.piezo).
+  // Con R1 = 1 kΩ y R2 = 2 kΩ los dos escalones son distintos (con 9 V: 9 → 6 → 0). Con la válvula del regreso cerrada
+  // (en el circuito, el interruptor abierto) no hay diferencia de presión en los tramos y nada corre: los tres
+  // tubitos quedan a la altura de la bomba. La tierra es el punto que se llama 0: se arrastra a otro nodo y cambian
+  // todos los números (la regla también), pero no las alturas, las diferencias ni la corriente.
+  // Pilas comunes de 0 a 12 V: lo más son 4 mA y la de 2 kΩ recibe 32 mW (es de ¼ W). Los tramos no se cambian
+  // (no llevan tarjeta).
+  const R = [1000, 2000], VALUES = [0, 1.5, 3, 4.5, 6, 9, 12];
+  const st = { V: 9, closed: false, ground: 'g' };
+  const NODES = ['a', 'b', 'c', 'g'];
+  let tb = null, drag = null, changed = false;
   const unit = w => w ? ' psi' : ' V';
-  const vText = (v, w) => fmt(Math.abs(v) < 0.005 ? 0 : v, 2) + unit(w);
   const valText = (v, w) => fmt(v, v % 1 ? 1 : 0) + unit(w);
+  const setV = v => { st.V = v; changed = true; tb.syncColors(); };
+  const stepV = f => { const i = VALUES.indexOf(st.V) + f; if (i >= 0 && i < VALUES.length) setV(VALUES[i]); };
 
-  // Voltaje (presión) en un punto del circuito: arriba de cada pila el de su +, abajo el de la tierra común, y en
-  // la resistencia baja de uno al otro.
-  const vAt = (g, x, y) => {
-    let v;
-    if (x < g.X0 + 2) v = y < g.MID ? vAbs('a') : 0;
-    else if (x > g.X1 - 2) v = y < g.MID ? vAbs('b') : 0;
-    else if (y > g.MID) v = 0;
-    else { const t = Math.max(0, Math.min(1, (x - (g.XR - 46)) / 92)); v = vAbs('a') + (vAbs('b') - vAbs('a')) * t; }
-    return v - vAbs(st.ground);
-  };
-  Sim.field = (x, y) => {
-    const g = geo(panels.e), lo = scaleLo();
-    return [(vAt(g, x, y) - lo) / (VMAX - lo), Math.abs(st.I.x) / IMAX];
-  };
-  const syncColors = Sim.colorPicker(panels, { top: true, spot: side => [panels[side].W - 6, 2], ends: side => {
-    const w = side === 'w', lo = scaleLo();
-    return ({ v: ['lento', 'rápido'], p: [fmt(lo, 0) + unit(w), VMAX + unit(w)], q: ['0', IMAX + (w ? ' mL/s' : ' mA')] })[Sim.shownColorMode()];
-  } });
+  tb = Sim.piezo({
+    box: document.getElementById('pw'),
+    V: () => st.V, R: () => R, closed: () => st.closed, ground: () => st.ground, imax: 4,
+    valveX: g => (g.X0 + g.X1) / 2 + (g.v ? 40 : 50),
+    groundAt: () => drag && drag.at,
+    parts: {
+      v: { menu: side => ({ title: side === 'w' ? 'Bomba' : 'Pila', rows: [{ label: side === 'w' ? 'Presión' : 'Voltaje', values: VALUES, get: () => st.V, set: setV, format: v => valText(v, side === 'w') }] }), wheel: stepV },
+      r: []
+    },
+    onView: () => relabel(),
+    // la válvula del regreso (en el circuito, un interruptor)
+    drawW: (ctx, g) => D.valve(ctx, g.vx, g.BOT, !st.closed, false),
+    drawE: (ctx, g) => D.knifeSwitch(ctx, g.vx, g.BOT, !st.closed, false),
+    tags: (ctx, g, side) => {
+      const w = side === 'w', open = !st.closed;
+      D.tag(ctx, g.vx, g.BOT + (w ? 38 : 40), w ? 'válvula' : 'interruptor', '', { state: w ? (open ? 'abierta' : 'cerrada') : (open ? 'cerrado' : 'abierto'), danger: !open });
+      // el regreso no tiene tubito: si la tierra no está en él, su valor va abajo de él
+      if (st.ground !== 'g' && !drag) {
+        const [x, y] = tb.hang(g, 'g');
+        D.text(ctx, tb.vText(tb.vRel('g'), w), x, y + (w ? 38 : 40), C.ink, { size: 16, font: Sim.MONO, weight: 600, bg: true });
+      }
+    }
+  });
+  tb.page = st;
   // La primera vez que se abre empieza con el color por presión (voltaje), que es de lo que trata; luego se
   // respeta el que se elija.
-  try { if (!localStorage.getItem('sim-color-voltaje')) { localStorage.setItem('sim-color-voltaje', '1'); Sim.setColorMode('p'); syncColors(); } } catch (e) {}
+  try { if (!localStorage.getItem('sim-color-voltaje')) { localStorage.setItem('sim-color-voltaje', '1'); Sim.setColorMode('p'); tb.syncColors(); } } catch (e) {}
 
-  // El agua: una vuelta con el tramo angosto arriba.
-  const hn = Sim.narrowHalf(R);
-  let water = null, waterKey = '';
-  const waterFor = g => {
-    const key = g.loop.join();
-    if (key !== waterKey) { waterKey = key; water = Sim.water(g.loop, Sim.narrowProfile((g.BOT - g.TOP) + (g.XR - g.X0), hn)); }
-    return water;
-  };
+  // ---------- la válvula: un mando, tocarla la abre o la cierra ----------
+  const layer = tb.p.box.querySelector('.sim-layer');
+  const valve = document.createElement('button');
+  valve.type = 'button'; valve.className = 'sim-hit'; valve.dataset.act = 'arm';
+  const relabel = () => valve.setAttribute('aria-label', (tb.side() === 'w' ? 'Válvula: ' + (st.closed ? 'cerrada' : 'abierta') : 'Interruptor: ' + (st.closed ? 'abierto' : 'cerrado')) + '. Tocar para cambiarla');
+  valve.addEventListener('click', () => { st.closed = !st.closed; relabel(); });
+  layer.appendChild(valve);
+  tb.at(valve, g => [g.vx, g.BOT - 10]);
+  relabel();
 
-  // ---------- las pilas (bombas) ----------
-  // Tocar una abre su tarjeta con su voltaje (presión); la rueda del ratón también lo cambia.
-  const cards = {};
-  const menuOf = (n, side) => ({
-    title: (side === 'w' ? 'Bomba ' : 'Pila ') + vname[n],
-    rows: [{ label: side === 'w' ? 'Presión' : 'Voltaje', values: VALUES, get: () => st.V[n], set: v => setV(n, v), format: v => valText(v, side === 'w') }]
+  // ---------- la tierra: se arrastra (o se mueve con las flechas) y se queda en el nodo más cercano ----------
+  const gnd = document.createElement('button');
+  gnd.type = 'button'; gnd.className = 'sim-clamp'; gnd.dataset.act = 'arm';
+  gnd.setAttribute('aria-label', 'Tierra (0 V)');
+  layer.appendChild(gnd);
+  tb.at(gnd, g => { if (drag) return drag.at; const [x, y] = tb.hang(g, st.ground); return [x, y + (Sim.PIPE + 5) + 32]; });
+  const nearest = (x, y) => NODES.reduce((a, n) => { const [hx, hy] = tb.hang(tb.geo(), n), d = Math.hypot(x - hx, y - hy - 40); return d < a.d ? { n, d } : a; }, { n: st.ground, d: Infinity }).n;
+  gnd.addEventListener('pointerdown', e => { gnd.setPointerCapture(e.pointerId); drag = { at: tb.toXY(e) }; e.preventDefault(); });
+  gnd.addEventListener('pointermove', e => { if (!drag) return; drag.at = tb.toXY(e); tb.p.replace(); });
+  const up = () => { if (!drag) return; const n = nearest(...drag.at); drag = null; setGround(n); };
+  gnd.addEventListener('pointerup', up); gnd.addEventListener('pointercancel', up);
+  gnd.addEventListener('keydown', e => {
+    const f = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!f) return;
+    e.preventDefault();
+    setGround(NODES[(NODES.indexOf(st.ground) + f + NODES.length) % NODES.length]);
   });
-  function setV(n, v) { st.V[n] = v; touched(); syncColors(); }
-  const hits = {};
-  for (const n of ['a', 'b']) {
-    hits[n] = {};
-    for (const side of ['w', 'e']) {
-      const p = panels[side], el = document.createElement('button');
-      el.type = 'button'; el.className = 'sim-hit';
-      el.setAttribute('aria-label', (side === 'w' ? 'Bomba ' : 'Pila ') + vname[n]);
-      el.setAttribute('aria-haspopup', 'dialog');
-      p.box.querySelector('.sim-layer').appendChild(el);
-      p.at(el, () => { const g = geo(p); return [n === 'a' ? g.X0 : g.X1, g.MID]; });
-      el.addEventListener('click', () => Sim.menu.toggle(el, menuOf(n, side)));
-      el.addEventListener('wheel', e => {
-        e.preventDefault();
-        const i = VALUES.indexOf(st.V[n]) + (e.deltaY < 0 ? 1 : -1);
-        if (i >= 0 && i < VALUES.length) setV(n, VALUES[i]);
-      }, { passive: false });
-      hits[n][side] = el;
-    }
-    cards[n] = () => Sim.menu.isOpen(hits[n].w) || Sim.menu.isOpen(hits[n].e);
-    if (Sim.side) Sim.side.part({ anchor: () => hits[n][Sim.view === 'w' ? 'w' : 'e'], menu: () => menuOf(n, Sim.view === 'w' ? 'w' : 'e') });
-  }
-
-  // ---------- la tierra ----------
-  // Se arrastra (o se mueve con las flechas) y se queda en el nodo más cercano.
-  const grounds = {};
-  let drag = null;
-  for (const side of ['w', 'e']) {
-    const p = panels[side], el = document.createElement('button');
-    el.type = 'button'; el.className = 'sim-clamp'; el.dataset.act = 'arm';
-    el.setAttribute('aria-label', 'Tierra (0 V)');
-    p.box.querySelector('.sim-layer').appendChild(el);
-    p.at(el, () => {
-      const g = geo(p);
-      if (drag) return drag.at;
-      const [x, y] = hang(g, st.ground);
-      return [x, y + 40];
-    });
-    const toXY = e => { const r = p.box.getBoundingClientRect(); return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale]; };
-    const nearest = (x, y) => NODES.reduce((a, n) => { const [hx, hy] = hang(geo(p), n), d = Math.hypot(x - hx, y - hy - 40); return d < a.d ? { n, d } : a; }, { n: st.ground, d: Infinity }).n;
-    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); drag = { at: toXY(e), side }; e.preventDefault(); });
-    el.addEventListener('pointermove', e => { if (!drag) return; drag.at = toXY(e); place(); });
-    const up = e => { if (!drag) return; const n = nearest(...drag.at); drag = null; setGround(n); };
-    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-    el.addEventListener('keydown', e => {
-      const f = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
-      if (!f) return;
-      e.preventDefault();
-      setGround(NODES[(NODES.indexOf(st.ground) + f + 3) % 3]);
-    });
-    grounds[side] = el;
-  }
-  const place = () => { panels.w.replace(); panels.e.replace(); };
-  function setGround(n) { if (n !== st.ground) { st.ground = n; touched(); syncColors(); } place(); }
-
-  // ---------- dibujo ----------
-  const purple = () => getComputedStyle(document.documentElement).getPropertyValue('--a-med').trim() || '#7c4ddb';
-  // Pila parada con el + arriba (placa larga) y el − abajo.
-  const battery = (ctx, x, y) => {
-    ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 24, 56, 48);
-    D.line(ctx, [[x, y - 24], [x, y - 9]], 4, C.ink); D.line(ctx, [[x, y + 9], [x, y + 24]], 4, C.ink);
-    D.line(ctx, [[x - 24, y - 9], [x + 24, y - 9]], 4, C.ink, 'butt');
-    D.line(ctx, [[x - 12, y + 9], [x + 12, y + 9]], 9, C.ink, 'butt');
-    D.text(ctx, '+', x - 30, y - 22, C.ink, { size: 20 });
-  };
-  // Tierra colgando de (x, y): su cable y sus tres rayas, con 0 V (0 psi) al lado (a la izquierda con left, para
-  // no tocar la tubería de la derecha).
-  const groundSym = (ctx, x, y, w, left = false, a = 1) => {
-    ctx.save(); ctx.globalAlpha *= a;
-    const r = w ? Sim.PIPE + 5 : 2, yb = y + 27;
-    D.line(ctx, [[x, y + r], [x, yb]], 3, C.ink, 'butt');
-    [[13, 0], [8.5, 5], [4, 10]].forEach(([hw, dy]) => D.line(ctx, [[x - hw, yb + dy], [x + hw, yb + dy]], 3, C.ink, 'butt'));
-    D.text(ctx, w ? '0 psi' : '0 V', x + (left ? -18 : 18), yb + 6, C.muted, { size: 14, align: left ? 'right' : 'left', bg: true });
-    ctx.restore();
-  };
-  // Valor de un nodo en su pastilla (como en la vista de nodos).
-  const nodePill = (ctx, x, y, v, w) => {
-    const t = vText(v, w), px = D.font(ctx, 16, Sim.MONO, 600), wd = ctx.measureText(t).width + 14, h = Math.round(px * 1.45);
-    D.roundRect(ctx, x - wd / 2, y - h / 2, wd, h, h / 2, C.card, w ? C.pipe : C.ink, 2);
-    D.text(ctx, t, x, y + 0.5, C.ink, { size: 16, font: Sim.MONO, weight: 600 });
-  };
-  // Etiqueta «nombre valor» que acaba en x (para la pila de la derecha).
-  const tagRight = (ctx, x, y, name, value, sel) => D.tag(ctx, x - D.tagWidth(ctx, name, value, ''), y, name, value, { sel, align: 'left' });
-
-  function draw(side) {
-    const p = panels[side], w = side === 'w', g = geo(p), { X0, X1, XR } = g, ctx = p.begin(), I = st.I.x;
-    // la tubería (el cable) y lo que circula
-    if (w) {
-      D.pipe(ctx, g.loop);
-      D.narrow(ctx, XR, g.TOP, hn);
-      waterFor(g).draw(ctx);
-    } else {
-      D.wire(ctx, g.loop);
-      D.flow(ctx, g.loop, st.phase, C.charge, { gap: 30, r: 4.5 });
-      D.resistor(ctx, XR, g.TOP);
-    }
-    // las pilas (bombas): por A el agua sube si I > 0; por B baja
-    for (const n of ['a', 'b']) {
-      const x = n === 'a' ? X0 : X1;
-      if (w) D.pump(ctx, x, g.MID, st.rotor[n], (n === 'a' ? 1 : -1) * I * 100 * Math.PI / 30);
-      else battery(ctx, x, g.MID);
-      const a = Sim.fadeSel(hits[n], cards[n]());
-      D.select(ctx, x - 48, g.MID - 48, 96, 96, a);
-      // en el vertical no caben lado a lado: la de A un poco arriba y la de B un poco abajo
-      const name = (w ? 'bomba ' : 'pila ') + vname[n], value = valText(st.V[n], w), ty = g.MID + (g.v ? (n === 'a' ? -36 : 36) : 0);
-      if (n === 'a') D.tag(ctx, x + (g.v ? 34 : 56), ty, name, value, { sel: cards[n](), align: 'left' });
-      else tagRight(ctx, x - (g.v ? 34 : 56), ty, name, value, cards[n]());
-    }
-    // la resistencia y la diferencia entre sus dos lados, en morado (voltaje)
-    D.tag(ctx, XR, g.TOP - (w ? Sim.PIPE + 34 : 40), w ? 'tramo angosto' : 'resistencia', Sim.ohm(R));
-    const pc = purple(), yd = g.TOP + (w ? Sim.PIPE + 30 : 34), dv = vAbs('a') - vAbs('b');
-    D.line(ctx, [[XR - 46, yd], [XR + 46, yd]], 2.5, pc, 'butt');
-    D.line(ctx, [[XR - 46, yd - 8], [XR - 46, yd + 8]], 2.5, pc, 'butt'); D.line(ctx, [[XR + 46, yd - 8], [XR + 46, yd + 8]], 2.5, pc, 'butt');
-    D.text(ctx, vText(Math.abs(dv), w), XR, yd + Sim.px(16, ctx) * 0.95, pc, { size: 16, font: Sim.MONO, weight: 600, bg: true });
-    // el valor de cada nodo (la tierra lleva su símbolo)
-    if (st.ground !== 'a') nodePill(ctx, X0, g.pill, vRel('a'), w);
-    if (st.ground !== 'b') nodePill(ctx, X1, g.pill, vRel('b'), w);
-    if (st.ground !== 'g') nodePill(ctx, XR, g.BOT + 40, vRel('g'), w);
-    // la tierra: donde está (o donde se arrastra) y, mientras se arrastra, el nodo al que va
-    if (drag) {
-      const [x, y] = drag.at;
-      D.line(ctx, [[x, y - 40], [x, y - 22]], 3, C.sel, 'butt');
-      groundSym(ctx, x, y - 40, w, x > g.XR);
-    } else {
-      const [x, y] = hang(g, st.ground);
-      groundSym(ctx, x, y, w, st.ground === 'b');
-    }
-  }
-
-  // ---------- animación ----------
-  let last = performance.now();
-  const frame = now => {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    const I = st.I.step((st.V.a - st.V.b) / R * 1000, 0.4, dt);
-    st.phase += I * 12 * dt;
-    if (water) water.step(I * 12, dt);
-    st.rotor.a += I * 100 * Math.PI / 30 * dt; st.rotor.b -= I * 100 * Math.PI / 30 * dt;
-    Sim.readColors();
-    if (panels.w.box.clientWidth) draw('w');
-    if (panels.e.box.clientWidth) draw('e');
-    requestAnimationFrame(frame);
-  };
-  requestAnimationFrame(frame);
+  function setGround(n) { st.ground = n; tb.syncColors(); tb.p.replace(); }
 
   // ---------- pasos ----------
-  // 1: con A en 9 V y B en 0 pasa corriente; se cumple al cambiar una pila. 2: con las dos iguales (y con
-  // voltaje) no pasa nada. 3: la tierra se lleva a otro nodo; los voltajes cambian y la corriente no.
-  let step = 0, changed = false;
-  function touched() { changed = true; }
-  const STEPS = ['La presión empuja', 'Sin diferencia no corre', 'La tierra es 0 V'];
-  Sim.steps(STEPS, k => { step = k; changed = false; }, k =>
-    k === 0 ? changed && st.V.a !== st.V.b : k === 1 ? st.V.a === st.V.b && st.V.a > 0 : st.ground !== 'g');
+  // 1: la bomba sube la presión; se cumple al cambiarla (con presión). 2: con la válvula cerrada no hay diferencia en los
+  // tramos y nada corre. 3: la tierra se lleva a otro nodo: los números cambian y las alturas no. 4: el circuito.
+  const STEPS = ['La bomba sube la presión', 'Sin diferencia no corre', 'La tierra es 0', 'En el circuito'];
+  Sim.steps(STEPS, k => { changed = false; tb.setView(k === 3 ? 'e' : 'w'); relabel(); }, k =>
+    k === 0 ? changed && st.V > 0 : k === 1 ? st.closed && st.V > 0 : k === 2 ? st.ground !== 'g' : tb.done());
 })();
 </script>
 </body>

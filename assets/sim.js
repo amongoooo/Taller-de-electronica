@@ -13,6 +13,7 @@
     const cs = getComputedStyle(document.documentElement);
     ['bg', 'card', 'ink', 'muted', 'line', 'pipe', 'water-soft', 'water', 'charge', 'charge-soft', 'danger', 'ok', 'metal', 'inst', 'neg', 'sel']
       .forEach(k => C[k] = cs.getPropertyValue('--' + k).trim());
+    C.volt = cs.getPropertyValue('--a-med').trim() || '#7c4ddb';   // presión (voltaje): morado
     C.dark = document.documentElement.dataset.theme === 'dark';
   };
 
@@ -316,27 +317,29 @@
     const t = performance.now() / 1000, ph = seed * 2.399;
     return [a * Math.sin(t * 31 + ph), a * Math.cos(t * 27 + ph * 1.7), a * 29];
   };
-  // Tramo angosto de tubería con medio ancho interior hn (la tubería normal mide Sim.PIPE).
-  D.narrow = (ctx, x, y, hn) => {
-    const h0 = Sim.PIPE;
+  // Tramo angosto de tubería con medio ancho interior hn (la tubería normal mide Sim.PIPE); half es la mitad de
+  // su largo angosto, y de cada lado lleva una entrada de 22 que se va cerrando.
+  Sim.NARROW_IN = 22;
+  D.narrow = (ctx, x, y, hn, half = 24) => {
+    const h0 = Sim.PIPE, e = half + Sim.NARROW_IN;
     const shape = (hf, h, col) => {
       ctx.beginPath();
-      ctx.moveTo(x - 46, y - hf); ctx.lineTo(x - 24, y - h); ctx.lineTo(x + 24, y - h); ctx.lineTo(x + 46, y - hf);
-      ctx.lineTo(x + 46, y + hf); ctx.lineTo(x + 24, y + h); ctx.lineTo(x - 24, y + h); ctx.lineTo(x - 46, y + hf);
+      ctx.moveTo(x - e, y - hf); ctx.lineTo(x - half, y - h); ctx.lineTo(x + half, y - h); ctx.lineTo(x + e, y - hf);
+      ctx.lineTo(x + e, y + hf); ctx.lineTo(x + half, y + h); ctx.lineTo(x - half, y + h); ctx.lineTo(x - e, y + hf);
       ctx.closePath(); ctx.fillStyle = col; ctx.fill();
     };
-    ctx.fillStyle = C.card; ctx.fillRect(x - 47, y - h0 - 6, 94, 2 * h0 + 12);
+    ctx.fillStyle = C.card; ctx.fillRect(x - e - 1, y - h0 - 6, 2 * e + 2, 2 * h0 + 12);
     shape(h0 + 5, hn + 5, C.pipe);
     shape(h0, hn, C['water-soft']);
   };
   // Medio ancho del tramo angosto según la resistencia en ohmios (470 Ω = casi sin estrechar).
   Sim.narrowHalf = R => Math.max(3, Math.min(Sim.PIPE, Sim.PIPE * Math.sqrt(470 / R)));
   // Perfil del tramo angosto centrado en la distancia dc del recorrido, para Sim.water.
-  Sim.narrowProfile = (dc, hn) => d => {
+  Sim.narrowProfile = (dc, hn, half = 24) => d => {
     const dx = Math.abs(d - dc);
-    if (dx <= 24) return hn;
-    if (dx >= 46) return Sim.PIPE;
-    return hn + (Sim.PIPE - hn) * (dx - 24) / 22;
+    if (dx <= half) return hn;
+    if (dx >= half + Sim.NARROW_IN) return Sim.PIPE;
+    return hn + (Sim.PIPE - hn) * (dx - half) / Sim.NARROW_IN;
   };
   // Junta varios perfiles: en cada punto manda el más angosto.
   Sim.profile = (...fs) => d => fs.reduce((h, f) => Math.min(h, f(d)), Sim.PIPE);
@@ -502,6 +505,20 @@
     D.line(ctx, [[x - 9, y - 24], [x - 9, y + 24]], 4, C.ink, 'butt');
     D.line(ctx, [[x + 9, y - 12], [x + 9, y + 12]], 9, C.ink, 'butt');
     D.text(ctx, '+', x - 26, y - 30, C.ink, { size: 20 });
+  };
+  // Pila parada en un cable vertical: + arriba (placa larga) y − abajo.
+  D.cell = (ctx, x, y) => {
+    ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 24, 56, 48);
+    D.line(ctx, [[x, y - 24], [x, y - 9]], 4, C.ink); D.line(ctx, [[x, y + 9], [x, y + 24]], 4, C.ink);
+    D.line(ctx, [[x - 24, y - 9], [x + 24, y - 9]], 4, C.ink, 'butt');
+    D.line(ctx, [[x - 12, y + 9], [x + 12, y + 9]], 9, C.ink, 'butt');
+    D.text(ctx, '+', x - 30, y - 22, C.ink, { size: 20 });
+  };
+  // Tierra colgando de (x, y), abajo de una tubería (w) o de un cable: su línea y sus tres rayas.
+  D.ground = (ctx, x, y, w, col = C.ink) => {
+    const yb = y + (w ? Sim.PIPE + 5 : 2) + 25;
+    D.line(ctx, [[x, y + (w ? Sim.PIPE + 5 : 2)], [x, yb]], 3, col, 'butt');
+    [[13, 0], [8.5, 5], [4, 10]].forEach(([hw, dy]) => D.line(ctx, [[x - hw, yb + dy], [x + hw, yb + dy]], 3, col, 'butt'));
   };
   // Las ruedas giran lento (4 rpm por mA, unas 2 vueltas por segundo a 30 mA) para que se vea
   // cómo cambia su velocidad con la resistencia; la bomba sí gira a 100 rpm por mL/s.
@@ -835,15 +852,17 @@
   //   spot(side) → [x, y]: en el dibujo, dónde va su esquina de arriba a la derecha
   //   top: deja que use el lugar libre arriba del dibujo si a la derecha no hay (true, o un número: cuánto de
   //        arriba del dibujo también está libre, en unidades del dibujo)
+  //   as(side) → 'w' o 'e': lo que se ve ahora en ese panel, si cambia (un solo panel que pasa del agua al circuito)
   // Si a la derecha del dibujo hay lugar, va hasta la esquina de arriba a la derecha del panel. Devuelve
-  // sync(), que vuelve a marcar el modo y las puntas de la escala (llamarla si cambian).
+  // sync(), que vuelve a marcar el modo y las puntas de la escala (llamarla si cambian). panels puede traer un
+  // solo lado ({ w }).
   const COLOR_NAMES = { w: ['rapidez', 'presión', 'caudal'], e: ['normal', 'voltaje', 'corriente'] };
-  Sim.colorPicker = (panels, { ends, spot, top = false }) => {
-    const els = ['w', 'e'].map(side => {
+  Sim.colorPicker = (panels, { ends, spot, top = false, as = side => side }) => {
+    const els = ['w', 'e'].filter(side => panels[side]).map(side => {
       const el = document.createElement('div'), q = panels[side];
       el.className = 'sim-colors'; el.dataset.act = 'ver';
       el.innerHTML = '<div class="sim-seg mini" role="group" aria-label="Color de las partículas">' +
-        COLOR_NAMES[side].map((t, k) => `<button type="button" data-k="${k}">${t}</button>`).join('') + '</div>' +
+        COLOR_NAMES[as(side)].map((t, k) => `<button type="button" data-k="${k}">${t}</button>`).join('') + '</div>' +
         '<div class="scale" aria-hidden="true"><span></span><div class="bar"></div><span></span></div><div class="plain">todas del mismo color</div>';
       el.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => { Sim.setColorMode(Sim.COLOR_MODES[+bt.dataset.k]); sync(); }));
       const corner = () => {
@@ -859,9 +878,10 @@
     const sync = () => {
       const k = Sim.COLOR_MODES.indexOf(Sim.colorMode), m = Sim.COLOR_MODES.indexOf(Sim.shownColorMode());
       els.forEach(({ side, el }) => {
-        el.dataset.bar = String(side === 'w' || m > 0);
-        el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(side)[j]; });
-        el.querySelectorAll('button').forEach((bt, j) => bt.setAttribute('aria-pressed', String(j === k)));
+        const s = as(side);
+        el.dataset.bar = String(s === 'w' || m > 0);
+        el.querySelectorAll('.scale span').forEach((sp, j) => { sp.textContent = ends(s)[j]; });
+        el.querySelectorAll('button').forEach((bt, j) => { bt.setAttribute('aria-pressed', String(j === k)); bt.textContent = COLOR_NAMES[s][j]; });
       });
     };
     sync();
@@ -1915,6 +1935,294 @@
       detail: l.name + ' · ' + (side === 'w' ? Sim.fmt(l.vf) + ' psi' : Sim.fmt(l.vf) + ' V')
     })) }, ...(heat ? [Sim.powerRow(heat, side, { broken, what: 'led' })] : []), ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
   });
+
+  // ---------- tubitos (piezómetros): las páginas de los conceptos ----------
+  // Una bomba (en la electricidad, una pila) en la subida de la izquierda; arriba, un tubo con dos tramos angostos en
+  // serie (R1 y R2), y abajo el regreso, sin resistencia. De la tubería de arriba suben tres tubitos abiertos: a junto a
+  // la bomba, b entre los dos tramos y c después del último. En cada uno el agua sube hasta la presión de ese punto
+  // (una escala en psi a la izquierda: 1 psi por volt), así que su altura es el voltaje de su nodo: a tiene la de la
+  // bomba y en cada tramo baja un escalón (V = I·R, la línea morada punteada que une los niveles); c marca 0 porque el
+  // regreso no tiene resistencia. La corriente es la misma en toda la vuelta (I = V / (R1 + R2), 1 mL/s por mA): las
+  // partículas van más rápido en lo angosto pero pasa lo mismo por todos lados. Con la válvula del regreso cerrada no
+  // corre nada y los tres tubitos quedan a la altura de la bomba.
+  // La vista de circuito (setView('e')) es el mismo dibujo con una transición: la bomba se vuelve pila, los tramos
+  // resistencias y cada tubito se encoge hasta una pastilla con el voltaje de su nodo; Ver lleva Dibujo: Agua · Circuito.
+  // o: {
+  //   box           el .sim-panel (un solo panel, con su letrero .sim-tag)
+  //   V() R()       voltaje de la bomba (V) y [R1, R2] en Ω
+  //   closed()      la válvula del regreso, entre c y la bomba, está cerrada (sin ella, siempre abierta)
+  //   ground()      el nodo que es 0 ('a', 'b', 'c' o 'g', el regreso; 'g' si no se da); groundAt(g) → [x, y] la
+  //                 deja donde se está arrastrando
+  //   valveX(g)     x de la válvula en el regreso (si la página la tiene)
+  //   half(i, g)    medio largo de lo angosto del tramo i (24 si no se da; lo más g.room); hn(i) su medio ancho por dentro
+  //   vmax, imax    topes de la escala de colores (V y mA)
+  //   parts         { v: { menu(side), wheel(f) }, r: [ igual para R1, para R2 ] } (tarjetas; un tramo sin la suya no se toca)
+  //   onView(v)     al pasar al agua ('w') o al circuito ('e')
+  //   drawW/drawE(ctx, g)   lo que la página dibuja encima de la tubería (cable) y abajo de las etiquetas
+  //   glow(ctx, g, i, side) calor del tramo i (abajo del tramo)
+  //   drawR(ctx, g, i)      el tramo i en el circuito (D.resistor si no se da)
+  //   tags(ctx, g, side)    etiquetas propias; over(ctx, g, side) lo último
+  //   tick(dt, I)   cada cuadro, con la corriente que pasa (mA)
+  // }
+  // Devuelve { p, st, geo, vAbs, vRel, vText, I, setView, side, hang, toXY, at, hits, syncColors, done } (también en
+  // Sim.piezoNow, para probar).
+  Sim.piezo = o => {
+    const VMAX = o.vmax || 12, NODES = ['a', 'b', 'c'], ease = u => u * u * (3 - 2 * u);
+    const tagEl = o.box.querySelector('.sim-tag');
+    // Ancho fijo y alto según la caja (en una caja alta, el celular vertical, más angosto y más alto). Si a los lados
+    // sobra lugar para el selector de colores, el dibujo se corre a la izquierda para que quepa a su derecha.
+    const fit = (w, h) => {
+      const v = h / w > 1.25, W = v ? 540 : 820, H = Math.round(v ? Math.max(800, Math.min(1150, W * h / w)) : Math.max(520, Math.min(1000, W * h / w)));
+      const s = Math.min(w / W, h / H), free = w - W * s;
+      // el dibujo llega hasta la orilla derecha de la caja (ahí va el selector) y la vuelta queda centrada en lo demás
+      return free >= 270 ? [w / s, H, -(free - 260) / 2 / s, v ? 'v' : 'h'] : [W, H, 0, v ? 'v' : 'h'];
+    };
+    const p = Sim.panel(o.box, fit);
+    // lv: la altura del agua en cada tubito (psi), que sigue a su presión con un poco de retraso
+    const st = { I: Sim.ramp(), lv: { a: 0, b: 0, c: 0 }, phase: 0, rotor: 0, view: 'w', m: 0 };
+    const R = () => o.R(), closed = () => !!(o.closed && o.closed()), ground = () => o.ground ? o.ground() : 'g';
+    const target = () => closed() ? 0 : o.V() / (R()[0] + R()[1]) * 1000;   // mA
+    // Presión (voltaje) de cada nodo contra el regreso, que es 0.
+    const vAbs = n => {
+      if (n === 'g') return 0;
+      const V = o.V(), I = target() / 1000, [r1, r2] = R();
+      const v = n === 'a' ? V : n === 'b' ? V - I * r1 : V - I * (r1 + r2);
+      return Math.abs(v) < 1e-9 ? 0 : v;
+    };
+    const vRel = n => vAbs(n) - vAbs(ground());
+    const shownRel = n => (n === 'g' ? 0 : st.lv[n]) - (ground() === 'g' ? 0 : st.lv[ground()]);
+    const side = () => st.view;
+    const unit = w => w ? ' psi' : ' V';
+    const vText = (v, w) => Sim.fmt(Math.abs(v) < 0.005 ? 0 : v, 1) + unit(w);
+    const valText = (v, w) => Sim.fmt(v, v % 1 ? 1 : 0) + unit(w);
+
+    // El acomodo: la vuelta abajo y los tubitos arriba; k son las unidades del dibujo por psi. shift es lo que sube
+    // todo en la vista de circuito (sin tubitos queda al centro) y oy lo que va de la transición.
+    const geo = () => {
+      const v = p.mode === 'v', H = p.H, X0 = v ? 100 : 170, X1 = v ? 505 : 740;
+      const BOT = H - (v ? 84 : 66), TOP = BOT - (v ? 170 : 140), MID = (TOP + BOT) / 2;
+      const xa = X0 + (v ? 38 : 76), xc = X1 - (v ? 38 : 60), xb = (xa + xc) / 2;
+      const k = Math.min(v ? 56 : 40, (TOP - (v ? 190 : 112) - 10) / VMAX), YT = TOP - VMAX * k - 10;
+      const g = { v, H, X0, X1, TOP, BOT, MID, x: { a: xa, b: xb, c: xc }, xr: [(xa + xb) / 2, (xb + xc) / 2], YT, k,
+        room: (xb - xa) / 2 - 11 - Sim.NARROW_IN - 8, loop: D.rect(X0, TOP, X1, BOT), ruler: X0 - 40 };
+      g.half = [0, 1].map(i => Math.min(g.room, o.half ? o.half(i, g) : 24));
+      g.dr = g.xr.map(x => (BOT - TOP) + (x - X0));
+      g.vx = o.valveX ? o.valveX(g) : null;
+      g.shift = H / 2 - (TOP - 60 + BOT + 50) / 2;
+      g.oy = g.shift * ease(st.m);
+      g.level = n => TOP - (n === 'g' ? 0 : st.lv[n]) * k;
+      return g;
+    };
+    // Dónde cuelga la tierra de cada nodo: abajo del tubito, o del regreso.
+    const hang = (g, n) => n === 'g' ? [g.X0 + (g.v ? 70 : 90), g.BOT] : [g.x[n], g.TOP];
+    const toXY = e => {
+      const r = p.box.getBoundingClientRect(), g = geo();
+      return [(e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale - g.oy];
+    };
+    const at = (el, pos) => p.at(el, () => { const g = geo(), q = pos(g); return q && [q[0], q[1] + g.oy]; });
+
+    // Presión en un punto de la vuelta (para el color de las partículas): sube en la bomba, baja parejo en lo angosto
+    // de cada tramo y vuelve a 0 en la válvula (sin ella, c ya es 0).
+    const vAlong = (g, d) => {
+      const lv = n => n === 'g' ? 0 : st.lv[n], L0 = g.BOT - g.TOP, W = g.X1 - g.X0;
+      if (d < g.BOT - g.MID) return lv('g');
+      if (d < L0) return lv('a');
+      if (d < L0 + W) {
+        const x = g.X0 + d - L0, [r0, r1] = g.xr, [h0, h1] = g.half;
+        if (x < r0 - h0) return lv('a');
+        if (x < r0 + h0) return lv('a') + (lv('b') - lv('a')) * (x - r0 + h0) / (2 * h0);
+        if (x < r1 - h1) return lv('b');
+        if (x < r1 + h1) return lv('b') + (lv('c') - lv('b')) * (x - r1 + h1) / (2 * h1);
+        return lv('c');
+      }
+      if (d < 2 * L0 + W) return lv('c');
+      return g.vx != null && g.X1 - (d - 2 * L0 - W) > g.vx ? lv('c') : lv('g');
+    };
+    const scaleLo = () => [...NODES, 'g'].some(n => vRel(n) < -0.001) ? -VMAX : 0;
+    const IMAX = o.imax || 12;
+    Sim.field = (x, y) => {
+      const g = geo(), lo = scaleLo(), gv = ground() === 'g' ? 0 : st.lv[ground()];
+      return [(vAlong(g, D.project(g.loop, x, y).d) - gv - lo) / (VMAX - lo), Math.abs(st.I.x) / IMAX];
+    };
+    const syncColors = Sim.colorPicker({ w: p }, { top: true, as: side, spot: () => [p.W - 6, 2], ends: s => {
+      const w = s === 'w', lo = scaleLo();
+      return ({ v: ['lento', 'rápido'], p: [Sim.fmt(lo, 0) + unit(w), VMAX + unit(w)], q: ['0', IMAX + (w ? ' mL/s' : ' mA')] })[Sim.shownColorMode()];
+    } });
+
+    // El agua (se rehace si cambia el acomodo; si solo cambian los tramos, sigue con las mismas partículas).
+    let water = null, wkey = '', pkey = '';
+    const waterFor = g => {
+      const hn = [0, 1].map(i => o.hn ? o.hn(i) : Sim.narrowHalf(R()[i]));
+      const prof = Sim.profile(...[0, 1].map(i => Sim.narrowProfile(g.dr[i], hn[i], g.half[i])));
+      const lk = g.loop.join(), pk = hn.join() + ',' + g.half.join();
+      if (lk !== wkey) { water = Sim.water(g.loop, prof); wkey = lk; pkey = pk; }
+      else if (pk !== pkey) { water.setProfile(prof); pkey = pk; }
+      g.hn = hn;
+      return water;
+    };
+
+    // ---------- la bomba y los tramos: tocarlos abre su tarjeta ----------
+    const hit = (label, pos, part) => {
+      if (!part) return { open: () => false, relabel: () => {} };
+      const el = document.createElement('button');
+      el.type = 'button'; el.className = 'sim-hit';
+      el.setAttribute('aria-label', label(side())); el.setAttribute('aria-haspopup', 'dialog');
+      p.box.querySelector('.sim-layer').appendChild(el);
+      at(el, pos);
+      el.addEventListener('click', () => Sim.menu.toggle(el, part.menu(side())));
+      if (part.wheel) el.addEventListener('wheel', e => { e.preventDefault(); part.wheel(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+      if (Sim.side) Sim.side.part({ anchor: () => el, menu: () => part.menu(side()), visible: () => true });
+      el.open = () => Sim.menu.isOpen(el);
+      el.relabel = () => el.setAttribute('aria-label', label(side()));
+      return el;
+    };
+    const hits = {
+      v: hit(s => s === 'w' ? 'Bomba' : 'Pila', g => [g.X0, g.MID], o.parts.v),
+      r: [0, 1].map(i => hit(s => (s === 'w' ? 'Tramo angosto R' : 'Resistencia R') + (i + 1), g => [g.xr[i], g.TOP], o.parts.r[i]))
+    };
+
+    // ---------- Ver: Agua · Circuito ----------
+    const seg = document.createElement('div');
+    seg.className = 'sim-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Dibujo');
+    seg.innerHTML = '<button type="button" data-v="w">Agua</button><button type="button" data-v="e">Circuito</button>';
+    seg.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => setView(bt.dataset.v)));
+    if (Sim.side) Sim.side.row('ver', 'Dibujo', seg);
+    const setView = v => {
+      if (v === st.view) return;
+      st.view = v;
+      if (Sim.REDUCE.matches) st.m = v === 'e' ? 1 : 0;
+      seg.querySelectorAll('button').forEach(bt => bt.setAttribute('aria-pressed', String(bt.dataset.v === v)));
+      if (tagEl) { tagEl.className = 'sim-tag ' + v; tagEl.textContent = v === 'w' ? 'Agua' : 'Electricidad'; }
+      [hits.v, ...hits.r].forEach(el => el.relabel());
+      syncColors();
+      if (o.onView) o.onView(v);
+    };
+    seg.querySelectorAll('button').forEach(bt => bt.setAttribute('aria-pressed', String(bt.dataset.v === 'w')));
+
+    // ---------- dibujo ----------
+    // La regla de la presión, a la izquierda de los tubitos: su 0 es el nodo que tiene la tierra.
+    const ruler = (ctx, g) => {
+      const x = g.ruler, gv = ground() === 'g' ? 0 : st.lv[ground()], y = v => g.TOP - v * g.k;
+      const lo = Math.ceil(-gv - 1e-6), hi = Math.floor(VMAX - gv + 1e-6), every = g.k * 3 >= 26 ? 3 : 6;
+      D.line(ctx, [[x, y(0) + 1], [x, y(VMAX) - 1]], 2, C.muted, 'butt');
+      for (let r = lo; r <= hi; r++) {
+        const yy = y(r + gv), big = r % every === 0;
+        D.line(ctx, [[x, yy], [x + (big ? 12 : 7), yy]], r === 0 ? 3 : 2, r === 0 ? C.ink : C.muted, 'butt');
+        if (big) D.text(ctx, Sim.fmt(r + 0, 0), x - 8, yy, r === 0 ? C.ink : C.muted, { size: 15, align: 'right', font: Sim.MONO, weight: r ? 500 : 700 });
+      }
+      D.text(ctx, 'psi', x, y(VMAX) - 22, C.muted, { size: 15 });
+    };
+    // Un tubito: sube de la tubería hasta YT (abierto arriba), con el agua hasta su nivel. sq lo encoge (0: entero).
+    const TW = 7;
+    const tube = (ctx, g, n, sq) => {
+      const x = g.x[n], top = g.TOP - (g.TOP - g.YT) * (1 - sq), lvl = g.TOP - (g.TOP - g.level(n)) * (1 - sq);
+      const base = g.TOP - Sim.PIPE - 2;
+      if (top >= base) return;
+      D.line(ctx, [[x, base], [x, top]], 2 * TW + 8, C.pipe, 'butt');
+      D.line(ctx, [[x, base + 4], [x, top - 1]], 2 * TW, C.card, 'butt');
+      if (lvl < base + 4) {
+        D.line(ctx, [[x, base + 4], [x, lvl]], 2 * TW, C['water-soft'], 'butt');
+        D.line(ctx, [[x - TW, lvl], [x + TW, lvl]], 3, C.water, 'butt');
+      }
+    };
+    // La línea de la presión: une los niveles, plana donde no hay resistencia y en bajada en lo angosto.
+    const grade = (ctx, g, sq) => {
+      const L = n => g.TOP - (g.TOP - g.level(n)) * (1 - sq), [r0, r1] = g.xr, [h0, h1] = g.half;
+      const pts = [[g.ruler + 14, L('a')], [r0 - h0, L('a')], [r0 + h0, L('b')], [r1 - h1, L('b')], [r1 + h1, L('c')], [g.x.c + 30, L('c')]];
+      ctx.save(); ctx.setLineDash([7, 6]);
+      D.line(ctx, pts, 2.5, C.volt, 'butt');
+      ctx.restore();
+    };
+    // El escalón de cada tramo (lo que baja la presión en él), arriba de su bajada; en el circuito, entre las pastillas.
+    const drops = (ctx, g, e, w) => {
+      [['a', 'b'], ['b', 'c']].forEach(([m, n], i) => {
+        const dv = st.lv[m] - st.lv[n];
+        if (Math.abs(dv) < 0.05) return;
+        // arriba del nivel alto; si ahí taparía el valor de los tubitos, abajo del nivel bajo
+        const hi = Math.min(g.level(m), g.level(n)), lo = Math.max(g.level(m), g.level(n));
+        const yw = hi - 16 >= g.YT + 8 ? Math.min(g.TOP - Sim.PIPE - 26, hi - 16) : Math.min(g.TOP - Sim.PIPE - 26, lo + 18);
+        const y = yw + (g.TOP - 44 - yw) * e;
+        D.text(ctx, vText(dv, w), g.xr[i], y, C.volt, { size: 16, font: Sim.MONO, weight: 600, bg: true });
+      });
+    };
+    const pill = (ctx, x, y, t) => {
+      const px = D.font(ctx, 16, Sim.MONO, 600), wd = ctx.measureText(t).width + 14, h = Math.round(px * 1.45);
+      D.roundRect(ctx, x - wd / 2, y - h / 2, wd, h, h / 2, C.card, C.volt, 2);
+      D.text(ctx, t, x, y + 0.5, C.ink, { size: 16, font: Sim.MONO, weight: 600 });
+    };
+
+    const draw = () => {
+      const g = geo(), ctx = p.begin(), e = ease(st.m), I = st.I.x, w = e < 0.5, s = w ? 'w' : 'e';
+      ctx.save(); ctx.translate(0, g.oy);
+      if (e < 1) {
+        ctx.globalAlpha = (1 - e) ** 3;
+        ruler(ctx, g);
+        ctx.globalAlpha = 1 - e;
+        NODES.forEach(n => tube(ctx, g, n, e));
+        D.pipe(ctx, g.loop);
+        [0, 1].forEach(i => { if (o.glow) o.glow(ctx, g, i, 'w'); });
+        const wt = waterFor(g);
+        [0, 1].forEach(i => D.narrow(ctx, g.xr[i], g.TOP, g.hn[i], g.half[i]));
+        wt.draw(ctx);
+        D.pump(ctx, g.X0, g.MID, st.rotor, I * 100 * Math.PI / 30);
+        grade(ctx, g, e);
+        if (o.drawW) o.drawW(ctx, g);
+        ctx.globalAlpha = Math.max(0, 1 - 2 * e);
+        NODES.forEach(n => D.text(ctx, vText(shownRel(n), true), g.x[n], g.YT - 18 + (g.TOP - g.YT) * e, C.ink, { size: 16, font: Sim.MONO, weight: 600, bg: true }));
+      }
+      if (e > 0) {
+        ctx.globalAlpha = e;
+        D.wire(ctx, g.loop);
+        D.flow(ctx, g.loop, st.phase, C.charge, { gap: 30, r: 4.5 });
+        [0, 1].forEach(i => { if (o.glow) o.glow(ctx, g, i, 'e'); if (o.drawR) o.drawR(ctx, g, i); else D.resistor(ctx, g.xr[i], g.TOP); });
+        D.cell(ctx, g.X0, g.MID);
+        if (o.drawE) o.drawE(ctx, g);
+        // cada tubito se vuelve la pastilla con el voltaje de su nodo: baja desde donde estaba el agua
+        ctx.globalAlpha = Math.min(1, Math.max(0, 2 * e - 0.5));
+        NODES.forEach(n => { const y = g.TOP - (g.TOP - g.level(n)) * (1 - e); pill(ctx, g.x[n], y + (g.TOP - 44 - y) * e, vText(shownRel(n), false)); });
+      }
+      ctx.globalAlpha = 1;
+      drops(ctx, g, e, w);
+      // la tierra
+      const ga = o.groundAt && o.groundAt(g);
+      if (ga) D.ground(ctx, ga[0], ga[1] - 40, false, C.sel);
+      else { const [x, y] = hang(g, ground()); D.ground(ctx, x, y, w); }
+      // contornos de lo que tiene su tarjeta abierta y etiquetas
+      D.select(ctx, g.X0 - 48, g.MID - 48, 96, 96, Sim.fadeSel(hits.v, hits.v.open()));
+      [0, 1].forEach(i => {
+        const hb = Sim.PIPE + 10, hw = g.half[i] + Sim.NARROW_IN + 6;
+        D.select(ctx, g.xr[i] - hw, g.TOP - hb, 2 * hw, 2 * hb, Sim.fadeSel(hits.r[i], hits.r[i].open()));
+      });
+      D.tag(ctx, g.X0 + 56, g.MID, w ? 'bomba' : 'pila', valText(o.V(), w), { sel: hits.v.open(), align: 'left' });
+      [0, 1].forEach(i => D.tag(ctx, g.xr[i], g.TOP + (w ? Sim.PIPE + 24 : 34), 'R' + (i + 1), Sim.ohm(R()[i]), { sel: hits.r[i].open() }));
+      if (o.tags) o.tags(ctx, g, s);
+      if (o.over) o.over(ctx, g, s);
+      ctx.restore();
+    };
+
+    // ---------- animación ----------
+    let last = performance.now();
+    const frame = now => {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const I = st.I.step(target(), 0.4, dt);
+      NODES.forEach(n => { const v = vAbs(n); st.lv[n] = Math.abs(st.lv[n] - v) < 1e-3 ? v : Sim.lag(st.lv[n], v, 0.18, dt); });
+      st.phase += I * 12 * dt;
+      if (water) water.step(I * 12, dt);
+      st.rotor += I * 100 * Math.PI / 30 * dt;
+      const m = st.view === 'e' ? 1 : 0;
+      if (st.m !== m) { st.m = m > st.m ? Math.min(1, st.m + dt / 0.7) : Math.max(0, st.m - dt / 0.7); p.replace(); }
+      if (o.tick) o.tick(dt, I);
+      Sim.readColors();
+      if (p.box.clientWidth) draw();
+      requestAnimationFrame(frame);
+    };
+    NODES.forEach(n => { st.lv[n] = vAbs(n); });
+    requestAnimationFrame(frame);
+
+    // Sim.piezoNow: para probar (la página le pone su estado en page)
+    return (Sim.piezoNow = { p, st, geo, vAbs, vRel, vText, valText, unit, I: () => st.I.x, setView, side, hang, toXY, at, hits, syncColors,
+      done: () => st.m >= 1 });
+  };
 
   window.Sim = Sim;
 })();
