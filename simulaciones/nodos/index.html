@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026053918">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026061057">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026053918"></script>
-<script src="../../assets/banco.js?v=20261026053918"></script>
+<script src="../../assets/sim.js?v=20261026061057"></script>
+<script src="../../assets/banco.js?v=20261026061057"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -80,7 +80,7 @@
   // Una resistencia (i: 0 es R1) o, si su lugar está vacío, el lugar punteado (abierto: no pasa nada).
   const comp = (i, at, dV) => {
     const on = st.on[i];
-    return { id: 'R' + (i + 1), at, half: 46, dV, R: on ? st.R[i] : Infinity, pr: on ? pinch[i] : null, ext: w => w ? 16 : 18,
+    return { id: 'R' + (i + 1), at, half: 46, dV, R: on ? st.R[i] : Infinity, pr: on ? pinch[i] : null, ext: 16,
       tag: on ? () => ['R' + (i + 1), ohm(st.R[i])] : null,
       draw: (ctx, w) => on ? (w ? D.narrow(ctx, ...at, half(st.R[i])) : D.resistor(ctx, ...at)) : ghost(ctx, at, w) };
   };
@@ -118,7 +118,7 @@
   const K = 12;   // rapidez de las partículas por mA
 
   const b = Sim.bench({
-    iFull: 12, v0: 9,
+    iFull: 12, v0: 9, nodeRow: false,   // Circuito · Nodos va flotando en el dibujo
     layout() { waters.clear(); },
     model(V) {
       const G = [0, 1, 2].reduce((s, k) => s + (st.on[k + 1] ? 1 / st.R[k + 1] : 0), 0);
@@ -279,6 +279,13 @@
   let changed = false;
   function touched() { if (step >= 2) changed = true; }
 
+  // Circuito · Nodos flotando en el dibujo (en lugar de la fila Dibujo de Ver): arriba a la izquierda; en el celular
+  // acostado, abajo a la izquierda (arriba no cabe junto a la escala de colores).
+  b.linkedChoice({
+    pos: g => g.mode === 'lateral' ? [g.VX + 108, g.BOT + 34] : [g.X0 + 70, g.TOP - 104], label: 'Dibujo',
+    options: [['0', 'Circuito'], ['1', 'Nodos']],
+    get: () => b.nodesOn() ? '1' : '0', set: v => b.setNodes(v === '1')
+  });
   // La bomba y la fuente empiezan encendidas; esta página no usa el multímetro.
   document.querySelector('#pe .sim-power').click();
   b.showMeters({ a: false });

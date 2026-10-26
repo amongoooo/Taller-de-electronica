@@ -40,6 +40,7 @@
 //   deskGraph,        alto de una gráfica de la página que en el celular acostado va arriba en la mesa (g.GRAPH:
 //                     [x0, y0, x1, y1], null mientras hay un instrumento abierto)
 //   overlay(ctx, g, m)                    lo que va encima de todo (avisos de la página)
+//   nodeRow,          false si la página pone su propio Circuito · Nodos en el dibujo (sin la fila Dibujo de Ver)
 //   nodeLayout(nodes, comps, g)           acomodo propio de la vista de nodos: pone p de cada nodo (trae plus y
 //                     ground; con out, [dx, dy], hacia dónde prefiere su valor) y mid y a1 de cada componente (c.c es
 //                     el de circuit(); c.A y c.B, sus nodos); con c.tagUp la etiqueta de un componente acostado va arriba
@@ -1004,7 +1005,7 @@
       if (!best || best.d > 70) return q;
       return [q[0] + best.c.pose.x - best.c.c.at[0], q[1] + best.c.pose.y - best.c.c.at[1]];
     };
-    b.setNodes = v => { st.nodes.on = !!v; syncNodes(); };
+    b.setNodes = v => { st.nodes.on = !!v; syncNodes(); b.refresh(); };
     // Las etiquetas de la vista de nodos no suben de aquí (una página con un aviso arriba lo cambia).
     b.labelTop = { w: 6, e: 6 };
     // Dónde está conectado cada multímetro, para las páginas que revisan cómo se midió:
@@ -1052,22 +1053,23 @@
     nodeSeg.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => b.setNodes(bt.dataset.v === '1')));
     const syncNodes = () => nodeSeg.querySelectorAll('button').forEach(bt => bt.setAttribute('aria-pressed', String((bt.dataset.v === '1') === st.nodes.on)));
     syncNodes();
-    if (Sim.side) {
+    if (Sim.side && o.nodeRow !== false) {   // una página con su propio selector en el dibujo lo quita de Ver
       const row = Sim.side.row('ver', 'Dibujo', nodeSeg), view = Sim.side.sec('ver').querySelector('.sim-viewseg');
       if (view) view.closest('.sim-side-row').after(row);
     }
     // Lleva un punto al lugar más cercano del circuito donde se puede poner una punta. Con corners,
     // cerca de una esquina (por fuera o por dentro) la punta se pega a la esquina. kind es el multímetro:
-    // en la vista de nodos sus puntas se pegan a los nodos y en A (en serie) no se puede poner en uno.
+    // en la vista de nodos sus puntas solo se pegan a los nodos (en V y Ω) y en A (en serie) van en los cables,
+    // fuera de los nodos.
     const snap = (segs, x, y, corners, kind) => {
       let best = null, cn = null;
       const full = st.nodes.u >= 1 && segs.nodes && segs.nodes.length, ser = series(kind);
-      if (full && !ser) {
+      if (full && !ser) {   // solo a un nodo (el imán decide desde qué tan lejos la jala)
         for (const z of segs.nodes) {
           const dist = Math.hypot(z.x - x, z.y - y);
-          if (dist < RN + 40 && (!best || dist < best.dist)) best = { k: z.k, d: z.d, x: z.x, y: z.y, dist, node: z.node };
+          if (!best || dist < best.dist) best = { k: z.k, d: z.d, x: z.x, y: z.y, dist, node: z.node };
         }
-        if (best) return best;
+        return best;
       }
       if (corners && !full) for (const c of segs.corners || []) if (Math.hypot(c.x - x, c.y - y) < 36 && (!cn || Math.hypot(c.x - x, c.y - y) < Math.hypot(cn.x - x, cn.y - y))) cn = c;
       segs.forEach((sg, k) => {
@@ -1489,9 +1491,10 @@
     const frameAt = (g, kind, i, x, y, pref) => {
       let n = [0, 1], t = null;
       const p = st.segs.length && snap(st.segs, x, y, false, kind);
-      if (p && p.node) {   // en un nodo: la punta sale hacia su medidor (o hacia donde estaba el puntero)
-        const [jx, jy] = jack(g, kind, i), [sx, sy] = pref || [jx - x, jy - y], l = Math.hypot(sx, sy);
-        if (l) n = [sx / l, sy / l];
+      if (p && p.node) {   // en un nodo: toca su orilla por un lado sin cables (ver nodeDir)
+        n = nodeDir(g, kind, i, p.node, pref);
+        const R = g.side === 'w' ? RN + 8 : RN;
+        return { x: p.node.p[0] + n[0] * R, y: p.node.p[1] + n[1] * R, n, t };
       } else if (p) {
         const pts = st.segs[p.k].pts, L = st.segs[p.k].L;
         const a = D.pointAt(pts, Math.max(0, p.d - 3)), c = D.pointAt(pts, Math.min(L, p.d + 3));
@@ -1505,6 +1508,32 @@
         if (n[0] * sx + n[1] * sy < 0) n = [-n[0], -n[1]];
       }
       return { x, y, n, t };
+    };
+    // Lado de un nodo por el que lo toca una punta: el más cercano a pref (hacia donde estaba el puntero o, si no,
+    // hacia su medidor) entre los que quedan a más de 40° de sus cables, de la tierra y de su «0 V», y de las
+    // puntas que ya están en ese nodo; así no tapa nada y se ve limpio.
+    const PROBES = [['a', 0], ['a', 1], ['b', 0], ['b', 1]];
+    const nodeDir = (g, kind, i, node, pref) => {
+      const [jx, jy] = jack(g, kind, i), [sx, sy] = pref || [jx - node.p[0], jy - node.p[1]], pa = Math.atan2(sy, sx), ang = [];
+      if (net) for (const p of net.pieces) if (p.node === node) for (const q of [p.m[0], p.m[p.m.length - 1]]) {
+        const dx = q[0] - node.p[0], dy = q[1] - node.p[1];
+        if (Math.hypot(dx, dy) > 1) ang.push(Math.atan2(dy, dx));
+      }
+      if (node.ground) ang.push(Math.PI / 2, Math.PI / 4);
+      for (const [k2, i2] of PROBES) {
+        if (k2 === kind && i2 === i) break;
+        if (!st.show[k2] || !connected(k2, i2)) continue;
+        const q = snap(st.segs, ...st.clamps[k2][i2], false, k2);
+        if (q && q.node === node) { const d = nodeDir(g, k2, i2, node, st.tipSide[k2][i2]); ang.push(Math.atan2(d[1], d[0])); }
+      }
+      const off = (a, c) => Math.abs(Math.atan2(Math.sin(a - c), Math.cos(a - c)));
+      let best = null;
+      for (let k = 0; k < 72; k++) {
+        const a = k * Math.PI / 36, gap = Math.min(Math.PI, ...ang.map(c => off(a, c)));
+        const score = (gap < 0.7 ? 10 + 10 * (0.7 - gap) : 0) + off(a, pa);
+        if (!best || score < best.s) best = { s: score, a };
+      }
+      return [Math.cos(best.a), Math.sin(best.a)];
     };
     // Largo de cada punta, del contacto a donde sale su cable o manguera.
     const tipLen = side => side === 'w' ? Sim.PIPE + 10 : 46;
@@ -1553,7 +1582,7 @@
         if (!a) return { x: cx, y: cy, n: lf.n, h: 1 };
         const f = frameAt(g, kind, i, p.x, p.y, lf.n);
         const nx = lf.n[0] + (f.n[0] - lf.n[0]) * a, ny = lf.n[1] + (f.n[1] - lf.n[1]) * a, s = Math.hypot(nx, ny) || 1;
-        return { x: cx + (p.x - cx) * a, y: cy + (p.y - cy) * a, n: [nx / s, ny / s], h: 1 - 0.6 * a, snap: p, t: a > 0.5 ? f.t : null };
+        return { x: cx + (f.x - cx) * a, y: cy + (f.y - cy) * a, n: [nx / s, ny / s], h: 1 - 0.6 * a, snap: p, t: a > 0.5 ? f.t : null };
       }
       if (fl) return { x: fl.x, y: fl.y, n: fl.n, h: 0 };
       const f = frame(g, kind, i);
@@ -2003,7 +2032,15 @@
         if (!step) return;
         const fl = st.floor[kind][i], [x, y] = fl ? [fl.x, fl.y] : st.clamps[kind][i];
         st.floor[kind][i] = st.drop[kind][i] = null;
-        moveClamp(kind, i, x + step[0], y + step[1]);
+        // en un nodo (vista de nodos), las flechas la llevan al nodo más cercano de ese lado
+        const cur = !fl && snap(st.segs, x, y, false, kind);
+        if (cur && cur.node) {
+          const to = st.segs.nodes.filter(z => z.node !== cur.node).map(z => {
+            const dx = z.x - cur.x, dy = z.y - cur.y, l = Math.hypot(dx, dy) || 1;
+            return { z, c: (dx * step[0] + dy * step[1]) / (12 * l), l };
+          }).filter(o => o.c > 0.3).sort((p, q) => p.l / p.c - q.l / q.c)[0];
+          if (to) moveClamp(kind, i, to.z.x, to.z.y);
+        } else moveClamp(kind, i, x + step[0], y + step[1]);
         e.preventDefault();
       });
       const sync = () => { el.hidden = i >= NP(kind) || !st.placed[kind][i] || !st.show[kind] || st.reel[kind][i] > 0; label(); };
@@ -2840,6 +2877,7 @@
     };
     // Cuánto sobresale un componente a cada lado de su cable (ext de la página, un número o ext(water)).
     const extOf = (c, water) => typeof c.ext === 'function' ? c.ext(water) : c.ext || 22;
+    const nodeColor = n => Sim.speedColor(Math.abs(n.v) / b.vScale());
     const nodeText = (v, water) => Sim.fmt(Math.abs(v) < 0.005 ? 0 : v, 2) + (water ? ' psi' : ' V');
     // Mientras se arrastra una punta, el nodo al que se va a conectar (el que la jala su imán): { node, a } con
     // a de 0 a 1, qué tan cerca está.
@@ -2952,13 +2990,14 @@
         const q = place(w, TH, cands);
         b.tag(ctx, c.c.pr, q.x, q.y, tg[0], tg[1], tg[2], false, tg[3]);
       }
-      // nodos: un punto de soldadura (en el agua, una cámara) del color de su cable, con su valor
+      // nodos: un punto de soldadura (en el agua, una cámara) del color de su presión (voltaje), con la misma
+      // escala que las partículas en presión, y su valor
       for (const n of net.nodes) {
-        const [x, y] = n.p;
+        const [x, y] = n.p, col = nodeColor(n);
         if (water) {
           D.circle(ctx, x, y, RN + 8, C.pipe);
-          D.circle(ctx, x, y, RN + 3, C['water-soft']);
-        } else D.circle(ctx, x, y, RN, C.ink);
+          D.circle(ctx, x, y, RN + 3, col);
+        } else D.circle(ctx, x, y, RN, col, C.ink, 2.5);
       }
       aim.forEach(({ node, a }) => { ctx.save(); ctx.globalAlpha *= a; D.circle(ctx, ...node.p, (water ? RN + 8 : RN) + 4, null, C.sel, 3); ctx.restore(); });
       for (const n of net.nodes) {
