@@ -124,13 +124,20 @@ footer a { color: var(--water); }
   </section>
 
   <section>
+    <h2>Proyecto final</h2>
+    <div class="grid">
+      <a class="card" href="simulaciones/puente-h/"><span class="mini" data-p="puente-h"></span><h3><span class="n">13</span>Puente H</h3></a>
+    </div>
+  </section>
+
+  <section>
     <h2>Señales <span class="ins">·&nbsp;generador y osciloscopio</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">13</span>LED y osciloscopio</h3></a>
-      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">14</span>Capacitores</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">15</span>Carga y descarga RC</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">16</span>Diodo y media onda</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">17</span>Rectificador de onda completa</h3></a>
+      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">14</span>LED y osciloscopio</h3></a>
+      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">15</span>Capacitores</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">16</span>Carga y descarga RC</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">17</span>Diodo y media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">18</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -249,6 +256,18 @@ footer a { color: var(--water); }
       + '<path class="w" d="M122 50H133"/><circle class="bg" cx="136" cy="50" r="2.6"/><circle class="w" cx="136" cy="50" r="2.6"/>',
     'potenciometro-armado': boardPot,
     'transistor-armado': boardNpn,
+    // el puente H: el + arriba (la pila en la orilla izquierda) y la tierra abajo; en cada lado un PNP arriba y un NPN
+    // abajo, con sus bases juntas a su entrada, y el motor en medio
+    'puente-h': () => {
+      const q = (x, y, s, pnp) => `<circle class="bg" cx="${x - s}" cy="${y}" r="8.5"/><circle class="w" cx="${x - s}" cy="${y}" r="8.5"/>`
+        + `<path class="w" d="M${x - 16 * s} ${y}H${x - 5 * s}M${x - 5 * s} ${y - 5}V${y + 5}M${x - 5 * s} ${y - 2.5}L${x} ${y - 6}V${y - 9}M${x - 5 * s} ${y + 2.5}L${x} ${y + 6}V${y + 9}"/>`
+        + (pnp ? `<path class="f" d="M${x - 5 * s} ${y - 2.5}l${3.6 * s} -.4 -1.6 -2.4z"/>` : `<path class="f" d="M${x} ${y + 6}l${-3.6 * s} -.2 1.6 -2.6z"/>`);
+      return circ('M22 14H104M56 14V86M104 14V86M22 14V86H104M56 50H104M40 32V68M120 32V68M40 50H30M120 50H130', [at('bat', 22, 66, 90)])
+        + q(56, 32, 1, true) + q(56, 68, 1, false) + q(104, 32, -1, true) + q(104, 68, -1, false)
+        + '<circle class="bg" cx="80" cy="50" r="8"/><circle class="w" cx="80" cy="50" r="8"/><path class="w" d="M76.5 53.5v-7l3.5 4.5 3.5-4.5v7" style="stroke-width:1.4"/>'
+        + '<circle class="bg" cx="28" cy="50" r="2.6"/><circle class="w" cx="28" cy="50" r="2.6"/><circle class="bg" cx="132" cy="50" r="2.6"/><circle class="w" cx="132" cy="50" r="2.6"/>'
+        + node([[56, 50], [104, 50], [40, 50], [120, 50]]);
+    },
     // el pull-down: pulsador, el nodo de la entrada (baja a su terminal) y la resistencia al −
     'botones': () => circ(LOOP, [at('pb', 46, 20), at('r', 104, 20), at('bat', 80, 80)], [[70, 20]])
       + '<path class="w" d="M70 20V47.4"/><circle class="bg" cx="70" cy="50" r="2.6"/><circle class="w" cx="70" cy="50" r="2.6"/>',
