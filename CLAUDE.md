@@ -141,12 +141,15 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 - `assets/protoboard.js`: `Sim.protoboard(o)`, la protoboard con su pila (bomba), su bandeja y su red de nodos (`solve`), que usan
   `protoboard` (libre: `o.tray`, sus pasos y `load`/`clear`) y las páginas del armado guiado (`o.guide`: [{ name, piece: { type, a,
   b, R, led, color } }], un paso de `Sim.steps` por pieza; `drawSpot` su lugar punteado, `fits(j)` lo revisa por tiras, el LED con su
-  polaridad; ir a un paso pone las piezas anteriores con `putTarget` y quita las de ese en adelante). Piezas: `wire`, `res`, `led`
-  y `push` (el pulsador de 6 mm, cuatro patas `a`, `b`, `a2`, `b2`, sobre el canal; `a`–`a2` y `b`–`b2` unidas, apretado une `a`–`b`;
-  su tapa es `Sim.pushKey` con una `.sim-hit` en cada panel, `keyOf`) y `pot` (el potenciómetro de 10 kΩ: patas `a`, `w` (el cursor) y
-  `b` en tres columnas seguidas, `potHoles`; `x` de 0 en `a` a 1 en `b`; dibujado en su marco `potFrame` con `POT`, el cuerpo arriba de
-  las patas; su perilla es una `.sim-hit pb-knob` en cada panel, `knobOf`, que se gira con `setX`); `legsOf` y `legCurrents` dan sus
-  patas y sus corrientes.
+  polaridad; ir a un paso pone las piezas anteriores con `putTarget` y quita las de ese en adelante). Piezas: `wire`, `res`, `led`,
+  `push` (el pulsador de 6 mm, cuatro patas `a`, `b`, `a2`, `b2`, sobre el canal; `a`–`a2` y `b`–`b2` unidas, apretado une `a`–`b`;
+  su tapa es `Sim.pushKey` con una `.sim-hit` en cada panel, `keyOf`), `pot` (el potenciómetro de 10 kΩ: patas `a`, `w` (el cursor) y
+  `b` en tres columnas seguidas, `potHoles`; `x` de 0 en `a` a 1 en `b`; dibujado en su marco `frameOf` con `POT`, el cuerpo arriba de
+  las patas; su perilla es una `.sim-hit pb-knob` en cada panel, `knobOf`, que se gira con `setX`) y `npn` (el transistor 2N2222 en
+  TO-92: patas `a` emisor, `w` base y `b` colector en tres columnas seguidas, en una fila de las tiras; el cuerpo hacia el canal, en su
+  marco con `NPN`, y su nombre con su estado en `drawNpnTag`, encima de todo; en `solve`, la base al emisor es un diodo de `VBE` y el
+  colector al emisor va por su estado `q`: corte abierto, activo una fuente de β · Ib (`BETA`) y saturado `VSAT`; calor 625 mW);
+  `legsOf` y `legCurrents` dan sus patas y sus corrientes.
   `Sim.pbNow` para probar.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
   medidas con `update`, sus mandos con `ui.button`/`ui.knob` y su dibujo con `draw(ctx, L, side)`; sin circuito ni puntas), y
@@ -182,7 +185,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   Vce 0,2 V saturado (`solve(V)`: corrientes, voltajes y estado; `model` da `branch` [Ic, Ib, Ibot] para la inercia); son dos
   componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (sin dibujo
   propio: separa el nodo de la base del emisor, para medir Vbe); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
-  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED, cable negro y, al final, el pull-down de 10 kΩ de la tira del pulsador (la 5) al riel − (sin él, con el pulsador suelto y el LED apagado, las tiras 5 y 9 flotan: «sin conexión»). `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `osciloscopio` (LED),
+  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED, cable negro y, al final, el pull-down de 10 kΩ de la tira del pulsador (la 5) al riel − (sin él, con el pulsador suelto y el LED apagado, las tiras 5 y 9 flotan: «sin conexión»). `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `transistor-armado` (Transistor en la protoboard, después de Transistor): transistor en b7–b9 (E, B, C), cable negro del emisor al riel −, 470 Ω del riel + a a10, LED de e10 al colector (e9), cable rojo a la tira 2, 10 kΩ de la base de d2 a d6, pulsador de la tira 6 a la 8 (la base) y el pull-down de 10 kΩ de a8 al riel − (sin él, con el pulsador suelto la base flota: «sin conexión»). `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -276,7 +279,7 @@ Armado en protoboard (aprobado; con agua, una página aparte después de cada si
 - [x] Fase 2: Potenciómetro en la protoboard (`simulaciones/potenciometro-armado/`).
 - [x] Fase 3: Botones en la protoboard, como último paso de Interruptor y LED en la protoboard (el pull-down;
   `botones-armado/` redirige ahí). Con un LED el pull-down casi no se nota: donde importa es en la base del transistor (fase 4).
-- [ ] Fase 4: Transistor en la protoboard.
+- [x] Fase 4: Transistor en la protoboard (`simulaciones/transistor-armado/`, con la pieza `npn` y el pull-down de la base al final).
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
 paralelo de la fuente, ni un segundo canal (la fuente y la bomba son de uno), ni páginas de fotorresistencia (LDR)
