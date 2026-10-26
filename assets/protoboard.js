@@ -1,14 +1,14 @@
 // Taller de Electrónica: la protoboard (Sim.protoboard), con su pila (en el agua, la bomba), su bandeja de piezas y la
 // red de nodos que la resuelve. La usan Protoboard (libre: cables y resistencias de la bandeja) y las páginas del armado
 // guiado (o.guide: cada paso pone una pieza en agujeros dados, con su lugar punteado, y se revisa solo). Piezas: cable,
-// resistencia, LED, pulsador (push) y potenciómetro (pot).
+// resistencia, LED, pulsador (push), potenciómetro (pot) y transistor NPN (npn).
 (() => {
   const { C, draw: D, fmt } = Sim;
 
   // o.tray: lo que trae la bandeja en el modo libre ('wire', 'res', 'led'); o.guide: los pasos del armado guiado,
   // [{ name, piece: { type, a: [c, r], b: [c, r], R, led, color } }] (columnas c de 0 a 15 y filas r de ROWNAME;
   // en el LED, a es la pata + y b la −; en el pulsador, a y b son las dos patas de arriba, en la misma fila; en el
-  // potenciómetro, a es la pata de la izquierda y las otras dos van en las dos columnas siguientes).
+  // potenciómetro y en el transistor, a es la pata de la izquierda y las otras dos van en las dos columnas siguientes).
   // Da { st, make, hole, load, clear, steps }: la página pone sus piezas con load y, si no es guiada, sus pasos.
   Sim.protoboard = (o = {}) => {
     // ---------- la protoboard ----------
@@ -61,8 +61,9 @@
     const legNode = l => l.term ? (l.term === '+' ? 'bp' : 'bn') : l.c != null ? group(l.c, l.r) : null;
     // El pulsador (de 6 mm, cuatro patas) va montado sobre el canal del centro: sus patas a y a2 (de un lado) están unidas
     // por dentro, igual que b y b2; apretarlo une un lado con el otro.
-    // El potenciómetro (de 10 kΩ) tiene tres patas en línea, una por columna: a, el cursor w en medio y b.
-    const legsOf = k => k.type === 'push' ? [k.a, k.b, k.a2, k.b2] : k.type === 'pot' ? [k.a, k.w, k.b] : [k.a, k.b];
+    // El potenciómetro (de 10 kΩ) tiene tres patas en línea, una por columna: a, el cursor w en medio y b; el transistor
+    // también: a el emisor, w la base y b el colector.
+    const legsOf = k => k.type === 'push' ? [k.a, k.b, k.a2, k.b2] : k.type === 'pot' || k.type === 'npn' ? [k.a, k.w, k.b] : [k.a, k.b];
     const make = (type, a, b, extra = {}) => ({ id: 'id' in extra ? extra.id : st.nextId++, type, a, b, I: 0, on: false, burnt: false, ang: 0, breakT: 9, R: 470, led: 'rojo', ...extra });
     const hole = (c, r) => ({ c, r });
     // Pulsador con su pata a en (c, r): b dos columnas a la derecha y a2, b2 en la fila siguiente (de e a f cruza el canal).
@@ -76,8 +77,16 @@
     const potHoles = (c, r) => [hole(c, r), hole(c + 1, r), hole(c + 2, r)];
     const okPot = (c, r) => c >= 0 && c + 2 < N && r >= 0 && r < ROWV.length;
     const makePot = (a, w, b, extra = {}) => make('pot', a, b, { w, x: 0.5, R: RPOT, Ia: 0, Ib: 0, pull: 0, ...extra });
-    // Calor de una resistencia o del potenciómetro (¼ W) o de un LED (Vf · 30 mA), ver Sim.heat; su menú lo muestra.
-    const heatOf = k => k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 } : Sim.HEAT.res));
+    // Transistor NPN 2N2222 (en cápsula TO-92) con su emisor en (c, r): la base y el colector en las dos columnas
+    // siguientes (E, B, C de izquierda a derecha, con su cara plana hacia el frente), en una fila de las tiras. be: si
+    // conduce la base; q: su estado ('corte', 'activo' o 'saturado'); u: qué tan abierta se ve la compuerta (de 0 a 1).
+    const okNpn = (c, r) => c >= 0 && c + 2 < N && r >= 2 && r <= 11;
+    const makeNpn = (a, w, b, extra = {}) => make('npn', a, b, { w, Ib: 0, Ic: 0, be: false, q: 'corte', u: 0, ...extra });
+    const multi = k => k.type === 'push' || k.type === 'pot' || k.type === 'npn';
+    // Calor de una resistencia o del potenciómetro (¼ W), de un LED (Vf · 30 mA) o del transistor (625 mW, con su unión
+    // hasta 150 °C, como en Transistor), ver Sim.heat; su menú lo muestra.
+    const heatOf = k => k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 }
+      : k.type === 'npn' ? { pMax: 0.625, tMax: 150, tau: 4 } : Sim.HEAT.res));
     const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(0, 1), { color: BLACKW })];
 
     const occupied = skip => {
@@ -103,17 +112,26 @@
     // Cada tira de 5 agujeros y cada riel es un nodo. La pila es una fuente de 9 V con 1 Ω por dentro
     // y un fusible de 1 A; el LED necesita el voltaje de su color (1,8 V el rojo) y tiene 15 Ω; los cables
     // y los contactos del pulsador, 0,05 Ω.
+    // El transistor (como en Transistor): de la base al emisor, un diodo de 0,7 V (Vbe, con RBE); del colector al emisor,
+    // según su estado: en corte (la base no conduce), abierto; activo, Ic = β · Ib (β = 100), lo que manda la base; y
+    // saturado, cuando lo demás del colector ya no deja pasar β · Ib: ahí quedan 0,2 V (Vce, con RSAT).
+    const BETA = 100, VBE = 0.7, VSAT = 0.2, RBE = 1, RSAT = 0.1;
     function solve() {
       const idx = new Map(), names = [];
       const id = n => { if (n === 'bn') return -1; if (!idx.has(n)) { idx.set(n, names.length); names.push(n); } return idx.get(n); };
       id('bp');
-      // cada elemento: entre dos nodos, con su resistencia (o el LED) y a dónde va su corriente (put, en mA)
+      // cada elemento: entre dos nodos, con su resistencia y a dónde va su corriente (put, en mA); un diodo (el LED y la
+      // base del transistor) lleva además su voltaje (vf) y dónde guarda si conduce (k[key]); el colector del transistor
+      // lleva su base (ce: el elemento de la base al emisor)
       const els = [];
-      const add2 = (k, l1, l2, R, put) => {
+      const add2 = (k, l1, l2, R, put, x = {}) => {
         const n1 = legNode(l1), n2 = legNode(l2);
-        if (!n1 || !n2 || n1 === n2) return;
-        els.push({ k, n1, n2, i: id(n1), j: id(n2), R, put });
+        if (!n1 || !n2 || n1 === n2) return null;
+        const e = { k, n1, n2, i: id(n1), j: id(n2), R, put, ...x };
+        els.push(e);
+        return e;
       };
+      const npns = [];
       for (const k of st.comps) {
         k.I = 0;
         if (k.type === 'push') {
@@ -131,43 +149,81 @@
           add2(k, k.w, k.b, Math.max(RW, (1 - k.x) * k.R), I => { k.Ib = I; });
           continue;
         }
+        // el transistor (quemado, queda abierto)
+        if (k.type === 'npn') {
+          k.Ib = k.Ic = 0; k.ce = false;
+          if (k.burnt) { k.be = false; k.q = 'corte'; continue; }
+          npns.push(k);
+          const be = add2(k, k.w, k.a, RBE, I => { k.Ib = I; }, { vf: VBE, key: 'be' });
+          if (!be) { k.be = false; continue; }
+          k.ce = !!add2(k, k.b, k.a, RSAT, I => { k.Ic = I; }, { ce: be });
+          continue;
+        }
         if (k.burnt) { if (k.type === 'led') k.on = false; continue; }
         const n = els.length;
-        add2(k, k.a, k.b, k.type === 'res' ? k.R : k.type === 'led' ? null : RW, I => { k.I = I; });
+        add2(k, k.a, k.b, k.type === 'res' ? k.R : k.type === 'led' ? RD : RW, I => { k.I = I; }, k.type === 'led' ? { vf: vf(k), key: 'on' } : {});
         if (k.type === 'led' && els.length === n) k.on = false;
       }
       const n = names.length, src = st.on && st.fuse;
       let V = new Float64Array(n);
+      const v = i => i >= 0 ? V[i] : 0;
+      // la corriente de la base de un transistor (b: su elemento de la base al emisor), si conduce
+      const ib = b => (v(b.i) - v(b.j) - VBE) / RBE;
       for (let iter = 0; iter < 20; iter++) {
         const G = Array.from({ length: n }, () => new Float64Array(n + 1));
         const add = (i, j, g) => { if (i >= 0) G[i][i] += g; if (j >= 0) G[j][j] += g; if (i >= 0 && j >= 0) { G[i][j] -= g; G[j][i] -= g; } };
         const inj = (i, x) => { if (i >= 0) G[i][n] += x; };
+        const drop = (e, vd) => { add(e.i, e.j, 1 / e.R); inj(e.i, vd / e.R); inj(e.j, -vd / e.R); };
         for (let i = 0; i < n; i++) G[i][i] += 1e-9;
         if (src) { add(0, -1, 1 / RINT); inj(0, V0 / RINT); }
         for (const e of els) {
-          if (e.R == null) { if (e.k.on) { add(e.i, e.j, 1 / RD); inj(e.i, vf(e.k) / RD); inj(e.j, -vf(e.k) / RD); } }
+          if (e.ce) {
+            // activo: del colector sale β · Ib = β (Vb − Ve − Vbe) / RBE y entra al emisor
+            if (e.k.q === 'saturado') drop(e, VSAT);
+            else if (e.k.q === 'activo') {
+              const g = BETA / RBE, b = e.ce;
+              for (const [r, sg] of [[e.i, 1], [e.j, -1]]) if (r >= 0) {
+                if (b.i >= 0) G[r][b.i] += sg * g;
+                if (b.j >= 0) G[r][b.j] -= sg * g;
+                G[r][n] += sg * g * VBE;
+              }
+            }
+          } else if (e.vf != null) { if (e.k[e.key]) drop(e, e.vf); }
           else add(e.i, e.j, 1 / e.R);
         }
         V = gauss(G, n);
         let changed = false;
-        for (const e of els) if (e.R == null) {
-          const dv = (e.i >= 0 ? V[e.i] : 0) - (e.j >= 0 ? V[e.j] : 0);
-          const on = e.k.on ? dv - vf(e.k) > -1e-9 : dv > vf(e.k);
-          if (on !== e.k.on) { e.k.on = on; changed = true; }
+        for (const e of els) if (e.vf != null) {
+          const dv = v(e.i) - v(e.j), was = e.k[e.key];
+          const on = was ? dv - e.vf > -1e-9 : dv > e.vf;
+          if (on !== was) { e.k[e.key] = on; changed = true; }
+        }
+        // el estado de cada transistor: sin base, en corte; con base, activo hasta que el colector baja a 0,2 V
+        // (saturado), y saturado mientras lo demás no deje pasar más de β · Ib
+        for (const e of els) if (e.ce) {
+          const k = e.k, vce = v(e.i) - v(e.j);
+          let q = k.q;
+          if (!k.be) q = 'corte';
+          else if (q === 'corte') q = 'activo';
+          else if (q === 'activo' && vce < VSAT - 1e-9) q = 'saturado';
+          else if (q === 'saturado' && (vce - VSAT) / RSAT > BETA * ib(e.ce) + 1e-9) q = 'activo';
+          if (q !== k.q) { k.q = q; changed = true; }
         }
         if (!changed) break;
       }
-      const v = i => i >= 0 ? V[i] : 0;
       for (const e of els) {
         const dv = v(e.i) - v(e.j);
-        e.put(1000 * (e.R == null ? (e.k.on ? (dv - vf(e.k)) / RD : 0) : dv / e.R));
+        e.put(1000 * (e.ce ? (e.k.q === 'saturado' ? (dv - VSAT) / RSAT : e.k.q === 'activo' ? BETA * ib(e.ce) : 0)
+          : e.vf != null ? (e.k[e.key] ? (dv - e.vf) / e.R : 0) : dv / e.R));
       }
+      // sin nada en el colector (o unido al emisor) no pasa Ic: con base, ya está saturado
+      for (const k of npns) if (!k.ce) k.q = k.be ? 'saturado' : 'corte';
       st.Ibat = src ? 1000 * (V0 - v(0)) / RINT : 0;
       st.V = { bn: 0 };
       names.forEach((nm, i) => st.V[nm] = V[i]);
       // Qué nodos están unidos a la pila por algo que conduce (para no mostrar voltaje en tiras sueltas).
       const adj = new Map(), link = (a, b) => { (adj.get(a) || adj.set(a, []).get(a)).push(b); };
-      for (const e of els) if (e.R != null || e.k.on) { link(e.n1, e.n2); link(e.n2, e.n1); }
+      for (const e of els) if (e.ce ? e.k.q !== 'corte' : e.vf == null || e.k[e.key]) { link(e.n1, e.n2); link(e.n2, e.n1); }
       const seen = new Set(['bp', 'bn']), q = ['bp', 'bn'];
       while (q.length) for (const m of adj.get(q.pop()) || []) if (!seen.has(m)) { seen.add(m); q.push(m); }
       st.reach = seen;
@@ -189,6 +245,7 @@
     const legCurrents = k => k.type === 'push'
       ? [[k.a, -(k.I + k.Ia)], [k.b, k.I - k.Ib], [k.a2, k.Ia], [k.b2, k.Ib]]
       : k.type === 'pot' ? [[k.a, -k.Ia], [k.w, k.Ia - k.Ib], [k.b, k.Ib]]
+      : k.type === 'npn' ? [[k.a, k.Ib + k.Ic], [k.w, -k.Ib], [k.b, -k.Ic]]
       : [[k.a, -k.I], [k.b, k.I]];
 
     // ---------- paneles ----------
@@ -411,25 +468,27 @@
     // El potenciómetro, visto desde arriba: sus tres patas en línea y, del lado contrario, el cuerpo con la pista (un arco
     // de 270° que va de la pata a a la b), la perilla al centro y el contacto del cursor, que toca la pista donde apunta
     // la perilla; del contacto, por el centro, baja a la pata del cursor. En el agua es el tramo con toma: la pista es un
-    // tramo angosto y la toma gira con la perilla. Se dibuja en su marco (potFrame): x a lo largo de las patas, de a a b,
+    // tramo angosto y la toma gira con la perilla. Se dibuja en su marco (frameOf): x a lo largo de las patas, de a a b,
     // y y hacia las patas, en px del dibujo; las patas en y = 0 y el cuerpo arriba (y negativa). POT, en pasos entre
     // agujeros: medio ancho del cuerpo (s), dónde empieza y acaba (y0, y1), centro de la perilla (ky), su radio (kr) y el
     // de la pista (rho).
     const POT = { s: 1.65, y0: 0.3, y1: 2.5, ky: 1.4, kr: 0.95, rho: 0.72 };
     const potAng = x => (-135 + 270 * x) * Math.PI / 180;   // a dónde apunta la perilla: desde arriba, a la derecha
-    const potUV = k => {
+    // El marco de una pieza de tres patas (el potenciómetro o el transistor): W, la pata de en medio; e, hacia la pata b;
+    // up, hacia el cuerpo (el del potenciómetro va hacia los rieles de arriba y el del transistor hacia el canal).
+    const frameUV = k => {
       const A = legUV(k.a), B = legUV(k.b), d = [B[0] - A[0], B[1] - A[1]], L = Math.hypot(...d) || 1, e = [d[0] / L, d[1] / L];
-      return { W: legUV(k.w), e, up: [e[1], -e[0]] };
+      return { W: legUV(k.w), e, up: k.type === 'npn' ? [-e[1], e[0]] : [e[1], -e[0]] };
     };
-    const knobUV = k => { const { W, up } = potUV(k); return [W[0] + up[0] * POT.ky, W[1] + up[1] * POT.ky]; };
-    const potFrame = (k, g) => {
-      const { W, e, up } = potUV(k), O = g.pt(...W), E = g.pt(W[0] + e[0], W[1] + e[1]), U = g.pt(W[0] + up[0], W[1] + up[1]);
+    const knobUV = k => { const { W, up } = frameUV(k); return [W[0] + up[0] * POT.ky, W[1] + up[1] * POT.ky]; };
+    const frameOf = (k, g) => {
+      const { W, e, up } = frameUV(k), O = g.pt(...W), E = g.pt(W[0] + e[0], W[1] + e[1]), U = g.pt(W[0] + up[0], W[1] + up[1]);
       const ex = [(E[0] - O[0]) / P, (E[1] - O[1]) / P], dn = [(O[0] - U[0]) / P, (O[1] - U[1]) / P];
       return { ex, dn, at: (x, y) => [O[0] + ex[0] * x + dn[0] * y, O[1] + ex[1] * x + dn[1] * y],
         apply: ctx => ctx.transform(ex[0], ex[1], dn[0], dn[1], O[0], O[1]) };
     };
     function drawPot(ctx, k, g, side, dt, ghost) {
-      const water = side === 'w', F = potFrame(k, g), at = F.at, s = POT.s * P, top = -POT.y1 * P, bot = -POT.y0 * P;
+      const water = side === 'w', F = frameOf(k, g), at = F.at, s = POT.s * P, top = -POT.y1 * P, bot = -POT.y0 * P;
       const kc = [0, -POT.ky * P], rho = POT.rho * P;
       const onArc = (f, r = rho) => [kc[0] + r * Math.sin(f), kc[1] - r * Math.cos(f)];
       const arcPts = (fa, fb) => {
@@ -502,9 +561,81 @@
       ctx.globalAlpha = 1;
     }
 
+    // El transistor NPN 2N2222 (TO-92), visto desde arriba: sus tres patas en línea, E, B y C, y junto a ellas su cuerpo, del
+    // lado del canal (para que se vean sus agujeros), con la cara plana al frente y la espalda redonda hacia las patas. En el
+    // agua es la compuerta de Transistor: un bloque de metal con un paso del colector al emisor y, en él, la compuerta roja
+    // en su ranura, que un resorte cierra; el chorrito de la base sube por su pata, empuja la paleta (unida a la compuerta
+    // por una varilla) y sale al paso del lado del emisor. Se dibuja en su marco (frameOf), como el potenciómetro, con
+    // NPN: medio ancho del cuerpo (s), dónde empieza y acaba (y0, y1) y la altura del paso (yc).
+    const NPN = { s: 1.3, y0: 0.3, y1: 2, yc: 1.2 };
+    const dimsOf = k => k.type === 'npn' ? NPN : POT;
+    const NPN_STATE = { corte: ['en corte', 'cerrada'], activo: ['activo', 'a medias'], saturado: ['saturado', 'abierta'] };
+    function drawNpn(ctx, k, g, side, dt, ghost) {
+      const water = side === 'w', F = frameOf(k, g), at = F.at, s = NPN.s * P, top = -NPN.y1 * P, bot = -NPN.y0 * P, yc = -NPN.yc * P;
+      const u = k.burnt ? 0 : k.u, mid = [0, (top + bot) / 2];
+      if (ghost) ctx.globalAlpha = 0.45;
+      if (!k.burnt && !ghost) D.heatGlow(ctx, ...at(...mid), heatOf(k).glow, 56);
+      ctx.save(); F.apply(ctx);
+      if (water) {
+        const pipe = pts => { D.line(ctx, pts, 11, C.pipe); D.line(ctx, pts, 6, C['water-soft']); };
+        for (const x of [-P, 0, P]) pipe([[x, 0], [x, bot - 4]]);
+        D.roundRect(ctx, -s, top, 2 * s, bot - top, 8, C.metal, k.burnt ? C.danger : C.ink, 2.5);
+        // el paso del colector al emisor y la subida de cada pata
+        ctx.fillStyle = C['water-soft'];
+        ctx.fillRect(-P - 5, yc - 6, 2 * P + 10, 12);
+        for (const x of [-P, 0, P]) ctx.fillRect(x - 3, yc, 6, -yc + bot);
+        // la ranura de la compuerta, arriba del paso, con su resorte
+        const gx = 0.45 * P, gw = 13, gy = yc - 7 - 12 * u;
+        ctx.fillStyle = C.pipe; ctx.fillRect(gx - gw / 2 - 1, top + 4, gw + 2, yc - 6 - top - 4);
+        const sp = [[gx, top + 4]], n = 6;
+        for (let i = 0; i < n; i++) sp.push([gx + (i % 2 ? 4 : -4), top + 4 + (gy - top - 4) * (i + 0.5) / n]);
+        sp.push([gx, gy]);
+        D.line(ctx, sp, 1.6, C.ink);
+        D.roundRect(ctx, gx - gw / 2, gy, gw, 14, 2, C.danger, C.ink, 1.5);   // la compuerta
+        // la paleta en la subida de la base y su varilla a la compuerta (por abajo del paso)
+        const py = bot - 9 - 12 * u;
+        D.line(ctx, [[2, py], [gx, py], [gx, gy + 14]], 2.5, C.ink);
+        D.roundRect(ctx, -5, py - 1.5, 10, 3, 1, C.ink);
+      } else {
+        for (const x of [-P, 0, P]) { D.line(ctx, [[x, top + 10], [x, 0]], 4, '#a9b2b9', 'butt'); D.circle(ctx, x, 0, 3, '#b8c0c6', '#6f7a83', 1); }
+        // la cápsula: la cara plana al frente y la espalda redonda hacia las patas
+        ctx.beginPath(); ctx.moveTo(-s, top); ctx.lineTo(s, top); ctx.ellipse(0, top, s, bot - top, 0, 0, Math.PI); ctx.closePath();
+        ctx.fillStyle = k.burnt ? '#4a3f3a' : '#23282c'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.stroke();
+        D.line(ctx, [[-s + 5, top + 4], [s - 5, top + 4]], 2, k.burnt ? '#2b2f33' : '#5b636a', 'butt');
+      }
+      ctx.restore();
+      // el agua (o las cargas): del colector por la compuerta al emisor (Ic) y de la base al paso (Ib), y las dos al emisor
+      if (!ghost) {
+        const ve = vOf(k.a), vb = vOf(k.w), vc = vOf(k.b), lin = (v1, v2) => t => (v1 ?? 0) + ((v2 ?? 0) - (v1 ?? 0)) * t;
+        const quiet = still() && !k.burnt;
+        const go = (key, pts, I, vv, ok) => {
+          if (Math.abs(I) > 0.01 || (quiet && ok)) flowDots(ctx, pts.map(q => at(...q)), phaseOf(k.id + side + key, I, dt),
+            water ? C.water : C.charge, water ? 16 : 18, 3.2, { v: vv, I });
+        };
+        go('c', [[P, 0], [P, yc], [0, yc]], k.Ic, lin(vc, ve), vc != null && k.q !== 'corte');
+        go('b', [[0, 0], [0, yc]], k.Ib, lin(vb, ve), vb != null && k.be);
+        go('e', [[0, yc], [-P, yc], [-P, 0]], k.Ib + k.Ic, () => ve ?? 0, ve != null && k.be);
+      }
+      if (k.burnt && !ghost) D.smoke(ctx, ...at(0, top - 4), k.breakT);
+      ctx.globalAlpha = 1;
+    }
+    // Su nombre a un lado (del lado del colector; en la bandeja, o mientras se arrastra, abajo) y, en la protoboard, su
+    // estado en una pastilla abajo del nombre. Va encima de todo lo demás.
+    function drawNpnTag(ctx, k, g, side) {
+      const water = side === 'w', F = frameOf(k, g), on = placed(k), sel = k === menuK && selOpen();
+      const state = k.burnt ? (water ? 'rota' : 'quemado') : NPN_STATE[k.q][water ? 1 : 0];
+      const dir = on ? F.ex : [-F.dn[0], -F.dn[1]], [bx, by] = F.at(on ? NPN.s * P : 0, -(on ? (NPN.y0 + NPN.y1) / 2 : NPN.y1) * P);
+      const px = D.font(ctx, 14, Sim.MONO, 600), H = on ? 2.9 * px : px;
+      const w = Math.max(ctx.measureText('2N2222').width, on ? ctx.measureText(state).width + 16 : 0);
+      const ext = Math.abs(dir[0]) * (w / 2 + 8) + Math.abs(dir[1]) * (H / 2 + 4) + 4, x = bx + dir[0] * ext, y = by + dir[1] * ext;
+      D.text(ctx, '2N2222', x, on ? y - 0.75 * px : y, sel ? C.sel : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
+      if (on) D.pill(ctx, state, x, y + 0.75 * px, k.burnt ? C.danger : sel ? C.sel : C.ink, k.burnt);
+    }
+
     function drawComp(ctx, k, g, side, dt, ghost) {
       if (k.type === 'push') return drawPush(ctx, k, legsOf(k).map(l => g.pt(...legUV(l))), side, dt, ghost);
       if (k.type === 'pot') return drawPot(ctx, k, g, side, dt, ghost);
+      if (k.type === 'npn') return drawNpn(ctx, k, g, side, dt, ghost);
       const A = g.pt(...legUV(k.a)), B = g.pt(...legUV(k.b));
       const water = side === 'w', path = compPath(k, A, B);
       const ang = Math.atan2(B[1] - A[1], B[0] - A[0]), L = Math.hypot(B[0] - A[0], B[1] - A[1]);
@@ -643,8 +774,12 @@
 
     // ---------- la bandeja ----------
     // Una pieza de la bandeja, centrada en (−3,9, vy) y acostada (el pulsador, con sus patas de arriba en vy − 0,75; el
-    // potenciómetro, con sus patas abajo y el cuerpo arriba).
+    // potenciómetro, con sus patas abajo y el cuerpo arriba; el transistor, con sus patas arriba y su nombre abajo).
     function trayComp(type, vy, extra = {}) {
+      if (type === 'npn') {
+        const v = vy - 1.3;
+        return makeNpn({ u: -4.9, v }, { u: -3.9, v }, { u: -2.9, v }, { id: 0, ...extra });
+      }
       if (type === 'pot') {
         const v = vy + 1.2;
         return makePot({ u: -4.9, v }, { u: -3.9, v }, { u: -2.9, v }, { id: 0, ...extra });
@@ -668,7 +803,7 @@
     }
     function drawTray(ctx, g, side, dt) {
       D.roundRect(ctx, ...rectW(g, ...TRAY), 10, C.bg || '#eaf0f3', C.line, 1.5);
-      for (const k of trayList(g === GEO.v ? 'v' : 'h')) drawComp(ctx, k, g, side, dt, false);
+      for (const k of trayList(g === GEO.v ? 'v' : 'h')) { drawComp(ctx, k, g, side, dt, false); if (k.type === 'npn') drawNpnTag(ctx, k, g, side); }
     }
 
     // ---------- el armado guiado ----------
@@ -677,14 +812,15 @@
       const { type, a, b, ...extra } = guide[j].piece;
       if (type === 'push') return makePush(...pushHoles(...a), { id: -1, ...extra });
       if (type === 'pot') return makePot(...potHoles(...a), { id: -1, ...extra });
+      if (type === 'npn') return makeNpn(...potHoles(...a), { id: -1, ...extra });
       return make(type, hole(...a), hole(...b), { id: -1, ...extra });
     };
     // Si una pieza está donde la pide el paso: sus patas en las mismas tiras (cualquier agujero de la tira es el mismo
-    // nodo). El LED, además, con su pata + donde va la +.
+    // nodo). El LED, además, con su pata + donde va la +, y el transistor con cada pata en la suya.
     const same = (k, t) => {
       if (k.type !== t.type || k.burnt) return false;
       if (legsOf(k).some(l => l.c == null)) return false;
-      if (t.type === 'led') return legNode(k.a) === legNode(t.a) && legNode(k.b) === legNode(t.b);
+      if (t.type === 'led' || t.type === 'npn') return legsOf(k).every((l, i) => legNode(l) === legNode(legsOf(t)[i]));
       const ns = x => legsOf(x).map(legNode).sort().join();
       return ns(k) === ns(t);
     };
@@ -706,9 +842,10 @@
       const col = C.muted;
       if (t.type === 'wire') D.line(ctx, compPath(t, A, B), 3, col);
       else if (t.type === 'push') D.roundRect(ctx, M[0] - PUSH_HALF, M[1] - PUSH_HALF, 2 * PUSH_HALF, 2 * PUSH_HALF, 8, null, col, 2);
-      else if (t.type === 'pot') {
-        ctx.save(); potFrame(t, g).apply(ctx);
-        D.roundRect(ctx, -POT.s * P, -POT.y1 * P, 2 * POT.s * P, (POT.y1 - POT.y0) * P, 8, null, col, 2);
+      else if (t.type === 'pot' || t.type === 'npn') {
+        const m = dimsOf(t);
+        ctx.save(); frameOf(t, g).apply(ctx);
+        D.roundRect(ctx, -m.s * P, -m.y1 * P, 2 * m.s * P, (m.y1 - m.y0) * P, 8, null, col, 2);
         ctx.restore();
       }
       else {
@@ -747,11 +884,13 @@
       drawTray(ctx, g, side, dt);
       drawBattery(ctx, g, side);
       drawSpot(ctx, g, side);
-      const dr = st.drag;
+      const dr = st.drag, tags = [];
       for (const k of st.comps) {
         const out = dr && dr.k === k && dr.moved && dr.kind === 'body' && !inBoard(...mean(legsOf(k).map(legUV)));
         drawComp(ctx, k, g, side, dt, out);
+        if (k.type === 'npn' && !out) tags.push(k);
       }
+      for (const k of tags) drawNpnTag(ctx, k, g, side);
       // a dónde caería cada pata que se está arrastrando
       if (dr && dr.moved) for (const h of dropHoles(dr)) D.circle(ctx, ...g.pt(h.c, ROWV[h.r]), 10, null, OKC, 3);
       if (side === 'w') drawValveNote(ctx, g);
@@ -761,9 +900,9 @@
       if (sa && menuK) {
         if (menuK === BATK) { const R = rectW(g, ...CH); D.select(ctx, R[0] - 7, R[1] - 7, R[2] + 14, R[3] + 14, sa, 16); }
         else if (menuK.type === 'push') { const M = g.pt(...centerUV(menuK)), h = PUSH_HALF + 16; D.select(ctx, M[0] - h, M[1] - h, 2 * h, 2 * h, sa, 14); }
-        else if (menuK.type === 'pot') {
-          const F = potFrame(menuK, g), hh = POT.y1 * P / 2;
-          D.selectRot(ctx, ...F.at(0, -hh), Math.atan2(F.ex[1], F.ex[0]), POT.s * P + 10, hh + 10, sa, 12);
+        else if (menuK.type === 'pot' || menuK.type === 'npn') {
+          const F = frameOf(menuK, g), m = dimsOf(menuK), hh = m.y1 * P / 2;
+          D.selectRot(ctx, ...F.at(0, -hh), Math.atan2(F.ex[1], F.ex[0]), m.s * P + 10, hh + 10, sa, 12);
         }
         else {
           const A = g.pt(...legUV(menuK.a)), B = g.pt(...legUV(menuK.b)), M = lerp(A, B, 0.5);
@@ -775,7 +914,7 @@
     }
 
     // ---------- tarjeta de cada cosa ----------
-    // Tocar una resistencia, un LED, un pulsador, un potenciómetro o un cable abre su tarjeta (Sim.menu) junto a él: su valor,
+    // Tocar una resistencia, un LED, un pulsador, un potenciómetro, un transistor o un cable abre su tarjeta (Sim.menu) junto a él: su valor,
     // su color o su cursor, girarlo, ponerlo nuevo y quitarlo; tocar la pila (la bomba) abre la suya: su fusible. Un marcador en cada
     // panel (sin dibujo) sirve para colocar la tarjeta; la cosa elegida (menuK) queda con su contorno azul.
     // En Componentes hay un renglón por cada una, que abre la misma tarjeta.
@@ -784,7 +923,7 @@
     const BATK = { type: 'bat' };
     const centerUV = k => {
       if (k === BATK) return [(CH[0] + CH[2]) / 2, (CH[1] + CH[3]) / 2];
-      if (k.type === 'pot') { const { W, up } = potUV(k), h = POT.y1 / 2; return [W[0] + up[0] * h, W[1] + up[1] * h]; }
+      if (k.type === 'pot' || k.type === 'npn') { const { W, up } = frameUV(k), h = dimsOf(k).y1 / 2; return [W[0] + up[0] * h, W[1] + up[1] * h]; }
       return mean(legsOf(k).map(legUV));
     };
     Object.entries(panels).forEach(([side, p]) => {
@@ -820,6 +959,10 @@
         { label: water ? 'Toma' : 'Cursor', range: [0, 100, 1], lo: '↺', hi: '↻', get: () => Math.round(k.x * 100), set: v => setX(k, v / 100) },
         Sim.powerRow(heatOf(k), side, { broken: () => k.burnt }),
         { actions: [{ text: water ? 'Poner un tramo nuevo' : 'Poner un potenciómetro nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } }, remove] }] };
+      // el transistor: su calor y ponerlo nuevo si se quemó
+      if (k.type === 'npn') return { title: (water ? 'Compuerta ' : 'Transistor ') + nameOf(k), rows: [
+        Sim.powerRow(heatOf(k), side, { broken: () => k.burnt, what: 'led' }),
+        { actions: [{ text: water ? 'Poner una compuerta nueva' : 'Poner un transistor nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } }, remove] }] };
       const m = k.type === 'res'
         ? Sim.resistorMenu({ values: RVALUES, get: () => k.R, set: R => { k.R = R; }, format: ohm, heat: heatOf(k), broken: () => k.burnt, actions: [
           { text: water ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } },
@@ -839,7 +982,8 @@
       Sim.menu.open(anchors[side], m);
     };
     const toggleMenu = (side, k) => { if (menuK === k && selOpen()) { Sim.menu.close(anchors.w); Sim.menu.close(anchors.e); } else openMenu(side, k); };
-    // Renglones de Componentes: la pila y cada resistencia, LED, pulsador, potenciómetro y cable que está en la protoboard.
+    // Renglones de Componentes: la pila y cada resistencia, LED, pulsador, potenciómetro, transistor y cable que está en la
+    // protoboard.
     const rows = new Map();
     const syncRows = () => {
       if (!Sim.side) return;
@@ -915,7 +1059,7 @@
           if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) <= Sim.DEAD.drag) return;
           moved = true;
           const r = p.canvas.getBoundingClientRect(), q = geo(p).uv((e.clientX - r.left - p.ox) / p.scale, (e.clientY - r.top - p.oy) / p.scale);
-          const c = knobUV(k), { e: ex, up } = potUV(k), d = [q[0] - c[0], q[1] - c[1]];
+          const c = knobUV(k), { e: ex, up } = frameUV(k), d = [q[0] - c[0], q[1] - c[1]];
           const a = Math.max(-135, Math.min(135, Math.atan2(d[0] * ex[0] + d[1] * ex[1], d[0] * up[0] + d[1] * up[1]) * 180 / Math.PI));
           const was = k.x;
           if (Math.abs(a - (-135 + 270 * k.x)) > Sim.DEAD.knob && turn((a + 135) / 270) && Math.floor(was * 10) !== Math.floor(k.x * 10)
@@ -948,19 +1092,19 @@
     // Si un punto (u, v) toca el cuerpo de un componente.
     const onBody = (k, q) => {
       if (k.type === 'push') { const [cu, cv] = centerUV(k), h = PUSH_HALF / P + 0.1; return Math.abs(q[0] - cu) < h && Math.abs(q[1] - cv) < h; }
-      if (k.type === 'pot') {
-        const { W, e, up } = potUV(k), d = [q[0] - W[0], q[1] - W[1]], x = d[0] * e[0] + d[1] * e[1], y = d[0] * up[0] + d[1] * up[1];
-        return Math.abs(x) < POT.s + 0.1 && y > -0.35 && y < POT.y1 + 0.1;
+      if (k.type === 'pot' || k.type === 'npn') {
+        const { W, e, up } = frameUV(k), m = dimsOf(k), d = [q[0] - W[0], q[1] - W[1]], x = d[0] * e[0] + d[1] * e[1], y = d[0] * up[0] + d[1] * up[1];
+        return Math.abs(x) < m.s + 0.1 && y > -0.35 && y < m.y1 + 0.1;
       }
       const a = legUV(k.a), b = legUV(k.b), m = lerp(a, b, 0.5);
       return distSeg(q, a, b) < 0.35 || Math.hypot(q[0] - m[0], q[1] - m[1]) < 0.5;
     };
-    // Los agujeros donde caería lo que se arrastra (null si no cabe). El pulsador y el potenciómetro caen con su pata a
-    // en el agujero más cercano y las demás en su lugar.
+    // Los agujeros donde caería lo que se arrastra (null si no cabe). El pulsador, el potenciómetro y el transistor caen con
+    // su pata a en el agujero más cercano y las demás en su lugar.
     const holesFor = (k, occ) => {
-      if (k.type === 'push' || k.type === 'pot') {
+      if (multi(k)) {
         const h = nearestHole(...legUV(k.a), occ);
-        if (!h || !(k.type === 'push' ? okPush : okPot)(h.c, h.r)) return null;
+        if (!h || !({ push: okPush, pot: okPot, npn: okNpn })[k.type](h.c, h.r)) return null;
         const hs = (k.type === 'push' ? pushHoles : potHoles)(h.c, h.r);
         return hs.every(x => !occ.has(x.c + ',' + x.r)) ? hs : null;
       }
@@ -981,9 +1125,9 @@
         const t = target(st.step), hs = legsOf(t);
         if (hs.every(l => !occ.has(l.c + ',' + l.r))) { legsOf(k).forEach((l, i) => setLeg(l, { c: hs[i].c, r: hs[i].r })); return true; }
       }
-      if (k.type === 'push' || k.type === 'pot') {
+      if (multi(k)) {
         const at = k.type === 'push' ? pushHoles : potHoles;
-        for (const r of k.type === 'push' ? [6] : [5, 10, 3, 8]) for (let c = 1; c + 2 < N; c++) {
+        for (const r of k.type === 'push' ? [6] : k.type === 'npn' ? [3, 8] : [5, 10, 3, 8]) for (let c = 1; c + 2 < N; c++) {
           const hs = at(c, r);
           if (hs.every(x => !occ.has(x.c + ',' + x.r))) { legsOf(k).forEach((l, i) => setLeg(l, hs[i])); return true; }
         }
@@ -1009,7 +1153,7 @@
         let best = null, bd = hit;
         const onLed = st.comps.find(k => k.type === 'led' && Math.hypot(...lerp(legUV(k.a), legUV(k.b), 0.5).map((x, i) => x - q[i])) < 0.4);
         if (onLed) bd = 0;
-        for (const k of st.comps) if (k.type !== 'push' && k.type !== 'pot') for (const leg of k.type === 'lead' ? ['b'] : ['a', 'b']) {
+        for (const k of st.comps) if (!multi(k)) for (const leg of k.type === 'lead' ? ['b'] : ['a', 'b']) {
           const dd = Math.hypot(...legUV(k[leg]).map((x, i) => x - q[i]));
           if (dd < bd) { bd = dd; best = { k, leg }; }
         }
@@ -1020,7 +1164,7 @@
         if (!d.kind) for (const k of [...st.comps].reverse()) if (k.type !== 'lead' && onBody(k, q)) { grab(k); break; }
         // 3) la bandeja: sale un componente nuevo
         if (!d.kind && q[0] > TRAY[0] && q[0] < TRAY[2]) for (const k of trayList(p.mode === 'v' ? 'v' : 'h')) {
-          if (onBody(k, q) || (k.type !== 'push' && k.type !== 'pot' && Math.abs(q[1] - legUV(k.a)[1]) < 0.7)) {
+          if (onBody(k, q) || (!multi(k) && Math.abs(q[1] - legUV(k.a)[1]) < 0.7)) {
             k.id = st.nextId++; st.colorK++;
             st.comps.push(k);
             grab(k); d.isNew = true; break;
@@ -1097,6 +1241,16 @@
           const Pw = k.burnt ? 0 : (k.Ia / 1000) ** 2 * Math.max(RW, k.x * k.R) + (k.Ib / 1000) ** 2 * Math.max(RW, (1 - k.x) * k.R);
           if (heatOf(k).step(Pw, dt) && !k.burnt) { k.burnt = true; k.breakT = 0; }
           k.breakT += dt;
+          continue;
+        }
+        // el transistor: Vce · Ic + Vbe · Ib; su compuerta se abre del todo saturado y, activo, más entre menos voltaje le queda
+        if (k.type === 'npn') {
+          const vn = l => st.V[legNode(l)] ?? 0, vce = vn(k.b) - vn(k.a);
+          const Pw = k.burnt ? 0 : (vce * k.Ic + (vn(k.w) - vn(k.a)) * k.Ib) / 1000;
+          if (heatOf(k).step(Pw, dt) && !k.burnt) { k.burnt = true; k.breakT = 0; }
+          k.breakT += dt;
+          const u = k.burnt || k.q === 'corte' ? 0 : k.q === 'saturado' ? 1 : Math.max(0.1, Math.min(0.9, 1 - (vce - VSAT) / (V0 - VSAT)));
+          k.u += (u - k.u) * Math.min(1, dt * 12);
           continue;
         }
         if (k.type !== 'led' && k.type !== 'res') continue;
