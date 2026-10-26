@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Botones · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026164223">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Botones</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="0">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con una válvula con resorte que se cierra o se abre sola al soltarla"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico con un pulsador y su resistencia de pull-down o de pull-up"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261026164223"></script>
+<script src="../../assets/banco.js?v=20261026164223"></script>
+<script>
+(() => {
+  const { C, draw: D } = Sim;
+  // El pulsador del taller: solo cambia mientras se aprieta; al soltarlo, su resorte lo regresa. Normalmente abierto (NA):
+  // sin apretar no deja pasar y apretado sí; normalmente cerrado (NC): al revés. En el agua es una válvula con resorte: una
+  // compuerta con una ventana que se desliza; el resorte la sube y al apretar la tapa la baja. En la NA la ventana queda
+  // arriba del paso (se cierra sola al soltarla); en la NC queda en el paso (se abre sola).
+  // Se aprieta tocando su tapa (mientras se toca); tocar su cuerpo abre su tarjeta (NA o NC).
+  // Dos pasos, los que cambian el dibujo:
+  //   Pulsador: + → pulsador → resistencia → LED → −, como Interruptor y LED.
+  //   Pull-down y pull-up: el pulsador y una resistencia en serie entre el + y el −; del nodo de en medio (N) sale la entrada
+  //     (la de un microcontrolador: no toma corriente), con su terminal. Pull-down: + → pulsador → N → resistencia → −; suelto,
+  //     la resistencia deja la entrada en 0 V, y apretado queda en V (y pasan V / R). Pull-up: + → resistencia → N → pulsador → −;
+  //     suelto, en V, y apretado en 0 V. Sin la resistencia (empieza sin ella: su lugar punteado) nada le fija el voltaje a la
+  //     entrada cuando el pulsador está suelto: flota. Se queda con el que tenía y se va moviendo con lo que recoge (st.fl, al
+  //     azar, entre 0 y V, lo que dejan los diodos de protección de la entrada).
+  // Todo se calienta (Sim.heat): el LED aguanta Vf · 30 mA y las resistencias ¼ W; con 0 Ω la del pull-down (o pull-up) es
+  // un cable: al apretar, el pulsador hace un corto y la fuente llega a su límite de corriente.
+  const XS = 270, XL = 545;              // paso 1: el pulsador y el LED (la resistencia va al centro)
+  const XA = 290, XN = 410, XB = 530;    // paso 2: lo que va antes del nodo de la entrada, el nodo y lo que va después
+  const RMIN = 100, RMAX = 1000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
+  const RVALUES = [0, ...Sim.series(RMIN, RMAX)];
+  const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
+  const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
+  // la del pull-down (o pull-up): de 1 kΩ a 100 kΩ, y 0 Ω (un cable)
+  const PMIN = 1000, PMAX = 100000, PL = Math.log(PMAX / PMIN);
+  const PVALUES = [0, ...Sim.series(PMIN, PMAX)];
+  const halfP = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / PMIN) / PL : Sim.PIPE;
+  const fromHalfP = h => h >= Sim.PIPE - 0.5 ? 0 : Sim.nearest(PVALUES, PMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * PL));
+  const ohm = Sim.ohm, OFF = [-999, -999];
+  const vf = () => Sim.led(st.led).vf;
+  const lh = Sim.heat({ ...Sim.HEAT.led, pMax: () => vf() * Sim.LED_IMAX / 1000 }), rh = Sim.heat(Sim.HEAT.res), ph = Sim.heat(Sim.HEAT.res);
+  // type: 'na' o 'nc'; press: se está apretando (pv, la tapa que baja, para el dibujo); mode: 'down' o 'up'; P: la del
+  // pull-down (o pull-up), pon: está puesta, pb: quemada; fl: el voltaje de la entrada cuando flota
+  const st = { step: 0, type: 'na', press: false, pv: 0, R: 220, led: 'rojo', broken: false, rb: false, burnT: 9, ang: 0, om: 0,
+    mode: 'down', P: 10000, pon: false, pb: false, pburnT: 9, fl: 0,
+    na: false, nc: false, flo: false, down: false, up: false, held: false };
+  const closed = () => st.press !== (st.type === 'nc');
+  const pLive = () => st.pon && !st.pb;
+  const floating = () => !!st.step && !closed() && !pLive();
+  const up = () => st.mode === 'up';
+  // El voltaje de la entrada (N) con V en el +.
+  const nodeV = V => {
+    if (closed()) return up() ? 0 : V;
+    if (pLive()) return up() ? V : 0;
+    return st.fl;
+  };
+  const yT = g => g.TOP + 0.48 * (g.BOT - g.TOP);   // la terminal de la entrada
+  const pushAt = g => st.step ? [up() ? XB : XA, g.TOP] : [XS, g.TOP];
+  const resAt = g => [up() ? XA : XB, g.TOP];
+  const dOn = (pts, x, y) => D.project(pts, x, y).d;
+
+  // Tramos del circuito (sin la fuente), con su corriente, sus componentes y el perfil del agua (pk: lo que lo cambia).
+  //   paso 1: la vuelta, con el pulsador, la resistencia y el LED arriba
+  //   paso 2: s1 del + por la izquierda y arriba hasta N (con lo de antes), s2 de N por la derecha y abajo hasta el − (con lo
+  //   de después) y tap, la entrada: de N hacia abajo hasta su terminal, sin corriente
+  function segs(g, m, V) {
+    const I = m.I, cl = closed();
+    const push = (at, dV) => ({ id: 'S', at, half: 28, dV, R: cl ? 0 : Infinity, pr: pushPart, ext: w => w ? 30 : 22,
+      draw: (ctx, w) => drawPush(ctx, w, ...at), tag: w => pushTag(w) });
+    if (!st.step) {
+      const R = st.R, dR = st.rb ? (cl ? V : 0) : I * R / 1000, pts = b.loopPts(g);
+      const comps = [push([XS, g.TOP], cl ? 0 : V),
+        { id: 'LED', at: [XL, g.TOP], half: 30, dV: cl ? V - dR : 0, pr: ledPart, ext: w => w ? 46 : 28,
+          draw: (ctx, w) => drawLed(ctx, w, g, m), tag: w => ledTag(w) }];
+      if (R) comps.push({ id: 'R', at: [g.PX, g.TOP], half: 46, dV: dR, R: st.rb ? Infinity : R, pr: pinch,
+        draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, half(R)) : D.resistor(ctx, g.PX, g.TOP), tag: w => rTag(w) });
+      return [{ id: 'loop', pts, I, v0: V, comps, prof: R ? Sim.narrowProfile(dOn(pts, g.PX, g.TOP), half(R)) : null, pk: R }];
+    }
+    const vN = nodeV(V), [xr] = resAt(g);
+    const res = { id: 'P', at: [xr, g.TOP], half: 46, dV: up() ? V - vN : vN, R: pLive() ? st.P : Infinity, pr: st.pon ? pull : null,
+      ext: 16, draw: (ctx, w) => { if (w && st.pon && st.P) D.narrow(ctx, xr, g.TOP, halfP(st.P)); drawPull(ctx, w, g); }, tag: st.pon ? w => pullTag(w) : null };
+    const s = push(pushAt(g), up() ? vN : V - vN);
+    const p1 = [[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [XN, g.TOP]];
+    const p2 = [[XN, g.TOP], [g.X1, g.TOP], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]];
+    const narrow = pts => st.pon && st.P ? Sim.narrowProfile(dOn(pts, xr, g.TOP), halfP(st.P)) : null;
+    return [
+      { id: 's1', pts: p1, I, v0: V, comps: [up() ? res : s], prof: up() ? narrow(p1) : null, pk: st.mode + st.pon + st.P },
+      { id: 's2', pts: p2, I, v0: vN, comps: [up() ? s : res], prof: up() ? null : narrow(p2), pk: st.mode + st.pon + st.P },
+      { id: 'tap', pts: [[XN, g.TOP], [XN, yT(g)]], I: 0, v0: vN, comps: [] }
+    ];
+  }
+
+  // El agua de cada tramo (Sim.stream); se arma de nuevo si el tramo cambia.
+  const streams = new Map(), phase = { w: {}, e: {} };
+  const streamOf = s => {
+    const key = JSON.stringify(s.pts) + st.step + s.pk;
+    let w = streams.get(s.id);
+    if (!w || w.key !== key) { w = { key, sim: Sim.stream(s.pts, s.prof || (() => Sim.PIPE)) }; streams.set(s.id, w); }
+    return w.sim;
+  };
+  const K = 10, CAP = 40;   // rapidez de las partículas por mA, con un tope para que se vean
+  const rate = I => Math.sign(I) * Math.min(Math.abs(I), CAP) * K;
+  // Un número al azar de una normal (lo que recoge la entrada que flota).
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+
+  const b = Sim.bench({
+    iFull: 30, v0: 5,
+    head: 100,   // las etiquetas, arriba de la tapa del pulsador
+    layout() { streams.clear(); },
+    model(V) {
+      if (!closed()) return { I: 0 };
+      // el LED solo deja pasar en su sentido y con más de Vf; 5 Ω de su resistencia interna
+      if (!st.step) return { I: st.broken || st.rb ? 0 : Math.max(0, V - vf()) / (st.R + 5) * 1000 };
+      // con 0 Ω es un corto: lo que detiene la corriente es el límite de la fuente
+      return { I: pLive() ? V / Math.max(st.P, 0.05) * 1000 : 0 };
+    },
+    circuit: (g, m, V) => segs(g, m, V),
+    step(dt, m) {
+      const I = b.flowI(m) / 1000, V = b.st.vo;
+      const to = st.press ? 1 : 0;
+      st.pv = Sim.REDUCE.matches ? to : to > st.pv ? Math.min(to, st.pv + dt / 0.06) : Math.max(to, st.pv - dt / 0.09);
+      if (!st.step) {
+        if (lh.step(st.broken ? 0 : vf() * Math.abs(I), dt) && !st.broken) { st.broken = true; b.halt(); b.refresh(); }
+        if (rh.step(st.rb || !st.R ? 0 : I * I * st.R, dt) && !st.rb && st.R) { st.rb = true; st.burnT = 0; b.halt(); b.refresh(); }
+      } else if (ph.step(pLive() && st.P ? I * I * st.P : 0, dt) && pLive() && st.P) { st.pb = true; st.pburnT = 0; b.halt(); b.refresh(); }
+      st.burnT += dt; st.pburnT += dt;
+      // la entrada que flota se queda con su voltaje y se va moviendo (unos 0,3 V por segundo por cada volt de la fuente),
+      // sin salirse de 0 a V: ahí rebota
+      if (floating()) {
+        const lo = Math.min(0, V), hi = Math.max(0, V);
+        let x = st.fl + gauss() * 0.3 * (hi - lo) * Math.sqrt(Math.max(0, dt));
+        if (x < lo) x = 2 * lo - x;
+        if (x > hi) x = 2 * hi - x;
+        st.fl = Math.max(lo, Math.min(hi, x));
+      } else st.fl = nodeV(V);
+      st.om = st.broken || st.step ? 0 : -m.I * Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI;
+      st.ang += st.om * dt;
+      for (const s of segs(b.ge, m, V)) phase.e[s.id] = (phase.e[s.id] || 0) + rate(s.I) * dt;
+      for (const s of segs(b.gw, m, V)) phase.w[s.id] = (phase.w[s.id] || 0) + rate(s.I) * dt;
+      seen(m);
+    },
+    drawW(ctx, g, m) {
+      const ss = segs(g, m, b.st.vo);
+      ss.forEach(s => D.pipe(ctx, s.pts));
+      if (!st.step && st.R) D.narrow(ctx, g.PX, g.TOP, half(st.R));
+      if (st.step && st.pon && st.P) D.narrow(ctx, resAt(g)[0], g.TOP, halfP(st.P));
+      ss.forEach(s => streamOf(s).draw(ctx, phase.w[s.id] || 0, rate(s.I)));
+      if (!st.step) {
+        if (st.R) D.burstPipe(ctx, g.PX, g.TOP, half(st.R), st.burnT, st.rb, rh.glow, '');
+        b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
+        drawLed(ctx, true, g, m);
+      } else {
+        drawPull(ctx, true, g);
+        plug(ctx, XN, yT(g));
+      }
+      drawPush(ctx, true, ...pushAt(g));
+      labels(ctx, g, true);
+    },
+    drawE(ctx, g, m) {
+      const ss = segs(g, m, b.st.vo);
+      ss.forEach(s => D.wire(ctx, s.pts));
+      ss.forEach(s => D.flow(ctx, s.pts, phase.e[s.id] || 0, C.charge, { gap: 30, r: 4.5 }));
+      if (!st.step) {
+        if (st.R) {
+          if (!st.rb) D.heatGlow(ctx, g.PX, g.TOP, rh.glow);
+          D.resistor(ctx, g.PX, g.TOP);
+          if (st.rb) D.burntResistor(ctx, g.PX, g.TOP, st.burnT, '');
+        }
+        b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
+        drawLed(ctx, false, g, m);
+      } else {
+        drawPull(ctx, false, g);
+        D.circle(ctx, XN, g.TOP, 6, C.ink);                   // el nodo
+        D.circle(ctx, XN, yT(g), 6, C.card, C.ink, 2.5);      // la terminal de la entrada
+      }
+      drawPush(ctx, false, ...pushAt(g));
+      labels(ctx, g, false);
+    }
+  });
+
+  // El pulsador en (x, y), sobre un tubo o un cable horizontal; la tapa arriba. st.pv: qué tan apretado (de 0 a 1).
+  function drawPush(ctx, w, x, y) {
+    const p = st.pv, nc = st.type === 'nc';
+    if (w) {
+      // el cuerpo, con el paso del agua (más angosto que el tubo) y la compuerta roja que se desliza por dentro; su
+      // ventana (agua) queda en el paso apretada (NA) o suelta (NC). La tapa baja 16 y el resorte se aprieta.
+      const T = 16, gy = -T / 2 + T * p, win = gy + (nc ? T / 2 : -T / 2), cap = y - 50 + T * p, top = y - 25;
+      D.roundRect(ctx, x - 17, y - 25, 34, 50, 7, C.metal, C.ink, 2.5);
+      ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 17, y - 7, 34, 14);
+      ctx.save(); ctx.beginPath(); ctx.rect(x - 7, y - 21, 14, 42); ctx.clip();
+      ctx.fillStyle = C.danger; ctx.fillRect(x - 7, y - 21, 14, 42);
+      ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 7, y + win - 7, 14, 14);
+      ctx.restore();
+      D.line(ctx, [[x - 7, y - 21], [x - 7, y + 21]], 1.5, C.ink); D.line(ctx, [[x + 7, y - 21], [x + 7, y + 21]], 1.5, C.ink);
+      D.line(ctx, [[x, top], [x, cap]], 4, C.ink);
+      const n = 6, y1 = cap + 4, pts = [[x, top]];
+      for (let k = 0; k < n; k++) pts.push([x + (k % 2 ? 9 : -9), top + (y1 - top) * (k + 0.5) / n]);
+      pts.push([x, y1]);
+      D.line(ctx, pts, 2.5, C.muted);
+      D.roundRect(ctx, x - 16, cap - 8, 32, 11, 5, C.metal, C.ink, 2.5);
+      return;
+    }
+    // símbolo: dos contactos y la barra que los une, con su vástago y su tapa (⊓). NA: la barra arriba de los contactos,
+    // baja a tocarlos; NC: la barra debajo, tocándolos, baja y los suelta.
+    const by = y + (nc ? 5.5 : -13.5) + 8 * p, cap = y - 30 + 8 * p;
+    ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 36, 56, 52);
+    D.line(ctx, [[x - 28, y], [x - 22, y]], 4, C.ink); D.line(ctx, [[x + 22, y], [x + 28, y]], 4, C.ink);
+    D.line(ctx, [[x, by], [x, cap]], 2.5, C.ink);
+    D.line(ctx, [[x - 23, by], [x + 23, by]], 3.5, C.ink);
+    D.line(ctx, [[x - 9, cap + 6], [x - 9, cap], [x + 9, cap], [x + 9, cap + 6]], 3, C.ink, 'butt');
+    D.circle(ctx, x - 18, y, 4.5, C.card, C.ink, 2.5); D.circle(ctx, x + 18, y, 4.5, C.card, C.ink, 2.5);
+  }
+  // La resistencia del pull-down (o pull-up), o su lugar punteado si no está.
+  function drawPull(ctx, w, g) {
+    const [x, y] = resAt(g);
+    if (!st.pon) return ghost(ctx, x, y, w);
+    if (w) { D.burstPipe(ctx, x, y, halfP(st.P), st.pburnT, st.pb, ph.glow, ''); b.grips(ctx, x, y, halfP(st.P) + 5, pull); return; }
+    if (st.P) {
+      if (!st.pb) D.heatGlow(ctx, x, y, ph.glow);
+      D.resistor(ctx, x, y);
+      if (st.pb) D.burntResistor(ctx, x, y, st.pburnT, '');
+    }
+    b.grips(ctx, x, y, halfP(st.P) + 5, pull);
+  }
+  // Lugar punteado de la resistencia que falta, con su +.
+  function ghost(ctx, x, y, w) {
+    const h = w ? Sim.PIPE + 6 : 16;
+    D.roundRect(ctx, x - 46, y - h, 92, 2 * h, 10, C.card);
+    ctx.save(); ctx.setLineDash([7, 6]);
+    D.roundRect(ctx, x - 46, y - h, 92, 2 * h, 10, null, C.muted, 2);
+    ctx.restore();
+    D.line(ctx, [[x - 8, y], [x + 8, y]], 3, C.muted); D.line(ctx, [[x, y - 8], [x, y + 8]], 3, C.muted);
+  }
+  // Tapón del tubo de la entrada, abajo en (x, y).
+  function plug(ctx, x, y) { D.roundRect(ctx, x - Sim.PIPE - 7, y - 2, 2 * Sim.PIPE + 14, 9, 3, C.ink); }
+  function drawLed(ctx, w, g, m) {
+    if (!st.broken) D.heatGlow(ctx, XL, g.TOP, lh.glow, w ? 46 : 56);
+    if (w) D.wheel(ctx, XL, g.TOP, { angle: st.ang, omega: st.om, broken: st.broken, tint: `rgb(${Sim.led(st.led).rgb})`, tag: false });
+    else D.ledSymbol(ctx, XL, g.TOP, { I: Math.abs(m.I), broken: st.broken, rgb: Sim.led(st.led).rgb, tag: false });
+  }
+
+  // Etiquetas en un renglón arriba de la tapa del pulsador; la de la entrada, a la derecha de su terminal, con su estado:
+  // en alto, en bajo o flotando.
+  const pushTag = w => [w ? 'válvula' : 'pulsador', w ? '' : st.type.toUpperCase(), false,
+    closed() ? (w ? 'abierta' : 'cerrado') : (w ? 'cerrada' : 'abierto')];
+  const rTag = w => st.R ? [w ? 'tramo angosto' : 'resistencia', ohm(st.R), st.rb, st.rb ? (w ? 'reventado' : 'quemada') : '']
+    : [w ? 'sin estrechamiento' : 'sin resistencia', '0 Ω', true];
+  const pullTag = w => st.P ? [w ? 'tramo angosto' : up() ? 'pull-up' : 'pull-down', ohm(st.P), st.pb, st.pb ? (w ? 'reventado' : 'quemada') : '']
+    : [w ? 'sin estrechamiento' : 'sin resistencia', '0 Ω', true];
+  const ledTag = w => [w ? 'rueda' : 'LED', w ? st.led.replace(/o$/, 'a') : st.led, st.broken, st.broken ? (w ? 'rota' : 'quemado') : ''];
+  const SHORT = { 'tramo angosto': 'tramo', 'resistencia': 'R', 'sin estrechamiento': 'sin tramo', 'sin resistencia': 'sin R' };
+  function labels(ctx, g, w) {
+    if (b.nodesOn()) return;
+    const items = !st.step ? [[pushTag(w), XS, pushPart], [rTag(w), g.PX, pinch], [ledTag(w), XL, ledPart]]
+      : [[pushTag(w), pushAt(g)[0], pushPart], ...(st.pon ? [[pullTag(w), resAt(g)[0], pull]] : [])];
+    b.tagRow(ctx, g, g.TOP - (w ? 84 : 56), items
+      .map(([t, x, pr]) => ({ x, pr, name: SHORT[t[0]] ? [t[0], SHORT[t[0]]] : t[0], value: t[1], danger: t[2], state: t[3] })));
+    if (!st.step) return;
+    // a la izquierda del tubo (o cable) de la entrada, a media bajada: la punta del multímetro va en su terminal
+    const V = b.st.vo, vN = nodeV(V), fl = floating();
+    const state = fl ? 'flotando' : Math.abs(vN) > Math.abs(V) / 2 && Math.abs(V) > 0.05 ? 'en alto' : 'en bajo';
+    const tw = D.tagWidth(ctx, 'entrada', '', state);
+    b.tag(ctx, null, XN - (w ? Sim.PIPE + 14 : 14) - tw, (g.TOP + yT(g)) / 2 + 6, 'entrada', '', fl, true, state);
+  }
+
+  // ---------- el pulsador: tocar su tapa lo aprieta (mientras se toca); tocar su cuerpo abre su tarjeta ----------
+  const pushMenu = side => {
+    const w = side === 'w';
+    return {
+      title: w ? 'Válvula con resorte' : 'Pulsador',
+      rows: [{ label: 'Normalmente', seg: w ? [{ value: 'na', text: 'Cerrada' }, { value: 'nc', text: 'Abierta' }]
+        : [{ value: 'na', text: 'Abierto' }, { value: 'nc', text: 'Cerrado' }], get: () => st.type, set: v => { st.type = v; } }]
+    };
+  };
+  const pushPart = b.part({
+    pos: g => b.nodesOn() ? OFF : [pushAt(g)[0], g.TOP + 8],
+    label: side => side === 'w' ? 'Válvula con resorte' : 'Pulsador',
+    menu: pushMenu
+  });
+  const press = v => { if (st.press !== v) { st.press = v; if (v) st.held = true; } };
+  ['w', 'e'].forEach(side => {
+    const el = document.createElement('div'), p = side === 'w' ? b.pw : b.pe;
+    el.className = 'sim-hit'; el.tabIndex = 0; el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', side === 'w' ? 'Tapa de la válvula (se aprieta mientras se toca)' : 'Pulsador (se aprieta mientras se toca)');
+    Object.assign(el.style, { aspectRatio: 'auto', borderRadius: '12px', touchAction: 'none', userSelect: 'none' });
+    b.place(side, el, g => {
+      const [x, y] = pushAt(g), nodes = b.nodesOn(), w = side === 'w';
+      el.style.width = Math.max(44, (nodes ? 72 : w ? 64 : 56) * p.scale) + 'px';
+      el.style.height = Math.max(40, (nodes ? 64 : w ? 46 : 36) * p.scale) + 'px';
+      return nodes ? [x, y] : [x, y - (w ? 41 : 24)];
+    }, true);
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); press(true); e.preventDefault(); });
+    const off = () => press(false);
+    ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'].forEach(t => el.addEventListener(t, off));
+    el.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { press(true); e.preventDefault(); } });
+    el.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') { press(false); e.preventDefault(); } });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  });
+
+  // ---------- paso 1: la resistencia y el LED ----------
+  const renewR = () => { st.rb = false; rh.reset(); st.burnT = 9; };
+  const setR = R => { st.R = R; if (!R) renewR(); };
+  const pinch = b.pinch({
+    pos: g => st.step ? OFF : [g.PX, g.TOP], get: () => st.R, half, fromHalf, set: setR,
+    label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia del LED',
+    text: R => R ? ohm(R) : 'sin resistencia',
+    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: R => R ? ohm(R) : '0 Ω (sin resistencia)',
+      heat: rh, broken: () => st.rb,
+      actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rb, onClick: renewR }] })
+  });
+  const ledPart = b.part({
+    pos: g => st.step ? OFF : [XL, g.TOP],
+    label: side => side === 'w' ? 'Rueda' : 'LED',
+    menu: Sim.ledMenu({
+      get: () => st.led, set: id => { st.led = id; }, heat: lh, broken: () => st.broken,
+      actions: side => [{ text: side === 'w' ? 'Poner una rueda nueva' : 'Poner un LED nuevo', hidden: () => !st.broken,
+        onClick: () => { st.broken = false; lh.reset(); } }]
+    })
+  });
+
+  // ---------- paso 2: la resistencia de pull-down o pull-up ----------
+  // Se pellizca o se cambia en su tarjeta, donde también se elige dónde va (Conexión, también en Armar) y se quita; su lugar
+  // punteado (o Armar) la pone otra vez.
+  const renewP = () => { st.pb = false; ph.reset(); st.pburnT = 9; };
+  const setP = R => { st.P = R; if (!R) renewP(); };
+  const setMode = v => { st.mode = v; };
+  const pullBase = Sim.resistorMenu({ values: PVALUES, get: () => st.P, set: setP, format: R => R ? ohm(R) : '0 Ω (un cable)',
+    heat: ph, broken: () => st.pb,
+    actions: side => [
+      { text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.pb, onClick: renewP },
+      { text: side === 'w' ? 'Quitar el tramo' : 'Quitar la resistencia', onClick: () => { st.pon = false; Sim.menu.close(); syncArm(); } }] });
+  const pull = b.pinch({
+    pos: g => st.step && st.pon ? resAt(g) : OFF, get: () => st.P, half: halfP, fromHalf: fromHalfP, set: setP,
+    label: side => side === 'w' ? 'Tramo angosto' : up() ? 'Resistencia de pull-up' : 'Resistencia de pull-down',
+    text: R => R ? ohm(R) : '0 Ω, un cable',
+    menu: side => {
+      const m = pullBase(side);
+      m.title = () => side === 'w' ? 'Tramo angosto' : up() ? 'Resistencia de pull-up' : 'Resistencia de pull-down';
+      m.rows.splice(1, 0, { label: 'Conexión', seg: [{ value: 'down', text: 'Pull-down' }, { value: 'up', text: 'Pull-up' }], get: () => st.mode, set: setMode });
+      return m;
+    }
+  });
+  const put = () => { st.pon = true; renewP(); syncArm(); };
+  b.linkedButton({
+    cls: 'sim-slot', label: side => side === 'w' ? 'Poner el tramo angosto' : 'Poner la resistencia',
+    pos: g => {
+      ['pw', 'pe'].forEach(k => b[k].box.querySelectorAll('.slot-p').forEach(el => {
+        el.style.width = 92 * b[k].scale + 'px'; el.style.height = 2 * (Sim.PIPE + 6) * b[k].scale + 'px';
+      }));
+      return resAt(g);
+    },
+    hidden: () => !st.step || st.pon, onClick: put
+  }).forEach(el => { el.classList.add('slot-p'); el.dataset.act = 'arm'; });
+  // Armar (solo en el paso 2): Conexión y poner la resistencia que falta.
+  const conn = b.linkedChoice({ pos: () => null, label: 'Conexión', act: 'arm',
+    options: [['down', 'Pull-down'], ['up', 'Pull-up']], get: () => st.mode, set: setMode });
+  const putBtn = Sim.side && Sim.side.button('arm', '', put);
+  function syncArm() {
+    if (Sim.side) {
+      const row = conn[2] && conn[2].closest('.sim-side-row');
+      if (row) row.closest('section').hidden = !st.step;
+      putBtn.textContent = Sim.view === 'w' ? 'Poner el tramo angosto' : 'Poner la resistencia';
+      putBtn.hidden = !st.step || st.pon;
+    }
+    b.refresh();
+  }
+  Sim.onView(syncArm);
+  if (putBtn) setInterval(() => { putBtn.hidden = !st.step || st.pon; }, 250);
+
+  // ---------- pasos ----------
+  // Cada paso pone su circuito y el multímetro: en el 1, en A en el cable de abajo (en serie); en el 2, en V entre la
+  // terminal de la entrada y la tierra, con las partículas por presión. Se cumplen solos: el 1 con el LED prendido con el
+  // pulsador NA apretado y apagado con el NC apretado; el 2 al ver la entrada flotar después de apretar, y al apretar con la
+  // resistencia de pull-down y con la de pull-up.
+  function seen(m) {
+    const on = b.st.on && Math.abs(b.st.vo) > 0.5;
+    if (!st.step) {
+      if (st.press && st.type === 'na' && !st.broken && m.I > 0.3) st.na = true;
+      if (st.press && st.type === 'nc' && on && !st.broken && !st.rb) st.nc = true;
+      return;
+    }
+    if (!st.press && floating() && st.held && on) st.flo = true;
+    if (st.press && pLive() && on) st[st.mode] = true;
+    if (!st.press) st.held = false;
+  }
+  const power = on => { if (b.st.on !== on) document.querySelector('#pe .sim-power').click(); };
+  b.start();
+  Sim.steps(['Pulsador', 'Pull-down y pull-up'], k => {
+    st.step = k;
+    [pinch.els, ledPart.els, pull.els, pushPart.els].forEach(els => els.forEach(el => Sim.menu.close(el)));
+    streams.clear(); phase.w = {}; phase.e = {};
+    Object.assign(st, { type: 'na', press: false, pv: 0, mode: 'down', pon: false, fl: Math.random() * b.st.set, na: false, nc: false, flo: false, down: false, up: false, held: false });
+    renewP();
+    b.showMeters({ a: true });
+    power(true);
+    const g = b.ge;
+    if (k === 0) b.setDial('a', 'A', [[600, g.BOT], [540, g.BOT]]);
+    else { b.setDial('a', 'off'); b.setDial('a', 'V', [[XN, yT(g)], b.ground(g)]); }   // las partículas por presión
+    syncArm(); b.halt();
+  }, k => k ? st.flo && st.down && st.up : st.na && st.nc);
+  Sim.btnNow = { st, press, nodeV, floating };   // para probar
+})();
+</script>
+</body>
+</html>

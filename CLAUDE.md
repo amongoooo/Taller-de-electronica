@@ -155,7 +155,11 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   resistencia variable con un LED): la pista de pie en `XP` partida en el cursor en dos componentes (`RA` de A al cursor y `RB`
   del cursor a B, con su largo de verdad: en la vista de nodos son dos resistencias), la toma a `XT`; el agua con `Sim.stream`
   (avanza por fase, así no se pierde al mover el cursor); su propio elemento para tocar y arrastrar el cursor; `Sim.potNow`
-  para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  para probar. `botones` (Botones, dos pasos: el pulsador NA o NC con un LED, y pull-down y pull-up): el pulsador es un
+  componente con dos zonas, su tapa (mando: se aprieta mientras se toca, `st.press`) y su cuerpo (`b.part`, su tarjeta con
+  Normalmente: Abierto · Cerrado); en el paso 2, el pulsador y la resistencia en serie en `XA` y `XB` (se cambian de lugar con
+  Pull-down · Pull-up, en su tarjeta y en Armar) y la entrada baja del nodo `XN` a su terminal; sin la resistencia (su lugar
+  punteado) la entrada flota (`st.fl`, al azar entre 0 y V); `Sim.btnNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -237,7 +241,7 @@ este orden, porque cada una usa la anterior):
 - [x] **Potenciómetro** (10 kΩ lineal, el del taller): en agua, un tramo angosto largo con una toma que se desliza
   (el cursor). Divisor de voltaje medido en el cursor; luego resistencia variable en serie con un LED y su resistencia de
   protección (brillo y corriente máxima).
-- [ ] **Botones**: pulsador normalmente abierto y cerrado (en agua, una válvula con resorte que se cierra sola al soltarla);
+- [x] **Botones**: pulsador normalmente abierto y cerrado (en agua, una válvula con resorte que se cierra sola al soltarla);
   resistencia de pull-down o pull-up (sin ella el nodo queda flotando).
 - [ ] **Transistor** NPN como interruptor (2N2222, el del taller; en agua, una compuerta grande que abre un
   chorrito, la base): el botón en la base prende un LED; luego el potenciómetro en la base (Ic = β·Ib hasta saturar,

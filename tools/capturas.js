@@ -18,7 +18,8 @@ const pw = (() => {
 
 const ROOT = path.resolve(__dirname, '..');
 const ORDER = ['voltaje-concepto', 'como-medir', 'resistencia', 'protoboard',
-  'interruptor-led', 'serie-paralelo', 'potenciometro', 'osciloscopio', 'capacitores', 'osciloscopio-rc',
+  'interruptor-led', 'serie-paralelo', 'potenciometro', 'botones',
+  'osciloscopio', 'capacitores', 'osciloscopio-rc',
   'osciloscopio-rectificador', 'osciloscopio-onda-completa'];
 const SIZES = {
   pc1440: { viewport: { width: 1440, height: 900 } },
