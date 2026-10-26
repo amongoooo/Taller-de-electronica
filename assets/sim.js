@@ -1157,9 +1157,7 @@
   // Palomita de un paso cumplido (Sim.steps).
   const CHECK = '<svg class="ok" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>';
   Sim.ORDER = [
-    ['voltaje-concepto', 'Voltaje = presión'],
-    ['corriente-concepto', 'Corriente = caudal'],
-    ['resistencia-concepto', 'Resistencia'],
+    ['voltaje-concepto', 'Voltaje, corriente y resistencia'],
     ['nodos', 'Nodos'],
     ['protoboard', 'Protoboard'],
     ['como-medir', 'Cómo medir'],
@@ -2193,7 +2191,7 @@
         const hb = Sim.PIPE + 10, hw = g.half[i] + Sim.NARROW_IN + 6;
         D.select(ctx, g.xr[i] - hw, g.TOP - hb, 2 * hw, 2 * hb, Sim.fadeSel(hits.r[i], hits.r[i].open()));
       });
-      D.tag(ctx, g.X0 + 56, g.MID, w ? 'bomba' : 'pila', valText(o.V(), w), { sel: hits.v.open(), align: 'left' });
+      D.tag(ctx, g.X0 + 56, g.MID + 30, w ? 'bomba' : 'pila', valText(o.V(), w), { sel: hits.v.open(), align: 'left' });
       [0, 1].forEach(i => D.tag(ctx, g.xr[i], g.TOP + (w ? Sim.PIPE + 24 : 34), 'R' + (i + 1), Sim.ohm(R()[i]), { sel: hits.r[i].open() }));
       if (o.tags) o.tags(ctx, g, s);
       if (o.over) o.over(ctx, g, s);

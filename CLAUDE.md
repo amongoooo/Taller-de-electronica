@@ -143,10 +143,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 - `index.html` (inicio): bloques que siguen el curso (conceptos · nodos y protoboard · armar y medir · señales), miniaturas SVG de cada circuito
   (`MINI`, piezas en `PIECE`) y «Seguir donde te quedaste» (lee `sim-last`). Sin descripciones.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
-  `voltaje-concepto`, `corriente-concepto` y
-  `resistencia-concepto` (una barra de carbón con largo y grosor en su tarjeta, y su calor) no usan el banco ni instrumentos. `voltaje-concepto` usa
-  `Sim.piezo` (la válvula del regreso y la tierra que se arrastra a un tubito o al regreso) y `corriente-concepto` también (R1 y R2 con
-  tarjeta y dos contadores que se arrastran por la vuelta; su lectura va donde menos se corre). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
+  `voltaje-concepto` (Voltaje, corriente y resistencia: los tres conceptos en ocho pasos) no usa el banco ni instrumentos: usa
+  `Sim.piezo` con la válvula del regreso, la tierra que se arrastra a un tubito o al regreso, R1 y R2 con largo y grosor en su
+  tarjeta (y su calor, ¼ W) y, desde el paso 4, dos contadores que se arrastran por la vuelta (su lectura va donde menos se corre). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
   la resistencia equivalente) no usa el multímetro. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
@@ -154,7 +153,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   `agua-electricidad` es la versión vieja (no está en `Sim.ORDER`). Las páginas que se quitaron dejan en su carpeta una
   redirección a la que las tiene ahora (para las direcciones guardadas) y su nombre en `MOVED` del inicio: `voltaje-presion` →
   `como-medir` (su paso «La fuente» es el primero de Cómo medir) y `resistencias-serie-paralelo` → `nodos` (su paso
-  «Resistencia equivalente») y `osciloscopio-diodo` → `osciloscopio-rectificador` (su paso «Directa e inversa»).
+  «Resistencia equivalente»), `osciloscopio-diodo` → `osciloscopio-rectificador` (su paso «Directa e inversa») y
+  `corriente-concepto` y `resistencia-concepto` → `voltaje-concepto` (sus pasos «Antes y después» y «Más angosto»).
 
 ## Pendiente
 
@@ -216,6 +216,8 @@ y multímetro → señales. Las direcciones de las páginas no cambian, solo el 
 - [x] **Voltaje = presión** (`simulaciones/voltaje-concepto/`, concepto, sin instrumentos): solo hay corriente si hay diferencia entre dos puntos; la tierra es 0 V.
 - [x] **Corriente = caudal** (`simulaciones/corriente-concepto/`): lo que cruza una línea por segundo; es la misma en toda la vuelta (no se gasta).
 - [x] **Resistencia** (`simulaciones/resistencia-concepto/`): más angosto o más largo deja pasar menos; con la misma presión, menos caudal y calor.
+- [x] Los tres conceptos con los tubitos (`Sim.piezo`) y juntos en una sola página, **Voltaje, corriente y resistencia**
+  (`voltaje-concepto`), con ocho pasos y el paso al circuito al final.
 - [x] Protoboard: el primer paso solo con resistencias (el LED se explica después, en Interruptor y LED).
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y

@@ -2,179 +2,20 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Corriente = caudal · Taller de Electrónica</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026004001">
-<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
-</head>
-<body>
-<div class="sim-page">
-  <div class="sim-bar">
-    <a class="back" href="../../">← Simulaciones</a>
-    <h1>Corriente = caudal</h1>
-  </div>
-
-  <main class="sim-stage" data-view="solo">
-    <div class="sim-panel" id="pw">
-      <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Una bomba empuja el agua por un tubo con dos tramos angostos en serie y tres tubitos que marcan la presión de cada punto; dos contadores que se ponen en cualquier lugar de la tubería marcan cuánta agua pasa por segundo y cuánta ha pasado: antes y después de los tramos marcan lo mismo"></canvas>
-      <div class="sim-layer"></div>
-    </div>
-  </main>
-</div>
-
-<script src="../../assets/sim.js?v=20261026004001"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Voltaje, corriente y resistencia · Taller de Electrónica</title>
+<!-- Corriente = caudal se juntó con Voltaje y Resistencia en una sola página (voltaje-concepto): esta dirección se queda para los
+     que la tienen guardada y lleva a su paso en la página nueva. -->
+<meta http-equiv="refresh" content="0; url=../voltaje-concepto/#paso-4">
+<link rel="canonical" href="../voltaje-concepto/">
 <script>
 (() => {
-  const { C, draw: D, fmt } = Sim;
-  // La misma vuelta de los tubitos (Sim.piezo) con contadores: una raya que cruza la tubería (el cable) y marca lo que
-  // pasa por ella cada segundo (el caudal en mL/s; la corriente en mA = mC por segundo) y lo que ha pasado desde que
-  // se movió alguno (mL; mC). Las partículas van más rápido en lo angosto, pero por todos lados pasa lo mismo: antes
-  // de R1, entre los dos tramos y después de R2 (I = V / (R1 + R2)); la corriente no se gasta en las resistencias,
-  // lo que baja es la presión (los tubitos).
-  // Pilas comunes de 0 a 12 V y resistencias de 1 kΩ a 10 kΩ de ¼ W: lo más son 6 mA y 36 mW en cada una.
-  const VALUES = [0, 1.5, 3, 4.5, 6, 9, 12], RVALUES = Sim.series(1000, 10000);
-  // Los contadores van en u, la fracción de la vuelta (empieza abajo a la izquierda y sube por la bomba).
-  // total: lo que ha pasado desde que se movió alguno (los dos empiezan juntos, para compararlos).
-  const st = { V: 9, R: [1000, 1000], counters: [], total: 0 };
-  let tb = null, drag = null, touchedMove = false, changed = false;
-  const unit = w => w ? ' psi' : ' V';
-  const valText = (v, w) => fmt(v, v % 1 ? 1 : 0) + unit(w);
-  const rate = (I, w) => fmt(Math.abs(I) < 0.005 ? 0 : I, 2) + (w ? ' mL/s' : ' mA');
-  const amount = (q, w) => fmt(q, 1) + (w ? ' mL' : ' mC');
-  const touched = () => { changed = true; tb.syncColors(); };
-  const step = (list, get, set) => f => { const i = list.indexOf(get()) + f; if (i >= 0 && i < list.length) set(list[i]); };
-  const setV = v => { st.V = v; touched(); };
-  const setR = i => R => { st.R[i] = R; touched(); };
-
-  tb = Sim.piezo({
-    box: document.getElementById('pw'),
-    V: () => st.V, R: () => st.R, imax: 6,
-    parts: {
-      v: { menu: side => ({ title: side === 'w' ? 'Bomba' : 'Pila', rows: [{ label: side === 'w' ? 'Presión' : 'Voltaje', values: VALUES, get: () => st.V, set: setV, format: v => valText(v, side === 'w') }] }),
-        wheel: step(VALUES, () => st.V, setV) },
-      r: [0, 1].map(i => ({ menu: Sim.resistorMenu({ name: 'R' + (i + 1), values: RVALUES, get: () => st.R[i], set: setR(i), format: Sim.ohm }),
-        wheel: step(RVALUES, () => st.R[i], setR(i)) }))
-    },
-    // la raya de cada contador y su línea van debajo de las etiquetas; lo que marca, encima de todo
-    drawW: (ctx, g) => counters(ctx, g, true, false),
-    drawE: (ctx, g) => counters(ctx, g, false, false),
-    over: (ctx, g, side) => counters(ctx, g, side === 'w', true),
-    tick: (dt, I) => { st.total += I * dt; }   // mA · s = mC (en el agua, mL/s · s = mL)
-  });
-  tb.page = st;
-
-  // ---------- dónde puede ir un contador ----------
-  const len = g => 2 * (g.BOT - g.TOP) + 2 * (g.X1 - g.X0);
-  const dPump = g => g.BOT - g.MID;
-  // Lugares donde no puede ir (la bomba, lo angosto de cada tramo y las esquinas): se corre al lado.
-  const legal = (g, d) => {
-    const L = len(g), L0 = g.BOT - g.TOP, W = g.X1 - g.X0;
-    d = ((d % L) + L) % L;
-    const no = [[dPump(g), 52], ...g.dr.map((c, i) => [c, g.half[i] + Sim.NARROW_IN + 8]), ...[0, L0, L0 + W, 2 * L0 + W, L].map(c => [c, 24])];
-    for (const [c, h] of no) if (Math.abs(d - c) < h) d = d < c ? c - h : c + h;
-    return ((d % L) + L) % L;
-  };
-  const dOf = (g, c) => legal(g, c.u * len(g));
-  // En qué tramo de la vuelta está: antes de R1 (de la bomba a R1), entre los dos o después de R2.
-  const zone = (g, d) => d > dPump(g) && d < g.dr[0] ? 0 : d > g.dr[0] && d < g.dr[1] ? 1 : 2;
-  const straddle = () => { const g = tb.geo(), [a, b] = st.counters.map(c => zone(g, dOf(g, c))); return a !== b; };
-
-  // ---------- contadores: se arrastran (o se mueven con las flechas) por la vuelta ----------
-  // Al mover uno, los dos empiezan a contar de nuevo.
-  const layer = tb.p.box.querySelector('.sim-layer');
-  function addCounter(u) {
-    const c = { u }, el = document.createElement('button');
-    el.type = 'button'; el.className = 'sim-clamp'; el.dataset.act = 'med';
-    el.setAttribute('aria-label', 'Contador ' + (st.counters.length + 1));
-    layer.appendChild(el);
-    tb.at(el, g => { const f = D.frameAt(g.loop, dOf(g, c)); return [f[0], f[1]]; });
-    const moveTo = d => { const g = tb.geo(); c.u = legal(g, d) / len(g); moved(); };
-    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); drag = c; e.preventDefault(); });
-    el.addEventListener('pointermove', e => { if (drag !== c) return; moveTo(D.project(tb.geo().loop, ...tb.toXY(e)).d); });
-    const up = () => { if (drag === c) drag = null; };
-    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-    el.addEventListener('keydown', e => {
-      const f = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
-      if (!f) return;
-      e.preventDefault();
-      const g = tb.geo(), d = dOf(g, c);
-      let n = legal(g, d + f * 24);
-      if (Math.abs(n - d) < 1) n = legal(g, d + f * 150);   // pasa del otro lado de la bomba o de un tramo
-      c.u = n / len(g); moved();
-    });
-    c.el = el;
-    st.counters.push(c);
-    return c;
-  }
-  const showCounters = n => st.counters.forEach((c, i) => { c.el.hidden = i >= n; });
-  function moved() { st.total = 0; touchedMove = true; tb.p.replace(); }
-
-  // Un contador: la raya que cruza la tubería (el cable) y, afuera de la vuelta (o adentro si afuera no cabe), lo que
-  // marca; si taparía la bomba, una etiqueta o la regla, se corre a lo largo de la tubería con una línea que la une.
-  const counters = (ctx, g, w, box) => st.counters.forEach(c => { if (!c.el.hidden) counter(ctx, g, c, w, box); });
-  const counter = (ctx, g, c, w, box) => {
-    const d = dOf(g, c), [x, y, tx, ty] = D.frameAt(g.loop, d), half = w ? Sim.PIPE + 9 : 16, col = C.ok;
-    const l1 = rate(tb.I(), w), l2 = amount(st.total, w);
-    const p1 = D.font(ctx, 16, Sim.MONO, 600), w1 = ctx.measureText(l1).width;
-    D.font(ctx, 15); const w2 = ctx.measureText(l2).width;
-    const bw = Math.max(w1, w2) + 20, bh = Math.round(p1 * 2.7), lh = p1 * 1.25;
-    // afuera es (ty, −tx) (arriba de la tubería de arriba, entre los tubitos); si se sale del dibujo, adentro
-    let ox = ty, oy = -tx;
-    const off = half + 10 + Math.abs(ox) * bw / 2 + Math.abs(oy) * bh / 2;
-    const tw = D.tagWidth(ctx, w ? 'bomba' : 'pila', valText(st.V, w), ''), [gx] = tb.hang(g, 'g');
-    const avoid = [[g.X0 - 48, g.MID - 48, g.X0 + 62 + tw, g.MID + 48], [g.ruler - 60, g.YT - 40, g.ruler + 16, g.TOP + 12],
-      [gx - 16, g.BOT + 16, gx + 16, g.BOT + 60], ...g.xr.map(xr => [xr - 48, g.TOP + Sim.PIPE + 8, xr + 48, g.TOP + Sim.PIPE + 40])];
-    if (w) avoid.push(...Object.values(g.x).map(tx => [tx - 13, g.YT, tx + 13, g.TOP]));
-    // en el circuito: las pastillas de los nodos y el voltaje de cada resistencia, arriba del cable
-    else avoid.push(...[...Object.values(g.x), ...g.xr].map(tx => [tx - 34, g.TOP - 62, tx + 34, g.TOP - 26]));
-    const hit = (x0, y0) => x0 - bw / 2 < tb.p.x0 + 4 || x0 + bw / 2 > tb.p.x0 + tb.p.W - 4 || y0 + bh / 2 > g.H - 2 ||
-      avoid.some(([a, b, e, f]) => x0 + bw / 2 > a && x0 - bw / 2 < e && y0 + bh / 2 > b && y0 - bh / 2 < f);
-    // afuera (arriba de la tubería de arriba) o adentro; si tapa algo, se corre a lo largo de la tubería: donde
-    // menos tenga que correrse
-    let best = null;
-    for (const sgn of [1, -1]) for (let i = 0; i < 80; i++) {
-      const k = [8 * i, -8 * i].find(t => !hit(x + sgn * ox * off + tx * t, y + sgn * oy * off + ty * t));
-      if (k == null) continue;
-      if (!best || i < best.i) best = { i, sgn, k };
-      break;
-    }
-    if (best && best.sgn < 0) { ox = -ox; oy = -oy; }
-    const k = best ? best.k : 0, cx = x + ox * off + tx * k, cy = y + oy * off + ty * k;
-    if (!box) {
-      D.line(ctx, [[x - ty * half, y + tx * half], [x + ty * half, y - tx * half]], 4, col, 'butt');
-      D.circle(ctx, x - ty * half, y + tx * half, 4, col); D.circle(ctx, x + ty * half, y - tx * half, 4, col);
-      if (Math.hypot(cx - x, cy - y) > off + 6) D.line(ctx, [[x + ox * half, y + oy * half], [cx, cy]], 1.5, col);
-      return;
-    }
-    D.roundRect(ctx, cx - bw / 2, cy - bh / 2, bw, bh, 8, C.card, col, 2);
-    D.text(ctx, l1, cx, cy - lh / 2, col, { size: 16, font: Sim.MONO, weight: 600 });
-    D.text(ctx, l2, cx, cy + lh / 2, C.ink, { size: 15 });
-  };
-  {
-    // los dos después de R2: en la bajada de la derecha y en el regreso
-    const g = tb.geo(), L0 = g.BOT - g.TOP, W = g.X1 - g.X0;
-    addCounter(legal(g, L0 + W + L0 / 2) / len(g));
-    addCounter(legal(g, 2 * L0 + W + 90) / len(g));
-  }
-
-  // ---------- pasos ----------
-  // 1: un contador en la bajada de la derecha; se cumple al moverlo. 2: aparece otro; se cumple con uno y otro en
-  // distintos lugares de la vuelta (antes de R1, entre los dos tramos o después de R2). 3: con los dos así, se cumple
-  // al cambiar la bomba o un tramo: los dos siguen marcando lo mismo. 4: el circuito.
-  const STEPS = ['Contar lo que pasa', 'Antes y después', 'No se gasta', 'En el circuito'];
-  // Al llegar al paso 2, el segundo contador sale junto al primero (en el mismo tramo de la vuelta).
-  const besideFirst = () => {
-    const g = tb.geo(), d = dOf(g, st.counters[0]), z = zone(g, d);
-    const n = [70, -70, 120, -120].map(t => legal(g, d + t)).find(e => zone(g, e) === z && Math.abs(e - d) > 40);
-    if (n != null) st.counters[1].u = n / len(g);
-  };
-  Sim.steps(STEPS, k => { if (k === 1) besideFirst(); showCounters(k ? 2 : 1); moved(); touchedMove = false; changed = false; tb.setView(k === 3 ? 'e' : 'w'); }, k =>
-    k === 0 ? touchedMove : k === 1 ? straddle() : k === 2 ? straddle() && changed : tb.done());
+  const m = /^#paso-(\d+)$/.exec(location.hash), k = { 1: 4, 2: 4, 3: 5, 4: 8 }[m && m[1]] || 4;
+  location.replace('../voltaje-concepto/#paso-' + k);
 })();
 </script>
+</head>
+<body>
+<p><a href="../voltaje-concepto/#paso-4">Voltaje, corriente y resistencia</a></p>
 </body>
 </html>
