@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026211404">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026212916">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -23,24 +23,26 @@
   <main class="sim-stage">
     <div class="sim-panel" id="pw">
       <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Protoboard de agua donde se arma, pieza por pieza, la válvula con resorte, el tramo angosto y la rueda con compuerta, con la bomba"></canvas>
+      <canvas aria-label="Protoboard de agua donde se arma, pieza por pieza, la válvula con resorte, el tramo angosto y la rueda con compuerta, con la bomba, y al final el tramo angosto del regreso"></canvas>
       <div class="sim-layer"></div>
     </div>
     <div class="sim-panel" id="pe">
       <span class="sim-tag e">Electricidad</span>
-      <canvas aria-label="Protoboard donde se arma, pieza por pieza, el pulsador, la resistencia y el LED con la pila de 9 V"></canvas>
+      <canvas aria-label="Protoboard donde se arma, pieza por pieza, el pulsador, la resistencia y el LED con la pila de 9 V, y al final la resistencia de pull-down"></canvas>
       <div class="sim-layer"></div>
     </div>
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026211404"></script>
-<script src="../../assets/protoboard.js?v=20261026211404"></script>
+<script src="../../assets/sim.js?v=20261026212916"></script>
+<script src="../../assets/protoboard.js?v=20261026212916"></script>
 <script>
 (() => {
   // El circuito de Interruptor y LED armado en la protoboard, una pieza por paso (cada una con su lugar punteado; el paso
   // se cumple cuando la pieza queda en sus tiras). Con la pila de 9 V, el pulsador apretado, 470 Ω y el LED rojo
-  // (1,8 V): (9 − 1,8) / (470 + 15 + 1) ≈ 15 mA, la mitad de lo que aguanta.
+  // (1,8 V): (9 − 1,8) / (470 + 15 + 1) ≈ 15 mA, la mitad de lo que aguanta. Con el pulsador suelto el LED no deja pasar
+  // nada y las tiras 5 y 9 no están unidas a nada: flotan (al tocarlas dicen «sin conexión»). El último paso, la
+  // resistencia de pull-down de 10 kΩ de la tira 5 al riel −, las deja en 0 V; apretado pasan 9 / 10 000 ≈ 0,9 mA más.
   // Columnas c de 0 a 15 (1 a 16 en la protoboard) y filas r: 0 y 1 los rieles + y − de arriba, 2 a 6 de la a a la e y
   // 7 a 11 de la f a la j.
   Sim.protoboard({ guide: [
@@ -53,7 +55,9 @@
     // la pata + (la larga) en la tira 9 y la − en la 10
     { name: 'LED', piece: { type: 'led', a: [8, 3], b: [9, 3], led: 'rojo' } },
     // de la tira 10 al riel −
-    { name: 'Cable negro', piece: { type: 'wire', a: [9, 2], b: [9, 1], color: '#15212a' } }
+    { name: 'Cable negro', piece: { type: 'wire', a: [9, 2], b: [9, 1], color: '#15212a' } },
+    // de la tira 5 (a5) al riel −
+    { name: 'Pull-down', piece: { type: 'res', a: [4, 2], b: [6, 1], R: 10000 } }
   ] });
 })();
 </script>

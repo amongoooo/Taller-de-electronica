@@ -182,13 +182,13 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   Vce 0,2 V saturado (`solve(V)`: corrientes, voltajes y estado; `model` da `branch` [Ic, Ib, Ibot] para la inercia); son dos
   componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (sin dibujo
   propio: separa el nodo de la base del emisor, para medir Vbe); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
-  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED y cable negro. `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `botones-armado` (Botones en la protoboard, después de Botones): cable rojo, pulsador NA, pull-down de 10 kΩ de la tira de la entrada (la 5) al riel −, 470 Ω, LED y cable negro; sin el pull-down, la tira 5 flota con el pulsador suelto («sin conexión»). `osciloscopio` (LED),
+  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED, cable negro y, al final, el pull-down de 10 kΩ de la tira del pulsador (la 5) al riel − (sin él, con el pulsador suelto y el LED apagado, las tiras 5 y 9 flotan: «sin conexión»). `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
   `agua-electricidad` es la versión vieja (no está en `Sim.ORDER`). Las páginas que se quitaron dejan en su carpeta una
   redirección a la que las tiene ahora (para las direcciones guardadas) y su nombre en `MOVED` del inicio: `voltaje-presion` →
-  `como-medir` (su paso «La fuente» es el primero de Cómo medir) `nodos` y `resistencias-serie-paralelo` → `resistencia` (Ley de Ohm y nodos), `osciloscopio-diodo` → `osciloscopio-rectificador` (su paso «Directa e inversa») y
+  `como-medir` (su paso «La fuente» es el primero de Cómo medir) `nodos` y `resistencias-serie-paralelo` → `resistencia` (Ley de Ohm y nodos), `osciloscopio-diodo` → `osciloscopio-rectificador` (su paso «Directa e inversa»), `botones-armado` → `interruptor-led-armado` (su paso «Pull-down») y
   `corriente-concepto` y `resistencia-concepto` → `voltaje-concepto` (su paso «Corriente y resistencia»).
 
 ## Pendiente
@@ -274,7 +274,8 @@ Armado en protoboard (aprobado; con agua, una página aparte después de cada si
 - [x] Fase 1: la protoboard en `assets/protoboard.js` con el armado guiado y **Interruptor y LED en la protoboard**
   (`simulaciones/interruptor-led-armado/`).
 - [x] Fase 2: Potenciómetro en la protoboard (`simulaciones/potenciometro-armado/`).
-- [x] Fase 3: Botones en la protoboard (`simulaciones/botones-armado/`).
+- [x] Fase 3: Botones en la protoboard, como último paso de Interruptor y LED en la protoboard (el pull-down;
+  `botones-armado/` redirige ahí). Con un LED el pull-down casi no se nota: donde importa es en la base del transistor (fase 4).
 - [ ] Fase 4: Transistor en la protoboard.
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
