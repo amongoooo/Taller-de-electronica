@@ -40,6 +40,9 @@
 //   deskGraph,        alto de una gráfica de la página que en el celular acostado va arriba en la mesa (g.GRAPH:
 //                     [x0, y0, x1, y1], null mientras hay un instrumento abierto)
 //   overlay(ctx, g, m)                    lo que va encima de todo (avisos de la página)
+//   nodes,            false si la página no tiene vista de nodos: sin la fila Dibujo de Ver y b.nodesOn() siempre false
+//                     (las puntas, los cortos en A, b.where() y b.measuring() siguen igual: usan los nodos sin dibujarlos;
+//                     sus componentes no necesitan draw ni tag)
 //   nodeRow,          false si la página pone su propio Circuito · Nodos en el dibujo (sin la fila Dibujo de Ver)
 //   nodeLayout(nodes, comps, g)           acomodo propio de la vista de nodos: pone p de cada nodo (trae plus y
 //                     ground; con out, [dx, dy], hacia dónde prefiere su valor) y mid y a1 de cada componente (c.c es
@@ -1029,7 +1032,8 @@
       if (!best || best.d > 70) return q;
       return [q[0] + best.c.pose.x - best.c.c.at[0], q[1] + best.c.pose.y - best.c.c.at[1]];
     };
-    b.setNodes = v => { st.nodes.on = !!v; syncNodes(); b.refresh(); };
+    const NODES = o.nodes !== false;   // false: la página no tiene vista de nodos
+    b.setNodes = v => { st.nodes.on = NODES && !!v; syncNodes(); b.refresh(); };
     // Las etiquetas de la vista de nodos no suben de aquí (una página con un aviso arriba lo cambia).
     b.labelTop = { w: 6, e: 6 };
     // Dónde está conectado cada multímetro, para las páginas que revisan cómo se midió:
@@ -1077,7 +1081,7 @@
     nodeSeg.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => b.setNodes(bt.dataset.v === '1')));
     const syncNodes = () => nodeSeg.querySelectorAll('button').forEach(bt => bt.setAttribute('aria-pressed', String((bt.dataset.v === '1') === st.nodes.on)));
     syncNodes();
-    if (Sim.side && o.nodeRow !== false) {   // una página con su propio selector en el dibujo lo quita de Ver
+    if (Sim.side && NODES && o.nodeRow !== false) {   // una página con su propio selector en el dibujo lo quita de Ver
       const row = Sim.side.row('ver', 'Dibujo', nodeSeg), view = Sim.side.sec('ver').querySelector('.sim-viewseg');
       if (view) view.closest('.sim-side-row').after(row);
     }

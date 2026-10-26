@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026184604">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026195515">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026184604"></script>
-<script src="../../assets/banco.js?v=20261026184604"></script>
+<script src="../../assets/sim.js?v=20261026195515"></script>
+<script src="../../assets/banco.js?v=20261026195515"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -88,7 +88,7 @@
   };
 
   const b = Sim.bench({
-    iFull: 30, v0: 9,
+    iFull: 30, v0: 9, nodes: false,
     layout,
     model(V) {
       const [b1, b2] = [0, 1].map(k => st.broken[k] || st.rb[k]);
@@ -101,15 +101,9 @@
     },
     // Cómo se reparte el voltaje: un LED roto (o todos, si no alcanza para encenderlos) se queda con él.
     circuit(g, m, V) {
-      // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
       const [b1, b2] = st.broken;
-      const R = (x, y, dV, k = 0) => ({ at: [x, y], half: 46, dV, R: st.rb[k] ? Infinity : st.R[k], pr: pinch[k],
-        draw: (ctx, w) => w ? D.narrow(ctx, x, y, half(st.R[k])) : D.resistor(ctx, x, y),
-        tag: w => rTag(w, k) });
-      const L = (x, y, dV, i = 0) => ({ at: [x, y], half: 30, dV, pr: ledParts[i], ext: w => w ? 46 : 28,
-        draw: (ctx, w) => w ? D.wheel(ctx, x, y, { angle: st.ang[i], omega: st.om[i], broken: st.broken[i], tint: `rgb(${Sim.led(st.led[i]).rgb})` })
-          : D.ledSymbol(ctx, x, y, { I: m.branch[i], broken: st.broken[i], rgb: Sim.led(st.led[i]).rgb }),
-        tag: w => ledTag(w, i) });
+      const R = (x, y, dV, k = 0) => ({ at: [x, y], half: 46, dV, R: st.rb[k] ? Infinity : st.R[k], pr: pinch[k] });
+      const L = (x, y, dV, i = 0) => ({ at: [x, y], half: 30, dV, pr: ledParts[i], ext: w => w ? 46 : 28 });
       if (st.mode === 'serie') {
         const n = st.rb[0] ? 0 : b1 + b2, on = m.I > 0;
         const led = k => st.rb[0] ? 0 : n ? (st.broken[k] ? V / n : 0) : on ? vf(k) : V / 2;

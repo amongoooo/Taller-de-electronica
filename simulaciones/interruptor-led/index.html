@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026184604">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026195515">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026184604"></script>
-<script src="../../assets/banco.js?v=20261026184604"></script>
+<script src="../../assets/sim.js?v=20261026195515"></script>
+<script src="../../assets/banco.js?v=20261026195515"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -61,7 +61,7 @@
   const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), half(st.R));
 
   const b = Sim.bench({
-    iFull: 30, v0: 9,
+    iFull: 30, v0: 9, nodes: false,
     head: 100,   // las etiquetas, arriba de la tapa del pulsador
     layout(g) {
       const s = sides[g.side] = { g, phase: 0 };
@@ -76,21 +76,11 @@
     // Si no pasa corriente, todo el voltaje queda en el pulsador abierto o en el LED que la bloquea.
     circuit(g, m, V) {
       const R = st.R, cl = closed(), dR = st.rburnt ? (cl ? V : 0) : m.I * R / 1000;
-      // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
       const comps = [
-        { at: [XV, g.TOP], half: 28, dV: cl ? 0 : V, R: cl ? 0 : Infinity, pr: pushPart, ext: w => w ? 30 : 22,
-          draw: (ctx, w) => drawPush(ctx, w), tag: w => switchTag(w) },
-        { at: [XL, g.TOP], half: 30, dV: cl ? V - dR : 0, pr: ledPart, ext: w => w ? 46 : 28,
-          draw: (ctx, w) => {
-            const [jx, jy] = shake();
-            if (w) D.wheel(ctx, XL + jx, g.TOP + jy, { angle: st.ang, omega: st.om, broken: st.broken, rev: st.rev, tint: `rgb(${Sim.led(st.led).rgb})` });
-            else D.ledSymbol(ctx, XL + jx, g.TOP + jy, { I: Math.abs(m.I), broken: st.broken, rev: st.rev, rgb: Sim.led(st.led).rgb });
-          },
-          tag: w => ledTag(w) }
+        { at: [XV, g.TOP], half: 28, dV: cl ? 0 : V, R: cl ? 0 : Infinity, pr: pushPart, ext: w => w ? 30 : 22 },
+        { at: [XL, g.TOP], half: 30, dV: cl ? V - dR : 0, pr: ledPart, ext: w => w ? 46 : 28 }
       ];
-      if (R) comps.push({ at: [g.PX, g.TOP], half: 46, dV: dR, R: st.rburnt ? Infinity : R, pr: pinch,
-        draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, half(R)) : D.resistor(ctx, g.PX, g.TOP),
-        tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(R), st.rburnt, st.rburnt ? (w ? 'reventado' : 'quemada') : ''] });
+      if (R) comps.push({ at: [g.PX, g.TOP], half: 46, dV: dR, R: st.rburnt ? Infinity : R, pr: pinch });
       return [{ pts: b.loopPts(g), I: m.I, v0: V, comps }];
     },
     step(dt, m) {
@@ -210,7 +200,7 @@
   // El pulsador: tocar su tapa lo aprieta (un clic, un momento; dejarlo apretado, enclavado); tocar su cuerpo abre su
   // tarjeta (NA o NC).
   const pushPart = b.part({
-    pos: g => b.nodesOn() ? [-999, -999] : [XV, g.TOP + 8],
+    pos: g => [XV, g.TOP + 8],
     label: side => side === 'w' ? 'Válvula con resorte' : 'Pulsador',
     menu: Sim.pushMenu({ get: () => st.type, set: v => { st.type = v; } })
   });

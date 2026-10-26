@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026184604">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026195515">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026184604"></script>
-<script src="../../assets/banco.js?v=20261026184604"></script>
+<script src="../../assets/sim.js?v=20261026195515"></script>
+<script src="../../assets/banco.js?v=20261026195515"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -80,10 +80,7 @@
   //   tap: la toma, del cursor a la terminal (paso 1) o a la tierra (paso 2)
   function segs(g, m, V) {
     const ya = yA(g), yb = yB(g), yw = yW(g), I = m.I, sx = g.PX + b.SRC;
-    const nodes = b.nodesOn();
-    const track = (id, y0, y1, R, dV, cut) => ({ id, at: [XP, (y0 + y1) / 2], half: (y1 - y0) / 2, dV, R: cut ? Infinity : R,
-      pr: nodes ? pot : null, ext: w => w ? Sim.PIPE + 6 : 16, draw: (ctx, w) => drawTrack(ctx, w, y0, y1),
-      tag: w => [id === 'RA' ? (w ? 'tramo de arriba' : 'pot. arriba') : (w ? 'tramo de abajo' : 'pot. abajo'), ohm(R), cut, cut ? (w ? 'reventado' : 'quemado') : ''] });
+    const track = (id, y0, y1, R, dV, cut) => ({ id, at: [XP, (y0 + y1) / 2], half: (y1 - y0) / 2, dV, R: cut ? Infinity : R });
     const p1 = uniq([[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [XP, g.TOP], [XP, yw]]);
     const narrowAt = (pts, y0, y1) => Sim.narrowProfile(dOn(pts, XP, (y0 + y1) / 2), HN, (y1 - y0) / 2);
     if (!st.step) {
@@ -99,12 +96,10 @@
     // paso 2: si no pasa corriente, el voltaje queda en lo que está abierto (o en el LED, que no alcanza a prender)
     const R = st.R, dR = st.rb ? V : I * R / 1000, dA = cutA() && !st.rb ? V : I * Ra() / 1000;
     const comps = [
-      { id: 'LED', at: [XL, g.TOP], half: 30, dV: V - dR - dA, pr: ledPart, ext: w => w ? 46 : 28,
-        draw: (ctx, w) => drawLed(ctx, w, g, m), tag: w => ledTag(w) },
+      { id: 'LED', at: [XL, g.TOP], half: 30, dV: V - dR - dA, pr: ledPart, ext: w => w ? 46 : 28 },
       track('RA', ya, yw, Ra(), dA, cutA())
     ];
-    if (R) comps.unshift({ id: 'R', at: [XR, g.TOP], half: 46, dV: dR, R: st.rb ? Infinity : R, pr: pinch,
-      draw: (ctx, w) => w ? D.narrow(ctx, XR, g.TOP, half(R)) : D.resistor(ctx, XR, g.TOP), tag: w => rTag(w) });
+    if (R) comps.unshift({ id: 'R', at: [XR, g.TOP], half: 46, dV: dR, R: st.rb ? Infinity : R, pr: pinch });
     const p2 = uniq([[XP, yw], [XP, yb + END]]);
     const prof = R ? Sim.profile(Sim.narrowProfile(dOn(p1, XR, g.TOP), half(R)), narrowAt(p1, ya, yw)) : narrowAt(p1, ya, yw);
     return [
@@ -127,7 +122,7 @@
   const rate = I => Math.sign(I) * Math.min(Math.abs(I), CAP) * K;
 
   const b = Sim.bench({
-    iFull: 30, v0: 10,
+    iFull: 30, v0: 10, nodes: false,
     head: 82,   // las etiquetas de la resistencia y de la rueda, arriba del cable
     layout() { streams.clear(); },
     model(V) {
@@ -158,7 +153,7 @@
       const ss = segs(g, m, b.st.vo), yw = yW(g);
       ss.forEach(s => D.pipe(ctx, s.pts));
       if (st.step && st.R) D.narrow(ctx, XR, g.TOP, half(st.R));
-      drawTrack(ctx, true, yA(g), yB(g));
+      drawTrack(ctx, true, g);
       ss.forEach(s => streamOf(g, s).draw(ctx, phase.w[s.id] || 0, rate(s.I)));
       if (st.step) {
         if (st.R) D.burstPipe(ctx, XR, g.TOP, half(st.R), st.burnT, st.rb, rh.glow, '');
@@ -190,16 +185,17 @@
         drawLed(ctx, false, g, m);
       }
       if (st.crack == null) D.heatGlow(ctx, XP, used(g), ph.glow);
-      drawTrack(ctx, false, yA(g), yB(g));
+      drawTrack(ctx, false, g);
       hurtTrack(ctx, g, false);
       D.arrow(ctx, XP + 22, yw, Math.PI, 9, C.ink);   // el cursor
       labels(ctx, g, false);
     }
   });
 
-  // La pista: en el agua un tramo angosto de pie (de y0 a y1, con su entrada de cada lado); en la electricidad una
+  // La pista: en el agua un tramo angosto de pie (de A a B, con su entrada de cada lado); en la electricidad una
   // resistencia larga, con un diente cada 12.
-  function drawTrack(ctx, w, y0, y1) {
+  function drawTrack(ctx, w, g) {
+    const y0 = yA(g), y1 = yB(g);
     if (w) {
       ctx.save(); ctx.translate(XP, (y0 + y1) / 2); ctx.rotate(Math.PI / 2);
       D.narrow(ctx, 0, 0, HN, (y1 - y0) / 2);
@@ -211,7 +207,6 @@
     const n = Math.max(1, Math.round((L - 8) / 12)), s = (L - 8) / n, pts = [[XP, y0 - 4], [XP, y0 + 4]];
     for (let k = 0; k < n; k++) pts.push([XP + (k % 2 ? 11 : -11), y0 + 4 + (k + 0.5) * s]);
     pts.push([XP, y1 - 4], [XP, y1 + 4]);
-    if (L < 8) pts.splice(1, pts.length - 2);
     D.line(ctx, pts, 3.5, C.ink, 'butt');
   }
   // Tapón del extremo cerrado de un tubo (la terminal de la toma o la pata B suelta), atravesado al final de pts.
@@ -244,7 +239,6 @@
   const ledTag = w => [w ? 'rueda' : 'LED', w ? st.led.replace(/o$/, 'a') : st.led, st.broken, st.broken ? (w ? 'rota' : 'quemado') : ''];
   const SHORT = { 'tramo angosto': 'tramo', 'resistencia': 'R', 'sin estrechamiento': 'sin tramo', 'sin resistencia': 'sin R' };
   function labels(ctx, g, w) {
-    if (b.nodesOn()) return;
     const ya = yA(g), yb = yB(g), yw = yW(g), mid = (ya + yb) / 2, burnt = st.crack != null;
     const name = w ? 'tramo con toma' : 'potenciómetro', state = burnt ? (w ? 'reventado' : 'quemado') : '';
     // la del potenciómetro, junto al pedazo más largo (así no la tapa el cursor)
@@ -294,7 +288,6 @@
     el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-haspopup', 'dialog');
     el.setAttribute('aria-label', side === 'w' ? 'Tramo con toma (arrastrar mueve la toma)' : 'Potenciómetro (arrastrar mueve el cursor)');
     b.place(side, el, g => {
-      if (b.nodesOn()) return OFF;
       el.style.width = 64 * p.scale + 'px'; el.style.height = (yB(g) - yA(g) + 40) * p.scale + 'px';
       return [XP, (yA(g) + yB(g)) / 2];
     });
