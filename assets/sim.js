@@ -1185,6 +1185,7 @@
     ['protoboard', 'Protoboard'],
     ['interruptor-led', 'Interruptor y LED'],
     ['serie-paralelo', 'LEDs en serie y paralelo'],
+    ['potenciometro', 'Potenciómetro'],
     ['osciloscopio', 'LED y osciloscopio'],
     ['capacitores', 'Capacitores'],
     ['osciloscopio-rc', 'Carga y descarga RC'],

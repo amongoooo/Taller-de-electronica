@@ -114,17 +114,18 @@ footer a { color: var(--water); }
       <a class="card" href="simulaciones/protoboard/"><span class="mini" data-p="protoboard"></span><h3><span class="n">4</span>Protoboard</h3></a>
       <a class="card" href="simulaciones/interruptor-led/"><span class="mini" data-p="interruptor-led"></span><h3><span class="n">5</span>Interruptor y LED</h3></a>
       <a class="card" href="simulaciones/serie-paralelo/"><span class="mini" data-p="serie-paralelo"></span><h3><span class="n">6</span>LEDs en serie y paralelo</h3></a>
+      <a class="card" href="simulaciones/potenciometro/"><span class="mini" data-p="potenciometro"></span><h3><span class="n">7</span>Potenciómetro</h3></a>
     </div>
   </section>
 
   <section>
     <h2>Señales <span class="ins">·&nbsp;generador y osciloscopio</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">7</span>LED y osciloscopio</h3></a>
-      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">8</span>Capacitores</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">9</span>Carga y descarga RC</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">10</span>Diodo y media onda</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">11</span>Rectificador de onda completa</h3></a>
+      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">8</span>LED y osciloscopio</h3></a>
+      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">9</span>Capacitores</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">10</span>Carga y descarga RC</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">11</span>Diodo y media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">12</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -151,6 +152,8 @@ footer a { color: var(--water); }
     r: '<path class="w" d="M-12 0h4l2-4 3 8 3-8 3 8 3-8 2 4h4"/>',
     // la que se estira o se pellizca (Ley de Ohm): con su flecha de variable
     rv: '<path class="w" d="M-12 0h4l2-4 3 8 3-8 3 8 3-8 2 4h4M-8 8L7-7M2-7h5v5"/>',
+    // potenciómetro: el cursor es una flecha que toca la resistencia desde un lado
+    pot: '<path class="w" d="M-12 0h4l2-4 3 8 3-8 3 8 3-8 2 4h4M0-12v4"/><path class="f" d="M0-5l-3-4h6z"/>',
     d: '<path class="f" d="M-5-5v10l9-5z"/><path class="w" d="M-12 0h7M4-5v10M4 0h8"/>',
     led: '<path class="w" d="M-12 0h7M-5-5v10l9-5zM4-5v10M4 0h8M-1-7l4-4M1-11h2v2M3-7l4-4M5-11h2v2"/>',
     c: '<path class="w" d="M-12 0h10M2 0h10M-2-7v14M2-7v14"/>',
@@ -195,6 +198,9 @@ footer a { color: var(--water); }
     'interruptor-led': () => circ(LOOP, [at('sw', 48, 20), at('r', 80, 20), at('led', 112, 20), at('bat', 80, 80)]),
     'serie-paralelo': () => circ(LOOP, [at('r', 48, 20), at('led', 80, 20), at('led', 112, 20), at('bat', 80, 80)]),
     'protoboard': board,
+    // el divisor: la fuente entre las dos patas de la pista y el cursor a su terminal (sin corriente)
+    'potenciometro': () => circ('M22 20H110V80H22Z', [at('pot', 110, 50, 90), at('bat', 66, 80)])
+      + '<path class="w" d="M122 50H133"/><circle class="bg" cx="136" cy="50" r="2.6"/><circle class="w" cx="136" cy="50" r="2.6"/>',
     'capacitores': () => circ(LOOP, [at('r', 62, 20), at('cp', 100, 20), at('bat', 80, 80)]),
     'osciloscopio': () => circ(LOOP, [at('r', 62, 20), at('led', 100, 20), at('gen', 80, 80)]),
     'osciloscopio-rc': () => circ(LOOP, [at('r', 62, 20), at('c', 100, 20), at('gen', 80, 80)]),
