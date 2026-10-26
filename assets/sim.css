@@ -186,6 +186,8 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   background: transparent; border: 2px dashed transparent; cursor: pointer;
 }
 .sim-hit:hover, .sim-hit:focus-visible { border-color: var(--act, var(--muted)); }
+/* Marcador (sin dibujo) junto a lo que tiene su tarjeta abierta en la protoboard (Sim.protoboard). */
+.pb-anchor { width: max(26px, calc(var(--s, 1) * 44px)); aspect-ratio: 1; border-radius: 50%; border: 2px solid transparent; pointer-events: none !important; }
 
 /* Punta de un medidor: se arrastra a cualquier punto del circuito (el dibujo lo hace el canvas). */
 .sim-clamp {

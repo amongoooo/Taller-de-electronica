@@ -138,6 +138,13 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     con `o.nodeRow: false` (Ley de Ohm y nodos pone Circuito · Nodos flotando con `b.linkedChoice`); los nodos van del color de su voltaje
     (`nodeColor`) y en V y Ω las puntas solo se pegan a los nodos, por un lado sin cables (`nodeDir`). Inercia: `inertia` (empieza en 0: `value="0"` del `#inercia` de cada página). Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
     tramo de la fuente, para que el − (y la tierra, `b.ground`, sin símbolo) quede en 0 V a la izquierda.
+- `assets/protoboard.js`: `Sim.protoboard(o)`, la protoboard con su pila (bomba), su bandeja y su red de nodos (`solve`), que usan
+  `protoboard` (libre: `o.tray`, sus pasos y `load`/`clear`) y las páginas del armado guiado (`o.guide`: [{ name, piece: { type, a,
+  b, R, led, color } }], un paso de `Sim.steps` por pieza; `drawSpot` su lugar punteado, `fits(j)` lo revisa por tiras, el LED con su
+  polaridad; ir a un paso pone las piezas anteriores con `putTarget` y quita las de ese en adelante). Piezas: `wire`, `res`, `led`
+  y `push` (el pulsador de 6 mm, cuatro patas `a`, `b`, `a2`, `b2`, sobre el canal; `a`–`a2` y `b`–`b2` unidas, apretado une `a`–`b`;
+  su tapa es `Sim.pushKey` con una `.sim-hit` en cada panel, `keyOf`); `legsOf` y `legCurrents` dan sus patas y sus corrientes.
+  `Sim.pbNow` para probar.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
   medidas con `update`, sus mandos con `ui.button`/`ui.knob` y su dibujo con `draw(ctx, L, side)`; sin circuito ni puntas), y
   `Sim.scope(o)`, el generador de funciones con el osciloscopio que usan las páginas del bloque de señales (menos Capacitores, que usa el banco):
@@ -172,7 +179,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   Vce 0,2 V saturado (`solve(V)`: corrientes, voltajes y estado; `model` da `branch` [Ic, Ib, Ibot] para la inercia); son dos
   componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (sin dibujo
   propio: separa el nodo de la base del emisor, para medir Vbe); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
-  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED y cable negro. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -259,6 +266,13 @@ este orden, porque cada una usa la anterior):
 - [x] **Transistor** NPN como interruptor (2N2222, el del taller; en agua, una compuerta grande que abre un
   chorrito, la base): el botón en la base prende un LED; luego el potenciómetro en la base (Ic = β·Ib hasta saturar,
   Vbe ≈ 0,7 V y Vce ≈ 0,2 V medibles).
+
+Armado en protoboard (aprobado; con agua, una página aparte después de cada simulación y sin multímetro; un PR por fase):
+- [x] Fase 1: la protoboard en `assets/protoboard.js` con el armado guiado y **Interruptor y LED en la protoboard**
+  (`simulaciones/interruptor-led-armado/`).
+- [ ] Fase 2: Potenciómetro en la protoboard.
+- [ ] Fase 3: Botones en la protoboard.
+- [ ] Fase 4: Transistor en la protoboard.
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y
 paralelo de la fuente, ni un segundo canal (la fuente y la bomba son de uno), ni páginas de fotorresistencia (LDR)
