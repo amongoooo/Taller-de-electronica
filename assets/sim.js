@@ -1187,6 +1187,7 @@
     ['serie-paralelo', 'LEDs en serie y paralelo'],
     ['potenciometro', 'Potenciómetro'],
     ['botones', 'Botones'],
+    ['transistor', 'Transistor'],
     ['osciloscopio', 'LED y osciloscopio'],
     ['capacitores', 'Capacitores'],
     ['osciloscopio-rc', 'Carga y descarga RC'],

@@ -159,7 +159,13 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   componente con dos zonas, su tapa (mando: se aprieta mientras se toca, `st.press`) y su cuerpo (`b.part`, su tarjeta con
   Normalmente: Abierto · Cerrado); en el paso 2, el pulsador y la resistencia en serie en `XA` y `XB` (se cambian de lugar con
   Pull-down · Pull-up, en su tarjeta y en Armar) y la entrada baja del nodo `XN` a su terminal; sin la resistencia (su lugar
-  punteado) la entrada flota (`st.fl`, al azar entre 0 y V); `Sim.btnNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  punteado) la entrada flota (`st.fl`, al azar entre 0 y V); `Sim.btnNow` para probar. `transistor` (Transistor, dos pasos: botón en la base y
+  potenciómetro en la base): el NPN 2N2222 en `XQ` (colector arriba, emisor abajo, base por la izquierda) con β = 100, Vbe 0,7 V y
+  Vce 0,2 V saturado (`solve(V)`: corrientes, voltajes y estado; `model` da `branch` [Ic, Ib, Ibot] para la inercia); son dos
+  componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (un diodo
+  en la vista de nodos); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
+  abajo) salen del alto del circuito; `nodeLayout` propio y las puntas en A a los dos lados de un nodo (en la vista de nodos un
+  cable que acaba en un nodo se encoge hasta él); `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -243,7 +249,7 @@ este orden, porque cada una usa la anterior):
   protección (brillo y corriente máxima).
 - [x] **Botones**: pulsador normalmente abierto y cerrado (en agua, una válvula con resorte que se cierra sola al soltarla);
   resistencia de pull-down o pull-up (sin ella el nodo queda flotando).
-- [ ] **Transistor** NPN como interruptor (2N2222, el del taller; en agua, una compuerta grande que abre un
+- [x] **Transistor** NPN como interruptor (2N2222, el del taller; en agua, una compuerta grande que abre un
   chorrito, la base): el botón en la base prende un LED; luego el potenciómetro en la base (Ic = β·Ib hasta saturar,
   Vbe ≈ 0,7 V y Vce ≈ 0,2 V medibles).
 

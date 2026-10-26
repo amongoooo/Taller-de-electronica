@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Transistor · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026175213">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Transistor</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="0">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con una compuerta grande que abre un chorrito de agua que empuja su paleta"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico con un transistor NPN 2N2222 que prende un LED"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261026175213"></script>
+<script src="../../assets/banco.js?v=20261026175213"></script>
+<script>
+(() => {
+  const { C, draw: D } = Sim;
+  // Transistor NPN 2N2222, el del taller, como interruptor. Tres patas: colector (arriba), base (de la izquierda) y
+  // emisor (abajo, a la tierra). Por la base entra una corriente chiquita, Ib, que deja pasar una grande del colector al
+  // emisor: Ic = β · Ib (β = 100, el hFE del 2N2222 a 10 mA), hasta lo que deja pasar lo demás del colector (la
+  // resistencia y el LED): ahí ya no crece aunque Ib crezca (saturado) y entre el colector y el emisor quedan 0,2 V.
+  // La base y el emisor son un diodo: la base solo toma corriente con más de 0,7 V (Vbe) y ya no pasa de ahí.
+  // Tres estados: en corte (sin Ib: no pasa nada y el colector se queda con todo el voltaje), activo (Ic = β · Ib) y
+  // saturado. Ib e Ic salen juntas por el emisor.
+  // En el agua es una compuerta grande en la tubería del colector al emisor; el chorrito de la base empuja una paleta
+  // unida a ella y la abre (contra un resorte: la presión de 0,7 psi que necesita para empezar a moverse) y luego sale
+  // al emisor con lo demás.
+  // Dos pasos, los que cambian el dibujo:
+  //   Botón en la base: + → resistencia → LED → colector, y + → pulsador → resistencia de la base (10 kΩ) → base.
+  //     Apretado: Ib = (V − 0,7) / 10 kΩ = 0,43 mA con 5 V, que pediría 43 mA; pasan los 13 mA que dejan la resistencia
+  //     y el LED: saturado. El multímetro en V entre el colector y la tierra (Vce): 5 V suelto y 0,2 V apretado.
+  //   Potenciómetro en la base: el de 10 kΩ entre el + y la tierra (un divisor de voltaje) y su cursor a la base por
+  //     22 kΩ: arriba satura, abajo de 0,7 V (sumando lo que cae en el potenciómetro) queda en corte y en medio
+  //     Ic = β · Ib. Un multímetro en A en la base (Ib) y otro en el colector (Ic).
+  // Todo se calienta (Sim.heat): el LED aguanta Vf · 30 mA, las resistencias y el potenciómetro ¼ W y el transistor
+  // 625 mW (TO-92, con su unión hasta 150 °C): Vce · Ic + Vbe · Ib, mucho más en activo que saturado. Quemado, se abre.
+  const BETA = 100, VBE = 0.7, VSAT = 0.2, RLED = 5, RP = 10000, HN = 5, END = 22;
+  const XQ = 600;                          // la línea del colector y el emisor
+  const XS = 290, XB1 = 460, XR1 = 300, XL1 = 470;   // paso 1: el pulsador y la de la base; la del LED y el LED
+  const XP = 320, XT = 370, XB2 = 470, XR2 = 410, XL2 = 520, XG = 500;   // paso 2: el potenciómetro, la bajada de su toma…
+  const RMIN = 100, RMAX = 1000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
+  const RVALUES = [0, ...Sim.series(RMIN, RMAX)];
+  const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
+  const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
+  // la de la base: de 1 kΩ a 100 kΩ
+  const BMIN = 1000, BMAX = 100000, BL = Math.log(BMAX / BMIN);
+  const BVALUES = Sim.series(BMIN, BMAX);
+  const halfB = R => HMAX - (HMAX - HMIN) * Math.log(R / BMIN) / BL;
+  const fromHalfB = h => Sim.nearest(BVALUES, BMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * BL));
+  const ohm = Sim.ohm, OFF = [-999, -999];
+  const vf = () => Sim.led(st.led).vf;
+  const lh = Sim.heat({ ...Sim.HEAT.led, pMax: () => vf() * Sim.LED_IMAX / 1000 }), rh = Sim.heat(Sim.HEAT.res), bh = Sim.heat(Sim.HEAT.res);
+  const ph = Sim.heat(Sim.HEAT.res), qh = Sim.heat({ pMax: 0.625, tMax: 150, tau: 4 });
+  // type: 'na' o 'nc' y press (pv para el dibujo): el pulsador; R: la del LED (rb quemada); RB: la de la base (bb);
+  // a: el cursor del potenciómetro, de A (0) a B (1), y crack: dónde se quemó su pista; qb: el transistor quemado
+  const st = { step: 0, type: 'na', press: false, pv: 0, R: 220, led: 'rojo', broken: false, rb: false, burnT: 9, ang: 0, om: 0,
+    RB: 10000, bb: false, bburnT: 9, a: 0.5, crack: null, crackT: 9, qb: false, qburnT: 9, u: 0,
+    lit: false, cut: false, act: false, sat: false };
+  const closed = () => st.press !== (st.type === 'nc');
+  const Ra = () => st.a * RP, Rb = () => RP - Ra();
+  const cutA = () => st.crack != null && st.crack < st.a, cutB = () => st.crack != null && st.crack >= st.a;
+  // La altura de la base según el alto del circuito (en el celular acostado o en una tableta es poco): en el paso 1, con
+  // lugar arriba para la tapa del pulsador y abajo para la compuerta; en el 2, con lugar abajo para el cable de la tierra
+  // del potenciómetro (yG, que baja en XG al cable de abajo).
+  const yQ = g => {
+    const H = g.BOT - g.TOP, k = st.step ? [0.45, 66, H - 80] : [0.52, 78, H - 69];
+    return Math.round(g.TOP + Math.max(k[1], Math.min(k[2], k[0] * H)));
+  };
+  const yC = g => yQ(g) - 40, yE = g => yQ(g) + 40;                               // el colector y el emisor
+  const yG = g => Math.max(yQ(g) + 40, g.BOT - 50);
+  const yA = g => g.TOP + 40, yB = g => yG(g) - 40, yW = g => yA(g) + st.a * (yB(g) - yA(g));
+  const uniq = pts => pts.filter((p, i) => !i || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 0.01);
+  const dOn = (pts, x, y) => D.project(pts, x, y).d;
+
+  // El circuito con V en el +: corrientes en mA (Ib, Ic, y en el paso 2 Ibot, la de la parte de abajo del
+  // potenciómetro, e Ia, la de arriba), voltajes (Vw del cursor, Vin antes de la resistencia de la base, Vb de la base y
+  // Vc del colector) y el estado del transistor.
+  function solve(V) {
+    // lo que ve la resistencia de la base hacia atrás (Thévenin): el pulsador o el divisor del potenciómetro
+    let Vth = null, Rth = 0;
+    if (!st.step) { if (closed()) Vth = V; }
+    else if (cutA()) { Vth = 0; Rth = Rb(); }
+    else if (cutB()) { Vth = V; Rth = Ra(); }
+    else { Vth = V * Rb() / RP; Rth = Ra() * Rb() / RP; }
+    const Ib = Vth != null && !st.bb && !st.qb ? Math.max(0, (Vth - VBE) / (Rth + st.RB) * 1000) : 0;
+    const Vw = Vth == null ? 0 : Vth - Ib * Rth / 1000;
+    const Ibot = !st.step || cutB() ? 0 : Rb() > 0 ? Vw / Rb() * 1000 : cutA() ? 0 : V / RP * 1000;
+    const Ia = !st.step || cutA() ? 0 : Ibot + Ib;
+    const Vin = st.step ? Vw : closed() ? V : 0;
+    const Vb = Ib > 0 ? VBE : st.bb ? 0 : Vin;
+    // el colector: lo más que dejan pasar la resistencia y el LED con 0,2 V en el transistor
+    const ok = !st.broken && !st.rb && !st.qb;
+    const icSat = ok ? Math.max(0, (V - vf() - VSAT) / (st.R + RLED) * 1000) : 0;
+    const Ic = Math.min(BETA * Ib, icSat);
+    const reg = st.qb ? 'quemado' : Ib <= 0 ? 'corte' : BETA * Ib < icSat ? 'activo' : 'saturado';
+    const Vc = reg === 'corte' || reg === 'quemado' ? V : Ic > 0 ? V - vf() - Ic * (st.R + RLED) / 1000 : Math.min(Math.max(V, 0), VSAT);
+    return { Ib, Ic, Ibot, Ia, Vw, Vin, Vb, Vc, reg, icSat };
+  }
+
+  // Tramos del circuito (sin la fuente), con su corriente, sus componentes y el perfil del agua.
+  //   paso 1: lo, del + hasta el nodo de la izquierda (Ib + Ic); up, de ahí por arriba hasta el colector, con la
+  //   resistencia y el LED (Ic); base, del nodo por el pulsador y la resistencia a la base y por dentro hasta el emisor
+  //   (Ib); ce, del colector al emisor (Ic), y e, del emisor a la tierra (Ib + Ic).
+  //   paso 2: lo llega arriba hasta el potenciómetro; s1 y s2 son su pista de A al cursor y del cursor a B (que sigue
+  //   por el cable de la tierra hasta el cable de abajo, en XG) y tap, del cursor a la base. El regreso se parte en e1
+  //   (del emisor a XG) y e2 (de XG a la fuente).
+  function segs(g, m, V) {
+    const s = solve(V), [Ic, Ib, Ibot] = m.branch || [0, 0, 0], q = yQ(g), sx = g.PX + b.SRC;
+    const nodes = b.nodesOn();
+    const XB = st.step ? XB2 : XB1, XR = st.step ? XR2 : XR1, XL = st.step ? XL2 : XL1;
+    const dR = st.rb ? V - s.Vc : Ic * st.R / 1000;
+    const top = [{ id: 'LED', at: [XL, g.TOP], half: 30, dV: V - s.Vc - dR, pr: ledPart, ext: w => w ? 46 : 28,
+      draw: (ctx, w) => drawLed(ctx, w, g, m), tag: w => ledTag(w) }];
+    if (st.R) top.unshift({ id: 'R', at: [XR, g.TOP], half: 46, dV: dR, R: st.rb ? Infinity : st.R, pr: pinch,
+      draw: (ctx, w) => w ? D.narrow(ctx, XR, g.TOP, half(st.R)) : D.resistor(ctx, XR, g.TOP), tag: w => rTag(w) });
+    const res = { id: 'Rbase', at: [XB, q], half: 46, dV: s.Vin - s.Vb, R: st.bb ? Infinity : st.RB, pr: rbPinch,
+      draw: (ctx, w) => w ? D.narrow(ctx, XB, q, halfB(st.RB)) : D.resistor(ctx, XB, q), tag: w => rbTag(w) };
+    // la base entra por la izquierda y, por dentro, baja al emisor
+    const inner = [[XQ - 44, q], [XQ - 20, q], [XQ, yE(g)]];
+    const beAt = D.pointAt(inner, D.len(inner) / 2);
+    const be = { id: 'BE', at: beAt, half: D.len(inner) / 2, dV: s.Vb, ext: w => w ? 12 : 16,
+      draw: (ctx, w) => drawBE(ctx, w, beAt, inner), tag: w => [w ? 'paleta' : 'base-emisor', '', false, ''] };
+    const ce = { id: 'CE', at: [XQ, q], half: 40, dV: s.Vc, pr: qPart, ext: w => w ? 48 : 36,
+      draw: (ctx, w) => drawQ(ctx, w, g), tag: w => qTag(w) };
+    const ceSeg = { id: 'ce', pts: [[XQ, yC(g)], [XQ, yE(g)]], I: Ic, v0: s.Vc, comps: [ce] };
+    const up0 = st.step ? [[XP, g.TOP]] : [[g.X0, q], [g.X0, g.TOP]];
+    const up = uniq([...up0, [XQ, g.TOP], [XQ, yC(g)]]);
+    const upSeg = { id: 'up', pts: up, I: Ic, v0: V, comps: top,
+      prof: st.R ? Sim.narrowProfile(dOn(up, XR, g.TOP), half(st.R)) : null, pk: st.R };
+    if (!st.step) {
+      const push = { id: 'S', at: [XS, q], half: 28, dV: closed() ? 0 : V, R: closed() ? 0 : Infinity, pr: pushPart, ext: w => w ? 30 : 22,
+        draw: (ctx, w) => drawPush(ctx, w, XS, q), tag: w => pushTag(w) };
+      const base = [[g.X0, q], ...inner];
+      return [
+        { id: 'lo', pts: [[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, q]], I: Ic + Ib, v0: V, comps: [] },
+        upSeg,
+        { id: 'base', pts: base, I: Ib, v0: V, comps: [push, res, be], prof: Sim.narrowProfile(dOn(base, XB, q), halfB(st.RB)), pk: st.RB },
+        ceSeg,
+        { id: 'e', pts: [[XQ, yE(g)], [XQ, g.BOT], [sx, g.BOT]], I: Ic + Ib, v0: 0, comps: [] }
+      ];
+    }
+    // paso 2: la pista del potenciómetro (si se quemó no pasa nada por su pedazo y todo el voltaje queda en él)
+    const ya = yA(g), yb = yB(g), yw = yW(g), yg = yG(g);
+    const track = (id, y0, y1, R, dV, cut) => ({ id, at: [XP, (y0 + y1) / 2], half: (y1 - y0) / 2, dV, R: cut ? Infinity : R,
+      pr: nodes ? pot : null, ext: w => w ? Sim.PIPE + 6 : 16, draw: (ctx, w) => drawTrack(ctx, w, y0, y1),
+      tag: w => [id === 'RA' ? (w ? 'tramo de arriba' : 'pot. arriba') : (w ? 'tramo de abajo' : 'pot. abajo'), ohm(R), cut, cut ? (w ? 'reventado' : 'quemado') : ''] });
+    const narrowAt = (pts, y0, y1) => Sim.narrowProfile(dOn(pts, XP, (y0 + y1) / 2), HN, (y1 - y0) / 2);
+    const s1 = [[XP, g.TOP], [XP, yw]], s2 = uniq([[XP, yw], [XP, yg], [XG, yg], [XG, g.BOT]]);
+    const tap = uniq([[XP, yw], [XT, yw], [XT, q], ...inner]);
+    return [
+      { id: 'lo', pts: [[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [XP, g.TOP]], I: Ic + Ib + Ibot, v0: V, comps: [] },
+      upSeg,
+      { id: 's1', pts: s1, I: Ib + Ibot, v0: V, comps: [track('RA', ya, yw, Ra(), V - s.Vw, cutA())], prof: narrowAt(s1, ya, yw), pk: st.a },
+      { id: 's2', pts: s2, I: Ibot, v0: s.Vw, comps: [track('RB', yw, yb, Rb(), s.Vw, cutB())], prof: narrowAt(s2, yw, yb), pk: st.a },
+      { id: 'tap', pts: tap, I: Ib, v0: s.Vw, comps: [res, be], prof: Sim.narrowProfile(dOn(tap, XB, q), halfB(st.RB)), pk: st.a + ',' + st.RB },
+      ceSeg,
+      { id: 'e1', pts: [[XQ, yE(g)], [XQ, g.BOT], [XG, g.BOT]], I: Ic + Ib, v0: 0, comps: [] },
+      { id: 'e2', pts: [[XG, g.BOT], [sx, g.BOT]], I: Ic + Ib + Ibot, v0: 0, comps: [] }
+    ];
+  }
+
+  // El agua de cada tramo (Sim.stream: avanza con su fase, así no se pierde al mover el cursor); se arma de nuevo si
+  // el tramo cambia.
+  const streams = new Map(), phase = { w: {}, e: {} };
+  let drawn = [];   // los tramos del agua que se están dibujando (el agua de adentro de la compuerta)
+  const streamOf = s => {
+    const key = JSON.stringify(s.pts) + st.step + s.pk;
+    let w = streams.get(s.id);
+    if (!w || w.key !== key) { w = { key, sim: Sim.stream(s.pts, s.prof || (() => Sim.PIPE)) }; streams.set(s.id, w); }
+    return w.sim;
+  };
+  const K = 10, CAP = 40;   // rapidez de las partículas por mA, con un tope para que se vean
+  const rate = I => Math.sign(I) * Math.min(Math.abs(I), CAP) * K;
+
+  const b = Sim.bench({
+    iFull: 30, v0: 5,
+    head: 82,   // las etiquetas de la resistencia y de la rueda, arriba del cable
+    layout() { streams.clear(); },
+    model(V) {
+      const s = solve(V);
+      return { I: s.Ic + s.Ib + s.Ibot, branch: [s.Ic, s.Ib, s.Ibot] };
+    },
+    circuit: (g, m, V) => segs(g, m, V),
+    // Vista de nodos como el circuito: el + abajo a la izquierda (junto a la fuente) y la tierra abajo a la derecha; la
+    // resistencia del LED sube por la izquierda, el LED va arriba y el transistor (colector-emisor) baja por la derecha.
+    // En el paso 1, el pulsador, la resistencia de la base y la base-emisor por abajo; en el 2, la pista del
+    // potenciómetro por abajo (el cursor se mueve con ella) y del cursor sube la resistencia de la base a la base.
+    nodeLayout(nodes, comps, g) {
+      const by = id => comps.find(c => c.c.id === id), CE = by('CE'), BE = by('BE'), LED = by('LED'), R = by('R'), Rb = by('Rbase');
+      const P = nodes.find(n => n.plus), G = nodes.find(n => n.ground);
+      if (!CE || !BE || !LED || !Rb || !P || !G || CE.B !== G || BE.B !== G || P === G) return;
+      const yt = g.TOP + 10, yb = g.BOT - 70;
+      P.p = [g.X0, yb]; G.p = [XQ, yb]; CE.A.p = [XQ, yt];
+      if (R) R.B.p = [g.X0, yt];
+      if (!st.step) { Rb.A.p = [g.X0 + 130, yb]; BE.A.p = [XQ - 140, yb]; }
+      else {
+        Rb.A.p = [g.X0 + 40 + st.a * (XQ - g.X0 - 80), yb]; BE.A.p = [XQ - 150, yt + 60];
+        Rb.A.out = [0, 1];
+      }
+      comps.forEach(c => {
+        const [ax, ay] = c.A.p, [bx, by2] = c.B.p;
+        c.mid = [(ax + bx) / 2, (ay + by2) / 2]; c.a1 = Math.atan2(by2 - ay, bx - ax);
+      });
+    },
+    step(dt, m) {
+      const V = b.st.vo, s = solve(V), k = b.st.short ? b.flowI(m) / Math.max(1e-9, m.I) : 1;
+      const [Ic, Ib, Ibot] = (m.branch || [0, 0, 0]).map(x => x * k / 1000);
+      const to = st.press ? 1 : 0;
+      st.pv = Sim.REDUCE.matches ? to : to > st.pv ? Math.min(to, st.pv + dt / 0.06) : Math.max(to, st.pv - dt / 0.09);
+      // la compuerta se abre lo que deja pasar del colector (abierta del todo, saturado); con su inercia
+      const u = s.reg === 'saturado' ? 1 : s.icSat > 0 ? Math.min(1, BETA * s.Ib / s.icSat) : 0;
+      st.u = Sim.REDUCE.matches ? u : st.u + (u - st.u) * (1 - Math.exp(-dt / 0.08));
+      // calor: el LED con Vf · I, las resistencias con I²·R, el potenciómetro con lo de cada pedazo y el transistor con
+      // Vce · Ic + Vbe · Ib
+      if (lh.step(st.broken ? 0 : vf() * Ic, dt) && !st.broken) { st.broken = true; b.halt(); b.refresh(); }
+      if (rh.step(st.rb || !st.R ? 0 : Ic * Ic * st.R, dt) && !st.rb && st.R) { st.rb = true; st.burnT = 0; b.halt(); b.refresh(); }
+      if (bh.step(st.bb ? 0 : Ib * Ib * st.RB, dt) && !st.bb) { st.bb = true; st.bburnT = 0; b.halt(); b.refresh(); }
+      if (qh.step(st.qb ? 0 : s.Vc * Ic + s.Vb * Ib, dt) && !st.qb) { st.qb = true; st.qburnT = 0; b.halt(); b.refresh(); }
+      const Ia = Ib + Ibot;
+      if (ph.step(!st.step || st.crack != null ? 0 : Ia * Ia * Ra() + Ibot * Ibot * Rb(), dt) && st.step && st.crack == null) {
+        st.crack = st.a / 2; st.crackT = 0; b.halt(); b.refresh();   // se rompe a la mitad del pedazo que lleva más
+      }
+      st.burnT += dt; st.bburnT += dt; st.qburnT += dt; st.crackT += dt;
+      st.om = st.broken ? 0 : -Ic * 1000 * Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI;
+      st.ang += st.om * dt;
+      for (const sg of segs(b.ge, m, V)) phase.e[sg.id] = (phase.e[sg.id] || 0) + rate(sg.I) * dt;
+      for (const sg of segs(b.gw, m, V)) phase.w[sg.id] = (phase.w[sg.id] || 0) + rate(sg.I) * dt;
+      seen(s);
+    },
+    drawW(ctx, g, m) {
+      const ss = drawn = segs(g, m, b.st.vo), q = yQ(g), XB = st.step ? XB2 : XB1, XR = st.step ? XR2 : XR1;
+      ss.forEach(s => D.pipe(ctx, s.pts));
+      if (st.R) D.narrow(ctx, XR, g.TOP, half(st.R));
+      D.narrow(ctx, XB, q, halfB(st.RB));
+      if (st.step) drawTrack(ctx, true, yA(g), yB(g));
+      ss.forEach(s => streamOf(s).draw(ctx, phase.w[s.id] || 0, rate(s.I)));
+      if (st.R) D.burstPipe(ctx, XR, g.TOP, half(st.R), st.burnT, st.rb, rh.glow, '');
+      b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinch);
+      D.burstPipe(ctx, XB, q, halfB(st.RB), st.bburnT, st.bb, bh.glow, '');
+      b.grips(ctx, XB, q, halfB(st.RB) + 5, rbPinch);
+      drawLed(ctx, true, g, m);
+      drawQ(ctx, true, g);
+      if (!st.step) drawPush(ctx, true, XS, q);
+      else drawWiper(ctx, true, g);
+      labels(ctx, g, true);
+    },
+    drawE(ctx, g, m) {
+      const ss = segs(g, m, b.st.vo), q = yQ(g), XB = st.step ? XB2 : XB1, XR = st.step ? XR2 : XR1;
+      ss.forEach(s => D.wire(ctx, s.pts));
+      ss.forEach(s => D.flow(ctx, s.pts, phase.e[s.id] || 0, C.charge, { gap: 30, r: 4.5 }));
+      if (st.R) {
+        if (!st.rb) D.heatGlow(ctx, XR, g.TOP, rh.glow);
+        D.resistor(ctx, XR, g.TOP);
+        if (st.rb) D.burntResistor(ctx, XR, g.TOP, st.burnT, '');
+      }
+      b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinch);
+      if (!st.bb) D.heatGlow(ctx, XB, q, bh.glow);
+      D.resistor(ctx, XB, q);
+      if (st.bb) D.burntResistor(ctx, XB, q, st.bburnT, '');
+      b.grips(ctx, XB, q, halfB(st.RB) + 5, rbPinch);
+      drawLed(ctx, false, g, m);
+      drawQ(ctx, false, g);
+      if (!st.step) {
+        drawPush(ctx, false, XS, q);
+        D.circle(ctx, g.X0, q, 6, C.ink);   // el nodo de la izquierda
+      } else {
+        drawWiper(ctx, false, g);
+        D.circle(ctx, XP, g.TOP, 6, C.ink); D.circle(ctx, XG, g.BOT, 6, C.ink);
+      }
+      labels(ctx, g, false);
+    }
+  });
+
+  // El transistor en (XQ, yQ). En el agua, la compuerta: un cuerpo de metal en la tubería de pie, con un paso de
+  // arriba (colector) abajo (emisor) y la compuerta roja en su ranura, que el resorte empuja a la izquierda (cerrada).
+  // El chorrito de la base entra por la izquierda, empuja la paleta (unida a la compuerta por una varilla) y sale al
+  // paso, abajo de la compuerta. st.u: qué tan abierta (de 0 a 1). En la electricidad, el símbolo del NPN: la base a
+  // la izquierda, el colector arriba y el emisor abajo, con su flecha hacia afuera.
+  function drawQ(ctx, w, g) {
+    const x = XQ, y = yQ(g), u = st.qb ? 0 : st.u;
+    if (!st.qb) D.heatGlow(ctx, x - 4, y, qh.glow, w ? 60 : 56);
+    if (w) {
+      D.roundRect(ctx, x - 48, y - 46, 96, 90, 9, C.metal, st.qb ? C.danger : C.ink, 2.5);
+      ctx.fillStyle = C['water-soft'];
+      ctx.fillRect(x - 10, y - 46, 20, 90);                // el paso grande
+      ctx.fillRect(x - 48, y - 5, 38, 10);                 // el chorrito de la base
+      ctx.fillStyle = C.pipe;
+      ctx.fillRect(x + 10, y - 37, 34, 22);                // la ranura de la compuerta
+      ctx.fillRect(x - 42, y - 31, 32, 26);                // por donde se mueve la varilla
+      const s = 21 * u, xp = x - 38 + s, gx = x - 11 + s;
+      // el agua que pasa por dentro (la de la base y la del colector al emisor), con su presión: la del colector
+      // arriba de la compuerta, la de la base antes de la paleta y la del emisor (0) después
+      const f0 = Sim.field, sv = solve(b.st.vo), k = 1 / b.vScale();
+      Sim.field = (px, py) => {
+        const r = f0(px, py);
+        return [px > x - 12 && py < y - 26 ? sv.Vc * k : px < xp && py > y - 8 && py < y + 8 ? sv.Vb * k : 0, r[1]];
+      };
+      ctx.save(); ctx.beginPath(); ctx.rect(x - 10, y - 46, 20, 90); ctx.rect(x - 48, y - 5, 38, 10); ctx.clip();
+      for (const id of ['base', 'tap', 'ce']) { const sg = drawn.find(q => q.id === id); if (sg) streamOf(sg).draw(ctx, phase.w[id] || 0, rate(sg.I)); }
+      ctx.restore();
+      Sim.field = f0;
+      // el resorte, de la compuerta al fondo de su ranura
+      const n = 6, x1 = x + 43, sp = [[gx + 22, y - 26]];
+      for (let k = 0; k < n; k++) sp.push([gx + 22 + (x1 - gx - 22) * (k + 0.5) / n, y - 26 + (k % 2 ? 7 : -7)]);
+      sp.push([x1, y - 26]);
+      D.line(ctx, sp, 2, C.ink);
+      D.roundRect(ctx, gx, y - 36, 22, 20, 2, C.danger, C.ink, 1.5);   // la compuerta
+      D.line(ctx, [[xp, y - 3], [xp, y - 26], [gx, y - 26]], 3.5, C.ink);   // la varilla
+      D.roundRect(ctx, xp - 3, y - 7, 6, 10, 1.5, C.ink);                // la paleta (el agua pasa por abajo)
+      if (st.qb) D.smoke(ctx, x, y - 46, st.qburnT);
+      return;
+    }
+    const xb = x - 20;
+    D.circle(ctx, x - 6, y, 31, C.card, st.qb ? C.danger : C.ink, 2.5);
+    D.line(ctx, [[x - 44, y], [xb, y]], 4, C.ink);
+    D.line(ctx, [[xb, y - 16], [xb, y + 16]], 5, C.ink, 'butt');
+    D.line(ctx, [[xb, y - 7], [x, y - 22], [x, y - 40]], 3.5, C.ink);
+    D.line(ctx, [[xb, y + 7], [x, y + 22], [x, y + 40]], 3.5, C.ink);
+    D.arrow(ctx, xb + 15, y + 7 + 15 * 0.75, Math.atan2(15, 20), 8, C.ink);
+    if (st.qb) {
+      ctx.fillStyle = 'rgba(30, 20, 15, 0.55)'; ctx.beginPath(); ctx.ellipse(x - 6, y, 18, 14, 0, 0, Math.PI * 2); ctx.fill();
+      D.smoke(ctx, x - 6, y - 20, st.qburnT);
+    }
+  }
+  // La base y el emisor en la vista de nodos: en el agua el chorrito con su paleta; en la electricidad, su diodo.
+  function drawBE(ctx, w, at, pts) {
+    const f = D.frameAt(pts, D.len(pts) / 2);
+    ctx.save(); ctx.translate(at[0], at[1]); ctx.rotate(Math.atan2(f[3], f[2]));
+    if (w) {
+      D.roundRect(ctx, -22, -12, 44, 24, 6, C.metal, C.ink, 2.5);
+      ctx.fillStyle = C['water-soft']; ctx.fillRect(-22, -5, 44, 10);
+      D.roundRect(ctx, -6 + 12 * (st.qb ? 0 : st.u), -6, 5, 9, 1.5, C.ink);
+    } else {
+      ctx.fillStyle = C.card; ctx.fillRect(-16, -16, 32, 32);
+      ctx.beginPath(); ctx.moveTo(-10, -12); ctx.lineTo(-10, 12); ctx.lineTo(10, 0); ctx.closePath();
+      ctx.fillStyle = C.card; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.lineJoin = 'miter'; ctx.stroke();
+      D.line(ctx, [[11, -12], [11, 12]], 3, C.ink);
+    }
+    ctx.restore();
+  }
+  // El pulsador en (x, y), sobre un tubo o un cable horizontal; la tapa arriba (como en Botones). st.pv: qué tan
+  // apretado (de 0 a 1).
+  function drawPush(ctx, w, x, y) {
+    const p = st.pv, nc = st.type === 'nc';
+    if (w) {
+      const T = 16, gy = -T / 2 + T * p, win = gy + (nc ? T / 2 : -T / 2), cap = y - 50 + T * p, top = y - 25;
+      D.roundRect(ctx, x - 17, y - 25, 34, 50, 7, C.metal, C.ink, 2.5);
+      ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 17, y - 7, 34, 14);
+      ctx.save(); ctx.beginPath(); ctx.rect(x - 7, y - 21, 14, 42); ctx.clip();
+      ctx.fillStyle = C.danger; ctx.fillRect(x - 7, y - 21, 14, 42);
+      ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 7, y + win - 7, 14, 14);
+      ctx.restore();
+      D.line(ctx, [[x - 7, y - 21], [x - 7, y + 21]], 1.5, C.ink); D.line(ctx, [[x + 7, y - 21], [x + 7, y + 21]], 1.5, C.ink);
+      D.line(ctx, [[x, top], [x, cap]], 4, C.ink);
+      const n = 6, y1 = cap + 4, pts = [[x, top]];
+      for (let k = 0; k < n; k++) pts.push([x + (k % 2 ? 9 : -9), top + (y1 - top) * (k + 0.5) / n]);
+      pts.push([x, y1]);
+      D.line(ctx, pts, 2.5, C.muted);
+      D.roundRect(ctx, x - 16, cap - 8, 32, 11, 5, C.metal, C.ink, 2.5);
+      return;
+    }
+    const by = y + (nc ? 5.5 : -13.5) + 8 * p, cap = y - 30 + 8 * p;
+    ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 36, 56, 52);
+    D.line(ctx, [[x - 28, y], [x - 22, y]], 4, C.ink); D.line(ctx, [[x + 22, y], [x + 28, y]], 4, C.ink);
+    D.line(ctx, [[x, by], [x, cap]], 2.5, C.ink);
+    D.line(ctx, [[x - 23, by], [x + 23, by]], 3.5, C.ink);
+    D.line(ctx, [[x - 9, cap + 6], [x - 9, cap], [x + 9, cap], [x + 9, cap + 6]], 3, C.ink, 'butt');
+    D.circle(ctx, x - 18, y, 4.5, C.card, C.ink, 2.5); D.circle(ctx, x + 18, y, 4.5, C.card, C.ink, 2.5);
+  }
+  // La pista del potenciómetro (como en Potenciómetro): en el agua un tramo angosto de pie (de y0 a y1, con su
+  // entrada de cada lado); en la electricidad una resistencia larga, con un diente cada 12.
+  function drawTrack(ctx, w, y0, y1) {
+    if (w) {
+      ctx.save(); ctx.translate(XP, (y0 + y1) / 2); ctx.rotate(Math.PI / 2);
+      D.narrow(ctx, 0, 0, HN, (y1 - y0) / 2);
+      ctx.restore();
+      return;
+    }
+    const L = y1 - y0;
+    ctx.fillStyle = C.card; ctx.fillRect(XP - 16, y0 - 4, 32, L + 8);
+    const n = Math.max(1, Math.round((L - 8) / 12)), s = (L - 8) / n, pts = [[XP, y0 - 4], [XP, y0 + 4]];
+    for (let k = 0; k < n; k++) pts.push([XP + (k % 2 ? 11 : -11), y0 + 4 + (k + 0.5) * s]);
+    pts.push([XP, y1 - 4], [XP, y1 + 4]);
+    if (L < 8) pts.splice(1, pts.length - 2);
+    D.line(ctx, pts, 3.5, C.ink, 'butt');
+  }
+  // El cursor (en el agua, la toma: un collar que abraza el tramo, con su mango a la izquierda) y la pista quemada.
+  function drawWiper(ctx, w, g) {
+    const yw = yW(g), yc = yA(g) + (st.crack ?? 0) * (yB(g) - yA(g)), mid = (yA(g) + yW(g)) / 2;
+    if (w) {
+      if (st.crack == null) D.burstPipe(ctx, XP, mid, HN, 9, false, ph.glow, '');
+      else D.burstPipe(ctx, XP, yc, HN, st.crackT, true, 0, '');
+      D.line(ctx, [[XP - 22, yw], [XP - 34, yw]], 5, C.ink);
+      D.circle(ctx, XP - 36, yw, 5, C.metal, C.ink, 2);
+      D.roundRect(ctx, XP - 21, yw - 10, 42, 20, 6, C.metal, C.ink, 2.5);
+      D.roundRect(ctx, XP - 9, yw - 5, 18, 10, 4, C['water-soft']);
+      return;
+    }
+    if (st.crack == null) D.heatGlow(ctx, XP, mid, ph.glow);
+    drawTrack(ctx, false, yA(g), yB(g));
+    if (st.crack != null) D.burntResistor(ctx, XP, yc, st.crackT, '');
+    D.arrow(ctx, XP + 22, yw, Math.PI, 9, C.ink);
+  }
+  function drawLed(ctx, w, g, m) {
+    const XL = st.step ? XL2 : XL1, I = Math.abs((m.branch || [0])[0]);
+    if (!st.broken) D.heatGlow(ctx, XL, g.TOP, lh.glow, w ? 46 : 56);
+    if (w) D.wheel(ctx, XL, g.TOP, { angle: st.ang, omega: st.om, broken: st.broken, tint: `rgb(${Sim.led(st.led).rgb})`, tag: false });
+    else D.ledSymbol(ctx, XL, g.TOP, { I, broken: st.broken, rgb: Sim.led(st.led).rgb, tag: false });
+  }
+
+  // Etiquetas: la resistencia y el LED en un renglón arriba del cable; el pulsador y la resistencia de la base arriba
+  // de la base; el transistor abajo a la izquierda, con su estado; el potenciómetro a la izquierda de su pista.
+  const STATE = { corte: ['en corte', 'cerrada'], activo: ['activo', 'a medias'], saturado: ['saturado', 'abierta'], quemado: ['quemado', 'rota'] };
+  const qTag = w => {
+    const r = solve(b.st.vo).reg;
+    return [w ? 'compuerta' : 'transistor', w ? '' : '2N2222', st.qb, STATE[r][w ? 1 : 0]];
+  };
+  const pushTag = w => [w ? 'válvula' : 'pulsador', w ? '' : st.type.toUpperCase(), false,
+    closed() ? (w ? 'abierta' : 'cerrado') : (w ? 'cerrada' : 'abierto')];
+  const rTag = w => st.R ? [w ? 'tramo angosto' : 'resistencia', ohm(st.R), st.rb, st.rb ? (w ? 'reventado' : 'quemada') : '']
+    : [w ? 'sin estrechamiento' : 'sin resistencia', '0 Ω', true];
+  const rbTag = w => [w ? 'tramo angosto' : 'resistencia de la base', ohm(st.RB), st.bb, st.bb ? (w ? 'reventado' : 'quemada') : ''];
+  const ledTag = w => [w ? 'rueda' : 'LED', w ? st.led.replace(/o$/, 'a') : st.led, st.broken, st.broken ? (w ? 'rota' : 'quemado') : ''];
+  const SHORT = { 'tramo angosto': 'tramo', 'resistencia': 'R', 'resistencia de la base': 'RB', 'sin estrechamiento': 'sin tramo', 'sin resistencia': 'sin R' };
+  const row = list => list.map(([t, x, pr]) => ({ x, pr, name: SHORT[t[0]] ? [t[0], SHORT[t[0]]] : t[0], value: t[1], danger: t[2], state: t[3] }));
+  function labels(ctx, g, w) {
+    if (b.nodesOn()) return;
+    const q = yQ(g);
+    b.tagRow(ctx, g, g.TOP - (w ? 68 : 44), row([[rTag(w), st.step ? XR2 : XR1, pinch], [ledTag(w), st.step ? XL2 : XL1, ledPart]]));
+    // la del transistor a su izquierda: abajo de la base en el paso 1 y, en el 2 (abajo van las puntas del multímetro de
+    // la base), entre el cable de arriba y el transistor; la de la resistencia de la base, del lado contrario a la bajada
+    // de la toma
+    // (con poco alto, en el paso 1 las de la base van abajo con la del transistor, y en el 2 la del transistor va del
+    // otro lado de la base)
+    const off = w ? 40 : 30, [name, value, danger, state] = qTag(w), tw = D.tagWidth(ctx, name, value, state);
+    if (!st.step) {
+      const base = [[pushTag(w), XS, pushPart], [rbTag(w), XB1, rbPinch]];
+      if (q - g.TOP < 118) return b.tagRow(ctx, g, q + off, row([...base, [qTag(w), XQ - 90, qPart]]));
+      b.tagRow(ctx, g, q - (w ? 84 : 56), row(base));
+      b.tag(ctx, qPart, XQ - (w ? 54 : 44) - tw, q + off, name, value, danger, true, state);
+    } else {
+      const below = yW(g) > q;
+      b.tagRow(ctx, g, below ? q + off : q - off, row([[rbTag(w), XB2, rbPinch]]));
+      if (yC(g) - g.TOP >= 60) b.tag(ctx, qPart, XQ - (w ? Sim.PIPE + 16 : 16) - tw, (g.TOP + yC(g)) / 2 + (w ? 8 : 0), name, value, danger, true, state);
+      else b.tag(ctx, qPart, XQ - (w ? 54 : 44) - tw, below ? q - off : q + off, name, value, danger, true, state);
+    }
+    if (!st.step) return;
+    // el potenciómetro, junto al pedazo más largo de su pista (así no lo tapa la toma)
+    const ya = yA(g), yb = yB(g), yw = yW(g), burnt = st.crack != null, st2 = burnt ? (w ? 'reventado' : 'quemado') : '';
+    const names = [w ? 'tramo con toma' : 'potenciómetro', w ? 'tramo' : 'pot.'], room = XP - (w ? 44 : 26) - g.X0 - (w ? Sim.PIPE + 10 : 10);
+    const pn = names.find(n => D.tagWidth(ctx, n, ohm(RP), st2) <= room) ?? names[1];
+    const pw = D.tagWidth(ctx, pn, ohm(RP), st2), ty = st.a > 0.5 ? (ya + yw) / 2 : (yw + yb) / 2;
+    b.tag(ctx, pot, XP - (w ? 44 : 26) - pw, ty, pn, ohm(RP), burnt, true, st2);
+    const a = Sim.fadeSel(pot, pot.open());
+    D.selectRot(ctx, XP, (ya + yb) / 2, Math.PI / 2, (yb - ya) / 2 + (w ? Sim.NARROW_IN : 4) + 8, (w ? Sim.PIPE + 6 : 16) + 6, a);
+  }
+
+  // ---------- el transistor: tocarlo abre su tarjeta (su calor y, quemado, poner uno nuevo) ----------
+  const renewQ = () => { st.qb = false; qh.reset(); st.qburnT = 9; };
+  const qMenu = side => {
+    const w = side === 'w';
+    return {
+      title: w ? 'Compuerta' : 'Transistor 2N2222',
+      rows: [Sim.powerRow(qh, side, { broken: () => st.qb, what: 'led' }),
+        { actions: [{ text: w ? 'Poner una compuerta nueva' : 'Poner un transistor nuevo', hidden: () => !st.qb, onClick: renewQ }] }]
+    };
+  };
+  const qPart = b.part({ pos: g => b.nodesOn() ? OFF : [XQ - 4, yQ(g)], label: side => side === 'w' ? 'Compuerta' : 'Transistor', menu: qMenu });
+  qPart.els.forEach(el => { el.style.width = 'max(44px, calc(var(--s, 1) * 96px))'; });
+
+  // ---------- paso 1: el pulsador (tocar su tapa lo aprieta mientras se toca; tocar su cuerpo abre su tarjeta) ----------
+  const pushMenu = side => {
+    const w = side === 'w';
+    return {
+      title: w ? 'Válvula con resorte' : 'Pulsador',
+      rows: [{ label: 'Normalmente', seg: w ? [{ value: 'na', text: 'Cerrada' }, { value: 'nc', text: 'Abierta' }]
+        : [{ value: 'na', text: 'Abierto' }, { value: 'nc', text: 'Cerrado' }], get: () => st.type, set: v => { st.type = v; } }]
+    };
+  };
+  const pushPart = b.part({
+    pos: g => st.step || b.nodesOn() ? OFF : [XS, yQ(g) + 8],
+    label: side => side === 'w' ? 'Válvula con resorte' : 'Pulsador',
+    menu: pushMenu
+  });
+  const press = v => { st.press = v; };
+  ['w', 'e'].forEach(side => {
+    const el = document.createElement('div'), p = side === 'w' ? b.pw : b.pe;
+    el.className = 'sim-hit'; el.tabIndex = 0; el.setAttribute('role', 'button');
+    el.setAttribute('aria-label', side === 'w' ? 'Tapa de la válvula (se aprieta mientras se toca)' : 'Pulsador (se aprieta mientras se toca)');
+    Object.assign(el.style, { aspectRatio: 'auto', borderRadius: '12px', touchAction: 'none', userSelect: 'none' });
+    b.place(side, el, g => {
+      if (st.step) return OFF;
+      const y = yQ(g), nodes = b.nodesOn(), w = side === 'w';
+      el.style.width = Math.max(44, (nodes ? 72 : w ? 64 : 56) * p.scale) + 'px';
+      el.style.height = Math.max(40, (nodes ? 64 : w ? 46 : 36) * p.scale) + 'px';
+      return nodes ? [XS, y] : [XS, y - (w ? 41 : 24)];
+    }, true);
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); press(true); e.preventDefault(); });
+    const off = () => press(false);
+    ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'].forEach(t => el.addEventListener(t, off));
+    el.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { press(true); e.preventDefault(); } });
+    el.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') { press(false); e.preventDefault(); } });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  });
+
+  // ---------- la resistencia y el LED del colector ----------
+  const renewR = () => { st.rb = false; rh.reset(); st.burnT = 9; };
+  const setR = R => { st.R = R; if (!R) renewR(); };
+  const pinch = b.pinch({
+    pos: g => [st.step ? XR2 : XR1, g.TOP], get: () => st.R, half, fromHalf, set: setR,
+    label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia del LED',
+    text: R => R ? ohm(R) : 'sin resistencia',
+    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: R => R ? ohm(R) : '0 Ω (sin resistencia)',
+      heat: rh, broken: () => st.rb,
+      actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rb, onClick: renewR }] })
+  });
+  const ledPart = b.part({
+    pos: g => [st.step ? XL2 : XL1, g.TOP],
+    label: side => side === 'w' ? 'Rueda' : 'LED',
+    menu: Sim.ledMenu({
+      get: () => st.led, set: id => { st.led = id; }, heat: lh, broken: () => st.broken,
+      actions: side => [{ text: side === 'w' ? 'Poner una rueda nueva' : 'Poner un LED nuevo', hidden: () => !st.broken,
+        onClick: () => { st.broken = false; lh.reset(); } }]
+    })
+  });
+
+  // ---------- la resistencia de la base ----------
+  const renewB = () => { st.bb = false; bh.reset(); st.bburnT = 9; };
+  const setRB = R => { st.RB = R; };
+  const rbBase = Sim.resistorMenu({ values: BVALUES, get: () => st.RB, set: setRB, format: ohm, heat: bh, broken: () => st.bb,
+    actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.bb, onClick: renewB }] });
+  const rbPinch = b.pinch({
+    pos: g => [st.step ? XB2 : XB1, yQ(g)], get: () => st.RB, half: halfB, fromHalf: fromHalfB, set: setRB,
+    label: side => side === 'w' ? 'Tramo angosto de la base' : 'Resistencia de la base',
+    text: ohm,
+    menu: side => { const m = rbBase(side); m.title = side === 'w' ? 'Tramo angosto de la base' : 'Resistencia de la base'; return m; }
+  });
+
+  // ---------- paso 2: el potenciómetro (tocarlo abre su tarjeta; arrastrar mueve el cursor) ----------
+  // Como en Potenciómetro: el cursor va de 0 (A) a 1 (B) de 1 en 1 % y los múltiplos de 10 % jalan un poco (imán);
+  // la rueda del ratón y las flechas lo mueven de 5 en 5 %.
+  const setA = a => {
+    a = Math.max(0, Math.min(1, a));
+    const t = Math.round(a * 10) / 10;
+    st.a = Math.abs(a - t) < 0.012 ? t : Math.round(a * 100) / 100;
+  };
+  const renewPot = () => { st.crack = null; ph.reset(); st.crackT = 9; };
+  const potMenu = side => {
+    const w = side === 'w';
+    return {
+      title: w ? 'Tramo con toma' : 'Potenciómetro',
+      rows: [
+        { label: w ? 'Toma' : 'Cursor', range: [0, 100, 1], lo: 'A', hi: 'B', get: () => Math.round(st.a * 100), set: v => setA(v / 100) },
+        Sim.powerRow(ph, side, { broken: () => st.crack != null }),
+        { actions: [{ text: w ? 'Poner un tramo nuevo' : 'Poner un potenciómetro nuevo', hidden: () => st.crack == null, onClick: renewPot }] }
+      ]
+    };
+  };
+  const shownSide = () => Sim.view === 'w' ? 'w' : 'e';
+  const pot = { els: [] };
+  pot.open = () => pot.els.some(el => Sim.menu.isOpen(el));
+  ['w', 'e'].forEach(side => {
+    const el = document.createElement('div'), p = side === 'w' ? b.pw : b.pe;
+    pot.els.push(el);
+    el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-haspopup', 'dialog');
+    el.setAttribute('aria-label', side === 'w' ? 'Tramo con toma (arrastrar mueve la toma)' : 'Potenciómetro (arrastrar mueve el cursor)');
+    b.place(side, el, g => {
+      if (!st.step || b.nodesOn()) return OFF;
+      el.style.width = 64 * p.scale + 'px'; el.style.height = (yB(g) - yA(g) + 40) * p.scale + 'px';
+      return [XP, (yA(g) + yB(g)) / 2];
+    });
+    const toY = e => (e.clientY - p.box.getBoundingClientRect().top - p.oy) / p.scale;
+    const geo = () => side === 'w' ? b.gw : b.ge;
+    let id = null, start = 0, moved = false;
+    el.addEventListener('pointerdown', e => {
+      if (id != null) return;
+      id = e.pointerId; el.setPointerCapture(id); start = e.clientY; moved = false; e.preventDefault();
+    });
+    el.addEventListener('pointermove', e => {
+      if (e.pointerId !== id) return;
+      if (!moved && Math.abs(e.clientY - start) <= Sim.DEAD.drag) return;
+      moved = true;
+      const g = geo();
+      setA((toY(e) - yA(g)) / (yB(g) - yA(g)));
+    });
+    const up = e => {
+      if (e.pointerId !== id) return;
+      id = null;
+      if (!moved && e.type === 'pointerup') Sim.menu.toggle(el, potMenu(side));
+    };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', e => { e.preventDefault(); setA(st.a + (e.deltaY < 0 ? -0.05 : 0.05)); }, { passive: false });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { Sim.menu.toggle(el, potMenu(side)); e.preventDefault(); return; }
+      const f = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key];
+      if (f) { setA(st.a + f * 0.05); e.preventDefault(); }
+    });
+    setInterval(() => el.setAttribute('aria-description', ohm(Ra()) + ' de A al cursor, ' + ohm(Rb()) + ' del cursor a B'), 500);
+  });
+  if (Sim.side) Sim.side.part({ anchor: () => pot.els[shownSide() === 'w' ? 0 : 1], menu: () => potMenu(shownSide()) });
+
+  // ---------- pasos ----------
+  // Cada paso pone su circuito, sus valores y los multímetros: en el 1, en V entre el colector y la tierra (Vce), con
+  // las partículas por presión; en el 2, uno en A en la base (Ib) y otro en A en el colector (Ic). Se cumplen solos: el
+  // 1 con el LED prendido por el transistor; el 2 al ver el transistor en corte, activo (con el LED prendido) y saturado.
+  function seen(s) {
+    const on = b.st.on && Math.abs(b.st.vo) > 0.5 && !st.broken;
+    if (!st.step) { if (on && s.Ic > 1 && s.Ib > 0) st.lit = true; return; }
+    if (!on) return;
+    if (s.reg === 'corte') st.cut = true;
+    if (s.reg === 'activo' && s.Ic > 1) st.act = true;
+    if (s.reg === 'saturado' && s.Ic > 1) st.sat = true;
+  }
+  const power = on => { if (b.st.on !== on) document.querySelector('#pe .sim-power').click(); };
+  b.start();
+  Sim.steps(['Botón en la base', 'Potenciómetro en la base'], k => {
+    st.step = k;
+    [pinch.els, ledPart.els, rbPinch.els, pushPart.els, qPart.els, pot.els].forEach(els => els.forEach(el => Sim.menu.close(el)));
+    streams.clear(); phase.w = {}; phase.e = {};
+    Object.assign(st, { type: 'na', press: false, pv: 0, RB: k ? 22000 : 10000, a: 0.5, lit: false, cut: false, act: false, sat: false });
+    renewB(); renewPot();
+    b.showMeters({ a: true, b: !!k });
+    power(true);
+    const g = b.ge, q = yQ(g);
+    if (k === 0) { b.setDial('a', 'off'); b.setDial('a', 'V', [[XQ, yC(g) - 30], [XQ, g.BOT - 24]]); }   // las partículas por presión
+    else {
+      // las de la base a los dos lados de su nodo y las del colector entre el LED y la esquina: así también se quedan en
+      // su cable en la vista de nodos
+      b.setDial('b', 'A', [[XL2 + 40, g.TOP], [XQ - 10, g.TOP]]);
+      b.setDial('a', 'A', [[XB2 + 52, q], [XQ - 52, q]]);
+    }
+    b.halt(); b.refresh();
+  }, k => k ? st.cut && st.act && st.sat : st.lit);
+  Sim.qNow = { st, solve: () => solve(b.st.vo), setA, press };   // para probar
+})();
+</script>
+</body>
+</html>
