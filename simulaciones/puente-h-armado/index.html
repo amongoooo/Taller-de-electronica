@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Puente H en la protoboard · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026224540">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Puente H en la protoboard</h1>
+    <div class="ctl">
+      <div class="sim-seg" id="dentro" role="group" aria-label="Protoboard" data-act="ver"><button type="button" data-v="0">Por fuera</button><button type="button" data-v="1">Por dentro</button></div>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Protoboard de agua donde se arma, pieza por pieza, el puente H: cuatro compuertas, sus tramos angostos, dos válvulas con resorte y la turbina con su volante, con la bomba"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Protoboard donde se arma, pieza por pieza, el puente H: dos transistores PNP 2N2907, dos NPN 2N2222, sus resistencias, dos pulsadores y el motor de CD, con una pila de 6 V"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261026224540"></script>
+<script src="../../assets/protoboard.js?v=20261026224540"></script>
+<script>
+(() => {
+  // El Puente H armado en la protoboard (Sim.protoboard con guide), una pieza por paso, cada una con su lugar punteado (el
+  // paso se cumple cuando la pieza queda en sus tiras). La protoboard es más larga (20 columnas) para que el motor quepa en
+  // medio, y la pila es de 6 V (cuatro pilas AA), el voltaje del motor; su punta negra va al riel − de abajo, donde llegan
+  // los emisores de los NPN y los pull-down (el + de los PNP y de los pulsadores es el riel de arriba).
+  // Cada lado es un medio puente: el PNP 2N2907 en la fila b, con su emisor al riel + por un cable rojo y su cuerpo hacia el
+  // canal, y el NPN 2N2222 en la fila i, volteado (el emisor a la derecha y su cuerpo también hacia el canal), con su emisor
+  // al riel − por un cable negro. Sus colectores quedan en la misma columna, arriba y abajo del canal: un cable corto los une
+  // (la salida). Luego la entrada: el pulsador sobre el canal (una pata al + por un cable rojo y la otra es la entrada), la
+  // resistencia de 4,7 kΩ a la base del PNP, la de 1 kΩ a la del NPN y el pull-down de 470 Ω al riel −. Al final, el motor
+  // con sus dos cables a las dos salidas. Como en Puente H: los dos sueltos, frenado; uno apretado gira para un lado y el
+  // otro para el otro.
+  // Columnas c de 0 a 19 (1 a 20 en la protoboard) y filas r: 0 y 1 los rieles + y − de arriba, 2 a 6 de la a a la e,
+  // 7 a 11 de la f a la j y 12 y 13 los rieles + y − de abajo.
+  const red = '#d6392b', black = '#15212a', green = '#1f9d55';
+  const side = (k, { e, ec, n, nc, out, push, plus, rp, rn, rd }) => [
+    { name: 'PNP ' + k, piece: { type: 'pnp', a: e } },
+    { name: 'Cable rojo del PNP ' + k, piece: { type: 'wire', a: ec, b: [ec[0], 0], color: red } },
+    { name: 'NPN ' + k, piece: { type: 'npn', a: n, dir: -1 } },
+    { name: 'Cable negro del NPN ' + k, piece: { type: 'wire', a: nc, b: [nc[0], 13], color: black } },
+    { name: 'Cable de la salida ' + k, piece: { type: 'wire', a: [out, 6], b: [out, 7], color: green } },
+    { name: 'Pulsador ' + k, piece: { type: 'push', a: push } },
+    { name: 'Cable rojo del pulsador ' + k, piece: { type: 'wire', a: [plus, 2], b: [plus, 0], color: red } },
+    { name: 'Resistencia de la base del PNP ' + k, piece: { type: 'res', ...rp, R: 4700 } },
+    { name: 'Resistencia de la base del NPN ' + k, piece: { type: 'res', ...rn, R: 1000 } },
+    { name: 'Pull-down ' + k, piece: { type: 'res', ...rd, R: 470 } }
+  ];
+  Sim.protoboard({ cols: 20, volts: 6, minus: [0, 13], guide: [
+    // el lado izquierdo: PNP en b4–b6 (E, B, C), NPN en i8–i6 (E, B, C), la salida en la columna 6; el pulsador en e1, e3,
+    // f1 y f3 (la entrada es la columna 3)
+    ...side('izquierdo', { e: [3, 3], ec: [3, 2], n: [7, 10], nc: [7, 11], out: 5, push: [0, 6], plus: 0,
+      rp: { a: [2, 5], b: [4, 6] }, rn: { a: [2, 11], b: [6, 11], side: -1 }, rd: { a: [2, 8], b: [1, 13] } }),
+    // el derecho: PNP en b13–b15, NPN en i17–i15, la salida en la columna 15; el pulsador en e18, e20, f18 y f20 (la
+    // entrada es la columna 18)
+    ...side('derecho', { e: [12, 3], ec: [12, 2], n: [16, 10], nc: [16, 11], out: 14, push: [17, 6], plus: 19,
+      rp: { a: [13, 2], b: [17, 2] }, rn: { a: [15, 7], b: [17, 8] }, rd: { a: [17, 11], b: [17, 13] } }),
+    // el motor en medio, fuera de los agujeros, con sus cables a g6 (la salida izquierda) y g15 (la derecha)
+    { name: 'Motor', piece: { type: 'motor', a: [5, 8], b: [14, 8], at: [9, 8.1] } }
+  ] });
+})();
+</script>
+</body>
+</html>

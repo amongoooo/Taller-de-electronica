@@ -1,21 +1,26 @@
 // Taller de Electrónica: la protoboard (Sim.protoboard), con su pila (en el agua, la bomba), su bandeja de piezas y la
 // red de nodos que la resuelve. La usan Protoboard (libre: cables y resistencias de la bandeja) y las páginas del armado
 // guiado (o.guide: cada paso pone una pieza en agujeros dados, con su lugar punteado, y se revisa solo). Piezas: cable,
-// resistencia, LED, pulsador (push), potenciómetro (pot) y transistor NPN (npn).
+// resistencia, LED, pulsador (push), potenciómetro (pot), transistores NPN (npn) y PNP (pnp) y el motor de CD (motor).
 (() => {
   const { C, draw: D, fmt } = Sim;
 
   // o.tray: lo que trae la bandeja en el modo libre ('wire', 'res', 'led'); o.guide: los pasos del armado guiado,
-  // [{ name, piece: { type, a: [c, r], b: [c, r], R, led, color } }] (columnas c de 0 a 15 y filas r de ROWNAME;
+  // [{ name, piece: { type, a: [c, r], b: [c, r], R, led, color, side } }] (columnas c de 0 a 15 y filas r de ROWNAME;
+  // side: -1 pone el valor de una resistencia del otro lado;
   // en el LED, a es la pata + y b la −; en el pulsador, a y b son las dos patas de arriba, en la misma fila; en el
-  // potenciómetro y en el transistor, a es la pata de la izquierda y las otras dos van en las dos columnas siguientes).
+  // potenciómetro y en el transistor, a es la pata de la izquierda y las otras dos van en las dos columnas siguientes; con
+  // dir: -1, en las dos anteriores (el transistor queda volteado, con su cuerpo hacia el otro lado); en el motor, a y b son
+  // las puntas de sus dos cables y at [u, v] dónde queda su cuerpo, fuera de los agujeros).
+  // o.cols: cuántas columnas tiene la protoboard (16 si falta); o.volts: el voltaje de la pila (9 V si falta); o.minus: [c, r], el agujero de la punta negra de la pila ([0, 1], el riel −
+  // de arriba, si falta).
   // Da { st, make, hole, load, clear, steps }: la página pone sus piezas con load y, si no es guiada, sus pasos.
   Sim.protoboard = (o = {}) => {
     // ---------- la protoboard ----------
     // Todo se guarda en coordenadas de la protoboard (u, v), en pasos entre agujeros: u avanza por
     // las columnas (1 a 16) y v por las filas. En pantallas horizontales u va a la derecha; en las
     // verticales la protoboard se acuesta y u va hacia abajo, para que se vea grande.
-    const P = 34, N = 16;
+    const P = 34, N = o.cols || 16;   // o.cols: más columnas (el Puente H en la protoboard usa 20)
     const ROWV = [0, 1, 2.5, 3.5, 4.5, 5.5, 6.5, 8, 9, 10, 11, 12, 13.5, 14.5];
     const ROWNAME = ['+', '−', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', '+', '−'];
     const BOARD = [-1, -0.8, N, 15.3];          // u0, v0, u1, v1
@@ -30,7 +35,7 @@
     const TRAYITEMS = { h: [['wire', 8.7], ['res', 11.05], ['led', 13.4]], v: [['wire', 8.3], ['res', 10.3], ['led', 13.9]] };
     const TRAYMID = (TRAY[1] + TRAY[3]) / 2;
     const guide = o.guide || null, trayTypes = o.tray || ['wire', 'res'];
-    const V0 = 9, RINT = 1, FUSE = 1, RD = 15, RW = 0.05, IMAX = Sim.LED_IMAX;
+    const V0 = o.volts || 9, RINT = 1, FUSE = 1, RD = 15, RW = 0.05, IMAX = Sim.LED_IMAX;
     const VIOLET = '#8b5cf6', OKC = '#0ea371', REDW = '#d6392b', BLACKW = '#15212a';
     const RVALUES = Sim.series(100, 10000);   // valores comunes (serie E12)
     const vf = k => Sim.led(k.led).vf;        // cada color de LED necesita otro voltaje
@@ -39,8 +44,8 @@
     // Arriba queda una franja (BAND) para el selector del color de las partículas y su escala.
     const BAND = 70;
     const GEO = {
-      h: { W: 765, H: 581 + BAND, pt: (u, v) => [(u + 6.2) * P, (v + 1.3) * P + BAND], uv: (x, y) => [x / P - 6.2, (y - BAND) / P - 1.3], bat: [-5.6, 0.7, -2.95, 3.8], power: [-3.9, 5.7] },
-      v: { W: 581, H: 765 + BAND, pt: (u, v) => [(v + 1.3) * P, (u + 6.2) * P + BAND], uv: (x, y) => [(y - BAND) / P - 6.2, x / P - 1.3], bat: [-5.4, 2.5, -2.75, 5.6], power: [-3.9, 6.6] }
+      h: { W: (N + 6.5) * P, H: 581 + BAND, pt: (u, v) => [(u + 6.2) * P, (v + 1.3) * P + BAND], uv: (x, y) => [x / P - 6.2, (y - BAND) / P - 1.3], bat: [-5.6, 0.7, -2.95, 3.8], power: [-3.9, 5.7] },
+      v: { W: 581, H: (N + 6.5) * P + BAND, pt: (u, v) => [(v + 1.3) * P, (u + 6.2) * P + BAND], uv: (x, y) => [(y - BAND) / P - 6.2, x / P - 1.3], bat: [-5.4, 2.5, -2.75, 5.6], power: [-3.9, 6.6] }
     };
     const group = (c, r) => r === 0 ? 'R0p' : r === 1 ? 'R0n' : r === 12 ? 'R1p' : r === 13 ? 'R1n' : (r < 7 ? 'T' : 'B') + c;
     const groupHoles = g => {
@@ -63,7 +68,8 @@
     // por dentro, igual que b y b2; apretarlo une un lado con el otro.
     // El potenciómetro (de 10 kΩ) tiene tres patas en línea, una por columna: a, el cursor w en medio y b; el transistor
     // también: a el emisor, w la base y b el colector.
-    const legsOf = k => k.type === 'push' ? [k.a, k.b, k.a2, k.b2] : k.type === 'pot' || k.type === 'npn' ? [k.a, k.w, k.b] : [k.a, k.b];
+    const isQ = k => k.type === 'npn' || k.type === 'pnp';
+    const legsOf = k => k.type === 'push' ? [k.a, k.b, k.a2, k.b2] : k.type === 'pot' || isQ(k) ? [k.a, k.w, k.b] : [k.a, k.b];
     const make = (type, a, b, extra = {}) => ({ id: 'id' in extra ? extra.id : st.nextId++, type, a, b, I: 0, on: false, burnt: false, ang: 0, breakT: 9, R: 470, led: 'rojo', ...extra });
     const hole = (c, r) => ({ c, r });
     // Pulsador con su pata a en (c, r): b dos columnas a la derecha y a2, b2 en la fila siguiente (de e a f cruza el canal).
@@ -74,20 +80,24 @@
     // dónde está el cursor, de 0 (junto a a) a 1 (junto a b): de a al cursor hay x · 10 kΩ y del cursor a b lo demás.
     // Girar la perilla a la derecha lo lleva hacia b.
     const RPOT = 10000;
-    const potHoles = (c, r) => [hole(c, r), hole(c + 1, r), hole(c + 2, r)];
+    const potHoles = (c, r, d = 1) => [hole(c, r), hole(c + d, r), hole(c + 2 * d, r)];
     const okPot = (c, r) => c >= 0 && c + 2 < N && r >= 0 && r < ROWV.length;
     const makePot = (a, w, b, extra = {}) => make('pot', a, b, { w, x: 0.5, R: RPOT, Ia: 0, Ib: 0, pull: 0, ...extra });
     // Transistor NPN 2N2222 (en cápsula TO-92) con su emisor en (c, r): la base y el colector en las dos columnas
     // siguientes (E, B, C de izquierda a derecha, con su cara plana hacia el frente), en una fila de las tiras. be: si
     // conduce la base; q: su estado ('corte', 'activo' o 'saturado'); u: qué tan abierta se ve la compuerta (de 0 a 1).
-    const okNpn = (c, r) => c >= 0 && c + 2 < N && r >= 2 && r <= 11;
-    const makeNpn = (a, w, b, extra = {}) => make('npn', a, b, { w, Ib: 0, Ic: 0, be: false, q: 'corte', u: 0, ...extra });
-    const multi = k => k.type === 'push' || k.type === 'pot' || k.type === 'npn';
+    // El PNP 2N2907 va igual (E, B y C), con su física al revés (Sim.nodal): la corriente entra por el emisor y sale por la
+    // base y el colector. Volteado (dir −1), su emisor queda a la derecha y su cuerpo hacia el otro lado.
+    const okNpn = (c, r, d = 1) => c >= 0 && c < N && c + 2 * d >= 0 && c + 2 * d < N && r >= 2 && r <= 11;
+    const makeNpn = (a, w, b, extra = {}, type = 'npn') => make(type, a, b, { w, Ib: 0, Ic: 0, be: false, q: 'corte', u: 0, ...extra });
+    // El motor de CD (Sim.motor), fuera de la protoboard: sus dos cables (a y b) van a dos agujeros y su cuerpo queda en at.
+    const makeMotor = (a, b, extra = {}) => make('motor', a, b, { m: Sim.motor(), at: [0, 0], ...extra });
+    const multi = k => k.type === 'push' || k.type === 'pot' || isQ(k);
     // Calor de una resistencia o del potenciómetro (¼ W), de un LED (Vf · 30 mA) o del transistor (625 mW, con su unión
     // hasta 150 °C, como en Transistor), ver Sim.heat; su menú lo muestra.
-    const heatOf = k => k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 }
-      : k.type === 'npn' ? Sim.HEAT.bjt : Sim.HEAT.res));
-    const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(0, 1), { color: BLACKW })];
+    const heatOf = k => k.type === 'motor' ? k.m.heat : k.h || (k.h = Sim.heat(k.type === 'led' ? { ...Sim.HEAT.led, pMax: () => Sim.led(k.led).vf * IMAX / 1000 }
+      : isQ(k) ? Sim.HEAT.bjt : Sim.HEAT.res));
+    const defaultLeads = () => [make('lead', { term: '+' }, hole(0, 0), { color: REDW }), make('lead', { term: '-' }, hole(...(o.minus || [0, 1])), { color: BLACKW })];
 
     const occupied = skip => {
       const s = new Set();
@@ -138,9 +148,14 @@
           continue;
         }
         // el transistor (quemado, queda abierto)
-        if (k.type === 'npn') {
+        if (isQ(k)) {
           if (k.burnt) { k.Ib = k.Ic = 0; k.be = false; k.q = 'corte'; continue; }
-          els.push({ type: 'npn', b: legNode(k.w), e: legNode(k.a), c: legNode(k.b), s: k });
+          els.push({ type: k.type, b: legNode(k.w), e: legNode(k.a), c: legNode(k.b), s: k });
+          continue;
+        }
+        // el motor: su bobina con su fuerza contraelectromotriz (quemado, queda abierto)
+        if (k.type === 'motor') {
+          if (!k.burnt) add2(k.a, k.b, k.m.R, I => { k.I = I; }, { E: k.m.E });
           continue;
         }
         if (k.burnt) { if (k.type === 'led') k.on = false; continue; }
@@ -158,6 +173,7 @@
       ? [[k.a, -(k.I + k.Ia)], [k.b, k.I - k.Ib], [k.a2, k.Ia], [k.b2, k.Ib]]
       : k.type === 'pot' ? [[k.a, -k.Ia], [k.w, k.Ia - k.Ib], [k.b, k.Ib]]
       : k.type === 'npn' ? [[k.a, k.Ib + k.Ic], [k.w, -k.Ib], [k.b, -k.Ic]]
+      : k.type === 'pnp' ? [[k.a, -(k.Ib + k.Ic)], [k.w, k.Ib], [k.b, k.Ic]]
       : [[k.a, -k.I], [k.b, k.I]];
 
     // ---------- paneles ----------
@@ -390,7 +406,7 @@
     // up, hacia el cuerpo (el del potenciómetro va hacia los rieles de arriba y el del transistor hacia el canal).
     const frameUV = k => {
       const A = legUV(k.a), B = legUV(k.b), d = [B[0] - A[0], B[1] - A[1]], L = Math.hypot(...d) || 1, e = [d[0] / L, d[1] / L];
-      return { W: legUV(k.w), e, up: k.type === 'npn' ? [-e[1], e[0]] : [e[1], -e[0]] };
+      return { W: legUV(k.w), e, up: isQ(k) ? [-e[1], e[0]] : [e[1], -e[0]] };
     };
     const knobUV = k => { const { W, up } = frameUV(k); return [W[0] + up[0] * POT.ky, W[1] + up[1] * POT.ky]; };
     const frameOf = (k, g) => {
@@ -480,7 +496,7 @@
     // por una varilla) y sale al paso del lado del emisor. Se dibuja en su marco (frameOf), como el potenciómetro, con
     // NPN: medio ancho del cuerpo (s), dónde empieza y acaba (y0, y1) y la altura del paso (yc).
     const NPN = { s: 1.3, y0: 0.3, y1: 2, yc: 1.2 };
-    const dimsOf = k => k.type === 'npn' ? NPN : POT;
+    const dimsOf = k => isQ(k) ? NPN : POT;
     const NPN_STATE = { corte: ['en corte', 'cerrada'], activo: ['activo', 'a medias'], saturado: ['saturado', 'abierta'] };
     function drawNpn(ctx, k, g, side, dt, ghost) {
       const water = side === 'w', F = frameOf(k, g), at = F.at, s = NPN.s * P, top = -NPN.y1 * P, bot = -NPN.y0 * P, yc = -NPN.yc * P;
@@ -519,8 +535,9 @@
       // el agua (o las cargas): del colector por la compuerta al emisor (Ic) y de la base al paso (Ib), y las dos al emisor
       if (!ghost) {
         const ve = vOf(k.a), vb = vOf(k.w), vc = vOf(k.b), lin = (v1, v2) => t => (v1 ?? 0) + ((v2 ?? 0) - (v1 ?? 0)) * t;
-        const quiet = still() && !k.burnt;
+        const quiet = still() && !k.burnt, sg = k.type === 'pnp' ? -1 : 1;   // en el PNP todo va al revés
         const go = (key, pts, I, vv, ok) => {
+          I *= sg;
           if (Math.abs(I) > 0.01 || (quiet && ok)) flowDots(ctx, pts.map(q => at(...q)), phaseOf(k.id + side + key, I, dt),
             water ? C.water : C.charge, water ? 16 : 18, 3.2, { v: vv, I });
         };
@@ -533,21 +550,76 @@
     }
     // Su nombre a un lado (del lado del colector; en la bandeja, o mientras se arrastra, abajo) y, en la protoboard, su
     // estado en una pastilla abajo del nombre. Va encima de todo lo demás.
+    const qName = k => k.type === 'pnp' ? '2N2907' : '2N2222';
     function drawNpnTag(ctx, k, g, side) {
       const water = side === 'w', F = frameOf(k, g), on = placed(k), sel = k === menuK && selOpen();
       const state = k.burnt ? (water ? 'rota' : 'quemado') : NPN_STATE[k.q][water ? 1 : 0];
       const dir = on ? F.ex : [-F.dn[0], -F.dn[1]], [bx, by] = F.at(on ? NPN.s * P : 0, -(on ? (NPN.y0 + NPN.y1) / 2 : NPN.y1) * P);
       const px = D.font(ctx, 14, Sim.MONO, 600), H = on ? 2.9 * px : px;
-      const w = Math.max(ctx.measureText('2N2222').width, on ? ctx.measureText(state).width + 16 : 0);
+      const w = Math.max(ctx.measureText(qName(k)).width, on ? ctx.measureText(state).width + 16 : 0);
       const ext = Math.abs(dir[0]) * (w / 2 + 8) + Math.abs(dir[1]) * (H / 2 + 4) + 4, x = bx + dir[0] * ext, y = by + dir[1] * ext;
-      D.text(ctx, '2N2222', x, on ? y - 0.75 * px : y, sel ? C.sel : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
+      D.text(ctx, qName(k), x, on ? y - 0.75 * px : y, sel ? C.sel : C.ink, { size: 14, font: Sim.MONO, weight: 600, bg: true });
       if (on) D.pill(ctx, state, x, y + 0.75 * px, k.burnt ? C.danger : sel ? C.sel : C.ink, k.burnt);
+    }
+
+    // El motor de CD, fuera de la protoboard: su cuerpo en at y sus dos cables (rojo el de a, negro el de b) a sus agujeros.
+    // En el agua es la turbina con su volante de Puente H: la caja, el aro pesado del volante con sus marcas y las aspas
+    // adentro; en la electricidad, la lata del motor vista desde su eje, con una marca en el eje que gira con él. Girando, una
+    // flecha abajo dice para dónde; su etiqueta (drawMotorTag) va arriba.
+    const MOTOR_R = 0.95;
+    function drawMotor(ctx, k, g, side, dt, ghost) {
+      const water = side === 'w', A = g.pt(...legUV(k.a)), B = g.pt(...legUV(k.b)), [x, y] = g.pt(...k.at), r = MOTOR_R * P, m = k.m;
+      if (ghost) ctx.globalAlpha = 0.45;
+      const ca = curve(A, [x, y], 0.12), cb = curve([x, y], B, 0.12);
+      for (const [pts, Q, col] of [[ca, A, REDW], [cb, B, BLACKW]]) {
+        if (water) { D.line(ctx, pts, 16, C.pipe); D.line(ctx, pts, 10, C['water-soft']); D.circle(ctx, ...Q, 5, wireColor(col)); }
+        else { D.line(ctx, pts, 8, 'rgba(0,0,0,0.35)'); D.line(ctx, pts, 5.5, wireColor(col)); D.circle(ctx, ...Q, 3.5, '#b8c0c6', '#6f7a83', 1.5); }
+      }
+      const va = vOf(k.a), vb = vOf(k.b);
+      if (!ghost && (Math.abs(k.I) > 0.01 || (still() && va != null && vb != null)))
+        flowDots(ctx, [...ca, ...cb.slice(1)], phaseOf(k.id + side, k.I, dt), water ? C.water : C.charge, water ? 16 : 18, 3.2,
+          { v: t => (va ?? 0) + ((vb ?? 0) - (va ?? 0)) * t, I: k.I });
+      if (!k.burnt && !ghost) D.heatGlow(ctx, x, y, heatOf(k).glow, 52);
+      const om = m.w * m.show, a = m.ang;
+      if (water) {
+        D.circle(ctx, x, y, r, C.metal, k.burnt ? C.danger : C.ink, 2.5);
+        D.circle(ctx, x, y, r - 6, C.ink);
+        D.circle(ctx, x, y, r - 11, C['water-soft']);
+        for (let i = 0; i < 6; i++) { const f = a + i * Math.PI / 3; D.circle(ctx, x + (r - 8.5) * Math.cos(f), y + (r - 8.5) * Math.sin(f), 2, C.metal); }
+        if (k.burnt) D.rotor(ctx, x, y, 6, 0.4, 0, 4, C.muted);
+        else D.rotor(ctx, x, y, r - 15, a, om, 4, C.water);
+        D.circle(ctx, x, y, 4.5, C.ink);
+      } else {
+        D.circle(ctx, x, y, r, k.burnt ? '#6b6f73' : '#aeb6bc', '#5d666d', 2);
+        D.circle(ctx, x, y, 0.68 * r, k.burnt ? '#55595d' : '#c9d0d5', '#7d878f', 1.5);
+        D.line(ctx, [[x - 0.45 * r * Math.cos(a), y - 0.45 * r * Math.sin(a)], [x + 0.55 * r * Math.cos(a), y + 0.55 * r * Math.sin(a)]], 5, '#2f3439');
+        D.circle(ctx, x, y, 0.2 * r, '#e9edf0', '#5d666d', 1.5);
+        if (k.burnt) { ctx.fillStyle = 'rgba(30, 20, 15, 0.45)'; ctx.beginPath(); ctx.arc(x, y, r - 2, 0, Math.PI * 2); ctx.fill(); }
+      }
+      if (!k.burnt && !ghost && Math.abs(m.rpm) > 60) {
+        const rr = r + 8, dir = Math.sign(m.w), a0 = Math.PI / 2 - 0.55, a1 = Math.PI / 2 + 0.55;
+        ctx.save(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.muted; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(x, y, rr, a0, a1); ctx.stroke(); ctx.restore();
+        const e = dir > 0 ? a1 : a0;
+        D.arrow(ctx, x + rr * Math.cos(e), y + rr * Math.sin(e), e + dir * Math.PI / 2, 7, C.muted);
+      }
+      if (k.burnt && !ghost) D.smoke(ctx, x, y - r + 6, k.breakT);
+      ctx.globalAlpha = 1;
+    }
+    // Su valor (6 V) abajo y, en la protoboard, si gira (horario o antihorario), si está frenado (sus dos cables al mismo
+    // voltaje) o parado.
+    function drawMotorTag(ctx, k, g, side) {
+      const water = side === 'w', [x, y] = g.pt(...k.at), m = k.m, va = vOf(k.a), vb = vOf(k.b);
+      const state = !placed(k) ? '' : k.burnt ? (water ? 'rota' : 'quemado') : Math.abs(m.rpm) > 60 ? (m.w > 0 ? 'horario' : 'antihorario')
+        : va != null && vb != null && st.on && st.fuse && Math.abs(va - vb) < 0.3 ? 'frenado' : 'parado';
+      D.tag(ctx, x, y - MOTOR_R * P - 18, water ? 'turbina' : 'motor', '6 V', { sel: k === menuK && selOpen(), danger: k.burnt, state });
     }
 
     function drawComp(ctx, k, g, side, dt, ghost) {
       if (k.type === 'push') return drawPush(ctx, k, legsOf(k).map(l => g.pt(...legUV(l))), side, dt, ghost);
       if (k.type === 'pot') return drawPot(ctx, k, g, side, dt, ghost);
-      if (k.type === 'npn') return drawNpn(ctx, k, g, side, dt, ghost);
+      if (isQ(k)) return drawNpn(ctx, k, g, side, dt, ghost);
+      if (k.type === 'motor') return drawMotor(ctx, k, g, side, dt, ghost);
       const A = g.pt(...legUV(k.a)), B = g.pt(...legUV(k.b));
       const water = side === 'w', path = compPath(k, A, B);
       const ang = Math.atan2(B[1] - A[1], B[0] - A[0]), L = Math.hypot(B[0] - A[0], B[1] - A[1]);
@@ -590,7 +662,8 @@
           }
           ctx.restore();
         }
-        const f = ny > 1e-6 ? -1 : 1;   // el valor va del lado de arriba (parada, a un lado: ny casi 0 cuenta como 0)
+        // el valor va del lado de arriba (parada, a un lado: ny casi 0 cuenta como 0); con side: -1, del otro
+        const f = (ny > 1e-6 ? -1 : 1) * (k.side || 1);
         const o = 19 + 20 * Math.abs(nx);   // parada, la etiqueta necesita más espacio a un lado
         const lx = M[0] + f * nx * o, ly = M[1] + f * ny * o;
         if (!ghost && k.burnt) D.pill(ctx, water ? 'reventado' : 'quemada', lx, ly, C.danger, true);   // su estado, en una pastilla
@@ -664,7 +737,7 @@
         // la franja de color de la pila; con el fusible fundido se pone gris y lo dice
         D.roundRect(ctx, R[0] + 6, R[1] + 6, R[2] - 12, R[3] * 0.32, 4, st.fuse ? '#c77d00' : '#5b6670');
         if (!st.fuse) D.text(ctx, 'fusible fundido', R[0] + R[2] / 2, R[1] + 6 + R[3] * 0.16, '#ffb3a8', { size: 14 });
-        D.text(ctx, '9 V', cx, cy + 6, '#fff', { size: 22 });
+        D.text(ctx, V0 + ' V', cx, cy + 6, '#fff', { size: 22 });
         D.circle(ctx, ...tp, 7, '#d8dde1', C.ink, 2); D.circle(ctx, ...tn, 7, '#d8dde1', C.ink, 2);
         const [lx, ly] = g.pt(TERM['+'][0] - 0.3, TERM['+'][1] - 0.55), [mx, my] = g.pt(TERM['-'][0] - 0.3, TERM['-'][1] - 0.55);
         D.text(ctx, '+', lx, ly, REDW, { size: 20 }); D.text(ctx, '−', mx, my, C.neg, { size: 20 });
@@ -688,10 +761,11 @@
     // Una pieza de la bandeja, centrada en (−3,9, vy) y acostada (el pulsador, con sus patas de arriba en vy − 0,75; el
     // potenciómetro, con sus patas abajo y el cuerpo arriba; el transistor, con sus patas arriba y su nombre abajo).
     function trayComp(type, vy, extra = {}) {
-      if (type === 'npn') {
+      if (type === 'npn' || type === 'pnp') {
         const v = vy - 1.3;
-        return makeNpn({ u: -4.9, v }, { u: -3.9, v }, { u: -2.9, v }, { id: 0, ...extra });
+        return makeNpn({ u: -4.9, v }, { u: -3.9, v }, { u: -2.9, v }, { id: 0, ...extra, dir: 1 }, type);
       }
+      if (type === 'motor') return makeMotor({ u: -5.1, v: vy + 1.6 }, { u: -2.7, v: vy + 1.6 }, { id: 0, ...extra, at: [-3.9, vy - 0.2] });
       if (type === 'pot') {
         const v = vy + 1.2;
         return makePot({ u: -4.9, v }, { u: -3.9, v }, { u: -2.9, v }, { id: 0, ...extra });
@@ -715,7 +789,7 @@
     }
     function drawTray(ctx, g, side, dt) {
       D.roundRect(ctx, ...rectW(g, ...TRAY), 10, C.bg || '#eaf0f3', C.line, 1.5);
-      for (const k of trayList(g === GEO.v ? 'v' : 'h')) { drawComp(ctx, k, g, side, dt, false); if (k.type === 'npn') drawNpnTag(ctx, k, g, side); }
+      for (const k of trayList(g === GEO.v ? 'v' : 'h')) { drawComp(ctx, k, g, side, dt, false); if (isQ(k)) drawNpnTag(ctx, k, g, side); if (k.type === 'motor') drawMotorTag(ctx, k, g, side); }
     }
 
     // ---------- el armado guiado ----------
@@ -724,7 +798,8 @@
       const { type, a, b, ...extra } = guide[j].piece;
       if (type === 'push') return makePush(...pushHoles(...a), { id: -1, ...extra });
       if (type === 'pot') return makePot(...potHoles(...a), { id: -1, ...extra });
-      if (type === 'npn') return makeNpn(...potHoles(...a), { id: -1, ...extra });
+      if (isQ({ type })) return makeNpn(...potHoles(...a, extra.dir || 1), { id: -1, ...extra }, type);
+      if (type === 'motor') return makeMotor(hole(...a), hole(...b), { id: -1, ...extra });
       return make(type, hole(...a), hole(...b), { id: -1, ...extra });
     };
     // Si una pieza está donde la pide el paso: sus patas en las mismas tiras (cualquier agujero de la tira es el mismo
@@ -732,7 +807,7 @@
     const same = (k, t) => {
       if (k.type !== t.type || k.burnt) return false;
       if (legsOf(k).some(l => l.c == null)) return false;
-      if (t.type === 'led' || t.type === 'npn') return legsOf(k).every((l, i) => legNode(l) === legNode(legsOf(t)[i]));
+      if (t.type === 'led' || isQ(t)) return legsOf(k).every((l, i) => legNode(l) === legNode(legsOf(t)[i]));
       const ns = x => legsOf(x).map(legNode).sort().join();
       return ns(k) === ns(t);
     };
@@ -754,7 +829,12 @@
       const col = C.muted;
       if (t.type === 'wire') D.line(ctx, compPath(t, A, B), 3, col);
       else if (t.type === 'push') D.roundRect(ctx, M[0] - PUSH_HALF, M[1] - PUSH_HALF, 2 * PUSH_HALF, 2 * PUSH_HALF, 8, null, col, 2);
-      else if (t.type === 'pot' || t.type === 'npn') {
+      else if (t.type === 'motor') {
+        const [cx, cy] = g.pt(...t.at), r = MOTOR_R * P;
+        D.circle(ctx, cx, cy, r, null, col, 2);
+        for (const q of pts) D.line(ctx, [q, lerp(q, [cx, cy], 1 - r / Math.max(r, Math.hypot(q[0] - cx, q[1] - cy)))], 2, col);
+      }
+      else if (t.type === 'pot' || isQ(t)) {
         const m = dimsOf(t);
         ctx.save(); frameOf(t, g).apply(ctx);
         D.roundRect(ctx, -m.s * P, -m.y1 * P, 2 * m.s * P, (m.y1 - m.y0) * P, 8, null, col, 2);
@@ -800,9 +880,9 @@
       for (const k of st.comps) {
         const out = dr && dr.k === k && dr.moved && dr.kind === 'body' && !inBoard(...mean(legsOf(k).map(legUV)));
         drawComp(ctx, k, g, side, dt, out);
-        if (k.type === 'npn' && !out) tags.push(k);
+        if ((isQ(k) || k.type === 'motor') && !out) tags.push(k);
       }
-      for (const k of tags) drawNpnTag(ctx, k, g, side);
+      for (const k of tags) (k.type === 'motor' ? drawMotorTag : drawNpnTag)(ctx, k, g, side);
       // a dónde caería cada pata que se está arrastrando
       if (dr && dr.moved) for (const h of dropHoles(dr)) D.circle(ctx, ...g.pt(h.c, ROWV[h.r]), 10, null, OKC, 3);
       if (side === 'w') drawValveNote(ctx, g);
@@ -812,7 +892,8 @@
       if (sa && menuK) {
         if (menuK === BATK) { const R = rectW(g, ...CH); D.select(ctx, R[0] - 7, R[1] - 7, R[2] + 14, R[3] + 14, sa, 16); }
         else if (menuK.type === 'push') { const M = g.pt(...centerUV(menuK)), h = PUSH_HALF + 16; D.select(ctx, M[0] - h, M[1] - h, 2 * h, 2 * h, sa, 14); }
-        else if (menuK.type === 'pot' || menuK.type === 'npn') {
+        else if (menuK.type === 'motor') { const [x, y] = g.pt(...menuK.at), r = MOTOR_R * P + 10; D.select(ctx, x - r, y - r, 2 * r, 2 * r, sa, r); }
+        else if (menuK.type === 'pot' || isQ(menuK)) {
           const F = frameOf(menuK, g), m = dimsOf(menuK), hh = m.y1 * P / 2;
           D.selectRot(ctx, ...F.at(0, -hh), Math.atan2(F.ex[1], F.ex[0]), m.s * P + 10, hh + 10, sa, 12);
         }
@@ -835,7 +916,8 @@
     const BATK = { type: 'bat' };
     const centerUV = k => {
       if (k === BATK) return [(CH[0] + CH[2]) / 2, (CH[1] + CH[3]) / 2];
-      if (k.type === 'pot' || k.type === 'npn') { const { W, up } = frameUV(k), h = dimsOf(k).y1 / 2; return [W[0] + up[0] * h, W[1] + up[1] * h]; }
+      if (k.type === 'motor') return k.at;
+      if (k.type === 'pot' || isQ(k)) { const { W, up } = frameUV(k), h = dimsOf(k).y1 / 2; return [W[0] + up[0] * h, W[1] + up[1] * h]; }
       return mean(legsOf(k).map(legUV));
     };
     Object.entries(panels).forEach(([side, p]) => {
@@ -849,14 +931,14 @@
     const shownSide = () => Sim.view === 'w' ? 'w' : 'e';
     const WIRES = [['#1f9d55', 'Verde'], ['#e0a400', 'Amarillo'], ['#2563eb', 'Azul'], ['#ea7a1a', 'Naranja'], [REDW, 'Rojo'], [BLACKW, 'Negro']];
     const nameOf = k => {
-      if (k === BATK) return 'Pila 9 V';
+      if (k === BATK) return 'Pila ' + V0 + ' V';
       const n = st.comps.filter(c => c.type === k.type).indexOf(k) + 1;
       return n ? String(n) : '';
     };
     const menuFor = (side, k) => {
       const water = side === 'w';
       const remove = { text: 'Quitar de la protoboard', danger: true, onClick: () => { st.comps = st.comps.filter(c => c !== k); Sim.menu.close(anchors.w); Sim.menu.close(anchors.e); } };
-      if (k === BATK) return { title: water ? 'Bomba' : 'Pila 9 V', rows: [
+      if (k === BATK) return { title: water ? 'Bomba' : 'Pila ' + V0 + ' V', rows: [
         { actions: [{ text: water ? 'Abrir la válvula de seguridad' : 'Poner un fusible nuevo', primary: true, hidden: () => st.fuse, onClick: () => { st.fuse = true; st.fuseHeat = 0; } }] },
         { heat: () => ({ label: water ? 'Caudal' : 'Corriente', rated: water ? '1000 mL/s' : '1 A', now: water ? Math.round(st.Ibat) + ' mL/s' : (st.Ibat >= 1000 ? fmt(st.Ibat / 1000, 2) + ' A' : Math.round(st.Ibat) + ' mA'),
           over: st.Ibat > FUSE * 1000, f: st.fuse ? Math.min(1, st.fuseHeat) : 1, burnt: !st.fuse, name: water ? 'Válvula de seguridad' : 'Fusible',
@@ -872,7 +954,11 @@
         Sim.powerRow(heatOf(k), side, { broken: () => k.burnt }),
         { actions: [{ text: water ? 'Poner un tramo nuevo' : 'Poner un potenciómetro nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } }, remove] }] };
       // el transistor: su calor y ponerlo nuevo si se quemó
-      if (k.type === 'npn') return { title: (water ? 'Compuerta ' : 'Transistor ') + nameOf(k), rows: [
+      // el motor: el calor de su bobina y ponerlo nuevo si se quemó
+      if (k.type === 'motor') return { title: (water ? 'Turbina ' : 'Motor ') + nameOf(k), rows: [
+        Sim.powerRow(heatOf(k), side, { broken: () => k.burnt, what: 'led' }),
+        { actions: [{ text: water ? 'Poner una turbina nueva' : 'Poner un motor nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; k.m.reset(); } }, remove] }] };
+      if (isQ(k)) return { title: (water ? 'Compuerta ' : 'Transistor ') + (k.type === 'pnp' ? 'PNP ' : '') + nameOf(k), rows: [
         Sim.powerRow(heatOf(k), side, { broken: () => k.burnt, what: 'led' }),
         { actions: [{ text: water ? 'Poner una compuerta nueva' : 'Poner un transistor nuevo', hidden: () => !k.burnt, onClick: () => { k.burnt = false; heatOf(k).reset(); } }, remove] }] };
       const m = k.type === 'res'
@@ -1004,7 +1090,8 @@
     // Si un punto (u, v) toca el cuerpo de un componente.
     const onBody = (k, q) => {
       if (k.type === 'push') { const [cu, cv] = centerUV(k), h = PUSH_HALF / P + 0.1; return Math.abs(q[0] - cu) < h && Math.abs(q[1] - cv) < h; }
-      if (k.type === 'pot' || k.type === 'npn') {
+      if (k.type === 'motor') return Math.hypot(q[0] - k.at[0], q[1] - k.at[1]) < MOTOR_R + 0.15;
+      if (k.type === 'pot' || isQ(k)) {
         const { W, e, up } = frameUV(k), m = dimsOf(k), d = [q[0] - W[0], q[1] - W[1]], x = d[0] * e[0] + d[1] * e[1], y = d[0] * up[0] + d[1] * up[1];
         return Math.abs(x) < m.s + 0.1 && y > -0.35 && y < m.y1 + 0.1;
       }
@@ -1016,8 +1103,10 @@
     const holesFor = (k, occ) => {
       if (multi(k)) {
         const h = nearestHole(...legUV(k.a), occ);
-        if (!h || !({ push: okPush, pot: okPot, npn: okNpn })[k.type](h.c, h.r)) return null;
-        const hs = (k.type === 'push' ? pushHoles : potHoles)(h.c, h.r);
+        // el transistor no se voltea al moverlo
+        const d = isQ(k) && legUV(k.b)[0] < legUV(k.a)[0] ? -1 : 1;
+        if (!h || !({ push: okPush, pot: okPot, npn: okNpn, pnp: okNpn })[k.type](h.c, h.r, d)) return null;
+        const hs = (k.type === 'push' ? pushHoles : potHoles)(h.c, h.r, d);
         return hs.every(x => !occ.has(x.c + ',' + x.r)) ? hs : null;
       }
       const o2 = new Set(occ), ha = nearestHole(...legUV(k.a), o2);
@@ -1035,11 +1124,11 @@
       const occ = occupied(k);
       if (guide && k.type === guide[st.step].piece.type) {
         const t = target(st.step), hs = legsOf(t);
-        if (hs.every(l => !occ.has(l.c + ',' + l.r))) { legsOf(k).forEach((l, i) => setLeg(l, { c: hs[i].c, r: hs[i].r })); return true; }
+        if (hs.every(l => !occ.has(l.c + ',' + l.r))) { legsOf(k).forEach((l, i) => setLeg(l, { c: hs[i].c, r: hs[i].r })); if (t.at) k.at = [...t.at]; return true; }
       }
       if (multi(k)) {
         const at = k.type === 'push' ? pushHoles : potHoles;
-        for (const r of k.type === 'push' ? [6] : k.type === 'npn' ? [3, 8] : [5, 10, 3, 8]) for (let c = 1; c + 2 < N; c++) {
+        for (const r of k.type === 'push' ? [6] : isQ(k) ? [3, 8] : [5, 10, 3, 8]) for (let c = 1; c + 2 < N; c++) {
           const hs = at(c, r);
           if (hs.every(x => !occ.has(x.c + ',' + x.r))) { legsOf(k).forEach((l, i) => setLeg(l, hs[i])); return true; }
         }
@@ -1070,7 +1159,7 @@
           if (dd < bd) { bd = dd; best = { k, leg }; }
         }
         if (best) Object.assign(d, { kind: 'leg', k: best.k, leg: best.k[best.leg], orig: copyLeg(best.k[best.leg]) });
-        const grab = k => Object.assign(d, { kind: 'body', k, orig: legsOf(k).map(copyLeg), o: legsOf(k).map(legUV) });
+        const grab = k => Object.assign(d, { kind: 'body', k, orig: legsOf(k).map(copyLeg), o: legsOf(k).map(legUV), at0: k.at ? [...k.at] : null });
         // 2) el cuerpo de un componente
         if (onLed) grab(onLed);
         if (!d.kind) for (const k of [...st.comps].reverse()) if (k.type !== 'lead' && onBody(k, q)) { grab(k); break; }
@@ -1098,6 +1187,7 @@
         else if (d.kind === 'body') {
           const du = q[0] - d.start[0], dv = q[1] - d.start[1];
           legsOf(d.k).forEach((l, i) => setLeg(l, { u: d.o[i][0] + du, v: d.o[i][1] + dv }));
+          if (d.at0) d.k.at = [d.at0[0] + du, d.at0[1] + dv];
         }
       });
       const up = e => {
@@ -1106,7 +1196,7 @@
         st.drag = null;
         if (d.moved || d.isNew) st.touched = true;
         const q = toUV(e);
-        const restore = () => { if (d.kind === 'leg') setLeg(d.leg, d.orig); else legsOf(d.k).forEach((l, i) => setLeg(l, d.orig[i])); };
+        const restore = () => { if (d.kind === 'leg') setLeg(d.leg, d.orig); else { legsOf(d.k).forEach((l, i) => setLeg(l, d.orig[i])); if (d.at0) d.k.at = d.at0; } };
         const remove = () => { st.comps = st.comps.filter(k => k !== d.k); };
         if (!d.moved || e.type === 'pointercancel') {
           if (d.kind === 'body' && d.isNew) { if (!autoPlace(d.k)) remove(); }
@@ -1156,13 +1246,21 @@
           continue;
         }
         // el transistor: Vce · Ic + Vbe · Ib; su compuerta se abre del todo saturado y, activo, más entre menos voltaje le queda
-        if (k.type === 'npn') {
-          const vn = l => st.V[legNode(l)] ?? 0, vce = vn(k.b) - vn(k.a);
-          const Pw = k.burnt ? 0 : (vce * k.Ic + (vn(k.w) - vn(k.a)) * k.Ib) / 1000;
+        // (en el PNP, Vec · Ic + Veb · Ib)
+        if (isQ(k)) {
+          const vn = l => st.V[legNode(l)] ?? 0, sg = k.type === 'pnp' ? -1 : 1, vce = sg * (vn(k.b) - vn(k.a));
+          const Pw = k.burnt ? 0 : (vce * k.Ic + sg * (vn(k.w) - vn(k.a)) * k.Ib) / 1000;
           if (heatOf(k).step(Pw, dt) && !k.burnt) { k.burnt = true; k.breakT = 0; }
           k.breakT += dt;
           const u = k.burnt || k.q === 'corte' ? 0 : k.q === 'saturado' ? 1 : Math.max(0.1, Math.min(0.9, 1 - (vce - VSAT) / (V0 - VSAT)));
           k.u += (u - k.u) * Math.min(1, dt * 12);
+          continue;
+        }
+        // el motor: su par mueve el rotor y su bobina se calienta con I² · R (quemada, se abre)
+        if (k.type === 'motor') {
+          if (k.burnt) { k.m.w = 0; k.m.heat.step(0, dt); }
+          else if (k.m.step(k.I, dt)) { k.burnt = true; k.breakT = 0; }
+          k.breakT += dt;
           continue;
         }
         if (k.type !== 'led' && k.type !== 'res') continue;
@@ -1182,7 +1280,7 @@
       load(list) { st.comps = [...defaultLeads(), ...list]; st.sel = null; st.fuse = true; st.fuseHeat = 0; st.touched = false; },
       clear() { pb.load([]); st.touched = true; },
       live: t => st.comps.filter(k => k.type === t && !k.burnt && Math.abs(k.I) > 0.05),
-      fits
+      fits, put: j => putTarget(j)   // put(j): la pieza del paso j en su lugar (para probar)
     };
     // Armado guiado: un paso por pieza. Ir a un paso pone las piezas de los anteriores que falten y quita las de ese
     // paso en adelante (así cada paso se vuelve a hacer); el paso se cumple cuando su pieza está en su lugar.

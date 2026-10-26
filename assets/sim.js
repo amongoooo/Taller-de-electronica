@@ -1220,6 +1220,7 @@
     ['transistor', 'Transistor'],
     ['transistor-armado', 'Transistor en la protoboard'],
     ['puente-h', 'Puente H'],
+    ['puente-h-armado', 'Puente H en la protoboard'],
     ['osciloscopio', 'LED y osciloscopio'],
     ['capacitores', 'Capacitores'],
     ['osciloscopio-rc', 'Carga y descarga RC'],
@@ -1545,9 +1546,13 @@
     }, 250);
     // Si algún nombre no cabe completo, los pasos que no son el actual se quedan con su número (su nombre sigue
     // en el globito) y el actual se lee entero.
+    // Con muchos pasos (el Puente H en la protoboard lleva 21) puede que ni su número quepa: entonces los demás quedan solo
+    // con su raya (bare).
+    const over = b => { const t = b.querySelector('.t'); return t.offsetWidth && t.scrollWidth > t.clientWidth + 1; };
     const fit = () => {
-      wrap.classList.remove('tight');
-      if (segs.some(b => { const t = b.querySelector('.t'); return t.offsetWidth && t.scrollWidth > t.clientWidth + 1; })) wrap.classList.add('tight');
+      wrap.classList.remove('tight', 'bare');
+      if (segs.some(over)) wrap.classList.add('tight');
+      if (segs.some(b => !b.hasAttribute('aria-current') && over(b))) wrap.classList.add('bare');
     };
     if (window.ResizeObserver) new ResizeObserver(fit).observe(wrap);
     if (document.fonts) document.fonts.ready.then(fit);
