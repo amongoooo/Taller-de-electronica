@@ -11,7 +11,7 @@
 :root {
   --bg: #eaf0f3; --card: #ffffff; --ink: #15212a; --muted: #566a78; --line: #cfd9e0;
   --water: #1874b8; --charge: #c77d00; --sel: #1d6fd1; --pos: #d63a2f; --neg: #15212a; --ok: #217a4b;
-  --mini: #f6f9fb; --board: #f1efe8; --hole: #8f9aa2;
+  --mini: #f6f9fb; --board: #f1efe8; --hole: #8f9aa2; --pipe: #8aa0b0; --water-soft: #cde6f6; --volt: #7c4ddb;
   color-scheme: light;
   --font-display: "Saira", "Segoe UI", sans-serif;
   --font-body: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
@@ -19,7 +19,7 @@
 :root[data-theme="dark"] {
   --bg: #0e151b; --card: #18222b; --ink: #e2e9ef; --muted: #9cadba; --line: #2f3d49;
   --water: #4fa6e6; --charge: #f0a830; --sel: #5d9ff2; --pos: #ff6b5e; --neg: #aab6bf; --ok: #3fc47f;
-  --mini: #121b22; --board: #26323c; --hole: #5b6872;
+  --mini: #121b22; --board: #26323c; --hole: #5b6872; --pipe: #64798a; --water-soft: #173a55; --volt: #a487f2;
   color-scheme: dark;
 }
 /* sin destello blanco al ir a una simulación y al volver (como en sim.css) */
@@ -58,6 +58,13 @@ h2 .ins { color: var(--muted); font-weight: 500; }
 .mini .h { fill: var(--hole); }
 .mini .lead { fill: none; stroke: var(--hole); stroke-width: 1.2; }
 .mini .body { fill: #d8b781; stroke: none; }
+/* los conceptos: tubería con agua, tubitos y la línea morada de la presión */
+.mini .pp { fill: none; stroke: var(--pipe); stroke-width: 8; stroke-linejoin: round; }
+.mini .pw { fill: none; stroke: var(--water-soft); stroke-width: 5; stroke-linejoin: round; }
+.mini .wd { fill: none; stroke: var(--water); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 0 6; }
+.mini .pf { fill: var(--pipe); } .mini .wf { fill: var(--water-soft); } .mini .wc { fill: var(--water); }
+.mini .hgl { fill: none; stroke: var(--volt); stroke-width: 1.4; stroke-dasharray: 3 2.5; }
+.mini .pmp { fill: var(--water-soft); stroke: var(--ink); stroke-width: 1.6; }
 /* Seguir donde te quedaste: la última simulación abierta, con su paso. */
 .resume { display: grid; grid-template-columns: 168px 1fr; gap: 16px; align-items: center; background: var(--card); border: 2px solid var(--sel); border-radius: 12px; padding: 12px; color: inherit; text-decoration: none; transition: scale .12s; }
 .resume:active { scale: .97; }
@@ -145,7 +152,7 @@ footer a { color: var(--water); }
   sync();
 })();
 
-// Miniaturas: el circuito eléctrico de cada simulación, como se dibuja en ella (cables con sus cargas ámbar,
+// Miniaturas: el circuito eléctrico de cada simulación (en los conceptos, su dibujo de agua), como se dibuja en ella (cables con sus cargas ámbar,
 // los símbolos encima), en un dibujo de 144 × 90. Cada pieza va horizontal de x −12 a 12, centrada en (0, 0).
 (() => {
   const plus = '<path class="w pos" d="M-9-10h4M-7-12v4"/>';
@@ -177,13 +184,23 @@ footer a { color: var(--water); }
     h += '<path class="w pos" d="M38 14V30"/>' + res(38, 37) + res(70, 44) + '<path class="w neg" d="M102 44q18 20 0 40"/>';
     return h;
   };
+  // Los conceptos (Sim.piezo): la bomba a la izquierda, el tubo con dos tramos angostos (n: [x, medio largo, medio
+  // ancho]) y tres tubitos con el agua a la presión de su punto (lv, de 0 a 12 psi), unidos por la línea morada.
+  const piezo = (lv, extra = '', n = [[60, 8, 0.7], [100, 8, 0.7]]) => {
+    const T = 58, B = 80, X = [40, 80, 120], TOP = 12, y = v => T - 4 - v / 12 * (T - 8 - TOP), loop = `M22 ${B}V${T}H138V${B}Z`;
+    let h = `<path class="pp" d="${loop}"/><path class="pw" d="${loop}"/><path class="wd" d="${loop}"/>`;
+    n.forEach(([x, l, w]) => { h += `<rect class="bg" x="${x - l}" y="${T - 4}" width="${2 * l}" height="8"/><rect class="pf" x="${x - l}" y="${T - w - 1.3}" width="${2 * l}" height="${2 * w + 2.6}"/><rect class="wf" x="${x - l}" y="${T - w}" width="${2 * l}" height="${2 * w}"/>`; });
+    X.forEach((x, i) => { h += `<rect class="pf" x="${x - 2.6}" y="${TOP}" width="5.2" height="${T - 4 - TOP}"/><rect class="bg" x="${x - 1.3}" y="${TOP - 1}" width="2.6" height="${T - 3 - TOP}"/><rect class="wc" x="${x - 1.3}" y="${y(lv[i])}" width="2.6" height="${T - 3 - y(lv[i])}"/>`; });
+    h += `<path class="hgl" d="M${X[0]} ${y(lv[0])}H${n[0][0] - n[0][1]}L${n[0][0] + n[0][1]} ${y(lv[1])}H${n[1][0] - n[1][1]}L${n[1][0] + n[1][1]} ${y(lv[2])}H${X[2]}"/>`;
+    return h + '<circle class="pmp" cx="22" cy="69" r="8"/><path class="w" d="M16.4 67L27.6 71M24 63.4L20 74.6" style="stroke-width:1.4"/><circle class="f" cx="22" cy="69" r="1.6"/>' + extra;
+  };
   const MINI = {
-    // dos pilas con su − en la tierra y la resistencia entre sus +
+    // la bomba, los tubitos en escalones (9, 6 y 0 psi), la válvula del regreso y la tierra
+    'voltaje-concepto': () => piezo([9, 6, 0], '<circle class="pmp" cx="96" cy="80" r="4.5"/><path class="w" d="M96 75.5v-5M92.5 70.5h7M50 84v4M45 88h10M47 90.5h6M49 93h2"/>'),
     // la pila a la izquierda y dos contadores (rayas verdes), antes y después de la resistencia
     'corriente-concepto': () => circ(LOOP, [at('r', 80, 20), at('bat', 22, 50, 90)]) + '<path class="gate" d="M14 34h16M130 50h16"/>',
     // la pila a la izquierda y la barra de carbón arriba: una corta y gruesa junto a una larga y delgada
     'resistencia-concepto': () => circ(LOOP, [at('bat', 22, 50, 90)]) + '<rect class="bg" x="44" y="12" width="72" height="16"/><rect class="w" x="46" y="16" width="20" height="8" rx="2"/><path class="w" d="M66 20h8"/><rect class="w" x="74" y="18" width="40" height="4" rx="1.5"/>',
-    'voltaje-concepto': () => circ(LOOP, [at('r', 80, 20), at('bat', 22, 50, 90), at('bat', 138, 50, 90)]) + '<path class="w" d="M80 80v6M73 86h14M76 89.5h8M78.5 93h3"/>',
     // R1 y, después del nodo de la barra, dos resistencias entre los mismos dos nodos
     'nodos': () => circ(LOOP + 'M70 20V50H138', [at('r', 46, 20), at('r', 104, 20), at('r', 104, 50), at('bat', 80, 80)], [[70, 20], [70, 50], [138, 20], [138, 50]]),
     'como-medir': () => circ(LOOP, [at('r', 62, 20), at('r', 98, 20), at('bat', 80, 80)], [[80, 20]]),

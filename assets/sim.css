@@ -787,3 +787,8 @@ span.sim-go, .sim-go.none:not([data-step="true"]) { display: none; }
 @media (prefers-reduced-motion: reduce) { .sim-trig.pulse { animation: none; } }
 /* Lo que se guarda (el generador con el osciloscopio de frente, los mandos que el acomodo no tiene) no se ve. */
 .sim-layer > [hidden] { display: none !important; }
+
+/* Un solo panel que pasa del agua al circuito (los conceptos, Sim.piezo): sin Agua · Ambos · Electricidad, y su
+   letrero siempre a la vista (no hay pestañas que digan cuál es). */
+.sim-stage[data-view="solo"] { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.sim-stage[data-view="solo"] .sim-tag { display: block; }
