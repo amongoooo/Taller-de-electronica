@@ -316,6 +316,29 @@
       panel(side).at(el, follow ? () => (b.follow ? b.follow(pos(geo(side))) : pos(geo(side))) : () => pos(geo(side)));
       return el;
     };
+    // El pulsador (Sim.pushKey, D.pushButton) de la página: su tapa, en cada lado, es un mando (un clic lo aprieta un
+    // momento; dejarlo apretado lo enclava). at(g) da dónde está (null si en este paso no va); set(v) aprieta o suelta.
+    // Su cuerpo es de la página (b.part, su tarjeta). Da el Sim.pushKey; la página llama step(dt) y lo dibuja.
+    b.pushKey = ({ at, set, label }) => {
+      const k = Sim.pushKey(set);
+      ['w', 'e'].forEach(side => {
+        const el = document.createElement('div'), p = panel(side);
+        el.className = 'sim-hit'; el.tabIndex = 0; el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', (label ? label(side) : side === 'w' ? 'Tapa de la válvula' : 'Pulsador') +
+          ' (un toque lo aprieta un momento; dejarlo apretado lo deja así hasta tocarlo otra vez)');
+        Object.assign(el.style, { aspectRatio: 'auto', borderRadius: '12px', touchAction: 'none', userSelect: 'none' });
+        b.place(side, el, g => {
+          const q = at(g);
+          if (!q) return [-999, -999];
+          const [x, y] = q, nodes = b.nodesOn(), w = side === 'w';
+          el.style.width = Math.max(44, (nodes ? 72 : w ? 64 : 56) * p.scale) + 'px';
+          el.style.height = Math.max(40, (nodes ? 64 : w ? 46 : 36) * p.scale) + 'px';
+          return nodes ? [x, y] : [x, y - (w ? 41 : 24)];
+        }, true);
+        k.bind(el);
+      });
+      return k;
+    };
     // Un botón en cada lado que hacen lo mismo. text(side) da su texto; b.refresh() lo actualiza.
     // onClick(side, el) recibe el lado y el botón que se tocó. Con act ('com', 'med'…) también va en su
     // sección de la columna de controles, y mientras la columna se ve, sale del dibujo.
@@ -736,8 +759,9 @@
     // { pts, I (mA en el sentido del recorrido), v0 (voltaje al inicio), comps: [{ at: [x, y], half, dV }] }:
     // en cada componente el voltaje baja dV a lo largo de su ancho; en el cable no cambia.
     // Las puntas no se pueden poner encima de un componente ni de la fuente.
-    // Tierra común (ver drawGround): en el cable de abajo, junto al − de la fuente. En la vista de nodos,
-    // en el nodo de la tierra.
+    // Tierra común: el − de la fuente es la referencia de 0 V (en el agua, la salida hacia la bomba, la de 0 psi); sin
+    // símbolo, es donde va la punta negra con «Negra a tierra». En el cable de abajo, junto al − de la fuente; en la vista
+    // de nodos, en el nodo de la tierra.
     // Con la polaridad invertida el − de la fuente queda a la izquierda, y ahí va la tierra.
     b.ground = g => {
       const p = [g.PX + sgn() * (SRC + 22), g.BOT], gn = net && st.nodes.u && net.nodes.find(n => n.ground);
@@ -1519,7 +1543,6 @@
         const dx = q[0] - node.p[0], dy = q[1] - node.p[1];
         if (Math.hypot(dx, dy) > 1) ang.push(Math.atan2(dy, dx));
       }
-      if (node.ground) ang.push(Math.PI / 2, Math.PI / 4);
       for (const [k2, i2] of PROBES) {
         if (k2 === kind && i2 === i) break;
         if (!st.show[k2] || !connected(k2, i2)) continue;
@@ -2508,16 +2531,6 @@
       }
       ctx.restore();
     };
-    // Tierra común: el − de la fuente es la referencia de 0 V de todo el circuito (en el agua, la salida
-    // hacia la bomba es la referencia de 0 psi). Su símbolo cuelga del cable de abajo, junto a la fuente.
-    const drawGround = (ctx, g) => {
-      const e = net ? geomE(st.nodes.u) : 0, r = g.side === 'w' ? Sim.PIPE + 5 : 2;
-      const [x, y] = b.ground(g), y0 = y + r + ((g.side === 'w' ? RN + 5 : RN) - r) * e, yb = y0 + (27 - r) + (r - 5) * e;
-      D.line(ctx, [[x, y0], [x, yb]], 3, C.ink, 'butt');
-      [[13, 0], [8.5, 5], [4, 10]].forEach(([w, dy]) => D.line(ctx, [[x - w, yb + dy], [x + w, yb + dy]], 3, C.ink, 'butt'));
-      const left = st.rev && !e;   // invertida, la tierra va a la izquierda de la fuente: su valor, hacia afuera
-      D.text(ctx, g.side === 'w' ? '0 psi' : '0 V', x + (left ? -18 : 18), yb + 6, C.muted, { size: 14, align: left ? 'right' : 'left', bg: true });
-    };
     const knobScales = (ctx, g) => b.knobs.forEach(k => {
       const [x, y] = k.pos(g);
       const low = D.knobScale(ctx, x, y, 36, k.scale(g.side), k.ticks);
@@ -3001,7 +3014,6 @@
       }
       aim.forEach(({ node, a }) => { ctx.save(); ctx.globalAlpha *= a; D.circle(ctx, ...node.p, (water ? RN + 8 : RN) + 4, null, C.sel, 3); ctx.restore(); });
       for (const n of net.nodes) {
-        if (n.ground) continue;   // la tierra lleva su símbolo con 0 V
         const [x, y] = n.p, t = nodeText(n.v, water), o = n.out || out(x, y);
         const px = D.font(ctx, 16, Sim.MONO, 600);
         const w = ctx.measureText(t).width + 14, h = Math.round(px * 1.45), cands = [];
@@ -3253,7 +3265,6 @@
       hoses(ctx, g, true);
       if (OSC) OSC.cables(ctx, g);
       circuitAndCables(ctx, g, m, o.drawW);
-      drawGround(ctx, g);
       knobScales(ctx, g);
       // el bloque de la bomba va encima de los medidores: es lo que se arrastra a donde haya lugar (en el celular,
       // donde no se enciman, los medidores van encima de las mangueras)
@@ -3271,7 +3282,6 @@
       hoses(ctx, g, true);
       if (OSC) OSC.cables(ctx, g);
       circuitAndCables(ctx, g, m, o.drawE);
-      drawGround(ctx, g);
       knobScales(ctx, g);
       instruments(ctx, g);
       { const [x, y] = symAt(g); ctx.save(); ctx.translate(x, y); ctx.scale(sgn(), 1); D.source(ctx, 0, 0); ctx.restore(); }   // invertida, al revés

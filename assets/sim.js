@@ -186,9 +186,9 @@
   // azul si está seleccionado; el nombre en rojo con danger). Su estado («cerrado», «quemada») va en una
   // pastilla al lado, roja con danger. align 'center' (x es el centro) o 'left' (x es donde empieza).
   const TAG_GAP = 7;
-  // Nombres de los componentes (Ver → Etiquetas): por defecto la etiqueta solo dice su valor («1 kΩ», «100 µF»); con
-  // «Con nombre», «R1 1 kΩ». Solo se quita el nombre de una cantidad con unidad (un LED sigue diciendo «LED rojo»); keep
-  // lo deja siempre (una equivalente, «R2 ∥ R3 500 Ω»). Se recuerda en todo el sitio (sim-names). El renglón de Ver
+  // Nombres de los componentes (Ver → Etiquetas): por defecto la etiqueta solo dice su valor y su estado («1 kΩ», «rojo»,
+  // «NA cerrado», «en alto»); con «Con nombre», «R1 1 kΩ», «LED rojo». Sin valor ni estado el nombre se queda (si no, no
+  // diría nada); keep lo deja siempre (una equivalente, «R2 ∥ R3 500 Ω»). Se recuerda en todo el sitio (sim-names). El renglón de Ver
   // aparece en cuanto una página dibuja una etiqueta a la que le puede quitar el nombre.
   let names = null, namesRow = null;
   Sim.names = () => names ?? (names = store.get('sim-names', ['0', '1'], '0') === '1');
@@ -202,8 +202,8 @@
     sync();
     namesRow = Sim.side.row('ver', 'Etiquetas', seg);
   };
-  const tagName = (name, value, keep) => {
-    if (keep || !name || !value || !/\d/.test(value)) return name;
+  const tagName = (name, value, keep, state) => {
+    if (keep || !name || !(value || state)) return name;
     namesSeg();
     return Sim.names() ? name : '';
   };
@@ -214,13 +214,13 @@
     const w = w1 + (value ? (w1 ? TAG_GAP : 0) + w2 : 0);
     return { w1, w2, w3, w, all: w + (state ? (w ? TAG_GAP + 6 : 0) + w3 : 0), px };
   };
-  D.tagWidth = (ctx, name, value, state, keep) => tagParts(ctx, tagName(name, value, keep), value, state).all;
+  D.tagWidth = (ctx, name, value, state, keep) => tagParts(ctx, tagName(name, value, keep, state), value, state).all;
   // name puede ser una lista, del más largo al más corto: se usa el primero con el que todo cabe en max.
   D.tag = (ctx, x, y, name, value, { sel = false, danger = false, state = '', align = 'center', max = 0, keep = false } = {}) => {
     if (Array.isArray(name)) name = name.find(n => !max || D.tagWidth(ctx, n, value, state, keep) <= max) ?? name[name.length - 1];
-    name = tagName(name, value, keep);
+    name = tagName(name, value, keep, state);
     const q = tagParts(ctx, name, value, state), x0 = align === 'left' ? x : x - q.all / 2;
-    const vcol = sel ? C.sel : C.ink, ncol = danger && !state ? C.danger : sel ? C.sel : C.muted;
+    const vcol = sel ? C.sel : danger && !state && !name ? C.danger : C.ink, ncol = danger && !state ? C.danger : sel ? C.sel : C.muted;
     if (q.w) {
       D.backdrop(ctx, x0, y, q.w, Sim.px(16, ctx));
       if (name) D.text(ctx, name, x0, y, ncol, { size: 15, align: 'left' });
@@ -582,21 +582,49 @@
     const t = broken ? label + ' quemado' : rev ? label + ' al revés' : label;
     if (tag) D.text(ctx, t, x, y + 48, broken || rev ? C.danger : sel ? C.sel : C.muted, { size: 15, bg: true });
   };
-  // Válvula en una tubería horizontal (tag: false, sin su letrero; la página pone su etiqueta).
-  D.valve = (ctx, x, y, open, tag = true) => {
-    D.circle(ctx, x, y, 19, C.metal, C.ink, 2.5);
-    if (open) { ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 16, y - 7, 32, 14); }
-    else { ctx.fillStyle = C.danger; ctx.fillRect(x - 4, y - 17, 8, 34); }
-    D.line(ctx, [[x, y - 19], [x, y - 32]], 4, C.ink);
-    D.line(ctx, open ? [[x, y - 32], [x, y - 44]] : [[x - 13, y - 32], [x + 13, y - 32]], 6, C.ink);
-    if (tag) D.text(ctx, open ? 'válvula abierta' : 'válvula cerrada', x, y + 48, open ? C.muted : C.danger, { size: 15, bg: true });
-  };
-  // Interruptor de cuchilla en un cable horizontal.
-  D.knifeSwitch = (ctx, x, y, closed, tag = true) => {
-    ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 30, 56, 40);
-    D.circle(ctx, x - 22, y, 5, C.card, C.ink, 2.5); D.circle(ctx, x + 22, y, 5, C.card, C.ink, 2.5);
-    D.line(ctx, closed ? [[x - 18, y], [x + 18, y]] : [[x - 18, y - 3], [x + 16, y - 26]], 3.5, C.ink);
-    if (tag) D.text(ctx, closed ? 'interruptor cerrado' : 'interruptor abierto', x, y + 48, closed ? C.muted : C.danger, { size: 15, bg: true });
+  // El pulsador (el único interruptor del sitio) en (x, y), sobre un tubo o un cable horizontal, con la tapa arriba.
+  // p: qué tan apretado (de 0 a 1); nc: normalmente cerrado; ring y ringA: el anillo azul que se llena alrededor de la
+  // tapa mientras se deja apretado (al llenarse queda enclavado, ver Sim.pushKey) y su opacidad.
+  // En el agua es una válvula con resorte: el cuerpo, con el paso del agua (más angosto que el tubo) y la compuerta roja
+  // que se desliza por dentro; su ventana (agua) queda en el paso apretada (NA) o suelta (NC). La tapa baja 16 y el
+  // resorte se aprieta. En el circuito, su símbolo: dos contactos y la barra que los une, con su vástago y su tapa (⊓);
+  // NA: la barra arriba de los contactos, baja a tocarlos; NC: la barra debajo, tocándolos, baja y los suelta.
+  D.pushButton = (ctx, x, y, water, { p = 0, nc = false, ring = 0, ringA = 0 } = {}) => {
+    let cy;
+    if (water) {
+      const T = 16, gy = -T / 2 + T * p, win = gy + (nc ? T / 2 : -T / 2), cap = y - 50 + T * p, top = y - 25;
+      D.roundRect(ctx, x - 17, y - 25, 34, 50, 7, C.metal, C.ink, 2.5);
+      ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 17, y - 7, 34, 14);
+      ctx.save(); ctx.beginPath(); ctx.rect(x - 7, y - 21, 14, 42); ctx.clip();
+      ctx.fillStyle = C.danger; ctx.fillRect(x - 7, y - 21, 14, 42);
+      ctx.fillStyle = C['water-soft']; ctx.fillRect(x - 7, y + win - 7, 14, 14);
+      ctx.restore();
+      D.line(ctx, [[x - 7, y - 21], [x - 7, y + 21]], 1.5, C.ink); D.line(ctx, [[x + 7, y - 21], [x + 7, y + 21]], 1.5, C.ink);
+      D.line(ctx, [[x, top], [x, cap]], 4, C.ink);
+      const n = 6, y1 = cap + 4, pts = [[x, top]];
+      for (let k = 0; k < n; k++) pts.push([x + (k % 2 ? 9 : -9), top + (y1 - top) * (k + 0.5) / n]);
+      pts.push([x, y1]);
+      D.line(ctx, pts, 2.5, C.muted);
+      D.roundRect(ctx, x - 16, cap - 8, 32, 11, 5, C.metal, C.ink, 2.5);
+      cy = cap - 2.5;
+    } else {
+      const by = y + (nc ? 5.5 : -13.5) + 8 * p, cap = y - 30 + 8 * p;
+      ctx.fillStyle = C.card; ctx.fillRect(x - 28, y - 36, 56, 52);
+      D.line(ctx, [[x - 28, y], [x - 22, y]], 4, C.ink); D.line(ctx, [[x + 22, y], [x + 28, y]], 4, C.ink);
+      D.line(ctx, [[x, by], [x, cap]], 2.5, C.ink);
+      D.line(ctx, [[x - 23, by], [x + 23, by]], 3.5, C.ink);
+      D.line(ctx, [[x - 9, cap + 6], [x - 9, cap], [x + 9, cap], [x + 9, cap + 6]], 3, C.ink, 'butt');
+      D.circle(ctx, x - 18, y, 4.5, C.card, C.ink, 2.5); D.circle(ctx, x + 18, y, 4.5, C.card, C.ink, 2.5);
+      cy = cap + 3;
+    }
+    if (ring > 0 && ringA > 0) {
+      const r = water ? 22 : 16;
+      ctx.save(); ctx.globalAlpha *= ringA; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(x, cy, r, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = C.line; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, ring));
+      ctx.lineWidth = 3.5; ctx.strokeStyle = C.sel; ctx.stroke();
+      ctx.restore();
+    }
   };
 
   // ---------- medidores: ruedita con aguja y pantallita de siete segmentos ----------
@@ -1957,6 +1985,67 @@
       detail: l.name + ' · ' + (side === 'w' ? Sim.fmt(l.vf) + ' psi' : Sim.fmt(l.vf) + ' V')
     })) }, ...(heat ? [Sim.powerRow(heat, side, { broken, what: 'led' })] : []), ...(actions ? [{ actions: typeof actions === 'function' ? actions(side) : actions }] : [])]
   });
+
+  // El pulsador (D.pushButton): un clic lo aprieta un momento, como un botón (se ve apretado al menos PUSH_MIN, para que
+  // se note); dejarlo apretado más de PUSH_HOLD lo deja enclavado al soltarlo, como un interruptor, hasta que se vuelve a
+  // tocar (esa vez se suelta al soltarlo). set(v) aprieta o suelta los contactos. bind(el) le da a un elemento sus gestos
+  // (el puntero, y Espacio o Intro); step(dt) mueve la tapa (p, con su curva) y el anillo de lo que falta para enclavarlo
+  // (ring y ringA, ver D.pushButton); draw() da lo que necesita D.pushButton; reset(v) lo deja suelto (o enclavado).
+  const PUSH_HOLD = 0.5, PUSH_MIN = 0.22;
+  Sim.pushKey = set => {
+    let on = false, down = false, was = false, latched = false, t0 = 0, timer = 0, late = 0, u = 0, lockT = 9;
+    const put = v => { if (on !== v) { on = v; set(v); } };
+    const now = () => performance.now() / 1000;
+    const k = {
+      p: 0, ring: 0, ringA: 0,
+      latched: () => latched,
+      pressed: () => on,
+      press() {
+        if (down) return;
+        down = true; was = latched; latched = false; t0 = now(); lockT = 9;
+        clearTimeout(late); clearTimeout(timer);
+        put(true);
+        if (!was) timer = setTimeout(() => { if (!down) return; latched = true; lockT = 0; try { navigator.vibrate && navigator.vibrate(12); } catch (e) {} }, PUSH_HOLD * 1000);
+      },
+      release() {
+        if (!down) return;
+        down = false; clearTimeout(timer);
+        if (latched) return;
+        const left = PUSH_MIN - (now() - t0);
+        if (left > 0) late = setTimeout(() => put(false), left * 1000); else put(false);
+      },
+      reset(v = false) { clearTimeout(timer); clearTimeout(late); down = false; latched = v; lockT = 9; put(v); u = k.p = v ? 1 : 0; },
+      step(dt) {
+        const to = on ? 1 : 0;
+        u = Sim.REDUCE.matches ? to : to > u ? Math.min(to, u + dt / 0.12) : Math.max(to, u - dt / 0.18);
+        k.p = u * u * (3 - 2 * u);
+        lockT += dt;
+        const hold = down && !was && !latched ? Math.min(1, (now() - t0 - 0.12) / (PUSH_HOLD - 0.12)) : 0;
+        if (hold > 0) { k.ring = hold; k.ringA = 1; }
+        else if (lockT < 0.4) { k.ring = 1; k.ringA = 1 - lockT / 0.4; }
+        else { k.ring = 0; k.ringA = 0; }
+      },
+      draw: nc => ({ p: k.p, nc, ring: k.ring, ringA: k.ringA }),
+      bind(el) {
+        el.addEventListener('pointerdown', e => { if (e.button > 0) return; el.setPointerCapture(e.pointerId); k.press(); e.preventDefault(); });
+        ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'].forEach(t => el.addEventListener(t, () => k.release()));
+        el.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { if (!e.repeat) k.press(); e.preventDefault(); } });
+        el.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') { k.release(); e.preventDefault(); } });
+        el.addEventListener('contextmenu', e => e.preventDefault());
+        return el;
+      }
+    };
+    return k;
+  };
+  // La tarjeta del pulsador (en el agua, la válvula con resorte): normalmente abierto o cerrado.
+  Sim.pushMenu = ({ get, set }) => side => {
+    const w = side === 'w';
+    return {
+      title: w ? 'Válvula con resorte' : 'Pulsador',
+      rows: [{ label: 'Normalmente', seg: w ? [{ value: 'na', text: 'Cerrada' }, { value: 'nc', text: 'Abierta' }]
+        : [{ value: 'na', text: 'Abierto' }, { value: 'nc', text: 'Cerrado' }], get, set }]
+    };
+  };
 
   // ---------- tubitos (piezómetros): las páginas de los conceptos ----------
   // Una bomba (en la electricidad, una pila) en la subida de la izquierda; arriba, un tubo con dos tramos angostos en

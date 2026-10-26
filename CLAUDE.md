@@ -39,7 +39,8 @@ como el instrumento real. La persona escribe en español: responde en español.
 - Secciones de la columna `Sim.side` (≥1100 px; hoja inferior en celular), por acción: Componentes (verde),
   Armar (azul agua), Ver (azul), Medir (morado, al final). La fuente se controla solo en el instrumento.
 - Componentes siempre muestran su valor en el dibujo; por defecto sin su nombre (Ver → Etiquetas: Valor · Con nombre, `Sim.names()`,
-  `sim-names`; `D.tag` quita el nombre solo si el valor tiene números, y con `keep` nunca, como en una equivalente). Perillas y deslizadores con imán (rebote) y zona muerta
+  `sim-names`; `D.tag` quita el nombre a todos, LEDs, pulsadores, válvulas y entradas incluidos, y deja su valor y su estado; no
+  lo quita si no hay ni valor ni estado, y con `keep` nunca, como en una equivalente). Perillas y deslizadores con imán (rebote) y zona muerta
   `Sim.DEAD`.
 - Movimiento: `Sim.REDUCE` respeta movimiento reducido; menús 180 ms al abrir y 120 ms al cerrar; botones se
   hunden con `scale: .97`.
@@ -65,7 +66,11 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     rótulos y `max` elige el que cabe), `D.tag` / `D.tagRow` (etiqueta «nombre valor» y estado en `D.pill`),
     `D.knobScale` (devuelve dónde acaban sus números) y `D.knobCaption`, `D.pipe`, `D.wire`, `D.narrow`, `D.resistor`, `D.wheel`, `D.ledSymbol`,
     `D.lcd`, `D.knobScale`, `D.select` / `D.selectRot` (contorno de seleccionado), `D.chassis` (chasis común de
-    los instrumentos: `--inst`, banda agua/ámbar, nombre) y `D.key` (tecla física común).
+    los instrumentos: `--inst`, banda agua/ámbar, nombre), `D.key` (tecla física común) y `D.pushButton` (el pulsador, el
+    único interruptor: en el agua la válvula con resorte).
+  - `Sim.pushKey(set)`: el gesto del pulsador (un clic lo aprieta un momento; dejarlo apretado `PUSH_HOLD` lo enclava hasta
+    tocarlo otra vez, con un anillo azul), su animación (`step`, `draw`) y `Sim.pushMenu` (su tarjeta: NA · NC); en el banco
+    `b.pushKey({ at, set })` pone su tapa en los dos lados.
   - `Sim.fadeSel(key, on)`: 0→1 en 120 ms (aparece y se va el contorno).
   - `Sim.knob`, `Sim.encoder` (perilla sin fin: pasos por muesca), `Sim.snapRange` (imán, zona muerta, rueda del
     ratón), `Sim.ramp`, `Sim.needle`, `Sim.heat`.
@@ -129,7 +134,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     puede dar su acomodo con `o.nodeLayout(nodes, comps, g)` (`p` y `out` de cada nodo, `mid`, `a1` y `tagUp` de cada componente; lo usa Ley de Ohm y nodos) y quitar la fila Dibujo de Ver
     con `o.nodeRow: false` (Ley de Ohm y nodos pone Circuito · Nodos flotando con `b.linkedChoice`); los nodos van del color de su voltaje
     (`nodeColor`) y en V y Ω las puntas solo se pegan a los nodos, por un lado sin cables (`nodeDir`). Inercia: `inertia` (empieza en 0: `value="0"` del `#inercia` de cada página). Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
-    tramo de la fuente, para que el − (y la tierra, `b.ground`) quede en 0 V a la izquierda.
+    tramo de la fuente, para que el − (y la tierra, `b.ground`, sin símbolo) quede en 0 V a la izquierda.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
   medidas con `update`, sus mandos con `ui.button`/`ui.knob` y su dibujo con `draw(ctx, L, side)`; sin circuito ni puntas), y
   `Sim.scope(o)`, el generador de funciones con el osciloscopio que usan las páginas del bloque de señales (menos Capacitores, que usa el banco):
@@ -156,7 +161,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   del cursor a B, con su largo de verdad: en la vista de nodos son dos resistencias), la toma a `XT`; el agua con `Sim.stream`
   (avanza por fase, así no se pierde al mover el cursor); su propio elemento para tocar y arrastrar el cursor; `Sim.potNow`
   para probar. `botones` (Botones, dos pasos: el pulsador NA o NC con un LED, y pull-down y pull-up): el pulsador es un
-  componente con dos zonas, su tapa (mando: se aprieta mientras se toca, `st.press`) y su cuerpo (`b.part`, su tarjeta con
+  componente con dos zonas, su tapa (mando, `b.pushKey`: un clic lo aprieta un momento y dejarlo apretado lo enclava, `st.press`) y su cuerpo (`b.part`, su tarjeta con
   Normalmente: Abierto · Cerrado); en el paso 2, el pulsador y la resistencia en serie en `XA` y `XB` (se cambian de lugar con
   Pull-down · Pull-up, en su tarjeta y en Armar) y la entrada baja del nodo `XN` a su terminal; sin la resistencia (su lugar
   punteado) la entrada flota (`st.fl`, al azar entre 0 y V); `Sim.btnNow` para probar. `transistor` (Transistor, dos pasos: botón en la base y
