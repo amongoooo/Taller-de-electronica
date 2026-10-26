@@ -84,7 +84,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     (renglón de Componentes que abre la misma tarjeta; sin `visible`, se esconde si su marcador queda fuera del dibujo).
   - `Sim.fmt` (números con punto decimal, es-MX) y `Sim.ohm` (470 Ω, 1 kΩ, 2.2 kΩ): los formatos de todas las páginas.
   - `Sim.ORDER` (orden de las simulaciones; `Sim.last` guarda la abierta y su paso en `sim-last` para «Seguir donde te quedaste» del inicio), barra (`Sim.steps`: con `tight` solo el paso actual lleva su nombre; con `done(k)` el paso se revisa solo y, al
-    cumplirse, lleva su palomita y Siguiente late (todas las páginas del curso; Cómo medir y Ley de Ohm con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
+    cumplirse, lleva su palomita y Siguiente late (todas las páginas del curso; Cómo medir con `b.measuring()` del banco: 'V', 'A' o 'R' de verdad); `Sim.viewSwitch` con transición de vista,
     botón Siguiente y `Sim.pulseNext`, iconos de tema y pantalla completa en `.sim-tools`), globito.
   - `Sim.resistorMenu`, `Sim.ledMenu`: tarjetas de siempre.
   - `Sim.piezo(o)`: el dibujo de los conceptos en un solo panel (`data-view="solo"`, sin `Sim.viewSwitch`): bomba, dos tramos
@@ -126,8 +126,8 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     frente encima del panel (`os.front`, `.sim-ofront` esconde lo demás); tres puntas que se pegan al circuito con `snap` y
     cada cuadro `sample` guarda lo que marca cada canal contra el caimán. `b.scope` da su estado.
   - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado); la página
-    puede dar su acomodo con `o.nodeLayout(nodes, comps, g)` (`p` y `out` de cada nodo, `mid`, `a1` y `tagUp` de cada componente; lo usa Nodos) y quitar la fila Dibujo de Ver
-    con `o.nodeRow: false` (Nodos pone Circuito · Nodos flotando con `b.linkedChoice`); los nodos van del color de su voltaje
+    puede dar su acomodo con `o.nodeLayout(nodes, comps, g)` (`p` y `out` de cada nodo, `mid`, `a1` y `tagUp` de cada componente; lo usa Ley de Ohm y nodos) y quitar la fila Dibujo de Ver
+    con `o.nodeRow: false` (Ley de Ohm y nodos pone Circuito · Nodos flotando con `b.linkedChoice`); los nodos van del color de su voltaje
     (`nodeColor`) y en V y Ω las puntas solo se pegan a los nodos, por un lado sin cables (`nodeDir`). Inercia: `inertia` (empieza en 0: `value="0"` del `#inercia` de cada página). Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
     tramo de la fuente, para que el − (y la tierra, `b.ground`) quede en 0 V a la izquierda.
 - `assets/osciloscopio.js`: `Sim.scopeUnit(st, ui)` es el osciloscopio solo (lo que guarda con `record`, barrido, disparo y
@@ -145,20 +145,19 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   orden), `branches` (ramas del agua con su corriente), `dots`, `solve(e, h, st)` → corriente, voltaje de cada nodo
   y corriente de cada rama, `ifull`, `rValues`, `burn` y `filter` (el capacitor se pone y se quita en su tarjeta).
   `Sim.oscNow` da su estado para probar (`st.chs`, `st.trg`, `st.m`: las medidas del último barrido).
-- `index.html` (inicio): bloques que siguen el curso (conceptos · nodos y protoboard · armar y medir · señales), miniaturas SVG de cada circuito
+- `index.html` (inicio): bloques que siguen el curso (conceptos · armar y medir · señales), miniaturas SVG de cada circuito
   (`MINI`, piezas en `PIECE`) y «Seguir donde te quedaste» (lee `sim-last`). Sin descripciones.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
   `voltaje-concepto` (Voltaje, corriente y resistencia: los tres conceptos en tres pasos) no usa el banco ni instrumentos: usa
   `Sim.piezo` con la válvula del regreso, la tierra que se arrastra a un tubito o al regreso, R1 y R2 con largo y grosor en su
-  tarjeta (y su calor, ¼ W) y, desde el paso 4, dos contadores que se arrastran por la vuelta (su lectura va donde menos se corre). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
-  la resistencia equivalente) no usa el multímetro. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  tarjeta (y su calor, ¼ W) y, desde el paso 2, dos contadores que se arrastran por la vuelta (su lectura va donde menos se corre). `resistencia` (Ley de Ohm y nodos, sin pasos: fusible, R1 y hasta tres resistencias de ¼ W en paralelo entre los mismos dos
+  nodos, con lugares punteados para agregarlas; 0 Ω es un corto; Ver → Corrientes y Equivalente; `Sim.ohmNow` para probar). `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
   `agua-electricidad` es la versión vieja (no está en `Sim.ORDER`). Las páginas que se quitaron dejan en su carpeta una
   redirección a la que las tiene ahora (para las direcciones guardadas) y su nombre en `MOVED` del inicio: `voltaje-presion` →
-  `como-medir` (su paso «La fuente» es el primero de Cómo medir) y `resistencias-serie-paralelo` → `nodos` (su paso
-  «Resistencia equivalente»), `osciloscopio-diodo` → `osciloscopio-rectificador` (su paso «Directa e inversa») y
+  `como-medir` (su paso «La fuente» es el primero de Cómo medir) `nodos` y `resistencias-serie-paralelo` → `resistencia` (Ley de Ohm y nodos), `osciloscopio-diodo` → `osciloscopio-rectificador` (su paso «Directa e inversa») y
   `corriente-concepto` y `resistencia-concepto` → `voltaje-concepto` (su paso «Corriente y resistencia»).
 
 ## Pendiente
@@ -215,14 +214,18 @@ Celular · Instrumentos cortos y abiertos (un PR):
   centrada, sin VOLTS/DIV ni SEC/DIV; se abre con su tecla de las flechas). En la PC con los dos paneles sigue el
   compacto con sus tres perillas.
 
-Orden del curso (aprobado; un PR por parte): conceptos sin instrumentos → nodos y protoboard → armar y medir con fuente
-y multímetro → señales. Las direcciones de las páginas no cambian, solo el orden (`Sim.ORDER`, inicio, `tools/capturas.js`).
+Orden del curso (aprobado; un PR por parte): conceptos sin instrumentos → armar y medir con fuente y multímetro (Cómo
+medir, Ley de Ohm y nodos, Protoboard, Interruptor y LED, LEDs en serie y paralelo) → señales. Las direcciones de las páginas no cambian, solo el orden (`Sim.ORDER`, inicio, `tools/capturas.js`).
 - [x] Reordenar y página **Nodos** (`simulaciones/nodos/`); Cómo medir sin su paso «Los nodos».
 - [x] **Voltaje = presión** (`simulaciones/voltaje-concepto/`, concepto, sin instrumentos): solo hay corriente si hay diferencia entre dos puntos; la tierra es 0 V.
 - [x] **Corriente = caudal** (`simulaciones/corriente-concepto/`): lo que cruza una línea por segundo; es la misma en toda la vuelta (no se gasta).
 - [x] **Resistencia** (`simulaciones/resistencia-concepto/`): más angosto o más largo deja pasar menos; con la misma presión, menos caudal y calor.
 - [x] Los tres conceptos con los tubitos (`Sim.piezo`) y juntos en una sola página, **Voltaje, corriente y resistencia**
   (`voltaje-concepto`), con ocho pasos y el paso al circuito al final.
+- [x] Etiquetas solo con el valor (Ver → Etiquetas: Valor · Con nombre).
+- [x] Pasos solo donde cambian el dibujo (seis páginas sin pasos; los repetidos juntos).
+- [x] **Ley de Ohm y nodos** (`simulaciones/resistencia/`) junta Ley de Ohm y Nodos, después de Cómo medir y sin pasos;
+  `nodos/` redirige ahí.
 - [x] Protoboard: el primer paso solo con resistencias (el LED se explica después, en Interruptor y LED).
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y

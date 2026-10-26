@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Ley de Ohm · Taller de Electrónica</title>
+<title>Ley de Ohm y nodos · Taller de Electrónica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026063945">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026065014">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
 <div class="sim-page">
   <div class="sim-bar">
     <a class="back" href="../../">← Simulaciones</a>
-    <h1>Ley de Ohm</h1>
+    <h1>Ley de Ohm y nodos</h1>
     <div class="ctl">
       <label for="inercia">Inercia</label>
       <input type="range" id="inercia" min="0" max="3" step="0.1" value="0">
@@ -25,116 +25,265 @@
   <main class="sim-stage">
     <div class="sim-panel" id="pw">
       <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Circuito de agua con bomba, tramo angosto ajustable y medidor de agua con perilla (presión, caudal, resistencia)"></canvas>
+      <canvas aria-label="Circuito de agua con bomba, válvula de seguridad, un tramo angosto y, después, tramos angostos en paralelo que salen de la misma tubería, con su medidor; se transforma en nodos y tiene lugares punteados para agregar tramos"></canvas>
       <div class="sim-layer"></div>
     </div>
     <div class="sim-panel" id="pe">
       <span class="sim-tag e">Electricidad</span>
-      <canvas aria-label="Circuito eléctrico con fuente, resistencia ajustable y multímetro con perilla (V, A, Ω)"></canvas>
+      <canvas aria-label="Circuito eléctrico con fuente, fusible, R1 y, después, resistencias en paralelo entre los mismos dos nodos, con su multímetro; se transforma en nodos y tiene lugares punteados para agregar resistencias"></canvas>
       <div class="sim-layer"></div>
     </div>
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026063945"></script>
-<script src="../../assets/banco.js?v=20261026063945"></script>
+<script src="../../assets/sim.js?v=20261026065014"></script>
+<script src="../../assets/banco.js?v=20261026065014"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
-  // 0 Ω es un cortocircuito: solo el límite de corriente de la fuente (o el caudal máximo de la bomba) la detiene.
-  // La resistencia se cambia pellizcando el tramo angosto o tocándolo (abre su menú): valores comunes
-  // de 100 Ω a 10 kΩ, y abierto del todo es 0 Ω.
+  // Ley de Ohm y nodos, sin pasos (se explica en clase y se experimenta). La fuente de 9 V, un fusible, R1 y luego
+  // hasta tres resistencias en paralelo (R2, R3, R4), cada una en su renglón entre el mismo par de nodos: el del medio
+  // (B, la barra de la izquierda) y la tierra (C, la barra de la derecha). Con el multímetro se mide el voltaje de
+  // cada una y la corriente que pasa por ella: I = V / R. Todo lo que se conecta a un nodo tiene su voltaje, y lo que
+  // entra a un nodo sale de él: por R1 pasa la suma de lo que pasa por los renglones.
+  // R2 siempre está; R3 y R4 se agregan tocando su lugar punteado (o con Armar) y se quitan en su tarjeta.
+  // Las resistencias son de ¼ W, de 100 Ω a 10 kΩ, y 0 Ω es un cortocircuito: solo el límite de corriente de la
+  // fuente (o el caudal máximo de la bomba) y el fusible la detienen. Arriba de ¼ W una resistencia se quema (queda
+  // abierta) y se pone nueva en su tarjeta.
   const RMIN = 100, RMAX = 10000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
   const RVALUES = [0, ...Sim.series(RMIN, RMAX)];
   const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
   const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
-  // Los cables tienen 0,05 Ω (para que un corto no sea una división entre 0). El fusible (de 100 mA al
-  // empezar) se cambia tocándolo.
+  const ohm = Sim.ohm, rText = i => st.R[i] ? ohm(st.R[i]) : '0 Ω';
+  // Los cables tienen 0,05 Ω (para que un corto no sea una división entre 0). El fusible (de 100 mA al empezar)
+  // se cambia tocándolo.
   const RW = 0.05, FUSES = [50, 100, 250, 500, 1000];
   const mA = i => i >= 1000 ? fmt(i / 1000, i % 1000 ? 2 : 0) + ' A' : Math.round(i) + ' mA';
   const mLs = i => { const q = i * b.MLS_PER_MA; return q >= 1000 ? fmt(q / 1000, q % 1000 ? 2 : 0) + ' L/s' : Math.round(q) + ' mL/s'; };
-  const ohm = Sim.ohm;
-  // Calor del fusible y de la resistencia (de ¼ W), ver Sim.heat: el menú de cada uno lo muestra.
-  const fh = Sim.heat(Sim.HEAT.fuse), rh = Sim.heat(Sim.HEAT.res);
-  const st = { R: 1000, fuse: 100, blown: false, breakT: 9, sparks: [], burnt: false, burnT: 9, drops: [] };
-  const sides = {};
-  const profile = g => Sim.narrowProfile((g.BOT - g.TOP) + (g.PX - g.X0), half(st.R));
+  const XA = 262, XB = 360, XR = 506;   // R1, la barra del nodo B y las resistencias de los renglones
+  // Calor del fusible y de cada resistencia (de ¼ W), ver Sim.heat: la tarjeta de cada uno lo muestra.
+  const fh = Sim.heat(Sim.HEAT.fuse), rh = [0, 1, 2, 3].map(() => Sim.heat(Sim.HEAT.res));
+  const st = { R: [1000, 1000, 1000, 1000], on: [true, true, false, false], fuse: 100, blown: false, breakT: 9, sparks: [],
+    burnt: [false, false, false, false], burnT: [9, 9, 9, 9], drops: [[], [], [], []], cur: false, eq: false };
+  const live = i => st.on[i] && !st.burnt[i], Rof = i => Math.max(st.R[i], RW);
+  // Alto de cada renglón (R2 arriba, en el cable de arriba).
+  const ys = g => { const h = g.BOT - g.TOP; return [g.TOP, g.TOP + 0.33 * h, g.TOP + 0.66 * h]; };
+  const rows = () => [0, 1, 2];   // los vacíos van con su lugar punteado
+  const full = k => st.on[k + 1];
   // El fusible (en el agua, una válvula de seguridad) va en el tubo de abajo, a la izquierda.
   const fuseAt = g => [(g.X0 + g.PX - b.SRC) / 2, g.BOT];
+  const atOf = (g, i) => i ? [XR, ys(g)[i - 1]] : [XA, g.TOP];
+
+  // Tramos del circuito (sin la fuente), con su corriente: el del fusible y R1 (A), cada renglón, la barra del nodo B
+  // (b0, b1: de un renglón al siguiente) y la del nodo C (c0, c1 y cz, que baja al − de la fuente).
+  const segs = (g, m, V) => {
+    const y = ys(g), P = rows(), I = k => m.Ik[k] || 0;
+    const out = [{ id: 'A', pts: [[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [XB, g.TOP]], I: m.I, v0: V,
+      comps: [fuseComp(g, V - m.VA), comp(0, [XA, g.TOP], m.VA - m.VB)] }];
+    P.forEach((k, j) => {
+      out.push({ id: 'r' + k, row: k, pts: [[XB, y[k]], [g.X1, y[k]]], I: I(k), v0: m.VB, comps: [comp(k + 1, [XR, y[k]], m.VB)] });
+      const next = P[j + 1];
+      if (next != null) {
+        const after = P.slice(j + 1).reduce((s, q) => s + I(q), 0), upto = P.slice(0, j + 1).reduce((s, q) => s + I(q), 0);
+        out.push({ id: 'b' + j, pts: [[XB, y[k]], [XB, y[next]]], I: after, v0: m.VB, comps: [] });
+        out.push({ id: 'c' + j, pts: [[g.X1, y[k]], [g.X1, y[next]]], I: upto, v0: 0, comps: [] });
+      } else out.push({ id: 'cz', pts: [[g.X1, y[k]], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]], I: m.I, v0: 0, comps: [] });
+    });
+    return out;
+  };
+  // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
+  const fuseComp = (g, dV) => ({ id: 'F', at: fuseAt(g), half: 24, dV, R: st.blown ? Infinity : 0, pr: fusePart, ext: w => w ? 22 : 14,
+    draw: (ctx, w) => w ? safetyValve(ctx, g) : fuse(ctx, g),
+    tag: w => [w ? 'válvula' : 'fusible', w ? mLs(st.fuse) : mA(st.fuse), st.blown, st.blown ? (w ? 'cerrada' : 'fundido') : ''] });
+  const rName = (i, w) => st.R[i] ? 'R' + (i + 1) : (w ? 'sin estrechamiento' : 'cortocircuito');
+  const rState = (i, w) => st.burnt[i] ? (w ? 'reventado' : 'quemada') : '';
+  // Una resistencia (i: 0 es R1) o, si su lugar está vacío, el lugar punteado (abierto: no pasa nada).
+  const comp = (i, at, dV) => {
+    const on = st.on[i];
+    return { id: 'R' + (i + 1), at, half: 46, dV, R: live(i) ? st.R[i] : Infinity, pr: on ? pinch[i] : null, ext: 16,
+      tag: on ? w => [rName(i, w), rText(i), !st.R[i] || st.burnt[i], rState(i, w)] : null,
+      draw: (ctx, w) => { if (!on) return ghost(ctx, at, w); drawR(ctx, i, at, w); hurt(ctx, i, at, w); } };
+  };
+  // Lugar punteado de una resistencia que falta, con su +.
+  const ghost = (ctx, [x, y], w) => {
+    const h = w ? Sim.PIPE + 6 : 16;
+    D.roundRect(ctx, x - 46, y - h, 92, 2 * h, 10, C.card);
+    ctx.save(); ctx.setLineDash([7, 6]);
+    D.roundRect(ctx, x - 46, y - h, 92, 2 * h, 10, null, C.muted, 2);
+    ctx.restore();
+    D.line(ctx, [[x - 8, y], [x + 8, y]], 3, C.muted); D.line(ctx, [[x, y - 8], [x, y + 8]], 3, C.muted);
+  };
+  // Lo que se dibuja: cada tramo, y los renglones vacíos en dos pedazos (el cable llega a su lugar y ahí acaba).
+  const pieces = (g, m) => segs(g, m, b.st.vo).flatMap(s => {
+    if (s.row == null || full(s.row)) return [s];
+    const [[x0, y], [x1]] = s.pts;
+    return [{ ...s, id: s.id + 'a', pts: [[x0, y], [XR - 46, y]] }, { ...s, id: s.id + 'b', pts: [[XR + 46, y], [x1, y]] }];
+  });
+  // Perfil del agua de cada tramo: el angosto de R1 o el de su renglón.
+  const profileOf = (g, s) => {
+    if (s.id === 'A') return Sim.narrowProfile((g.PX - b.SRC - g.X0) + (g.BOT - g.TOP) + (XA - g.X0), half(st.R[0]));
+    if (s.row != null && full(s.row)) return Sim.narrowProfile(XR - XB, half(st.R[s.row + 1]));
+    return () => Sim.PIPE;
+  };
+  // El agua de cada tramo: se arma de nuevo si el tramo cambia de forma.
+  const waters = new Map();
+  const waterOf = (g, s) => {
+    const key = JSON.stringify(s.pts);
+    let w = waters.get(s.id);
+    if (!w || w.key !== key) { w = { key, sim: Sim.water(s.pts, profileOf(g, s)) }; waters.set(s.id, w); }
+    else w.sim.setProfile(profileOf(g, s));
+    return w.sim;
+  };
+  const phase = {};
+  const K = 12, CAP = 30;   // rapidez de las partículas por mA, con un tope para que se puedan ver (en un corto)
 
   const b = Sim.bench({
     iFull: 30,
     iMax: 3000,   // en cortocircuito sale justo el límite del canal A, que llega hasta 3 A
-    v0: 9, lim0: 500,
-    layout(g) {
-      const s = sides[g.side] = { phase: 0, g };
-      if (g.side === 'w') s.water = Sim.water(g.loop, profile(g));
+    v0: 9, lim0: 500, nodeRow: false,   // Circuito · Nodos va flotando en el dibujo
+    layout() { waters.clear(); },
+    // VA: el nodo después del fusible; VB: el del medio. Con el fusible fundido o R1 quemada no pasa nada y lo que
+    // queda conectado a la tierra está en 0.
+    model(V) {
+      const G = [1, 2, 3].reduce((s, i) => s + (live(i) ? 1 / Rof(i) : 0), 0);
+      const I = !st.blown && live(0) && G ? V / (RW + Rof(0) + 1 / G) * 1000 : 0;
+      const VA = st.blown ? 0 : V, VB = live(0) ? (G ? VA - I * Rof(0) / 1000 : VA) : 0;
+      return { I, VA, VB, Ik: [1, 2, 3].map(i => live(i) ? VB / Rof(i) * 1000 : 0) };
     },
-    model: V => ({ I: st.blown || st.burnt ? 0 : V / (st.R + RW) * 1000 }),
-    // En cortocircuito la fuente llega a su límite y baja su voltaje casi a 0.
-    circuit(g, m, V) {
-      // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
-      const fz = { at: fuseAt(g), half: 24, dV: st.blown ? V : 0, R: st.blown ? Infinity : 0, pr: fusePart, ext: w => w ? 22 : 14,
-        draw: (ctx, w) => w ? safetyValve(ctx, g) : fuse(ctx, g),
-        tag: w => [w ? 'válvula' : 'fusible', w ? mLs(st.fuse) : mA(st.fuse), st.blown, st.blown ? (w ? 'cerrada' : 'fundido') : ''] };   // en nodos va inclinada: el nombre corto
-      const res = { at: [g.PX, g.TOP], half: 46, dV: st.blown ? 0 : V, R: st.burnt ? Infinity : st.R, pr: pinch,
-        draw: (ctx, w) => {
-          const [jx, jy] = jitter();
-          if (w) { D.narrow(ctx, g.PX + jx, g.TOP + jy, half(st.R)); burstPipe(ctx, g); return; }
-          if (!st.burnt) glowAt(ctx, g.PX, g.TOP, rh.glow);
-          D.resistor(ctx, g.PX + jx, g.TOP + jy); burntResistor(ctx, g);
-        },
-        tag: w => [st.R ? (w ? 'tramo angosto' : 'resistencia') : (w ? 'sin estrechamiento' : 'cortocircuito'), rText(), !st.R || st.burnt, st.burnt ? (w ? 'reventado' : 'quemada') : ''] };
-      return [{ pts: b.loopPts(g), I: m.I, v0: V, comps: [fz, res] }];
+    circuit: (g, m, V) => segs(g, m, V),
+    // Vista de nodos: A, B y la tierra (C) en una línea con R1 entre A y B; los renglones, acostados entre B y C,
+    // suben de esa línea en el orden de siempre (R2 arriba), y la fuente queda abajo sin cruzarlos. El fusible va
+    // de pie abajo de A (en el celular acostado, que no tiene lugar abajo, inclinado hacia la fuente).
+    nodeLayout(nodes, comps, g) {
+      const F = comps.find(c => c.c.id === 'F'), R1 = comps.find(c => c.c.id === 'R1'), Cn = nodes.find(n => n.ground);
+      if (nodes.length !== 4 || !F || !R1 || !Cn) return;
+      const S = F.A, A = F.B, B = R1.B;
+      if (!S.plus || R1.A !== A || B === Cn) return;
+      // la línea arriba de la fuente; R2 puede subir un poco más que TOP (en el celular acostado no cabe de otro modo)
+      const y = Math.min(g.BOT - 70, g.TOP + 180), SP = Math.min(90, (y - g.TOP + 15) / 2);
+      // la tierra deja lugar a su lado para «0 V» sin salirse de lo que se ve (en el acostado, sin llegar a la mesa)
+      const right = g.mode === 'lateral' ? g.DESK : g.VX + g.W;
+      A.p = [g.X0, y]; B.p = [g.X0 + 190, y]; Cn.p = [Math.min(g.X1, right - 75), y];
+      S.p = g.BOT - y >= 120 ? [g.X0, g.BOT] : [g.PX - b.SRC - 50, g.BOT];
+      B.out = [0, 1];   // su valor abajo: arriba van los renglones y la etiqueta de R1
+      const par = comps.filter(c => c !== F && c !== R1).sort((p, q) => p.c.id < q.c.id ? -1 : 1);
+      comps.forEach(c => {
+        if (c === F) { c.mid = [(S.p[0] + A.p[0]) / 2, (S.p[1] + A.p[1]) / 2]; c.a1 = Math.atan2(A.p[1] - S.p[1], A.p[0] - S.p[0]); return; }
+        const j = par.indexOf(c);
+        c.mid = [(c.A.p[0] + c.B.p[0]) / 2, y - (j < 0 ? 0 : par.length - 1 - j) * SP];
+        c.a1 = 0; c.tagUp = true;
+      });
     },
     step(dt, m) {
       // El fusible se calienta con la corriente al cuadrado, aunque la inercia esté en 0: la corriente llega al
       // instante, pero el hilo tarda en fundirse, y entre más se pasa más rápido (con 500 mA, el límite de la
-      // fuente al empezar, un fusible de 100 mA tarda 1 s; con 150 mA, unos 15 s). Va junto a la fuente: le pasa
-      // todo lo que ella da, también lo que se va por un multímetro en A que hace un corto (b.iOut).
+      // fuente al empezar, un fusible de 100 mA tarda 1 s). Va junto a la fuente: le pasa todo lo que ella da,
+      // también lo que se va por un multímetro en A que hace un corto (b.iOut).
       if (fh.step(st.blown ? 0 : (b.iOut() / st.fuse) ** 2, dt) && !st.blown) blow();
-      // La resistencia se calienta con la potencia P = I²·R; arriba de ¼ W se quema, más rápido entre más
-      // se pasa (con 9 V y 100 Ω, unos 3 s; con 220 Ω, unos 9 s; con 330 Ω llega a 152 °C y aguanta). En un corto (0 Ω) no recibe potencia.
-      if (rh.step(st.burnt ? 0 : (m.I / 1000) ** 2 * st.R, dt) && !st.burnt) burn();
-      st.burnT += dt;
-      for (const p of st.drops) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; }
+      // Cada resistencia se calienta con su potencia P = I²·R; arriba de ¼ W se quema, más rápido entre más se pasa.
+      // En un corto (0 Ω) no recibe potencia.
+      [0, 1, 2, 3].forEach(i => {
+        const I = i ? m.Ik[i - 1] || 0 : m.I;
+        if (rh[i].step(live(i) ? (I / 1000) ** 2 * st.R[i] : 0, dt) && live(i)) burn(i);
+        st.burnT[i] += dt;
+        for (const p of st.drops[i]) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; }
+      });
       st.breakT += dt;
       for (const p of st.sparks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; }
-      const r = Math.min(b.flowI(m), 60) * 6;   // las partículas tienen un tope de rapidez para que se puedan ver
-      sides.w.water.step(r, dt);
-      sides.e.phase += r * dt;
+      // con un multímetro en A haciendo un corto, la vuelta de afuera lleva lo que de verdad da la fuente
+      const f = m.I > 0 ? b.flowI(m) / m.I : 1, rate = I => Math.sign(I) * Math.min(Math.abs(I * f), CAP) * K;
+      for (const s of pieces(b.ge, m)) phase[s.id] = (phase[s.id] || 0) + rate(s.I) * dt;
+      for (const s of pieces(b.gw, m)) waterOf(b.gw, s).step(rate(s.I), dt);
     },
     drawW(ctx, g, m) {
-      D.pipe(ctx, g.loop);
-      const [jx, jy] = jitter();
-      D.narrow(ctx, g.PX + jx, g.TOP + jy, half(st.R));
-      sides.w.water.draw(ctx);
-      burstPipe(ctx, g);
+      const ps = pieces(g, m);
+      if (labels()) halo(ctx, g, true);
+      if (equiv()) bracket(ctx, g, true);
+      ps.forEach(s => D.pipe(ctx, s.pts));
+      drawComps(ctx, g, m, true, () => ps.forEach(s => waterOf(g, s).draw(ctx)));
       safetyValve(ctx, g);
-      b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
-      rTag(ctx, g, true);
+      if (equiv()) drawEquiv(ctx, g, m, true);
     },
     drawE(ctx, g, m) {
-      D.wire(ctx, g.loop);
-      hot(ctx, g.loop, m);
-      D.flow(ctx, g.loop, sides.e.phase, C.charge, { gap: 30, r: 4.5 });
-      const [jx, jy] = jitter();
-      if (!st.burnt) glowAt(ctx, g.PX, g.TOP, rh.glow);
-      D.resistor(ctx, g.PX + jx, g.TOP + jy);
-      burntResistor(ctx, g);
-      b.grips(ctx, g.PX, g.TOP, half(st.R) + 5, pinch);
+      const ps = pieces(g, m);
+      if (labels()) halo(ctx, g, false);
+      if (equiv()) bracket(ctx, g, false);
+      ps.forEach(s => D.wire(ctx, s.pts));
+      ps.filter(s => s.id === 'A' || s.id === 'cz').forEach(s => hot(ctx, s.pts));
+      ps.forEach(s => D.flow(ctx, s.pts, phase[s.id] || 0, C.charge, { gap: 30, r: 4.5 }));
+      drawComps(ctx, g, m, false);
       fuse(ctx, g);
-      rTag(ctx, g, false);
+      if (equiv()) drawEquiv(ctx, g, m, false);
     }
   });
-  const rText = () => st.R ? ohm(st.R) : '0 Ω';
-  // «nombre valor» arriba del tramo (de la resistencia) y, si se quemó, su estado en una pastilla
-  const rTag = (ctx, g, w) => b.tag(ctx, pinch, g.PX, g.TOP - half(st.R) - 42,
-    st.R ? (w ? 'tramo angosto' : 'resistencia') : (w ? 'sin estrechamiento' : 'cortocircuito'), rText(), !st.R || st.burnt, false,
-    st.burnt ? (w ? 'reventado' : 'quemada') : '');
+  // Los componentes, con sus asas y su etiqueta; en el agua, el agua pasa por encima de los tramos angostos.
+  function drawComps(ctx, g, m, w, water) {
+    const y = ys(g), at = [[XA, g.TOP], ...[0, 1, 2].map(k => [XR, y[k]])];
+    const shown = [0, ...rows().map(k => k + 1)];
+    shown.forEach(i => st.on[i] ? drawR(ctx, i, at[i], w) : ghost(ctx, at[i], w));
+    if (water) water();
+    shown.forEach(i => {
+      if (!st.on[i]) return;
+      hurt(ctx, i, at[i], w);
+      const [x, yy] = at[i], h = half(st.R[i]) + 5, name = rName(i, w), value = rText(i), bad = !st.R[i] || st.burnt[i], state = rState(i, w);
+      b.grips(ctx, x, yy, h, pinch[i]);
+      if (!labels()) { b.tag(ctx, pinch[i], x, yy - h - 30, name, value, bad, false, state); return; }
+      // con lo que pasa por ella al lado, sin salirse de entre los cables de su renglón
+      const I = i ? m.Ik[i - 1] || 0 : m.I, tw = D.tagWidth(ctx, name, value, state), cw = current(ctx, false, 0, 0, I, w);
+      const right = g.mode === 'lateral' ? g.DESK : g.VX + g.W;   // lo que se ve del dibujo (en el acostado, hasta la mesa)
+      const all = tw + 12 + cw, lo = (i ? XB : g.VX) + 8 + all / 2, hi = (i ? right : XB) - 8 - all / 2;
+      const x0 = (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, x))) - all / 2;
+      b.tag(ctx, pinch[i], x0, yy - h - 30, name, value, bad, true, state);
+      current(ctx, true, x0 + tw + 12, yy - h - 30, I, w);
+    });
+  }
+  // Una resistencia (o su tramo angosto): tiembla y brilla mientras se calienta.
+  function drawR(ctx, i, [x, y], w) {
+    const [jx, jy] = jitter(i);
+    if (w) { D.narrow(ctx, x + jx, y + jy, half(st.R[i])); return; }
+    if (!st.burnt[i]) glowAt(ctx, x, y, rh[i].glow);
+    D.resistor(ctx, x + jx, y + jy);
+  }
+  // Lo que se le ve al calentarse y al quemarse: el tramo gotea y revienta; la resistencia se tizna y echa humo.
+  function hurt(ctx, i, [x, y], w) {
+    if (w) {
+      if (rh[i].glow > 0.5 && !st.burnt[i]) {   // antes de reventar empieza a gotear
+        const t = performance.now() / 1000;
+        for (let k = 0; k < 3; k++) D.circle(ctx, x - 8 + 8 * k, y - Sim.PIPE - 4 - ((t * 40 + k * 11) % 14), 2, C.water);
+      }
+      if (!st.burnt[i]) return;
+      const h = half(st.R[i]) + 5;
+      D.line(ctx, [[x - 10, y - h], [x - 3, y - h + 5], [x + 3, y - h - 1], [x + 10, y - h + 4]], 3, C.danger);
+      if (st.burnT[i] < 1.2) {
+        ctx.globalAlpha = Math.min(1, (1.2 - st.burnT[i]) / 0.5);
+        for (const p of st.drops[i]) D.circle(ctx, x + p.x, y - h + p.y, 3, C.water);
+        ctx.globalAlpha = 1;
+      }
+      return;
+    }
+    if (!st.burnt[i]) return;
+    ctx.fillStyle = 'rgba(30, 20, 15, 0.55)'; ctx.beginPath(); ctx.ellipse(x, y, 24, 13, 0, 0, Math.PI * 2); ctx.fill();
+    D.line(ctx, [[x - 3, y - 14], [x + 3, y - 4], [x - 3, y + 4], [x + 3, y + 14]], 6, C.card);
+    const t = st.burnT[i];
+    for (let k = 0; k < 4; k++) {
+      const u = ((t * 0.5 + k / 4) % 1);
+      D.circle(ctx, x + 6 * Math.sin(k * 2 + t), y - 12 - 50 * u, 4 + 10 * u, `rgba(110, 110, 110, ${0.35 * (1 - u)})`);
+    }
+  }
+  function jitter(i) {
+    if (!rh[i].glow || st.burnt[i]) return [0, 0];
+    const t = performance.now() / 1000, a = 1.6 * rh[i].glow;
+    return [a * Math.sin(t * 53 + i), a * Math.cos(t * 41 + i)];
+  }
+  function glowAt(ctx, x, y, k) {
+    if (!k) return;
+    const gr = ctx.createRadialGradient(x, y, 4, x, y, 52);
+    gr.addColorStop(0, `rgba(255, 110, 30, ${0.75 * k})`); gr.addColorStop(1, 'rgba(255, 110, 30, 0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 52, 0, Math.PI * 2); ctx.fill();
+  }
   // Cables al rojo: brillan más cuanto más se pasa la corriente de lo que aguanta el fusible. Solo con
   // corriente: fundido el fusible ya no pasa nada y se apagan aunque el fusible siga caliente.
-  function hot(ctx, path, m) {
+  function hot(ctx, path) {
     const k = Math.min(1, Math.max(0, (b.iOut() - st.fuse) / (2 * st.fuse)));
     if (!k) return;
     ctx.globalAlpha = 0.35 * k; D.line(ctx, path, 16, '#ff5a1f'); ctx.globalAlpha = 1;
@@ -145,16 +294,11 @@
     const [x0, y] = fuseAt(g), t = performance.now() / 1000;
     const heat = st.blown ? 0 : fh.glow;
     const x = x0 + 2 * heat * Math.sin(t * 50);
-    if (heat > 0) {
-      const gr = ctx.createRadialGradient(x, y, 3, x, y, 46);
-      gr.addColorStop(0, `rgba(255, 120, 40, ${0.8 * heat})`); gr.addColorStop(1, 'rgba(255, 120, 40, 0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 46, 0, Math.PI * 2); ctx.fill();
-    }
+    if (heat > 0) glowAt(ctx, x, y, heat);
     const h = 11;
     D.roundRect(ctx, x - 24, y - h, 48, 2 * h, 6, C.card, st.blown ? C.danger : C.ink, 2.5);
-    ctx.lineWidth = 2.5; ctx.strokeStyle = heat > 0.3 ? '#ff7a1f' : C.ink;
     if (st.blown) { D.line(ctx, [[x - 24, y], [x - 7, y - 3]], 2.5, C.ink); D.line(ctx, [[x + 7, y + 3], [x + 24, y]], 2.5, C.ink); }
-    else D.line(ctx, [[x - 24, y], [x + 24, y]], 2.5, ctx.strokeStyle);
+    else D.line(ctx, [[x - 24, y], [x + 24, y]], 2.5, heat > 0.3 ? '#ff7a1f' : C.ink);
     b.tag(ctx, fusePart, x, y - h - 18, 'fusible', mA(st.fuse), st.blown, false, st.blown ? 'fundido' : '');   // arriba, adentro del circuito: abajo está la fuente
     if (st.breakT < 1.2) {
       ctx.globalAlpha = Math.min(1, (1.2 - st.breakT) / 0.4);
@@ -172,23 +316,19 @@
   // bola se asienta de golpe y cierra el tubo. El agua va hacia la izquierda, así que el asiento está ahí.
   function safetyValve(ctx, g) {
     const [x0, y] = fuseAt(g), t = performance.now() / 1000, P = Sim.PIPE, H = P + 7;
-    // la bola se acerca al asiento conforme el empuje (el calor del fusible) se acerca a cerrarla
     const push = Math.min(1, fh.f), shake = st.blown ? 0 : 1.5 * fh.glow * Math.sin(t * 60);
     const bx = st.blown ? x0 - 15 : x0 + 12 - 24 * push + shake, by = y;
     ctx.globalAlpha = 0.85; D.roundRect(ctx, x0 - 30, y - H, 60, 2 * H, 8, C['water-soft']); ctx.globalAlpha = 1;
     D.roundRect(ctx, x0 - 30, y - H, 60, 2 * H, 8, null, st.blown ? C.danger : C.ink, 2.5);
-    // asiento: dos topes que angostan el paso del lado izquierdo
     ctx.fillStyle = C.ink;
     for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x0 - 30, y + sg * H); ctx.lineTo(x0 - 22, y + sg * H); ctx.lineTo(x0 - 22, y + sg * 6); ctx.lineTo(x0 - 30, y + sg * 6); ctx.fill(); }
-    // resorte de la pared derecha a la bola
     const xs = x0 + 28, xe = bx + 8, n = 7;
     ctx.beginPath(); ctx.moveTo(xs, y);
     for (let k = 1; k <= n; k++) ctx.lineTo(xs + (xe - xs) * k / n, y + (k === n ? 0 : (k % 2 ? -6 : 6)));
     ctx.lineWidth = 2; ctx.strokeStyle = C.muted; ctx.stroke();
     D.circle(ctx, bx, by, 8, st.blown ? C.danger : C.metal, C.ink, 2);
-    // la etiqueta va arriba, adentro del circuito, entre el tubo de la izquierda y la bomba (si no cabe, solo
-    // «válvula»)
-    const lx = g.X0 + P + 10;   // justo adentro del tubo de la izquierda
+    // la etiqueta va arriba, adentro del circuito, entre el tubo de la izquierda y la bomba (si no cabe, solo «válvula»)
+    const lx = g.X0 + P + 10;
     D.tag(ctx, lx, y - H - 22, ['válvula de seguridad', 'válvula'], mLs(st.fuse),
       { sel: fusePart.open(), danger: st.blown, state: st.blown ? 'cerrada' : '', align: 'left', max: g.PX - 44 - lx });
     if (st.breakT < 1) {   // salpicadura al cerrarse de golpe
@@ -197,50 +337,9 @@
       ctx.globalAlpha = 1;
     }
   }
-  // Mientras se calienta, la resistencia (o el tramo angosto) tiembla.
-  function jitter() {
-    if (!rh.glow || st.burnt) return [0, 0];
-    const t = performance.now() / 1000, a = 1.6 * rh.glow;
-    return [a * Math.sin(t * 53), a * Math.cos(t * 41)];
-  }
-  function glowAt(ctx, x, y, k) {
-    const gr = ctx.createRadialGradient(x, y, 4, x, y, 52);
-    gr.addColorStop(0, `rgba(255, 110, 30, ${0.75 * k})`); gr.addColorStop(1, 'rgba(255, 110, 30, 0)');
-    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, 52, 0, Math.PI * 2); ctx.fill();
-  }
-  // Resistencia quemada: tiznada, partida a la mitad y echando humo.
-  function burntResistor(ctx, g) {
-    if (!st.burnt) return;
-    const x = g.PX, y = g.TOP;
-    ctx.fillStyle = 'rgba(30, 20, 15, 0.55)'; ctx.beginPath(); ctx.ellipse(x, y, 24, 13, 0, 0, Math.PI * 2); ctx.fill();
-    D.line(ctx, [[x - 3, y - 14], [x + 3, y - 4], [x - 3, y + 4], [x + 3, y + 14]], 6, C.card);
-    smoke(ctx, x, y - 12);
-  }
-  // Tramo angosto reventado: una grieta por donde sale el agua; ya no circula.
-  function burstPipe(ctx, g) {
-    if (rh.glow > 0.5 && !st.burnt) {   // antes de reventar empieza a gotear
-      const t = performance.now() / 1000;
-      for (let k = 0; k < 3; k++) D.circle(ctx, g.PX - 8 + 8 * k, g.TOP - Sim.PIPE - 4 - ((t * 40 + k * 11) % 14), 2, C.water);
-    }
-    if (!st.burnt) return;
-    const x = g.PX, y = g.TOP, h = half(st.R) + 5;
-    D.line(ctx, [[x - 10, y - h], [x - 3, y - h + 5], [x + 3, y - h - 1], [x + 10, y - h + 4]], 3, C.danger);
-    if (st.burnT < 1.2) {
-      ctx.globalAlpha = Math.min(1, (1.2 - st.burnT) / 0.5);
-      for (const p of st.drops) D.circle(ctx, x + p.x, y - h + p.y, 3, C.water);
-      ctx.globalAlpha = 1;
-    }
-  }
-  function smoke(ctx, x, y) {
-    const t = st.burnT;
-    for (let k = 0; k < 4; k++) {
-      const u = ((t * 0.5 + k / 4) % 1);
-      D.circle(ctx, x + 6 * Math.sin(k * 2 + t), y - 50 * u, 4 + 10 * u, `rgba(110, 110, 110, ${0.35 * (1 - u)})`);
-    }
-  }
-  function burn() {
-    st.burnt = true; st.burnT = 0; b.halt();
-    st.drops = Array.from({ length: 18 }, () => {
+  function burn(i) {
+    st.burnt[i] = true; st.burnT[i] = 0; b.halt();
+    st.drops[i] = Array.from({ length: 18 }, () => {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6, v = 120 + 160 * Math.random();
       return { x: (Math.random() - 0.5) * 16, y: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v };
     });
@@ -255,20 +354,70 @@
     b.refresh();
   }
 
-  const pinch = b.pinch({
-    pos: g => [g.PX, g.TOP], get: () => st.R, half, fromHalf,
-    set: R => { st.R = R; sides.w.water.setProfile(profile(sides.w.g)); },
-    label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia',
-    text: R => R ? ohm(R) : '0 Ω, cortocircuito',
-    menu: side => Sim.resistorMenu({
-      values: RVALUES, get: () => st.R, set: setR, format: R => R ? ohm(R) : '0 Ω (corto)', heat: rh, broken: () => st.burnt,
-      actions: [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.burnt, onClick: renew }]
-    })(side)
+  // Ver → Corrientes: lo que pasa por cada resistencia, en verde (corriente) al lado de su etiqueta, y el nodo B con un
+  // fondo azul claro (la barra y los cables que llegan a sus componentes): lo que entra por R1 sale por los renglones.
+  const labels = () => st.cur && !b.nodesOn();
+  function halo(ctx, g, w) {
+    const y = ys(g), P = rows(), wd = w ? 2 * Sim.PIPE + 26 : 22;
+    ctx.save(); ctx.globalAlpha = 0.18;
+    D.line(ctx, [[XA + 46, g.TOP], [XB, g.TOP], [XB, y[P[P.length - 1]]]], wd, C.sel);
+    P.forEach(k => D.line(ctx, [[XB, y[k]], [XR - 46, y[k]]], wd, C.sel));
+    ctx.restore();
+  }
+  // Ver → Equivalente: los renglones, que van entre los mismos dos nodos, quedan en un recuadro punteado con la
+  // equivalente de su paralelo (1 / Rp = 1 / R2 + 1 / R3 + …) abajo, y adentro de la vuelta la de todo el circuito,
+  // Req = R1 + Rp, con la corriente que da la fuente: V / Req. Una quemada no cuenta (está abierta).
+  const equiv = () => st.eq && !b.nodesOn();
+  const par = () => { const G = [1, 2, 3].reduce((s, i) => s + (live(i) ? 1 / st.R[i] : 0), 0); return G ? 1 / G : Infinity; };
+  const ohm3 = R => isFinite(R) ? ohm(+R.toPrecision(3)) : 'abierto';
+  const box = (g, w) => {
+    const y = ys(g), P = rows(), pad = w ? Sim.PIPE + 14 : 26;
+    return [XB - 26, y[P[0]] - pad - 44, g.X1 + 26, y[P[P.length - 1]] + pad];
+  };
+  function bracket(ctx, g, w) {
+    const [x0, y0, x1, y1] = box(g, w);
+    ctx.save(); ctx.setLineDash([8, 6]);
+    D.roundRect(ctx, x0, y0, x1 - x0, y1 - y0, 12, null, C.sel, 2);
+    ctx.restore();
+  }
+  function drawEquiv(ctx, g, m, w) {
+    const [, , , y1] = box(g, w), on = [1, 2, 3].filter(live);
+    // el paralelo: abajo del recuadro, con los nombres de sus resistencias
+    D.tag(ctx, XR, y1 + 24, on.length ? on.map(i => 'R' + (i + 1)).join(' ∥ ') : 'Rp', ohm3(par()), { keep: true });
+    // todo el circuito, adentro de la vuelta, con lo que da la fuente
+    const x = (g.X0 + XB) / 2, y = (g.TOP + g.BOT) / 2, Req = live(0) ? st.R[0] + par() : Infinity;
+    D.tag(ctx, x, y - 18, 'Req', ohm3(Req), { keep: true });
+    const cw = current(ctx, false, 0, 0, m.I, w);
+    current(ctx, true, x - cw / 2, y + 18, m.I, w);
+  }
+  // Pastilla verde con una flecha y la corriente, que empieza en x; da su ancho (y la dibuja si draw).
+  function current(ctx, draw, x, y, I, w) {
+    const t = Sim.fmt(Math.abs(I) < 0.005 ? 0 : I, 2) + (w ? ' mL/s' : ' mA'), px = D.font(ctx, 16, Sim.MONO, 600);
+    const a = px * 0.35, hh = Math.round(px * 1.45), wd = ctx.measureText(t).width + 2 * a + 26;
+    if (!draw) return wd;
+    D.roundRect(ctx, x, y - hh / 2, wd, hh, hh / 2, C.card, C.ok, 2);
+    D.arrow(ctx, x + 10 + a * 0.7, y, 0, a, C.ok);
+    D.text(ctx, t, x + 16 + 2 * a, y + 0.5, C.ok, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
+    return wd;
+  }
+
+  // Cada resistencia se ajusta pellizcándola o en su tarjeta (con su calor); quemada, se pone una nueva ahí, y R3 y R4
+  // también se quitan ahí.
+  const pinch = [0, 1, 2, 3].map(i => {
+    const set = R => { st.R[i] = R; };
+    return b.pinch({
+      pos: g => atOf(g, i), get: () => st.R[i], half, fromHalf, set,
+      label: side => (side === 'w' ? 'Tramo angosto ' : 'Resistencia ') + (i + 1),
+      text: R => R ? ohm(R) : '0 Ω, cortocircuito',
+      menu: Sim.resistorMenu({ name: 'R' + (i + 1), values: RVALUES, get: () => st.R[i], set, format: R => R ? ohm(R) : '0 Ω (corto)',
+        heat: rh[i], broken: () => st.burnt[i],
+        actions: side => [
+          { text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.burnt[i], onClick: () => renew(i) },
+          ...(i > 1 ? [{ text: side === 'w' ? 'Quitar el tramo' : 'Quitar la resistencia', onClick: () => remove(i) }] : [])] })
+    });
   });
-  function setR(R) { st.R = R; sides.w.water.setProfile(profile(sides.w.g)); }
-  // Poner una resistencia (o un tubo) nueva, desde su tarjeta.
-  const renew = () => { st.burnt = false; rh.reset(); st.burnT = 9; };
-  // Tocar el fusible (o la válvula) abre su menú: cuánta corriente aguanta, y ponerlo nuevo si se fundió.
+  const renew = i => { st.burnt[i] = false; rh[i].reset(); st.burnT[i] = 9; };
+  // Tocar el fusible (o la válvula) abre su tarjeta: cuánta corriente aguanta, y ponerlo nuevo si se fundió.
   const repair = () => { st.blown = false; fh.reset(); st.breakT = 9; };
   const fusePart = b.part({
     pos: g => fuseAt(g),
@@ -288,9 +437,60 @@
       ]
     })
   });
-  // La punta roja empieza más arriba en el tubo de la izquierda, para no taparle el nombre a la válvula.
-  b.st.clamps.a[0] = [b.gw.X0, b.gw.TOP + 0.4 * (b.gw.BOT - b.gw.TOP)];
+  // Lugares punteados de R3 y R4 (de Armar): tocarlos pone una de 1 kΩ.
+  [2, 3].forEach(i => b.linkedButton({
+    cls: 'sim-slot', label: side => side === 'w' ? `Agregar un tramo angosto (R${i + 1})` : `Agregar una resistencia (R${i + 1})`,
+    pos: g => {
+      ['pw', 'pe'].forEach(p => b[p].box.querySelectorAll('.slot-r' + i).forEach(el => {
+        el.style.width = 92 * b[p].scale + 'px'; el.style.height = 2 * (Sim.PIPE + 6) * b[p].scale + 'px';
+      }));
+      return [XR, ys(g)[i - 1]];
+    },
+    hidden: () => st.on[i], onClick: () => add(i)
+  }).forEach(el => { el.classList.add('slot-r' + i); el.dataset.act = 'arm'; }));
+  const addBtn = Sim.side && Sim.side.button('arm', '', () => { const i = [2, 3].find(k => !st.on[k]); if (i) add(i); });
+  const sync = () => {
+    pinch.forEach((pr, i) => pr.els.forEach(el => { el.hidden = !st.on[i]; }));
+    if (addBtn) {
+      addBtn.textContent = Sim.view === 'w' ? 'Agregar un tramo angosto' : 'Agregar una resistencia';
+      addBtn.hidden = st.on[2] && st.on[3];
+      addBtn.closest('section').hidden = addBtn.hidden;   // Armar solo trae este botón
+    }
+    b.refresh();
+  };
+  Sim.onView(sync);
+  function add(i) { st.on[i] = true; st.R[i] = 1000; renew(i); sync(); }
+  function remove(i) {
+    pinch[i].els.forEach(el => Sim.menu.close(el));
+    st.on[i] = false; sync();
+  }
+
+  // Ver: Corrientes y Equivalente, cada una No · Sí.
+  const onOff = (label, key) => {
+    if (!Sim.side) return;
+    const seg = document.createElement('div');
+    seg.className = 'sim-seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', label);
+    seg.innerHTML = '<button type="button" data-v="0">No</button><button type="button" data-v="1">Sí</button>';
+    const mark = () => seg.querySelectorAll('button').forEach(bt => bt.setAttribute('aria-pressed', String((bt.dataset.v === '1') === st[key])));
+    seg.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => { st[key] = bt.dataset.v === '1'; mark(); b.refresh(); }));
+    mark();
+    Sim.side.row('ver', label, seg);
+  };
+  onOff('Corrientes', 'cur');
+  onOff('Equivalente', 'eq');
+  // Circuito · Nodos flotando en el dibujo (en lugar de la fila Dibujo de Ver): arriba a la izquierda (en el celular
+  // acostado, más a la orilla, abajo del letrero Agua / Electricidad: junto a la escala de colores no cabe, y abajo van
+  // el fusible y la fuente en la vista de nodos).
+  b.linkedChoice({
+    pos: g => g.mode === 'lateral' ? [g.X0 - 96, g.TOP - 66] : [g.X0 + 70, g.TOP - 104], label: 'Dibujo',
+    options: [['0', 'Circuito'], ['1', 'Nodos']],
+    get: () => b.nodesOn() ? '1' : '0', set: v => b.setNodes(v === '1')
+  });
+  // La fuente (y la bomba) empieza encendida.
+  document.querySelector('#pe .sim-power').click();
+  sync();
   b.start();
+  Sim.ohmNow = { st, add, remove, sync };   // para probar
 })();
 </script>
 </body>
