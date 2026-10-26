@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cómo medir · Taller de Electrónica</title>
 <!-- Voltaje y corriente pasó a ser el primer paso de Cómo medir: esta dirección se queda para los que la
-     tienen guardada. Sus pasos van a los mismos de Cómo medir (la fuente, la corriente y el voltaje). -->
+     tienen guardada. Sus pasos van a los de Cómo medir (la fuente y medir). -->
 <meta http-equiv="refresh" content="0; url=../como-medir/">
 <link rel="canonical" href="../como-medir/">
 <script>
 (() => {
-  const m = /^#paso-(\d+)$/.exec(location.hash), k = { 2: 3, 3: 2 }[m && m[1]];
+  const m = /^#paso-(\d+)$/.exec(location.hash), k = m && +m[1] > 1 ? 2 : 0;
   location.replace('../como-medir/' + (k ? '#paso-' + k : ''));
 })();
 </script>

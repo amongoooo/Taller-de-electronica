@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026063537">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026063945">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026063537"></script>
-<script src="../../assets/banco.js?v=20261026063537"></script>
+<script src="../../assets/sim.js?v=20261026063945"></script>
+<script src="../../assets/banco.js?v=20261026063945"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -227,13 +227,6 @@
     get: () => st.mode, set: v => { st.mode = v; }
   });
   b.start();
-
-  // Pasos que se revisan solos: los dos LEDs encendidos en serie, luego en paralelo y, en paralelo, uno quemado y el
-  // otro todavía encendido (en serie, si uno se quema se apagan los dos).
-  const lit = k => !st.broken[k] && (b.st.m.branch || [])[k] > 1;
-  const STEPS = ['En serie', 'En paralelo', 'Si uno se quema'];
-  Sim.steps(STEPS, () => {}, k => k < 2 ? st.mode === (k ? 'paralelo' : 'serie') && lit(0) && lit(1)
-    : st.mode === 'paralelo' && [0, 1].some(i => st.broken[i] && lit(1 - i)));
 })();
 </script>
 </body>

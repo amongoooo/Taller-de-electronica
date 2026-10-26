@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026063537">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026063945">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026063537"></script>
-<script src="../../assets/osciloscopio.js?v=20261026063537"></script>
+<script src="../../assets/sim.js?v=20261026063945"></script>
+<script src="../../assets/osciloscopio.js?v=20261026063945"></script>
 <script>
 // Diodo y rectificador de media onda (D3 y D4): generador → 1N4007 → R de carga, con o sin el capacitor de filtro
 // en paralelo. El generador y el osciloscopio están en assets/osciloscopio.js.
@@ -84,16 +84,11 @@
     ifull: 5, rValues: Sim.series(1000, 10000), filter: true
   });
 
-  // Pasos que se revisan solos: el diodo en directa (conduce) y en inversa (girado o con el offset negativo: no
-  // conduce), la media onda con la senoidal (conduce en un semiciclo y en el otro no) y el capacitor de filtro puesto.
-  // Cada paso pone sus valores del taller.
-  const STEPS = ['Directa e inversa', 'Media onda', 'Con capacitor'];
-  Sim.steps(STEPS, k => S.apply(k ? AC : DC), k => {
-    const st = S.st;
-    if (k === 0) return seen.dc[0] && seen.dc[1];
-    if (k === 1) return seen.ac[0] && seen.ac[1];
-    return st.on && st.filt && st.wave !== 'dc';
-  });
+  // Pasos que se revisan solos y ponen los valores del taller: el diodo en directa (conduce) y en inversa (girado o con el
+  // offset negativo: no conduce), en DC; y la media onda con la senoidal (conduce en un semiciclo y en el otro no), donde
+  // también se pone el capacitor de filtro.
+  const STEPS = ['Directa e inversa', 'Media onda'];
+  Sim.steps(STEPS, k => S.apply(k ? AC : DC), k => k === 0 ? seen.dc[0] && seen.dc[1] : seen.ac[0] && seen.ac[1]);
 })();
 </script>
 </body>

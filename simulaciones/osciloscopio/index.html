@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026063537">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026063945">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,14 +36,12 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026063537"></script>
-<script src="../../assets/osciloscopio.js?v=20261026063537"></script>
+<script src="../../assets/sim.js?v=20261026063945"></script>
+<script src="../../assets/osciloscopio.js?v=20261026063945"></script>
 <script>
 // LED con el osciloscopio: generador → R → LED. El generador y el osciloscopio están en assets/osciloscopio.js.
 (() => {
   const { X0, X1, TOP, BOT, XR, XL, PATH } = Sim.scope;
-  // Los colores con los que ya encendió el LED (con «-r», girado: en el semiciclo negativo), para los pasos.
-  const seen = new Set();
   const S = Sim.scope({
     // Senoidal de 12 Vpp (6 Vp) a 1 Hz con 470 Ω y el LED rojo: el canal 1 ve el generador y el LED solo prende arriba de 1,8 V.
     preset: { wave: 'sine', freq: 1, amp: 12, off: 0, R: 470, vd: [2, 2], td: 250, ch2: false, probe: [300, 980, 640], side: [-1, -1, 1] },
@@ -58,20 +56,12 @@
       const vf = Sim.led(st.color).vf, sl = st.rev ? -1 : 1;
       if (sl * e <= vf) return { I: 0, i: { s: 0 }, v: { a: e, b: e, g: 0 }, VR: 0 };
       const I = (e - sl * vf) / R * 1000;
-      if (Math.abs(I) > 1) seen.add(st.color + (st.rev ? '-r' : ''));
       return { I, i: { s: I }, v: { a: e, b: sl * vf, g: 0 }, VR: e - sl * vf };
     },
     // Resistencias de 470 Ω para arriba: así nunca pasa de los 30 mA que aguanta el LED (el generador da a lo más
     // 10 V: (10 − 1,8) / 470 = 17 mA). Tampoco se quema: aun sin LED recibe 10² / 470 = 0,21 W, menos de ¼ W.
     ifull: 20, rValues: Sim.series(470, 10000)
   });
-
-  // Pasos que se revisan solos: prender la salida del generador (el LED enciende arriba de su voltaje), prender el
-  // canal 2 (su punta está en el LED: la señal se queda en su voltaje), encenderlo de otro color (necesita otro voltaje)
-  // y girado (enciende en el semiciclo negativo).
-  const STEPS = ['Prender la salida', 'El LED en el canal 2', 'Otro color', 'Al revés'];
-  Sim.steps(STEPS, () => {}, k => k === 0 ? seen.size > 0 : k === 1 ? S.st.on && S.st.led && S.st.chs[1].on
-    : k === 2 ? [...seen].some(c => !c.startsWith('rojo')) : [...seen].some(c => c.endsWith('-r')));
 })();
 </script>
 </body>

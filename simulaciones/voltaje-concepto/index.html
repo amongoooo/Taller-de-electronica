@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026063537">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026063945">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -26,7 +26,7 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026063537"></script>
+<script src="../../assets/sim.js?v=20261026063945"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -249,28 +249,16 @@
   };
 
   // ---------- pasos ----------
-  // 1: la bomba sube la presión; se cumple al cambiarla (con presión). 2: con la válvula cerrada no hay diferencia en
-  // los tramos y nada corre. 3: la tierra se lleva a otro nodo: los números cambian y las alturas no. 4: aparecen los
-  // dos contadores, juntos; se cumple con uno y otro en distintos lugares de la vuelta (antes de R1, entre los tramos o
-  // después de R2). 5: con los dos así, se cumple al cambiar la bomba o un tramo: siguen marcando lo mismo. 6: un tramo
-  // más angosto que al llegar al paso. 7: uno de 6 cm o más. 8: el circuito.
-  const STEPS = ['La bomba sube la presión', 'Sin diferencia no corre', 'La tierra es 0', 'Antes y después', 'No se gasta',
-    'Más angosto, menos pasa', 'Más largo, menos pasa', 'En el circuito'];
-  let area0 = st.area.slice();
+  // Solo los que cambian el dibujo (lo demás se explica en clase y se experimenta): 1, la bomba, los tramos, la válvula
+  // y la tierra (se cumple al cambiar la bomba, con presión); 2, aparecen los dos contadores, juntos (se cumple con uno y
+  // otro en distintos lugares de la vuelta: antes de R1, entre los tramos o después de R2); 3, el circuito.
+  const STEPS = ['Voltaje', 'Corriente y resistencia', 'En el circuito'];
   Sim.steps(STEPS, k => {
-    if (k === 3) besideFirst();
-    showCounters(k >= 3 ? 2 : 0); moved();
-    touchedMove = false; changed = false; area0 = st.area.slice();
-    tb.setView(k === 7 ? 'e' : 'w'); relabel();
-  }, k => [
-    () => changed && st.V > 0,
-    () => st.closed && st.V > 0,
-    () => st.ground !== 'g',
-    straddle,
-    () => straddle() && changed,
-    () => st.area.some((a, i) => a < area0[i]),
-    () => st.len.some(n => n >= 6),
-    tb.done][k]());
+    if (k === 1) besideFirst();
+    showCounters(k >= 1 ? 2 : 0); moved();
+    touchedMove = false; changed = false;
+    tb.setView(k === 2 ? 'e' : 'w'); relabel();
+  }, k => [() => changed && st.V > 0, straddle, tb.done][k]());
 })();
 </script>
 </body>
