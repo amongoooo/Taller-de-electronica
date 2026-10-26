@@ -40,6 +40,9 @@
 //   deskGraph,        alto de una gráfica de la página que en el celular acostado va arriba en la mesa (g.GRAPH:
 //                     [x0, y0, x1, y1], null mientras hay un instrumento abierto)
 //   overlay(ctx, g, m)                    lo que va encima de todo (avisos de la página)
+//   nodeLayout(nodes, comps, g)           acomodo propio de la vista de nodos: pone p de cada nodo (trae plus y
+//                     ground; con out, [dx, dy], hacia dónde prefiere su valor) y mid y a1 de cada componente (c.c es
+//                     el de circuit(); c.A y c.B, sus nodos); con c.tagUp la etiqueta de un componente acostado va arriba
 // })
 // b.st.set es el voltaje de las perillas (st.ch.A, el único canal) y b.vScale() el voltaje de la escala de colores.
 // Vista de nodos (Ver → Dibujo: Circuito | Nodos): los cables se juntan en nodos con su voltaje y solo quedan
@@ -913,6 +916,8 @@
           c.a1 = same ? c.a0 : c.A === P ? Math.atan2(u[1], u[0]) : Math.atan2(-u[1], -u[0]);
         });
       });
+      // La página puede dar su propio acomodo: el lugar de cada nodo (p) y de cada componente (mid, a1).
+      if (o.nodeLayout) o.nodeLayout(nodes, comps, g);
       return { pieces, comps, nodes, plusK, minusK, sig: pieces.map(p => p.pts.length + (p.to ? 'c' : '')).join(',') };
     };
     // Lugar de cada cosa con la transformación en e (0 el circuito de siempre, 1 los nodos).
@@ -2910,6 +2915,7 @@
         const r = el.getBoundingClientRect(), pr = q.box.getBoundingClientRect(), X = v => (v - pr.left - q.ox) / q.scale, Y = v => (v - pr.top - q.oy) / q.scale;
         if (r.width) boxes.push([X(r.left), Y(r.top), X(r.right), Y(r.bottom)]);
       }
+      if (src) boxes.push([g.PX - SRC - 6, g.BOT - SRC - 6, g.PX + SRC + 6, g.BOT + SRC + 6]);   // la bomba (la fuente)
       const gn = net.nodes.find(n => n.ground);
       if (gn) boxes.push([gn.p[0] - 16, gn.p[1] + RN, gn.p[0] + 60, gn.p[1] + RN + 44]);
       const x0 = g.VX + 6, x1 = g.VX + g.W - 6, y0 = b.labelTop[g.side] || 6, y1 = g.BOT + 30;
@@ -2937,7 +2943,8 @@
         const P = c.pose, o = out(P.x, P.y), ext = extOf(c.c, water) + 8;
         const w = D.tagWidth(ctx, tg[0], tg[1], tg[3]);
         const cands = [];
-        for (const s of [1, -1]) for (const slide of [0, -0.5, 0.5, -1, 1, -1.6, 1.6]) for (const more of [0, 24]) {
+        const up = c.tagUp && Math.abs(Math.cos(P.ang)) > 0.7 ? [Math.cos(P.ang) > 0 ? -1 : 1] : [1, -1];
+        for (const s of up) for (const slide of [0, -0.5, 0.5, -1, 1, -1.6, 1.6]) for (const more of [0, 24]) {
           const px = -Math.sin(P.ang) * s, py = Math.cos(P.ang) * s, tx = Math.cos(P.ang), ty = Math.sin(P.ang);
           const off = ext + more + Math.abs(px) * w / 2 + Math.abs(py) * TH / 2;
           cands.push([P.x + px * off + tx * slide * c.half, P.y + py * off + ty * slide * c.half, px * o[0] + py * o[1] - Math.abs(slide) - more / 12]);
@@ -2956,7 +2963,7 @@
       aim.forEach(({ node, a }) => { ctx.save(); ctx.globalAlpha *= a; D.circle(ctx, ...node.p, (water ? RN + 8 : RN) + 4, null, C.sel, 3); ctx.restore(); });
       for (const n of net.nodes) {
         if (n.ground) continue;   // la tierra lleva su símbolo con 0 V
-        const [x, y] = n.p, t = nodeText(n.v, water), o = out(x, y);
+        const [x, y] = n.p, t = nodeText(n.v, water), o = n.out || out(x, y);
         const px = D.font(ctx, 16, Sim.MONO, 600);
         const w = ctx.measureText(t).width + 14, h = Math.round(px * 1.45), cands = [];
         for (let k = 0; k < 16; k++) for (const more of [0, 28, 56]) {

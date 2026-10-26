@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026010334">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026053918">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026010334"></script>
-<script src="../../assets/banco.js?v=20261026010334"></script>
+<script src="../../assets/sim.js?v=20261026053918"></script>
+<script src="../../assets/banco.js?v=20261026053918"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -80,7 +80,7 @@
   // Una resistencia (i: 0 es R1) o, si su lugar está vacío, el lugar punteado (abierto: no pasa nada).
   const comp = (i, at, dV) => {
     const on = st.on[i];
-    return { id: 'R' + (i + 1), at, half: 46, dV, R: on ? st.R[i] : Infinity, pr: on ? pinch[i] : null, ext: on ? 22 : 18,
+    return { id: 'R' + (i + 1), at, half: 46, dV, R: on ? st.R[i] : Infinity, pr: on ? pinch[i] : null, ext: w => w ? 16 : 18,
       tag: on ? () => ['R' + (i + 1), ohm(st.R[i])] : null,
       draw: (ctx, w) => on ? (w ? D.narrow(ctx, ...at, half(st.R[i])) : D.resistor(ctx, ...at)) : ghost(ctx, at, w) };
   };
@@ -126,6 +126,24 @@
       return { I, VB, Ik: [0, 1, 2].map(k => st.on[k + 1] ? VB / st.R[k + 1] * 1000 : 0) };
     },
     circuit: (g, m, V) => segs(g, m, V),
+    // Vista de nodos: A, B y la tierra (C) en una línea con R1 entre A y B; los renglones, acostados entre B y C,
+    // suben de esa línea en el orden de siempre (R2 arriba), y la bomba (fuente) queda abajo sin cruzarlos.
+    nodeLayout(nodes, comps, g) {
+      const A = nodes.find(n => n.plus), Cn = nodes.find(n => n.ground), B = nodes.find(n => n !== A && n !== Cn);
+      if (nodes.length !== 3 || !A || !Cn || !B) return;
+      // la línea arriba de la bomba; R2 puede subir un poco más que TOP (en el celular acostado no cabe de otro modo)
+      const y = Math.min(g.BOT - 70, g.TOP + 180), S = Math.min(90, (y - g.TOP + 15) / 2);
+      // la tierra deja lugar a su lado para «0 V» sin salirse de lo que se ve (en el acostado, sin llegar a la mesa)
+      const right = g.mode === 'lateral' ? g.DESK : g.VX + g.W;
+      A.p = [g.X0, y]; B.p = [g.X0 + 190, y]; Cn.p = [Math.min(g.X1, right - 75), y];
+      B.out = [0, 1];   // su valor abajo: arriba van los renglones y la etiqueta de R1
+      const par = comps.filter(c => c.c.id !== 'R1').sort((p, q) => p.c.id < q.c.id ? -1 : 1);
+      comps.forEach(c => {
+        const j = par.indexOf(c);
+        c.mid = [(c.A.p[0] + c.B.p[0]) / 2, y - (j < 0 ? 0 : par.length - 1 - j) * S];
+        c.a1 = 0; c.tagUp = true;
+      });
+    },
     step(dt, m) {
       // con un multímetro en A haciendo un corto, la vuelta de afuera lleva lo que de verdad da la fuente
       const f = m.I > 0 ? b.flowI(m) / m.I : 1;
