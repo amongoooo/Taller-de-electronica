@@ -1180,10 +1180,9 @@
   const CHECK = '<svg class="ok" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>';
   Sim.ORDER = [
     ['voltaje-concepto', 'Voltaje, corriente y resistencia'],
-    ['nodos', 'Nodos'],
-    ['protoboard', 'Protoboard'],
     ['como-medir', 'Cómo medir'],
-    ['resistencia', 'Ley de Ohm'],
+    ['resistencia', 'Ley de Ohm y nodos'],
+    ['protoboard', 'Protoboard'],
     ['interruptor-led', 'Interruptor y LED'],
     ['serie-paralelo', 'LEDs en serie y paralelo'],
     ['osciloscopio', 'LED y osciloscopio'],
