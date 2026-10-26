@@ -1219,6 +1219,7 @@
     ['botones', 'Botones'],
     ['transistor', 'Transistor'],
     ['transistor-armado', 'Transistor en la protoboard'],
+    ['puente-h', 'Puente H'],
     ['osciloscopio', 'LED y osciloscopio'],
     ['capacitores', 'Capacitores'],
     ['osciloscopio-rc', 'Carga y descarga RC'],

@@ -175,7 +175,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   orden), `branches` (ramas del agua con su corriente), `dots`, `solve(e, h, st)` → corriente, voltaje de cada nodo
   y corriente de cada rama, `ifull`, `rValues`, `burn` y `filter` (el capacitor se pone y se quita en su tarjeta).
   `Sim.oscNow` da su estado para probar (`st.chs`, `st.trg`, `st.m`: las medidas del último barrido).
-- `index.html` (inicio): bloques que siguen el curso (conceptos · armar y medir · señales), miniaturas SVG de cada circuito
+- `index.html` (inicio): bloques que siguen el curso (conceptos · armar y medir · proyecto final · señales), miniaturas SVG de cada circuito
   (`MINI`, piezas en `PIECE`) y «Seguir donde te quedaste» (lee `sim-last`). Sin descripciones.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
   `voltaje-concepto` (Voltaje, corriente y resistencia: los tres conceptos en tres pasos) no usa el banco ni instrumentos: usa
@@ -194,7 +194,11 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   Vce 0,2 V saturado (`solve(V)`: corrientes, voltajes y estado; `model` da `branch` [Ic, Ib, Ibot] para la inercia); son dos
   componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (sin dibujo
   propio: separa el nodo de la base del emisor, para medir Vbe); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
-  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED, cable negro y, al final, el pull-down de 10 kΩ de la tira del pulsador (la 5) al riel − (sin él, con el pulsador suelto y el LED apagado, las tiras 5 y 9 flotan: «sin conexión»). `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `transistor-armado` (Transistor en la protoboard, después de Transistor): transistor en b7–b9 (E, B, C), cable negro del emisor al riel −, 470 Ω del riel + a a10, LED de e10 al colector (e9), cable rojo a la tira 2, 10 kΩ de la base de d2 a d6, pulsador de la tira 6 a la 8 (la base) y el pull-down de 10 kΩ de a8 al riel − (sin él, con el pulsador suelto la base flota: «sin conexión»). `osciloscopio` (LED),
+  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `puente-h` (Puente H, el proyecto final,
+  después de Transistor en la protoboard; dos pasos: «Un lado» y «Los dos sentidos») resuelve con `Sim.nodal` y mueve el motor con
+  `Sim.motor`; se dibuja en su cuadrícula local (`X`, `Y`: columnas de la mitad izquierda, la derecha es su espejo `mx`; renglones
+  relativos a la salida) que `frame(g)` lleva a las coordenadas del banco y achica (`k`) si no cabe en el alto (`NEED`); las etiquetas van
+  en las del banco (para la letra mínima); los dos pulsadores son `b.pushKey`; `Sim.hNow` para probar. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED, cable negro y, al final, el pull-down de 10 kΩ de la tira del pulsador (la 5) al riel − (sin él, con el pulsador suelto y el LED apagado, las tiras 5 y 9 flotan: «sin conexión»). `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `transistor-armado` (Transistor en la protoboard, después de Transistor): transistor en b7–b9 (E, B, C), cable negro del emisor al riel −, 470 Ω del riel + a a10, LED de e10 al colector (e9), cable rojo a la tira 2, 10 kΩ de la base de d2 a d6, pulsador de la tira 6 a la 8 (la base) y el pull-down de 10 kΩ de a8 al riel − (sin él, con el pulsador suelto la base flota: «sin conexión»). `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -293,8 +297,9 @@ Armado en protoboard (aprobado; con agua, una página aparte después de cada si
 Proyecto final: Puente H (después de Transistor en la protoboard, antes del bloque de señales; un PR por casilla, en este orden):
 - [x] Física común: `Sim.nodal` en `assets/sim.js` (la red de nodos de la protoboard, que da lo mismo que antes), el PNP 2N2907 y
   el motor de CD (`Sim.motor`).
-- [ ] **Puente H** (`simulaciones/puente-h/`, con `Sim.bench`): dos medios puentes complementarios (PNP arriba, NPN abajo), cada
-  entrada con su pulsador al + y su pull-down; el motor en medio (en el agua, una turbina con volante). Medible con los multímetros.
+- [x] **Puente H** (`simulaciones/puente-h/`, con `Sim.bench`): dos medios puentes complementarios (PNP arriba, NPN abajo, bases a
+  su entrada por 4,7 kΩ y 1 kΩ), cada entrada con su pulsador al + y su pull-down de 470 Ω (con 10 kΩ y 1 kΩ en las dos bases, como se pidió primero, la base
+  del PNP sube la entrada a casi 3 V y prende también el NPN); el motor en medio (en el agua, una turbina con volante). Medible con los multímetros.
 - [ ] **Puente H en la protoboard** (`simulaciones/puente-h-armado/`): piezas `pnp` y `motor` (fuera de la protoboard, con sus dos
   cables), un paso por pieza.
 

@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Puente H · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026222503">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Puente H</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="0">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con cuatro compuertas y una turbina con volante en medio, que gira para un lado o para el otro según la válvula que se aprieta"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Puente H con dos transistores PNP 2N2907 arriba, dos NPN 2N2222 abajo y un motor de CD en medio, con un pulsador en cada entrada"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261026222503"></script>
+<script src="../../assets/banco.js?v=20261026222503"></script>
+<script>
+(() => {
+  const { C, draw: D } = Sim;
+  // Puente H, el proyecto final: un motor de CD que gira para un lado o para el otro con dos pulsadores. Cada lado del
+  // motor va a un medio puente: un PNP 2N2907 arriba (su emisor al +) y un NPN 2N2222 abajo (su emisor a la tierra), con
+  // los colectores juntos en la salida, que va al motor. Sus bases van a la entrada de su lado, cada una por su
+  // resistencia: 4,7 kΩ la del PNP y 1 kΩ la del NPN. La entrada tiene su pulsador al + y su pull-down de 470 Ω.
+  //   Suelto: la entrada en casi 0 V (lo poco que da la base del PNP baja por el pull-down: 0,5 V con 6 V), el NPN en
+  //     corte y el PNP saturado: la salida en el +. Apretado: la entrada en el +, el PNP en corte y el NPN saturado: la
+  //     salida en 0. Los dos sueltos (o los dos apretados): las dos salidas iguales, el motor sin voltaje y frenado
+  //     (girando, su fuerza contraelectromotriz lo frena por los transistores saturados, que conducen en los dos
+  //     sentidos). Uno apretado: gira para un lado; el otro, para el otro.
+  //   El pull-down tiene que ser mucho más chico que la base del PNP: con 10 kΩ la corriente de la base del PNP sube la
+  //   entrada a 1,4 V y prende también el NPN (los dos de un lado conducen del + a la tierra, unos 80 mA); con 1 kΩ en
+  //   las dos bases, a casi 3 V, y se queman.
+  // Con 6 V (el motor es de 6 V) el PNP deja pasar a lo más β · Ib ≈ 100 mA: el arranque (300 mA parado con 6 V) queda
+  // limitado y en un rato el motor llega a unas 3300 rpm con unos 24 mA (Sim.motor). Todo se resuelve con Sim.nodal.
+  // En el agua cada transistor es una compuerta (como en Transistor): la del PNP es la misma volteada, con el chorrito de
+  // su base saliendo del lado del emisor; el motor es una turbina con su volante.
+  // Dos pasos, los que cambian el dibujo: «Un lado» (un medio puente con el motor a la tierra: suelto gira, apretado se
+  // frena) y «Los dos sentidos» (el puente completo).
+  const RW = 0.05;
+  // Todo se dibuja en una cuadrícula propia (local), con la salida del lado izquierdo en y = 0, y se escala (k) si el
+  // circuito no cabe en el alto que da el banco. Columnas de la mitad izquierda; la derecha es su espejo (800 − x):
+  // E el + (la orilla), B el pulsador, D la bajada del pull-down, I la de las resistencias de las bases, Q los
+  // transistores y M el motor. Renglones: T el + de arriba, P los PNP, N los NPN, G la tierra y B el cable de abajo (el
+  // de la fuente).
+  const X = { E: 150, B: 186, D: 240, I: 284, Q: 350, M: 400 };
+  const Y = { T: -180, P: -120, N: 120, G: 235, B: 295 };
+  const NEED = Y.B - Y.T + 22, SRC = 40;   // SRC: medio ancho de la fuente del banco
+  const PDY = Y.G / 2 + 6;   // el pull-down, en medio de su bajada
+  const parts = { L: {}, R: {} };   // las tarjetas (ver más abajo)
+  const mx = (x, k) => k === 'L' ? x : 800 - x;
+  const frame = g => {
+    const top = Math.min(g.TOP, 96), k = Math.min(1, (g.BOT - top) / NEED);   // arriba a la izquierda no hay nada del banco
+    return { k, at: (x, y) => [400 + k * (x - 400), g.BOT + k * (y - Y.B)] };
+  };
+
+  // ---------- estado ----------
+  // Cada lado (L y R): su pulsador (type, press, key), sus resistencias (rp la de la base del PNP, rn la del NPN y rd el
+  // pull-down) y sus transistores (P y N; Sim.nodal guarda ahí su estado). Cada pieza con su calor (h) y si se quemó.
+  const RES = { rp: 4700, rn: 1000, rd: 470 };
+  const piece = (x = {}) => ({ burnt: false, burnT: 9, ...x });
+  const half = () => ({ type: 'na', press: false,
+    rp: piece({ R: RES.rp, h: Sim.heat(Sim.HEAT.res) }), rn: piece({ R: RES.rn, h: Sim.heat(Sim.HEAT.res) }), rd: piece({ R: RES.rd, h: Sim.heat(Sim.HEAT.res) }),
+    P: piece({ h: Sim.heat(Sim.HEAT.bjt), u: 0, q: 'corte' }), N: piece({ h: Sim.heat(Sim.HEAT.bjt), u: 0, q: 'corte' }) });
+  const st = { step: 0, L: half(), R: half(), seen: {} };
+  const mot = Sim.motor();
+  mot.burnt = false; mot.burnT = 9;
+  const sides = () => st.step ? ['L', 'R'] : ['L'];
+  const closed = S => S.press !== (S.type === 'nc');
+
+  // El circuito con V en el +: voltajes de los nodos y corrientes (mA) de cada lado: btn (del + a la entrada), pd (de
+  // la entrada a la tierra), bp (la que sale de la base del PNP), bn (la que entra a la del NPN), cp (la que sale del
+  // colector del PNP), cn (la que entra al del NPN); im la del motor (de la salida izquierda a la derecha) e I la de la
+  // fuente.
+  function solve(V) {
+    const src = { a: 'p', b: 'gnd', V, R: 0.001 }, els = [src], E = {};
+    for (const k of sides()) {
+      const S = st[k], e = E[k] = {};
+      const add = (key, x) => { e[key] = x; els.push(x); };
+      if (closed(S)) add('btn', { a: 'p', b: 'in' + k, R: RW });
+      if (!S.rd.burnt) add('rd', { a: 'in' + k, b: 'gnd', R: S.rd.R });
+      if (!S.rp.burnt) add('rp', { a: 'in' + k, b: 'bp' + k, R: S.rp.R });
+      if (!S.rn.burnt) add('rn', { a: 'in' + k, b: 'bn' + k, R: S.rn.R });
+      if (!S.P.burnt) els.push({ type: 'pnp', e: 'p', b: 'bp' + k, c: 'o' + k, s: S.P });
+      else Object.assign(S.P, { Ib: 0, Ic: 0, q: 'corte', be: false });
+      if (!S.N.burnt) els.push({ type: 'npn', c: 'o' + k, b: 'bn' + k, e: 'gnd', s: S.N });
+      else Object.assign(S.N, { Ib: 0, Ic: 0, q: 'corte', be: false });
+    }
+    const m = mot.burnt ? null : { a: 'oL', b: st.step ? 'oR' : 'gnd', R: mot.R, E: mot.E };
+    if (m) els.push(m);
+    const r = Sim.nodal(els, { ground: 'gnd', nodes: ['p'] });
+    const out = { I: src.I, V, v: r.v, im: m ? m.I : 0 };
+    for (const k of sides()) {
+      const S = st[k], e = E[k], I = x => x ? x.I : 0;
+      out[k] = { btn: I(e.btn), pd: I(e.rd), bp: -I(e.rp), bn: I(e.rn), cp: S.P.Ic, cn: S.N.Ic, qp: S.P.q, qn: S.N.q,
+        vin: r.v('in' + k), vbp: r.v('bp' + k), vbn: r.v('bn' + k), vo: r.v('o' + k) };
+    }
+    return out;
+  }
+
+  // ---------- los tramos (en la cuadrícula local) ----------
+  // Cada uno { id, pts, I (mA en el sentido del recorrido), v0, comps: [{ id, at, half, dV, R, pr, ext }] }; el banco
+  // los recibe en sus coordenadas (circuit). s: la solución.
+  function segs(s, V) {
+    const src = SRC / curK, list = [];
+    const seg = (id, pts, I, v0, comps = []) => list.push({ id, pts, I, v0, comps });
+    const L = s.L;
+    // el + : de la fuente a la orilla izquierda, que sube al + de arriba
+    seg('pin', [[400 - src, Y.B], [X.E, Y.B], [X.E, 0]], s.I, V);
+    seg('pup', [[X.E, 0], [X.E, Y.T], [X.Q, Y.T]], s.I - L.btn, V);
+    const R = s.R;
+    if (st.step) {
+      seg('ptop', [[X.Q, Y.T], [mx(X.Q, 'R'), Y.T]], s.I - L.btn - L.cp - L.bp, V);
+      seg('pdown', [[mx(X.Q, 'R'), Y.T], [mx(X.E, 'R'), Y.T], [mx(X.E, 'R'), 0]], R.btn, V);
+    }
+    for (const k of sides()) {
+      const S = st[k], q = s[k], x = v => mx(v, k), xq = x(X.Q), xi = x(X.I), xd = x(X.D), sg = k === 'L' ? 1 : -1;
+      const yPe = Y.P - 40, yPc = Y.P + 40, yNc = Y.N - 40, yNe = Y.N + 40;
+      const pIn = [[xq, yPe], [xq - 20 * sg, Y.P], [xq - 44 * sg, Y.P]], nIn = [[xq - 44 * sg, Y.N], [xq - 20 * sg, Y.N], [xq, yNe]];
+      seg('eP' + k, [[xq, Y.T], [xq, yPe]], q.cp + q.bp, V);
+      seg('cP' + k, [[xq, yPe], [xq, yPc]], q.cp, V, [{ id: 'P' + k, at: [xq, Y.P], half: 40, dV: V - q.vo, R: Infinity, pr: parts[k].P, ext: w => w ? 50 : 36 }]);
+      seg('bP' + k, [...pIn, [xi, Y.P], [xi, 0]], q.bp, V, [
+        { id: 'EB' + k, at: D.pointAt(pIn, D.len(pIn) / 2), half: D.len(pIn) / 2, dV: V - q.vbp },
+        { id: 'rp' + k, at: [xi, (Y.P + 0) / 2], half: 46, dV: q.vbp - q.vin, R: S.rp.burnt ? Infinity : S.rp.R, pr: parts[k].rp, ext: 20 }]);
+      seg('o' + k, [[xq, yPc], [xq, 0]], q.cp, q.vo);
+      seg('cN' + k, [[xq, 0], [xq, yNc]], q.cn, q.vo);
+      seg('ceN' + k, [[xq, yNc], [xq, yNe]], q.cn, q.vo, [{ id: 'N' + k, at: [xq, Y.N], half: 40, dV: q.vo, R: Infinity, pr: parts[k].N, ext: w => w ? 50 : 36 }]);
+      seg('bN' + k, [[xi, 0], [xi, Y.N], ...nIn], q.bn, q.vin, [
+        { id: 'rn' + k, at: [xi, Y.N / 2], half: 46, dV: q.vin - q.vbn, R: S.rn.burnt ? Infinity : S.rn.R, pr: parts[k].rn, ext: 20 },
+        { id: 'BE' + k, at: D.pointAt(nIn, D.len(nIn) / 2), half: D.len(nIn) / 2, dV: q.vbn }]);
+      seg('eN' + k, [[xq, yNe], [xq, Y.G]], q.cn + q.bn, 0);
+      seg('btn' + k, [[x(X.E), 0], [xd, 0]], q.btn, V, [{ id: 'S' + k, at: [x(X.B), 0], half: 28, dV: closed(S) ? 0 : V - q.vin,
+        R: closed(S) ? 0 : Infinity, pr: parts[k].S, ext: w => w ? 30 : 22 }]);
+      seg('in' + k, [[xd, 0], [xi, 0]], q.btn - q.pd, q.vin);
+      seg('pd' + k, [[xd, 0], [xd, Y.G]], q.pd, q.vin, [{ id: 'rd' + k, at: [xd, PDY], half: 46, dV: q.vin, R: S.rd.burnt ? Infinity : S.rd.R, pr: parts[k].rd, ext: 20 }]);
+    }
+    // el motor, en medio (en el paso 1, su otro lado baja a la tierra)
+    const xr = mx(X.Q, 'R'), vr = st.step ? R.vo : 0, Im = s.im;
+    seg('mot', [[X.Q, 0], [xr, 0]], Im, L.vo, [{ id: 'M', at: [X.M, 0], half: 30, dV: L.vo - vr, R: mot.burnt ? Infinity : mot.R, pr: parts.M, ext: w => w ? 40 : 30 }]);
+    // la tierra
+    seg('g1', [[X.D, Y.G], [X.Q, Y.G]], L.pd, 0);
+    const iL = L.pd + L.cn + L.bn;
+    if (st.step) {
+      seg('g2', [[X.Q, Y.G], [xr, Y.G]], iL, 0);
+      seg('g3', [[xr, Y.G], [mx(X.D, 'R'), Y.G]], iL + R.cn + R.bn, 0);
+    } else {
+      seg('md', [[xr, 0], [xr, Y.G]], Im, 0);
+      seg('g2', [[X.Q, Y.G], [xr, Y.G]], iL, 0);
+      seg('g3', [[xr, Y.G], [mx(X.D, 'R'), Y.G]], iL + Im, 0);
+    }
+    seg('gout', [[mx(X.D, 'R'), Y.G], [mx(X.D, 'R'), Y.B], [400 + src, Y.B]], s.I, 0);
+    return list;
+  }
+  let curK = 1;
+
+  // El agua de cada tramo (Sim.stream: avanza con su fase); se arma de nuevo si el tramo cambia.
+  const streams = new Map(), phase = { w: {}, e: {} };
+  const narrowH = R => Math.max(3, Math.min(Sim.PIPE - 3, Sim.PIPE - 3 - 7 * Math.log(R / 100) / Math.log(1000)));
+  const profOf = sg => {
+    const fs = [];
+    for (const c of sg.comps) if (c.id.startsWith('r')) {
+      const S = st[c.id.slice(2)], R = S[c.id.slice(0, 2)].R;
+      fs.push(Sim.narrowProfile(D.project(sg.pts, ...c.at).d, narrowH(R)));
+    }
+    return fs.length ? Sim.profile(...fs) : () => Sim.PIPE;
+  };
+  const streamOf = sg => {
+    const key = JSON.stringify(sg.pts) + sg.comps.filter(c => c.id.startsWith('r')).map(c => c.id + st[c.id.slice(2)][c.id.slice(0, 2)].R).join();
+    let w = streams.get(sg.id);
+    if (!w || w.key !== key) { w = { key, sim: Sim.stream(sg.pts, profOf(sg)) }; streams.set(sg.id, w); }
+    return w.sim;
+  };
+  const K = 10, CAP = 40;   // rapidez de las partículas por mA, con un tope para que se vean
+  const rate = I => Math.sign(I) * Math.min(Math.abs(I), CAP) * K;
+
+  // ---------- el banco ----------
+  const toWorld = (g, list) => {
+    const F = frame(g);
+    return list.map(sg => ({ ...sg, pts: sg.pts.map(p => F.at(...p)),
+      comps: sg.comps.map(c => ({ ...c, at: F.at(...c.at), half: c.half * F.k,
+        ext: typeof c.ext === 'function' ? (w => c.ext(w) * F.k) : (c.ext || 0) * F.k })) }));
+  };
+  let drawn = [];
+  const b = Sim.bench({
+    iFull: 100, v0: 6, lim0: 500, nodes: false, tall: NEED, head: 12,
+    layout() { streams.clear(); },
+    model(V) { return solve(V); },
+    circuit: (g, m, V) => { curK = frame(g).k; return toWorld(g, segs(m.L ? m : solve(V), V)); },
+    step(dt, m) {
+      const s = m.L ? m : solve(b.st.vo), V = b.st.vo, kk = b.st.short ? b.flowI(m) / Math.max(1e-9, m.I) : 1;
+      for (const k of sides()) {
+        const S = st[k], q = s[k];
+        S.key.step(dt);
+        // calor: las resistencias con I²·R y los transistores con Vce · Ic + Vbe · Ib
+        const burn = (p, P) => { if (p.h.step(p.burnt ? 0 : P, dt) && !p.burnt) { p.burnt = true; p.burnT = 0; b.halt(); b.refresh(); } p.burnT += dt; };
+        burn(S.rp, (q.bp / 1000) ** 2 * S.rp.R);
+        burn(S.rn, (q.bn / 1000) ** 2 * S.rn.R);
+        burn(S.rd, (q.pd / 1000) ** 2 * S.rd.R);
+        burn(S.P, ((V - q.vo) * q.cp + (V - q.vbp) * q.bp) / 1000);
+        burn(S.N, (q.vo * q.cn + q.vbn * q.bn) / 1000);
+        // la compuerta: abierta del todo saturado y, activo, según lo que deja pasar
+        for (const [T, Ic, vce] of [[S.P, q.cp, V - q.vo], [S.N, q.cn, q.vo]]) {
+          const u = T.burnt || T.q === 'corte' ? 0 : T.q === 'saturado' ? 1 : Math.max(0.15, Math.min(0.9, 1 - vce / Math.max(1, Math.abs(V))));
+          T.u = Sim.REDUCE.matches ? u : T.u + (u - T.u) * (1 - Math.exp(-dt / 0.08));
+        }
+      }
+      if (mot.burnt) { mot.w = 0; mot.burnT += dt; }
+      else if (mot.step(s.im * kk, dt)) { mot.burnt = true; mot.burnT = 0; b.halt(); b.refresh(); }
+      for (const side of ['w', 'e']) for (const sg of segs(s, V)) phase[side][sg.id] = (phase[side][sg.id] || 0) + rate(sg.I * kk) * dt;
+      seen(s);
+    },
+    drawW: (ctx, g, m) => draw(ctx, g, m, true),
+    drawE: (ctx, g, m) => draw(ctx, g, m, false)
+  });
+
+  // ---------- dibujo ----------
+  function draw(ctx, g, m, w) {
+    const s = m.L ? m : solve(b.st.vo), V = b.st.vo, F = frame(g);
+    curK = F.k;
+    const list = drawn = segs(s, V);
+    const f0 = Sim.field;
+    ctx.save();
+    ctx.translate(400 - 400 * F.k, g.BOT - Y.B * F.k); ctx.scale(F.k, F.k);
+    Sim.field = (x, y) => f0(...F.at(x, y));
+    if (w) {
+      list.forEach(sg => D.pipe(ctx, sg.pts));
+      for (const k of sides()) for (const [key, x, y, vert] of [['rp', X.I, Y.P / 2, true], ['rn', X.I, Y.N / 2, true], ['rd', X.D, PDY, true]]) {
+        narrowV(ctx, mx(x, k), y, narrowH(st[k][key].R));
+      }
+      list.forEach(sg => streamOf(sg).draw(ctx, phase.w[sg.id] || 0, rate(sg.I)));
+    } else {
+      list.forEach(sg => D.wire(ctx, sg.pts));
+      list.forEach(sg => D.flow(ctx, sg.pts, phase.e[sg.id] || 0, C.charge, { gap: 30, r: 4.5 }));
+    }
+    for (const k of sides()) {
+      const S = st[k];
+      for (const [key, x, y] of [['rp', X.I, Y.P / 2], ['rn', X.I, Y.N / 2], ['rd', X.D, PDY]]) drawRes(ctx, w, mx(x, k), y, S[key]);
+      drawQ(ctx, w, k, 'P'); drawQ(ctx, w, k, 'N');
+      D.pushButton(ctx, mx(X.B, k), 0, w, S.key.draw(S.type === 'nc'));
+      if (!w) for (const [x, y] of [[X.D, 0], [X.I, 0], [X.Q, 0]]) D.circle(ctx, mx(x, k), y, 5, C.ink);
+    }
+    if (!w) {
+      D.circle(ctx, X.E, 0, 5, C.ink);
+      if (st.step) { D.circle(ctx, mx(X.Q, 'R'), Y.T, 5, C.ink); D.circle(ctx, mx(X.D, 'R'), Y.G, 5, C.ink); }
+      D.circle(ctx, X.Q, Y.T, 5, C.ink); D.circle(ctx, X.Q, Y.G, 5, C.ink); D.circle(ctx, mx(X.Q, 'R'), Y.G, 5, C.ink);
+    }
+    drawMotor(ctx, w);
+    Sim.field = f0;
+    ctx.restore();
+    labels(ctx, g, F, w, s);
+  }
+  // Un tramo angosto de pie (en el agua) o una resistencia de pie (en la electricidad).
+  const narrowV = (ctx, x, y, hn) => { ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 2); D.narrow(ctx, 0, 0, hn); ctx.restore(); };
+  function drawRes(ctx, w, x, y, p) {
+    if (!w && !p.burnt) D.heatGlow(ctx, x, y, p.h.glow);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 2);
+    if (w) { D.burstPipe(ctx, 0, 0, narrowH(p.R), p.burnT, p.burnt, p.h.glow, ''); ctx.restore(); return; }
+    D.resistor(ctx, 0, 0);
+    if (p.burnt) D.burntResistor(ctx, 0, 0, p.burnT, '');
+    ctx.restore();
+  }
+  // El transistor de un lado (k) y de arriba (P, el PNP) o de abajo (N, el NPN), en (Q, P) o (Q, N). En el agua, la
+  // compuerta de Transistor: el paso grande de arriba abajo y la compuerta roja en su ranura del lado del colector; el
+  // chorrito de la base entra (NPN) o sale (PNP) por el lado de afuera, del lado del emisor; la del PNP es la del NPN
+  // volteada. En la electricidad, su símbolo con la base afuera: la flecha del emisor sale en el NPN y entra en el PNP.
+  const GATE = 0.8;   // las compuertas, un poco más chicas que la de Transistor (aquí van cuatro)
+  function drawQ(ctx, w, k, t) {
+    const T = st[k][t], x = mx(X.Q, k), y = t === 'P' ? Y.P : Y.N, u = T.burnt ? 0 : T.u, sx = k === 'L' ? 1 : -1, sy = t === 'P' ? -1 : 1;
+    if (!T.burnt) D.heatGlow(ctx, x - 4 * sx, y, T.h.glow, w ? 60 : 56);
+    ctx.save(); ctx.translate(x, y);
+    if (w) {
+      const M0 = ctx.getTransform();
+      ctx.scale(sx * GATE, sy * GATE);
+      D.roundRect(ctx, -48, -46, 96, 90, 9, C.metal, T.burnt ? C.danger : C.ink, 2.5);
+      ctx.fillStyle = C['water-soft'];
+      ctx.fillRect(-10, -46, 20, 90); ctx.fillRect(-48, -5, 38, 10);
+      ctx.fillStyle = C.pipe;
+      ctx.fillRect(10, -37, 34, 22); ctx.fillRect(-42, -31, 32, 26);
+      // el agua de adentro: el paso grande y el chorrito de la base
+      ctx.save();
+      ctx.beginPath(); ctx.rect(-10, -46, 20, 90); ctx.rect(-48, -5, 38, 10);
+      ctx.setTransform(M0); ctx.translate(-x, -y); ctx.clip();
+      for (const id of t === 'P' ? ['cP' + k, 'bP' + k] : ['ceN' + k, 'bN' + k]) {
+        const sg = drawn.find(q => q.id === id);
+        if (sg) streamOf(sg).draw(ctx, phase.w[sg.id] || 0, rate(sg.I));
+      }
+      ctx.restore();
+      const s = 21 * u, xp = -38 + s, gx = -11 + s;
+      const n = 6, x1 = 43, sp = [[gx + 22, -26]];
+      for (let i = 0; i < n; i++) sp.push([gx + 22 + (x1 - gx - 22) * (i + 0.5) / n, -26 + (i % 2 ? 7 : -7)]);
+      sp.push([x1, -26]);
+      D.line(ctx, sp, 2, C.ink);
+      D.roundRect(ctx, gx, -36, 22, 20, 2, C.danger, C.ink, 1.5);
+      D.line(ctx, [[xp, -3], [xp, -26], [gx, -26]], 3.5, C.ink);
+      D.roundRect(ctx, xp - 3, -7, 6, 10, 1.5, C.ink);
+      ctx.restore();
+      if (T.burnt) D.smoke(ctx, x, y - 46 * GATE, T.burnT);
+      return;
+    }
+    ctx.scale(sx, 1);
+    D.circle(ctx, -6, 0, 31, C.card, T.burnt ? C.danger : C.ink, 2.5);
+    D.line(ctx, [[-44, 0], [-20, 0]], 4, C.ink);
+    D.line(ctx, [[-20, -16], [-20, 16]], 5, C.ink, 'butt');
+    D.line(ctx, [[-20, -7], [0, -22], [0, -40]], 3.5, C.ink);
+    D.line(ctx, [[-20, 7], [0, 22], [0, 40]], 3.5, C.ink);
+    // la flecha del emisor: abajo y hacia afuera en el NPN; arriba y hacia la base en el PNP
+    if (t === 'N') D.arrow(ctx, -5, 7 + 15 * 0.75, Math.atan2(15, 20), 8, C.ink);
+    else D.arrow(ctx, -13, -12.25, Math.atan2(15, -20), 8, C.ink);
+    if (T.burnt) {
+      ctx.fillStyle = 'rgba(30, 20, 15, 0.55)'; ctx.beginPath(); ctx.ellipse(-6, 0, 18, 14, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    if (T.burnt) D.smoke(ctx, x - 6 * sx, y - 20, T.burnT);
+  }
+  // El motor en (M, 0). En el agua, una turbina con su volante: la caja, el agua y las aspas adentro, y el aro pesado
+  // del volante con sus marcas, que gira con las aspas. En la electricidad, su símbolo (un círculo con M). Girando, una
+  // flecha arriba dice para dónde (su etiqueta va abajo).
+  function drawMotor(ctx, w) {
+    const x = X.M, y = 0, om = mot.w * mot.show, a = mot.ang;
+    if (!mot.burnt) D.heatGlow(ctx, x, y, mot.heat.glow, 50);
+    if (w) {
+      D.circle(ctx, x, y, 31, C.metal, mot.burnt ? C.danger : C.ink, 2.5);
+      D.circle(ctx, x, y, 25, C.ink);
+      D.circle(ctx, x, y, 20, C['water-soft']);
+      for (let i = 0; i < 6; i++) {
+        const f = a + i * Math.PI / 3;
+        D.circle(ctx, x + 22.5 * Math.cos(f), y + 22.5 * Math.sin(f), 2, C.metal);
+      }
+      if (mot.burnt) D.rotor(ctx, x, y, 6, 0.4, 0, 4, C.muted);
+      else D.rotor(ctx, x, y, 16, a, om, 4, C.water);
+      D.circle(ctx, x, y, 4.5, C.ink);
+    } else {
+      D.circle(ctx, x, y, 24, C.card, mot.burnt ? C.danger : C.ink, 3);
+      ctx.save();
+      ctx.font = `700 26px ${Sim.FONT}`; ctx.fillStyle = mot.burnt ? C.danger : C.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('M', x, y + 1);
+      ctx.restore();
+    }
+    if (!mot.burnt && Math.abs(mot.rpm) > 60) {
+      const r = w ? 40 : 33, dir = Math.sign(mot.w), a0 = -Math.PI / 2 - 0.55, a1 = -Math.PI / 2 + 0.55;
+      ctx.save(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.muted; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(x, y, r, a0, a1); ctx.stroke(); ctx.restore();
+      const e = dir > 0 ? a1 : a0;
+      D.arrow(ctx, x + r * Math.cos(e), y + r * Math.sin(e), e + dir * Math.PI / 2, 7, C.muted);
+    }
+    if (mot.burnt) D.smoke(ctx, x, y - 24, mot.burnT);
+  }
+
+  // ---------- etiquetas (en las coordenadas del banco, para que no bajen de 14 px) ----------
+  const STATE = { corte: ['en corte', 'cerrada'], activo: ['activo', 'a medias'], saturado: ['saturado', 'abierta'] };
+  const ohm = Sim.ohm;
+  const motorState = (w, s) => {
+    if (mot.burnt) return w ? 'rota' : 'quemado';
+    if (Math.abs(mot.rpm) > 60) return mot.w > 0 ? 'horario' : 'antihorario';
+    const vr = st.step ? s.R.vo : 0;
+    return b.st.on && Math.abs(b.st.vo) > 0.5 && Math.abs(s.L.vo - vr) < 0.3 ? 'frenado' : 'parado';
+  };
+  function labels(ctx, g, F, w, s) {
+    const at = F.at, open = pr => !!(pr && pr.open && pr.open());
+    for (const k of sides()) {
+      const S = st[k], P = parts[k], left = k === 'L', al = left ? 'right' : 'left', sg = left ? 1 : -1;
+      // el pulsador, arriba de su tapa
+      const [bx, by] = at(mx(X.B, k), w ? -84 : -58);
+      D.tag(ctx, bx, by, w ? 'válvula' : 'pulsador', w ? '' : S.type.toUpperCase(), { sel: open(P.S),
+        state: closed(S) ? (w ? 'abierta' : 'cerrado') : (w ? 'cerrada' : 'abierto') });
+      // las resistencias: la de la base del PNP y el pull-down del lado de afuera; la de la base del NPN del de adentro
+      const rTag = (p, pr, x, y, inside) => {
+        const [tx, ty] = at(x, y), t = p.burnt ? (w ? 'reventado' : 'quemada') : '', nm = w ? 'tramo angosto' : 'resistencia';
+        const tw = D.tagWidth(ctx, nm, ohm(p.R), t), dir = (inside ? 1 : -1) * sg, off = 22 * F.k + 4;
+        D.tag(ctx, dir > 0 ? tx + off : tx - off - tw, ty, nm, ohm(p.R), { sel: open(pr), danger: p.burnt, state: t, align: 'left' });
+      };
+      rTag(S.rp, P.rp, mx(X.I, k), -30, false);
+      rTag(S.rn, P.rn, mx(X.I, k), 42, true);
+      rTag(S.rd, P.rd, mx(X.D, k), PDY - 30, false);
+      // los transistores: su nombre y abajo su estado; el PNP afuera, a la izquierda de su base, y el NPN abajo, a un lado
+      // de su emisor
+      const qTag = (T, pr, name, x, y) => {
+        const [tx, ty] = at(x, y), px = Sim.px(14, ctx), st2 = T.burnt ? (w ? 'rota' : 'quemado') : STATE[T.q || 'corte'][w ? 1 : 0];
+        const nm = w ? (Sim.names() ? 'compuerta' : '') : 'transistor', nw = nm ? D.tagWidth(ctx, nm, w ? '' : name, '') : 0, pw = D.tagWidth(ctx, '', '', st2);
+        const wd = Math.max(nw, pw), x0 = left ? tx - wd : tx;
+        if (nw) D.tag(ctx, x0 + (left ? wd - nw : 0), ty - 0.8 * px, nm, w ? '' : name, { sel: open(pr), align: 'left' });
+        D.tag(ctx, x0 + (left ? wd - pw : 0), nw ? ty + 0.85 * px : ty, '', '', { state: st2, danger: T.burnt, sel: open(pr), align: 'left' });
+      };
+      qTag(S.P, P.P, '2N2907', mx(X.I - 24, k), Y.P - 18);
+      qTag(S.N, P.N, '2N2222', mx(X.Q - 22, k), Y.N + 72);
+    }
+    const [mxx, my] = at(X.M, 54);
+    D.tag(ctx, mxx, my, w ? 'turbina' : 'motor', '6 V', { sel: open(parts.M), danger: mot.burnt, state: motorState(w, s) });
+  }
+
+  // ---------- tarjetas ----------
+  const shownSide = () => Sim.view === 'w' ? 'w' : 'e';
+  // Un componente que se toca: su lugar (en la cuadrícula local) y su ancho y alto para tocarlo.
+  const partAt = (k, x, y, wd, ht, menu, label, when = () => true) => {
+    let pr = null;
+    pr = b.part({ pos: g => {
+      if (!when()) return [-999, -999];
+      const F = frame(g), p = g.side === 'w' ? b.pw : b.pe;
+      pr && pr.els.forEach(el => { el.style.width = Math.max(40, wd * F.k * p.scale) + 'px'; el.style.height = Math.max(40, ht * F.k * p.scale) + 'px'; el.style.aspectRatio = 'auto'; });
+      return F.at(mx(x, k), y);
+    }, label, menu });
+    return pr;
+  };
+  const RVALUES = Sim.series(100, 100000);
+  for (const k of ['L', 'R']) {
+    const S = st[k], when = () => k === 'L' || st.step === 1, side = k === 'L' ? 'izquierda' : 'derecha';
+    const resPart = (key, x, y, title) => {
+      const p = S[key], renew = () => { p.burnt = false; p.h.reset(); p.burnT = 9; };
+      const menu = Sim.resistorMenu({ values: RVALUES, get: () => p.R, set: R => { p.R = R; }, format: ohm, heat: p.h, broken: () => p.burnt,
+        actions: sd => [{ text: sd === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !p.burnt, onClick: renew }] });
+      parts[k][key] = partAt(k, x, y, 40, 96, sd => { const m = menu(sd); m.title = title(sd); return m; },
+        sd => title(sd), when);
+    };
+    resPart('rp', X.I, Y.P / 2, sd => (sd === 'w' ? 'Tramo de la compuerta de arriba, ' : 'Resistencia de la base del PNP, ') + side);
+    resPart('rn', X.I, Y.N / 2, sd => (sd === 'w' ? 'Tramo de la compuerta de abajo, ' : 'Resistencia de la base del NPN, ') + side);
+    resPart('rd', X.D, PDY, sd => (sd === 'w' ? 'Tramo de la entrada, ' : 'Pull-down, ') + side);
+    for (const [t, name] of [['P', '2N2907'], ['N', '2N2222']]) {
+      const T = S[t], renew = () => { T.burnt = false; T.h.reset(); T.burnT = 9; };
+      const title = sd => (sd === 'w' ? 'Compuerta de ' + (t === 'P' ? 'arriba' : 'abajo') : 'Transistor ' + name) + ', ' + side;
+      parts[k][t] = partAt(k, X.Q, t === 'P' ? Y.P : Y.N, 80, 76, sd => ({ title: title(sd), rows: [Sim.powerRow(T.h, sd, { broken: () => T.burnt, what: 'led' }),
+        { actions: [{ text: sd === 'w' ? 'Poner una compuerta nueva' : 'Poner un transistor nuevo', hidden: () => !T.burnt, onClick: renew }] }] }), title, when);
+    }
+    // el pulsador: su tapa es un mando (b.pushKey) y su cuerpo abre su tarjeta (NA · NC)
+    parts[k].S = partAt(k, X.B, 8, 56, 30, sd => { const m = Sim.pushMenu({ get: () => S.type, set: v => { S.type = v; } })(sd); m.title += ', ' + side; return m; },
+      sd => (sd === 'w' ? 'Válvula con resorte, ' : 'Pulsador, ') + side, when);
+    S.key = b.pushKey({ at: g => {
+      if (!when()) return null;
+      const F = frame(g), [x, y] = F.at(mx(X.B, k), 0), up = g.side === 'w' ? 41 : 24;
+      return [x, y + up * (1 - F.k)];
+    }, set: v => { S.press = v; }, label: sd => (sd === 'w' ? 'Tapa de la válvula ' : 'Pulsador ') + side });
+  }
+  const renewM = () => { mot.burnt = false; mot.heat.reset(); mot.burnT = 9; mot.w = 0; };
+  parts.M = partAt('L', X.M, 0, 70, 70, sd => ({ title: sd === 'w' ? 'Turbina con volante' : 'Motor de CD 6 V', rows: [
+    { heat: () => {
+      const h = mot.heat, wt = sd === 'w', br = mot.burnt;
+      return { label: wt ? 'Potencia en su bobina (presión × caudal)' : 'Potencia en su bobina (I² · R)', rated: Sim.watts(h.max()),
+        now: Sim.watts(br ? 0 : h.P), over: !br && h.P > h.max(), f: br ? 1 : h.f, burnt: br, name: wt ? 'Desgaste' : 'Temperatura',
+        val: br ? (wt ? 'se rompió' : 'se quemó') : wt ? Math.round(100 * Math.min(1, h.f)) + ' %' : Math.round(h.T) + ' °C',
+        end: wt ? 'se rompe' : 'se quema a ' + h.tMax + ' °C' };
+    } },
+    { actions: [{ text: sd === 'w' ? 'Poner una turbina nueva' : 'Poner un motor nuevo', hidden: () => !mot.burnt, onClick: renewM }] }] }),
+    sd => sd === 'w' ? 'Turbina con volante' : 'Motor');
+
+  // ---------- pasos ----------
+  // 1, Un lado: el multímetro en V en el motor; se cumple al verlo girar y luego frenado con el pulsador apretado.
+  // 2, Los dos sentidos: se cumple al verlo girar para los dos lados.
+  function seen(s) {
+    const on = b.st.on && Math.abs(b.st.vo) > 1;
+    if (!on) return;
+    if (mot.rpm > 600) st.seen.cw = true;
+    if (mot.rpm < -600) st.seen.ccw = true;
+    if (st.seen.cw && motorState(false, s) === 'frenado' && closed(st.L)) st.seen.brake = true;
+  }
+  const power = on => { if (b.st.on !== on) document.querySelector('#pe .sim-power').click(); };
+  b.start();
+  Sim.steps(['Un lado', 'Los dos sentidos'], k => {
+    st.step = k;
+    for (const kk of ['L', 'R']) {
+      const S = st[kk];
+      for (const p of Object.values(parts[kk])) p.els.forEach(el => Sim.menu.close(el));
+      S.key.reset(); S.type = 'na';
+    }
+    parts.M.els.forEach(el => Sim.menu.close(el));
+    streams.clear(); phase.w = {}; phase.e = {};
+    st.seen = {}; mot.w = 0;
+    b.showMeters({ a: true, b: false });
+    power(true);
+    const g = b.ge, F = frame(g);
+    b.setDial('a', 'off');
+    b.setDial('a', 'V', [F.at(X.Q, -22), F.at(mx(X.Q, 'R'), -22)]);
+    b.halt(); b.refresh();
+  }, k => k ? st.seen.cw && st.seen.ccw : st.seen.cw && st.seen.brake);
+  Sim.hNow = { st, mot, solve: () => solve(b.st.vo), press: (k, v) => { st[k].press = v; } };   // para probar
+})();
+</script>
+</body>
+</html>
