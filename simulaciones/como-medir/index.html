@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026063537">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026063945">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026063537"></script>
-<script src="../../assets/banco.js?v=20261026063537"></script>
+<script src="../../assets/sim.js?v=20261026063945"></script>
+<script src="../../assets/banco.js?v=20261026063945"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -84,27 +84,25 @@
 
   b.start();
 
-  // Va por pasos: primero solo la fuente (encender, apagar y sus perillas; empieza apagada, en el circuito
-  // normal y sin multímetro). Luego el circuito se transforma en nodos (ya se vieron en su página) y aparece el
-  // multímetro en V para medir voltaje; para la corriente y la resistencia hay que girar su perilla.
-  const STEPS = ['La fuente', 'Medir voltaje', 'Medir corriente', 'Medir resistencia'];
+  // Dos pasos, los que cambian el dibujo: primero solo la fuente (encender, apagar y sus perillas; empieza apagada, en
+  // el circuito normal y sin multímetro). Luego el circuito se transforma en nodos y aparece el multímetro en V; para
+  // la corriente y la resistencia se gira su perilla. Se cumple al medir de verdad voltaje, corriente y resistencia.
+  const STEPS = ['La fuente', 'Medir'];
   const power = on => { if (b.st.on !== on) document.querySelector('#pe .sim-power').click(); };
-  const v0 = b.st.set;
+  const v0 = b.st.set, did = new Set();
   let timer = 0, turned = false;
   Sim.steps(STEPS, k => {
     b.showMeters({ a: k > 0 });
-    if (k === 1) b.setDial('a', 'V');
-    // para medir voltaje y corriente la fuente va encendida
-    if (k === 1 || k === 2) power(true);
     clearTimeout(timer);
     if (k === 0) b.setNodes(false);
-    else if (k === 1 && !b.nodesOn()) timer = setTimeout(() => b.setNodes(true), 900);
-    else b.setNodes(true);
+    else {
+      b.setDial('a', 'V'); power(true);
+      if (!b.nodesOn()) timer = setTimeout(() => b.setNodes(true), 900);
+    }
   }, k => {
-    // Cada paso se cumple solo: la fuente encendida después de girar su perilla; el multímetro en V entre dos
-    // nodos, en A abriendo un cable o en Ω con la fuente apagada.
     if (k === 0) return (turned = turned || b.st.set !== v0) && b.st.on;
-    return b.measuring().includes('VAR'[k - 1]);
+    b.measuring().forEach(m => did.add(m));
+    return did.size === 3;
   });
 })();
 </script>

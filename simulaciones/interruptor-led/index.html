@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026063537">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026063945">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026063537"></script>
-<script src="../../assets/banco.js?v=20261026063537"></script>
+<script src="../../assets/sim.js?v=20261026063945"></script>
+<script src="../../assets/banco.js?v=20261026063945"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -228,13 +228,6 @@
       actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rburnt, onClick: renewR }] })
   });
   b.start();
-
-  // Pasos que se revisan solos: encender el LED (con la fuente), abrir el interruptor con la fuente encendida, girar el
-  // LED (al revés no enciende) y quemarlo con más de 30 mA (con poca resistencia o sin ella; fundirlo desde su tarjeta
-  // no cuenta).
-  const STEPS = ['Encender el LED', 'El interruptor', 'Al revés no enciende', 'Demasiada corriente'];
-  Sim.steps(STEPS, () => {}, k => k === 0 ? !st.broken && st.closed && Math.abs(b.st.m.I) > 1
-    : k === 1 ? b.st.on && !st.closed : k === 2 ? b.st.on && st.closed && st.rev && !b.st.rev && !st.broken : st.broken && st.hot);
 })();
 </script>
 </body>

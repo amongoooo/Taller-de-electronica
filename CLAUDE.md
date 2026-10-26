@@ -16,7 +16,8 @@ como el instrumento real. La persona escribe en español: responde en español.
   también `cel360`, `cel360-h`, `tableta` y `pc1024`). En el celular revisa la versión corta y la abierta de cada
   instrumento. Al terminar cada fase, manda capturas de PC y celular.
 - Controles sin textos explicativos. Los textos de los pasos y el botón «¿Qué se toca?» ya se quitaron: no
-  los vuelvas a poner.
+  los vuelvas a poner. Solo hay pasos donde el paso cambia algo en el dibujo; lo demás lo explica la persona en clase
+  y lo experimentan (no agregues pasos que solo ponen una palomita).
 - No cambies la física por decoración. Si algo nuevo cambia la física (un valor que ahora se puede elegir),
   cuida que siga siendo correcta (corrientes máximas, calor, unidades: 1 psi por volt, 1 mL/s por mA).
 - Actualiza el README cuando cambie algo que describe.
@@ -147,7 +148,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 - `index.html` (inicio): bloques que siguen el curso (conceptos · nodos y protoboard · armar y medir · señales), miniaturas SVG de cada circuito
   (`MINI`, piezas en `PIECE`) y «Seguir donde te quedaste» (lee `sim-last`). Sin descripciones.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
-  `voltaje-concepto` (Voltaje, corriente y resistencia: los tres conceptos en ocho pasos) no usa el banco ni instrumentos: usa
+  `voltaje-concepto` (Voltaje, corriente y resistencia: los tres conceptos en tres pasos) no usa el banco ni instrumentos: usa
   `Sim.piezo` con la válvula del regreso, la tierra que se arrastra a un tubito o al regreso, R1 y R2 con largo y grosor en su
   tarjeta (y su calor, ¼ W) y, desde el paso 4, dos contadores que se arrastran por la vuelta (su lectura va donde menos se corre). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
   la resistencia equivalente) no usa el multímetro. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
@@ -158,7 +159,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   redirección a la que las tiene ahora (para las direcciones guardadas) y su nombre en `MOVED` del inicio: `voltaje-presion` →
   `como-medir` (su paso «La fuente» es el primero de Cómo medir) y `resistencias-serie-paralelo` → `nodos` (su paso
   «Resistencia equivalente»), `osciloscopio-diodo` → `osciloscopio-rectificador` (su paso «Directa e inversa») y
-  `corriente-concepto` y `resistencia-concepto` → `voltaje-concepto` (sus pasos «Antes y después» y «Más angosto»).
+  `corriente-concepto` y `resistencia-concepto` → `voltaje-concepto` (su paso «Corriente y resistencia»).
 
 ## Pendiente
 
