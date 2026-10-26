@@ -3,62 +3,98 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Voltaje = presión · Taller de Electrónica</title>
+<title>Voltaje, corriente y resistencia · Taller de Electrónica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026003001">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026010334">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
 <div class="sim-page">
   <div class="sim-bar">
     <a class="back" href="../../">← Simulaciones</a>
-    <h1>Voltaje = presión</h1>
+    <h1>Voltaje, corriente y resistencia</h1>
   </div>
 
   <main class="sim-stage" data-view="solo">
     <div class="sim-panel" id="pw">
       <span class="sim-tag w">Agua</span>
-      <canvas aria-label="Una bomba a la izquierda empuja el agua por un tubo con dos tramos angostos en serie y la regresa por abajo; de tres puntos del tubo suben tubitos donde el agua llega a la presión de ese punto: junto a la bomba la de la bomba, y después de cada tramo angosto un escalón más abajo, hasta 0 después del último. Una válvula en el regreso: cerrada, nada corre y los tres tubitos quedan a la misma altura"></canvas>
+      <canvas aria-label="Una bomba empuja el agua por un tubo con dos tramos angostos en serie y la regresa por abajo; de tres puntos del tubo suben tubitos donde el agua llega a la presión de ese punto: junto a la bomba la de la bomba, y después de cada tramo un escalón más abajo, hasta 0 después del último. Una válvula en el regreso: cerrada, nada corre y los tres tubitos quedan a la misma altura. Dos contadores marcan lo que pasa por segundo: lo mismo antes y después de los tramos. Un tramo más angosto o más largo deja pasar menos y se calienta"></canvas>
       <div class="sim-layer"></div>
     </div>
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026003001"></script>
+<script src="../../assets/sim.js?v=20261026010334"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
-  // La bomba (pila) sube la presión (el voltaje) del agua; los tubitos marcan la presión de cada punto (Sim.piezo).
-  // Con R1 = 1 kΩ y R2 = 2 kΩ los dos escalones son distintos (con 9 V: 9 → 6 → 0). Con la válvula del regreso cerrada
-  // (en el circuito, el interruptor abierto) no hay diferencia de presión en los tramos y nada corre: los tres
-  // tubitos quedan a la altura de la bomba. La tierra es el punto que se llama 0: se arrastra a otro nodo y cambian
-  // todos los números (la regla también), pero no las alturas, las diferencias ni la corriente.
-  // Pilas comunes de 0 a 12 V: lo más son 4 mA y la de 2 kΩ recibe 32 mW (es de ¼ W). Los tramos no se cambian
-  // (no llevan tarjeta).
-  const R = [1000, 2000], VALUES = [0, 1.5, 3, 4.5, 6, 9, 12];
-  const st = { V: 9, closed: false, ground: 'g' };
+  // Los tres conceptos en el mismo dibujo (Sim.piezo): la bomba (pila) sube la presión (el voltaje) y los tubitos marcan
+  // la de cada punto.
+  // · Voltaje: con la válvula del regreso cerrada (en el circuito, el interruptor abierto) no hay diferencia de presión
+  //   en los tramos y nada corre: los tres tubitos quedan a la altura de la bomba. La tierra es el punto que se llama 0:
+  //   se arrastra a otro nodo y cambian todos los números (la regla también), pero no las alturas ni la corriente.
+  // · Corriente: dos contadores (una raya que cruza la tubería) marcan lo que pasa por segundo (mL/s; mA = mC por
+  //   segundo) y lo que ha pasado desde que se movió alguno (mL; mC): lo mismo en toda la vuelta, I = V / (R1 + R2).
+  // · Resistencia: cada tramo es una barra de carbón (en el agua, un tramo angosto) con su largo y su grosor:
+  //   R = 1 kΩ × (largo / 2 cm) / (área / área de la delgada); la media tiene el doble de área y la gruesa el cuádruple
+  //   (de 250 Ω a 4 kΩ). Su escalón en los tubitos es I·R y lo que pasa la calienta (P = I²·R). Son de ¼ W: con 12 V y
+  //   las dos de 250 Ω pasan 24 mA, cada una recibe 0,14 W y llega a unos 100 °C, sin quemarse.
+  // Empiezan en R1 = 4 cm media (1 kΩ) y R2 = 4 cm delgada (2 kΩ): con 9 V, 9 → 6 → 0.
+  const VALUES = [0, 1.5, 3, 4.5, 6, 9, 12], LENS = [2, 4, 6, 8], AREAS = [1, 2, 4];
+  const AREA_NAME = { 1: ['delgada', 'angosto'], 2: ['media', 'medio'], 4: ['gruesa', 'ancho'] };
+  const st = { V: 9, closed: false, ground: 'g', len: [4, 4], area: [2, 1], counters: [], total: 0 };
+  const heat = [Sim.heat(), Sim.heat()];
   const NODES = ['a', 'b', 'c', 'g'];
-  let tb = null, drag = null, changed = false;
+  const R = i => 1000 * (st.len[i] / 2) / st.area[i];
+  let tb = null, drag = null, changed = false, touchedMove = false;
   const unit = w => w ? ' psi' : ' V';
   const valText = (v, w) => fmt(v, v % 1 ? 1 : 0) + unit(w);
-  const setV = v => { st.V = v; changed = true; tb.syncColors(); };
-  const stepV = f => { const i = VALUES.indexOf(st.V) + f; if (i >= 0 && i < VALUES.length) setV(VALUES[i]); };
+  const rate = (I, w) => fmt(Math.abs(I) < 0.005 ? 0 : I, 2) + (w ? ' mL/s' : ' mA');
+  const amount = (q, w) => fmt(q, 1) + (w ? ' mL' : ' mC');
+  const touched = () => { changed = true; tb.syncColors(); };
+  const step = (list, get, set) => f => { const i = list.indexOf(get()) + f; if (i >= 0 && i < list.length) set(list[i]); };
+  const setV = v => { st.V = v; touched(); };
+  const setLen = i => n => { st.len[i] = n; touched(); };
+  const setArea = i => a => { st.area[i] = a; touched(); };
+  // el tramo: su largo angosto (lo más que cabe, para 8 cm) y su medio ancho por dentro (el área crece con su cuadrado)
+  const halfOf = (i, g) => g.room * st.len[i] / 8;
+  const hnOf = i => 4 * Math.sqrt(st.area[i]);
+  // calor: un brillo naranja a lo largo de lo angosto, según qué tan caliente está
+  const glow = (ctx, g, i) => {
+    const k = Math.min(1, heat[i].f * 1.6), h = g.half[i], x0 = g.xr[i] - h, x1 = g.xr[i] + h;
+    if (k < 0.04) return;
+    const n = Math.max(1, Math.round(2 * h / 30));
+    for (let j = 0; j < n; j++) D.heatGlow(ctx, x0 + (j + 0.5) * (x1 - x0) / n, g.TOP, k, 34);
+  };
 
   tb = Sim.piezo({
     box: document.getElementById('pw'),
-    V: () => st.V, R: () => R, closed: () => st.closed, ground: () => st.ground, imax: 4,
+    V: () => st.V, R: () => [R(0), R(1)], closed: () => st.closed, ground: () => st.ground, imax: 24,
+    half: halfOf, hn: hnOf,
     valveX: g => (g.X0 + g.X1) / 2 + (g.v ? 40 : 50),
     groundAt: () => drag && drag.at,
     parts: {
-      v: { menu: side => ({ title: side === 'w' ? 'Bomba' : 'Pila', rows: [{ label: side === 'w' ? 'Presión' : 'Voltaje', values: VALUES, get: () => st.V, set: setV, format: v => valText(v, side === 'w') }] }), wheel: stepV },
-      r: []
+      v: { menu: side => ({ title: side === 'w' ? 'Bomba' : 'Pila', rows: [{ label: side === 'w' ? 'Presión' : 'Voltaje', values: VALUES, get: () => st.V, set: setV, format: v => valText(v, side === 'w') }] }),
+        wheel: step(VALUES, () => st.V, setV) },
+      r: [0, 1].map(i => ({
+        menu: side => ({ title: () => (side === 'w' ? 'Tramo angosto R' : 'Resistencia R') + (i + 1) + ' ' + Sim.ohm(R(i)), rows: [
+          { label: 'Largo', seg: LENS.map(n => ({ value: n, text: n + ' cm' })), get: () => st.len[i], set: setLen(i) },
+          { label: side === 'w' ? 'Ancho' : 'Grosor', seg: AREAS.map(a => ({ value: a, text: AREA_NAME[a][side === 'w' ? 1 : 0] })), get: () => st.area[i], set: setArea(i) },
+          Sim.powerRow(heat[i], side)] }),
+        wheel: step(LENS, () => st.len[i], setLen(i)) }))
     },
     onView: () => relabel(),
-    // la válvula del regreso (en el circuito, un interruptor)
-    drawW: (ctx, g) => D.valve(ctx, g.vx, g.BOT, !st.closed, false),
-    drawE: (ctx, g) => D.knifeSwitch(ctx, g.vx, g.BOT, !st.closed, false),
+    glow: (ctx, g, i) => glow(ctx, g, i),
+    // en el circuito la resistencia es la barra, de su largo y su grosor (encima del cable y de su brillo)
+    drawR: (ctx, g, i) => {
+      const h = g.half[i], x0 = g.xr[i] - h, x1 = g.xr[i] + h, t = 5 * Math.sqrt(st.area[i]);
+      D.roundRect(ctx, x0, g.TOP - t, x1 - x0, 2 * t, Math.min(t, 4), C.muted, C.ink, 2);
+    },
+    // la válvula del regreso (en el circuito, un interruptor) y la raya de los contadores
+    drawW: (ctx, g) => { D.valve(ctx, g.vx, g.BOT, !st.closed, false); counters(ctx, g, true, false); },
+    drawE: (ctx, g) => { D.knifeSwitch(ctx, g.vx, g.BOT, !st.closed, false); counters(ctx, g, false, false); },
     tags: (ctx, g, side) => {
       const w = side === 'w', open = !st.closed;
       D.tag(ctx, g.vx, g.BOT + (w ? 38 : 40), w ? 'válvula' : 'interruptor', '', { state: w ? (open ? 'abierta' : 'cerrada') : (open ? 'cerrado' : 'abierto'), danger: !open });
@@ -67,10 +103,20 @@
         const [x, y] = tb.hang(g, 'g');
         D.text(ctx, tb.vText(tb.vRel('g'), w), x, y + (w ? 38 : 40), C.ink, { size: 16, font: Sim.MONO, weight: 600, bg: true });
       }
+      // abajo de la etiqueta de cada tramo, su largo y su grosor; en el circuito, si ya está caliente, su temperatura
+      [0, 1].forEach(i => {
+        const y = g.TOP + (w ? Sim.PIPE + 24 : 34) + Sim.px(16, ctx) * 1.35, hot = !w && heat[i].T >= 45;
+        D.text(ctx, hot ? Math.round(heat[i].T) + ' °C' : st.len[i] + ' cm · ' + AREA_NAME[st.area[i]][w ? 1 : 0], g.xr[i], y, hot ? C.danger : C.muted, { size: 15, bg: true });
+      });
+    },
+    over: (ctx, g, side) => counters(ctx, g, side === 'w', true),
+    tick: (dt, I) => {
+      st.total += I * dt;   // mA · s = mC (en el agua, mL/s · s = mL)
+      [0, 1].forEach(i => heat[i].step(I * I * R(i) / 1e6, dt));   // P = I² · R (I en A)
     }
   });
   tb.page = st;
-  // La primera vez que se abre empieza con el color por presión (voltaje), que es de lo que trata; luego se
+  // La primera vez que se abre empieza con el color por presión (voltaje), que es de lo primero que trata; luego se
   // respeta el que se elija.
   try { if (!localStorage.getItem('sim-color-voltaje')) { localStorage.setItem('sim-color-voltaje', '1'); Sim.setColorMode('p'); tb.syncColors(); } } catch (e) {}
 
@@ -103,12 +149,128 @@
   });
   function setGround(n) { st.ground = n; tb.syncColors(); tb.p.replace(); }
 
+  // ---------- dónde puede ir un contador ----------
+  const len = g => 2 * (g.BOT - g.TOP) + 2 * (g.X1 - g.X0);
+  const dPump = g => g.BOT - g.MID;
+  // Lugares donde no puede ir (la bomba, la válvula, lo angosto de cada tramo y las esquinas): se corre al lado.
+  const legal = (g, d) => {
+    const L = len(g), L0 = g.BOT - g.TOP, W = g.X1 - g.X0;
+    d = ((d % L) + L) % L;
+    const no = [[dPump(g), 52], [2 * L0 + W + g.X1 - g.vx, 34], ...g.dr.map((c, i) => [c, g.half[i] + Sim.NARROW_IN + 8]), ...[0, L0, L0 + W, 2 * L0 + W, L].map(c => [c, 24])];
+    for (const [c, h] of no) if (Math.abs(d - c) < h) d = d < c ? c - h : c + h;
+    return ((d % L) + L) % L;
+  };
+  const dOf = (g, c) => legal(g, c.u * len(g));
+  // En qué tramo de la vuelta está: antes de R1 (de la bomba a R1), entre los dos o después de R2.
+  const zone = (g, d) => d > dPump(g) && d < g.dr[0] ? 0 : d > g.dr[0] && d < g.dr[1] ? 1 : 2;
+  const straddle = () => { const g = tb.geo(), [a, b] = st.counters.map(c => zone(g, dOf(g, c))); return a !== b; };
+
+  // ---------- contadores: se arrastran (o se mueven con las flechas) por la vuelta ----------
+  // Al mover uno, los dos empiezan a contar de nuevo.
+  function addCounter(u) {
+    const c = { u }, el = document.createElement('button');
+    el.type = 'button'; el.className = 'sim-clamp'; el.dataset.act = 'med';
+    el.setAttribute('aria-label', 'Contador ' + (st.counters.length + 1));
+    layer.appendChild(el);
+    tb.at(el, g => { const f = D.frameAt(g.loop, dOf(g, c)); return [f[0], f[1]]; });
+    const moveTo = d => { const g = tb.geo(); c.u = legal(g, d) / len(g); moved(); };
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); drag = c; e.preventDefault(); });
+    el.addEventListener('pointermove', e => { if (drag !== c) return; moveTo(D.project(tb.geo().loop, ...tb.toXY(e)).d); });
+    const up = () => { if (drag === c) drag = null; };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('keydown', e => {
+      const f = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+      if (!f) return;
+      e.preventDefault();
+      const g = tb.geo(), d = dOf(g, c);
+      let n = legal(g, d + f * 24);
+      if (Math.abs(n - d) < 1) n = legal(g, d + f * 150);   // pasa del otro lado de la bomba o de un tramo
+      c.u = n / len(g); moved();
+    });
+    c.el = el;
+    st.counters.push(c);
+    return c;
+  }
+  const showCounters = n => st.counters.forEach((c, i) => { c.el.hidden = i >= n; });
+  function moved() { st.total = 0; touchedMove = true; tb.p.replace(); }
+
+  // Un contador: la raya que cruza la tubería (el cable) y, afuera de la vuelta (o adentro si afuera no cabe), lo que
+  // marca; si taparía la bomba, una etiqueta o la regla, se corre a lo largo de la tubería con una línea que la une.
+  const counters = (ctx, g, w, box) => st.counters.forEach(c => { if (!c.el.hidden) counter(ctx, g, c, w, box); });
+  const counter = (ctx, g, c, w, box) => {
+    const d = dOf(g, c), [x, y, tx, ty] = D.frameAt(g.loop, d), half = w ? Sim.PIPE + 9 : 16, col = C.ok;
+    const l1 = rate(tb.I(), w), l2 = amount(st.total, w);
+    const p1 = D.font(ctx, 16, Sim.MONO, 600), w1 = ctx.measureText(l1).width;
+    D.font(ctx, 15); const w2 = ctx.measureText(l2).width;
+    const bw = Math.max(w1, w2) + 20, bh = Math.round(p1 * 2.7), lh = p1 * 1.25;
+    // afuera es (ty, −tx) (arriba de la tubería de arriba, entre los tubitos); si se sale del dibujo, adentro
+    let ox = ty, oy = -tx;
+    const off = half + 10 + Math.abs(ox) * bw / 2 + Math.abs(oy) * bh / 2;
+    const tw = D.tagWidth(ctx, w ? 'bomba' : 'pila', valText(st.V, w), ''), [gx] = tb.hang(g, 'g');
+    const avoid = [[g.X0 - 48, g.MID - 48, g.X0 + 62 + tw, g.MID + 60], [g.ruler - 60, g.YT - 40, g.ruler + 16, g.TOP + 12],
+      [gx - 40, g.BOT + 16, gx + 40, g.BOT + 60], [g.vx - 75, g.BOT - 48, g.vx + 75, g.BOT + 60],
+      ...g.xr.map(xr => [xr - 48, g.TOP + Sim.PIPE + 8, xr + 48, g.TOP + Sim.PIPE + 64])];
+    if (w) avoid.push(...Object.values(g.x).map(tx => [tx - 13, g.YT, tx + 13, g.TOP]));
+    // en el circuito: las pastillas de los nodos y el voltaje de cada resistencia, arriba del cable
+    else avoid.push(...[...Object.values(g.x), ...g.xr].map(tx => [tx - 34, g.TOP - 62, tx + 34, g.TOP - 26]));
+    const hit = (x0, y0) => x0 - bw / 2 < tb.p.x0 + 4 || x0 + bw / 2 > tb.p.x0 + tb.p.W - 4 || y0 + bh / 2 > g.H - 2 ||
+      avoid.some(([a, b, e, f]) => x0 + bw / 2 > a && x0 - bw / 2 < e && y0 + bh / 2 > b && y0 - bh / 2 < f);
+    // afuera (arriba de la tubería de arriba) o adentro; si tapa algo, se corre a lo largo de la tubería: donde
+    // menos tenga que correrse
+    let best = null;
+    for (const sgn of [1, -1]) for (let i = 0; i < 80; i++) {
+      const k = [8 * i, -8 * i].find(t => !hit(x + sgn * ox * off + tx * t, y + sgn * oy * off + ty * t));
+      if (k == null) continue;
+      if (!best || i < best.i) best = { i, sgn, k };
+      break;
+    }
+    if (best && best.sgn < 0) { ox = -ox; oy = -oy; }
+    const k = best ? best.k : 0, cx = x + ox * off + tx * k, cy = y + oy * off + ty * k;
+    if (!box) {
+      D.line(ctx, [[x - ty * half, y + tx * half], [x + ty * half, y - tx * half]], 4, col, 'butt');
+      D.circle(ctx, x - ty * half, y + tx * half, 4, col); D.circle(ctx, x + ty * half, y - tx * half, 4, col);
+      if (Math.hypot(cx - x, cy - y) > off + 6) D.line(ctx, [[x + ox * half, y + oy * half], [cx, cy]], 1.5, col);
+      return;
+    }
+    D.roundRect(ctx, cx - bw / 2, cy - bh / 2, bw, bh, 8, C.card, col, 2);
+    D.text(ctx, l1, cx, cy - lh / 2, col, { size: 16, font: Sim.MONO, weight: 600 });
+    D.text(ctx, l2, cx, cy + lh / 2, C.ink, { size: 15 });
+  };
+  // los dos después de R2: en la bajada de la derecha y en el regreso (el segundo sale junto al primero en su paso)
+  {
+    const g = tb.geo(), L0 = g.BOT - g.TOP, W = g.X1 - g.X0;
+    addCounter(legal(g, L0 + W + L0 / 2) / len(g));
+    addCounter(legal(g, 2 * L0 + W + 90) / len(g));
+  }
+  const besideFirst = () => {
+    const g = tb.geo(), d = dOf(g, st.counters[0]), z = zone(g, d);
+    const n = [70, -70, 120, -120].map(t => legal(g, d + t)).find(e => zone(g, e) === z && Math.abs(e - d) > 40);
+    if (n != null) st.counters[1].u = n / len(g);
+  };
+
   // ---------- pasos ----------
-  // 1: la bomba sube la presión; se cumple al cambiarla (con presión). 2: con la válvula cerrada no hay diferencia en los
-  // tramos y nada corre. 3: la tierra se lleva a otro nodo: los números cambian y las alturas no. 4: el circuito.
-  const STEPS = ['La bomba sube la presión', 'Sin diferencia no corre', 'La tierra es 0', 'En el circuito'];
-  Sim.steps(STEPS, k => { changed = false; tb.setView(k === 3 ? 'e' : 'w'); relabel(); }, k =>
-    k === 0 ? changed && st.V > 0 : k === 1 ? st.closed && st.V > 0 : k === 2 ? st.ground !== 'g' : tb.done());
+  // 1: la bomba sube la presión; se cumple al cambiarla (con presión). 2: con la válvula cerrada no hay diferencia en
+  // los tramos y nada corre. 3: la tierra se lleva a otro nodo: los números cambian y las alturas no. 4: aparecen los
+  // dos contadores, juntos; se cumple con uno y otro en distintos lugares de la vuelta (antes de R1, entre los tramos o
+  // después de R2). 5: con los dos así, se cumple al cambiar la bomba o un tramo: siguen marcando lo mismo. 6: un tramo
+  // más angosto que al llegar al paso. 7: uno de 6 cm o más. 8: el circuito.
+  const STEPS = ['La bomba sube la presión', 'Sin diferencia no corre', 'La tierra es 0', 'Antes y después', 'No se gasta',
+    'Más angosto, menos pasa', 'Más largo, menos pasa', 'En el circuito'];
+  let area0 = st.area.slice();
+  Sim.steps(STEPS, k => {
+    if (k === 3) besideFirst();
+    showCounters(k >= 3 ? 2 : 0); moved();
+    touchedMove = false; changed = false; area0 = st.area.slice();
+    tb.setView(k === 7 ? 'e' : 'w'); relabel();
+  }, k => [
+    () => changed && st.V > 0,
+    () => st.closed && st.V > 0,
+    () => st.ground !== 'g',
+    straddle,
+    () => straddle() && changed,
+    () => st.area.some((a, i) => a < area0[i]),
+    () => st.len.some(n => n >= 6),
+    tb.done][k]());
 })();
 </script>
 </body>

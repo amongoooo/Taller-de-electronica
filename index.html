@@ -102,38 +102,36 @@ footer a { color: var(--water); }
   <section>
     <h2>Conceptos</h2>
     <div class="grid">
-      <a class="card" href="simulaciones/voltaje-concepto/"><span class="mini" data-p="voltaje-concepto"></span><h3><span class="n">1</span>Voltaje = presión</h3></a>
-      <a class="card" href="simulaciones/corriente-concepto/"><span class="mini" data-p="corriente-concepto"></span><h3><span class="n">2</span>Corriente = caudal</h3></a>
-      <a class="card" href="simulaciones/resistencia-concepto/"><span class="mini" data-p="resistencia-concepto"></span><h3><span class="n">3</span>Resistencia</h3></a>
+      <a class="card" href="simulaciones/voltaje-concepto/"><span class="mini" data-p="voltaje-concepto"></span><h3><span class="n">1</span>Voltaje, corriente y resistencia</h3></a>
     </div>
   </section>
 
   <section>
     <h2>Nodos y protoboard</h2>
     <div class="grid">
-      <a class="card" href="simulaciones/nodos/"><span class="mini" data-p="nodos"></span><h3><span class="n">4</span>Nodos</h3></a>
-      <a class="card" href="simulaciones/protoboard/"><span class="mini" data-p="protoboard"></span><h3><span class="n">5</span>Protoboard</h3></a>
+      <a class="card" href="simulaciones/nodos/"><span class="mini" data-p="nodos"></span><h3><span class="n">2</span>Nodos</h3></a>
+      <a class="card" href="simulaciones/protoboard/"><span class="mini" data-p="protoboard"></span><h3><span class="n">3</span>Protoboard</h3></a>
     </div>
   </section>
 
   <section>
     <h2>Armar y medir <span class="ins">·&nbsp;fuente y multímetro</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/como-medir/"><span class="mini" data-p="como-medir"></span><h3><span class="n">6</span>Cómo medir</h3></a>
-      <a class="card" href="simulaciones/resistencia/"><span class="mini" data-p="resistencia"></span><h3><span class="n">7</span>Ley de Ohm</h3></a>
-      <a class="card" href="simulaciones/interruptor-led/"><span class="mini" data-p="interruptor-led"></span><h3><span class="n">8</span>Interruptor y LED</h3></a>
-      <a class="card" href="simulaciones/serie-paralelo/"><span class="mini" data-p="serie-paralelo"></span><h3><span class="n">9</span>LEDs en serie y paralelo</h3></a>
+      <a class="card" href="simulaciones/como-medir/"><span class="mini" data-p="como-medir"></span><h3><span class="n">4</span>Cómo medir</h3></a>
+      <a class="card" href="simulaciones/resistencia/"><span class="mini" data-p="resistencia"></span><h3><span class="n">5</span>Ley de Ohm</h3></a>
+      <a class="card" href="simulaciones/interruptor-led/"><span class="mini" data-p="interruptor-led"></span><h3><span class="n">6</span>Interruptor y LED</h3></a>
+      <a class="card" href="simulaciones/serie-paralelo/"><span class="mini" data-p="serie-paralelo"></span><h3><span class="n">7</span>LEDs en serie y paralelo</h3></a>
     </div>
   </section>
 
   <section>
     <h2>Señales <span class="ins">·&nbsp;generador y osciloscopio</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">10</span>LED y osciloscopio</h3></a>
-      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">11</span>Capacitores</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">12</span>Carga y descarga RC</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">13</span>Diodo y media onda</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">14</span>Rectificador de onda completa</h3></a>
+      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">8</span>LED y osciloscopio</h3></a>
+      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">9</span>Capacitores</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">10</span>Carga y descarga RC</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">11</span>Diodo y media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">12</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -195,12 +193,9 @@ footer a { color: var(--water); }
     return h + '<circle class="pmp" cx="22" cy="69" r="8"/><path class="w" d="M16.4 67L27.6 71M24 63.4L20 74.6" style="stroke-width:1.4"/><circle class="f" cx="22" cy="69" r="1.6"/>' + extra;
   };
   const MINI = {
-    // la bomba, los tubitos en escalones (9, 6 y 0 psi), la válvula del regreso y la tierra
-    'voltaje-concepto': () => piezo([9, 6, 0], '<circle class="pmp" cx="96" cy="80" r="4.5"/><path class="w" d="M96 75.5v-5M92.5 70.5h7M50 84v4M45 88h10M47 90.5h6M49 93h2"/>'),
-    // la pila a la izquierda y dos contadores (rayas verdes), antes y después de la resistencia
-    'corriente-concepto': () => circ(LOOP, [at('r', 80, 20), at('bat', 22, 50, 90)]) + '<path class="gate" d="M14 34h16M130 50h16"/>',
-    // la pila a la izquierda y la barra de carbón arriba: una corta y gruesa junto a una larga y delgada
-    'resistencia-concepto': () => circ(LOOP, [at('bat', 22, 50, 90)]) + '<rect class="bg" x="44" y="12" width="72" height="16"/><rect class="w" x="46" y="16" width="20" height="8" rx="2"/><path class="w" d="M66 20h8"/><rect class="w" x="74" y="18" width="40" height="4" rx="1.5"/>',
+    // la bomba, los tubitos en escalones (9, 6 y 0 psi), un tramo corto y ancho y otro largo y delgado, la válvula del
+    // regreso, la tierra y un contador (raya verde) en la bajada de la derecha
+    'voltaje-concepto': () => piezo([9, 6, 0], '<circle class="pmp" cx="96" cy="80" r="4.5"/><path class="w" d="M96 75.5v-5M92.5 70.5h7M50 84v4M45 88h10M47 90.5h6M49 93h2"/><path class="gate" d="M131 69h14"/>', [[60, 6, 1.4], [100, 11, 0.6]]),
     // R1 y, después del nodo de la barra, dos resistencias entre los mismos dos nodos
     'nodos': () => circ(LOOP + 'M70 20V50H138', [at('r', 46, 20), at('r', 104, 20), at('r', 104, 50), at('bat', 80, 80)], [[70, 20], [70, 50], [138, 20], [138, 50]]),
     'como-medir': () => circ(LOOP, [at('r', 62, 20), at('r', 98, 20), at('bat', 80, 80)], [[80, 20]]),
@@ -224,7 +219,9 @@ footer a { color: var(--water); }
   const MOVED = {
     'voltaje-presion': { p: 'como-medir', k: 1, n: 4, name: 'La fuente' },
     'resistencias-serie-paralelo': { p: 'nodos', k: 4, n: 4, name: 'Resistencia equivalente' },
-    'osciloscopio-diodo': { p: 'osciloscopio-rectificador', k: 1, n: 3, name: 'Directa e inversa' }
+    'osciloscopio-diodo': { p: 'osciloscopio-rectificador', k: 1, n: 3, name: 'Directa e inversa' },
+    'corriente-concepto': { p: 'voltaje-concepto', k: 4, n: 8, name: 'Antes y después' },
+    'resistencia-concepto': { p: 'voltaje-concepto', k: 6, n: 8, name: 'Más angosto, menos pasa' }
   };
   let last = null;
   try { last = JSON.parse(localStorage.getItem('sim-last') || 'null'); } catch (e) {}
