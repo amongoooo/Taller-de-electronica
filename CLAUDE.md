@@ -37,7 +37,8 @@ como el instrumento real. La persona escribe en español: responde en español.
   LCD de 7 segmentos sin cambio. Texto mínimo 14 px.
 - Secciones de la columna `Sim.side` (≥1100 px; hoja inferior en celular), por acción: Componentes (verde),
   Armar (azul agua), Ver (azul), Medir (morado, al final). La fuente se controla solo en el instrumento.
-- Componentes siempre muestran su valor en el dibujo. Perillas y deslizadores con imán (rebote) y zona muerta
+- Componentes siempre muestran su valor en el dibujo; por defecto sin su nombre (Ver → Etiquetas: Valor · Con nombre, `Sim.names()`,
+  `sim-names`; `D.tag` quita el nombre solo si el valor tiene números, y con `keep` nunca, como en una equivalente). Perillas y deslizadores con imán (rebote) y zona muerta
   `Sim.DEAD`.
 - Movimiento: `Sim.REDUCE` respeta movimiento reducido; menús 180 ms al abrir y 120 ms al cerrar; botones se
   hunden con `scale: .97`.

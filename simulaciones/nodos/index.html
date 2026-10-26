@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026061057">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026063537">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026061057"></script>
-<script src="../../assets/banco.js?v=20261026061057"></script>
+<script src="../../assets/sim.js?v=20261026063537"></script>
+<script src="../../assets/banco.js?v=20261026063537"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -219,10 +219,10 @@
   function drawEquiv(ctx, g, m, w) {
     const [, , , y1] = box(g, w), on = [1, 2, 3].filter(i => st.on[i]);
     // el paralelo: abajo del recuadro, con los nombres de sus resistencias
-    b.tag(ctx, null, XR, y1 + 24, on.map(i => 'R' + (i + 1)).join(' ∥ '), ohm3(par()));
+    D.tag(ctx, XR, y1 + 24, on.map(i => 'R' + (i + 1)).join(' ∥ '), ohm3(par()), { keep: true });
     // todo el circuito, adentro de la vuelta, con lo que da la fuente
     const x = (g.X0 + XB) / 2, y = (g.TOP + g.BOT) / 2, Req = st.R[0] + par();
-    b.tag(ctx, null, x, y - 18, 'Req', ohm3(Req));
+    D.tag(ctx, x, y - 18, 'Req', ohm3(Req), { keep: true });
     const cw = current(ctx, false, 0, 0, m.I, w);
     current(ctx, true, x - cw / 2, y + 18, m.I, w);
   }

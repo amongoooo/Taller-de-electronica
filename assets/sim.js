@@ -186,23 +186,45 @@
   // azul si está seleccionado; el nombre en rojo con danger). Su estado («cerrado», «quemada») va en una
   // pastilla al lado, roja con danger. align 'center' (x es el centro) o 'left' (x es donde empieza).
   const TAG_GAP = 7;
+  // Nombres de los componentes (Ver → Etiquetas): por defecto la etiqueta solo dice su valor («1 kΩ», «100 µF»); con
+  // «Con nombre», «R1 1 kΩ». Solo se quita el nombre de una cantidad con unidad (un LED sigue diciendo «LED rojo»); keep
+  // lo deja siempre (una equivalente, «R2 ∥ R3 500 Ω»). Se recuerda en todo el sitio (sim-names). El renglón de Ver
+  // aparece en cuanto una página dibuja una etiqueta a la que le puede quitar el nombre.
+  let names = null, namesRow = null;
+  Sim.names = () => names ?? (names = store.get('sim-names', ['0', '1'], '0') === '1');
+  const namesSeg = () => {
+    if (namesRow || !Sim.side) return;
+    const seg = el('div', 'sim-seg');
+    seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Etiquetas de los componentes');
+    seg.innerHTML = '<button type="button" data-v="0">Valor</button><button type="button" data-v="1">Con nombre</button>';
+    const sync = () => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.v === '1') === Sim.names())));
+    seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { names = b.dataset.v === '1'; store.set('sim-names', b.dataset.v); sync(); }));
+    sync();
+    namesRow = Sim.side.row('ver', 'Etiquetas', seg);
+  };
+  const tagName = (name, value, keep) => {
+    if (keep || !name || !value || !/\d/.test(value)) return name;
+    namesSeg();
+    return Sim.names() ? name : '';
+  };
   const tagParts = (ctx, name, value, state) => {
-    D.font(ctx, 15); const w1 = ctx.measureText(name).width;
+    D.font(ctx, 15); const w1 = name ? ctx.measureText(name).width : 0;
     D.font(ctx, 16, Sim.MONO, 600); const w2 = value ? ctx.measureText(value).width : 0;
     const px = D.font(ctx, 14), w3 = state ? ctx.measureText(state).width + 16 : 0;
-    const w = w1 + (value ? TAG_GAP + w2 : 0);
+    const w = w1 + (value ? (w1 ? TAG_GAP : 0) + w2 : 0);
     return { w1, w2, w3, w, all: w + (state ? (w ? TAG_GAP + 6 : 0) + w3 : 0), px };
   };
-  D.tagWidth = (ctx, name, value, state) => tagParts(ctx, name, value, state).all;
+  D.tagWidth = (ctx, name, value, state, keep) => tagParts(ctx, tagName(name, value, keep), value, state).all;
   // name puede ser una lista, del más largo al más corto: se usa el primero con el que todo cabe en max.
-  D.tag = (ctx, x, y, name, value, { sel = false, danger = false, state = '', align = 'center', max = 0 } = {}) => {
-    if (Array.isArray(name)) name = name.find(n => !max || D.tagWidth(ctx, n, value, state) <= max) ?? name[name.length - 1];
+  D.tag = (ctx, x, y, name, value, { sel = false, danger = false, state = '', align = 'center', max = 0, keep = false } = {}) => {
+    if (Array.isArray(name)) name = name.find(n => !max || D.tagWidth(ctx, n, value, state, keep) <= max) ?? name[name.length - 1];
+    name = tagName(name, value, keep);
     const q = tagParts(ctx, name, value, state), x0 = align === 'left' ? x : x - q.all / 2;
     const vcol = sel ? C.sel : C.ink, ncol = danger && !state ? C.danger : sel ? C.sel : C.muted;
     if (q.w) {
       D.backdrop(ctx, x0, y, q.w, Sim.px(16, ctx));
-      D.text(ctx, name, x0, y, ncol, { size: 15, align: 'left' });
-      if (value) D.text(ctx, value, x0 + q.w1 + TAG_GAP, y + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
+      if (name) D.text(ctx, name, x0, y, ncol, { size: 15, align: 'left' });
+      if (value) D.text(ctx, value, x0 + (q.w1 ? q.w1 + TAG_GAP : 0), y + 0.5, vcol, { size: 16, font: Sim.MONO, weight: 600, align: 'left' });
     }
     if (state) D.pill(ctx, state, x0 + q.all - q.w3 / 2, y, danger ? C.danger : sel ? C.sel : C.ink, danger);
     return q.all;
@@ -213,7 +235,7 @@
   // Cada una es { x, name, value, sel, danger, state }.
   D.tagRow = (ctx, y, items, x0 = -Infinity, x1 = Infinity) => {
     const G = 12, SLIDE = 24, L = items.map(it => ({ ...it, names: [].concat(it.name), k: 0 })).sort((a, b) => a.x - b.x);
-    const width = t => D.tagWidth(ctx, t.names[t.k], t.value, t.state);
+    const width = t => D.tagWidth(ctx, t.names[t.k], t.value, t.state, t.keep);
     L.forEach(t => { t.w = width(t); });
     const spread = () => {
       const cx = L.map(t => t.x);
