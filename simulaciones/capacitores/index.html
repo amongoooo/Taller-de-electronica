@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026184604">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026195515">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <style>
 /* el tanque (o el capacitor) es más alto que un tramo angosto: zona más grande para agarrarlo */
@@ -40,9 +40,9 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026184604"></script>
-<script src="../../assets/osciloscopio.js?v=20261026184604"></script>
-<script src="../../assets/banco.js?v=20261026184604"></script>
+<script src="../../assets/sim.js?v=20261026195515"></script>
+<script src="../../assets/osciloscopio.js?v=20261026195515"></script>
+<script src="../../assets/banco.js?v=20261026195515"></script>
 <script>
 (() => {
   const { C, draw: D, fmt } = Sim;
@@ -135,7 +135,7 @@
   };
 
   const b = Sim.bench({
-    iFull: 10, v0: 9, stateful: true,
+    iFull: 10, v0: 9, stateful: true, nodes: false,
     // El osciloscopio en la mesa, como en el taller: el canal 1 en el capacitor (entre la resistencia y él), el canal 2
     // a la entrada (antes de la resistencia: la fuente al cargar, 0 V al descargar) y el caimán en la tierra (la subida
     // de la derecha, después del capacitor). 2 V por división con el cero 3.5 divisiones abajo (9 V caben) y 1 s por
@@ -157,14 +157,9 @@
         { pts: p.A, I: st.charge ? Ic : 0, v0: V, comps: [] },
         // el conmutador: une el circuito con la fuente (cargar) o con el puente (descargar)
         st.charge ? { pts: [n.A, n.P], I: Ic, v0: V, comps: [], link: true } : { pts: [n.B, n.P], I: Ic, v0: 0, comps: [], link: true },
-        // draw y tag: cómo se ve cada uno en la vista de nodos (en su lugar de siempre; el banco lo mueve)
         { pts: p.C, I: Ic, v0: st.charge ? V : 0, comps: [
-          { at: [XR, g.TOP], half: 46, dV: st.rb ? (st.charge ? V : 0) - st.Vc : Ic * st.R / 1000, R: st.rb ? Infinity : st.R, pr: pinchR,
-            draw: (ctx, w) => w ? D.narrow(ctx, XR, g.TOP, half(st.R)) : D.resistor(ctx, XR, g.TOP),
-            tag: w => [w ? 'tramo angosto' : 'resistencia', ohm(st.R), st.rb, st.rb ? (w ? 'reventado' : 'quemada') : ''] },
-          { at: [XC, g.TOP], half: rc, dV: st.Vc, R: st.cb ? RL : undefined, pr: pinchC, ext: rc + 4,
-            draw: (ctx, w) => w ? tank(ctx, g, rc) : capacitor(ctx, g, rc),
-            tag: w => [w ? 'tanque con membrana' : 'capacitor', uF(st.C), st.cb || capRev(), capState()] }] },
+          { at: [XR, g.TOP], half: 46, dV: st.rb ? (st.charge ? V : 0) - st.Vc : Ic * st.R / 1000, R: st.rb ? Infinity : st.R, pr: pinchR },
+          { at: [XC, g.TOP], half: rc, dV: st.Vc, R: st.cb ? RL : undefined, pr: pinchC, ext: rc + 4 }] },
         { pts: p.B, I: st.charge ? 0 : -Ic, v0: 0, comps: [] },
         { pts: p.N, I: st.charge ? Ic : 0, v0: 0, comps: [] }
       ];

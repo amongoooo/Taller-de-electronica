@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
-<link rel="stylesheet" href="../../assets/sim.css?v=20261026184604">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026195515">
 <script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 </head>
 <body>
@@ -36,8 +36,8 @@
   </main>
 </div>
 
-<script src="../../assets/sim.js?v=20261026184604"></script>
-<script src="../../assets/banco.js?v=20261026184604"></script>
+<script src="../../assets/sim.js?v=20261026195515"></script>
+<script src="../../assets/banco.js?v=20261026195515"></script>
 <script>
 (() => {
   const { C, draw: D } = Sim;
@@ -97,20 +97,17 @@
   //   de después) y tap, la entrada: de N hacia abajo hasta su terminal, sin corriente
   function segs(g, m, V) {
     const I = m.I, cl = closed();
-    const push = (at, dV) => ({ id: 'S', at, half: 28, dV, R: cl ? 0 : Infinity, pr: pushPart, ext: w => w ? 30 : 22,
-      draw: (ctx, w) => drawPush(ctx, w, ...at), tag: w => pushTag(w) });
+    const push = (at, dV) => ({ id: 'S', at, half: 28, dV, R: cl ? 0 : Infinity, pr: pushPart, ext: w => w ? 30 : 22 });
     if (!st.step) {
       const R = st.R, dR = st.rb ? (cl ? V : 0) : I * R / 1000, pts = b.loopPts(g);
       const comps = [push([XS, g.TOP], cl ? 0 : V),
-        { id: 'LED', at: [XL, g.TOP], half: 30, dV: cl ? V - dR : 0, pr: ledPart, ext: w => w ? 46 : 28,
-          draw: (ctx, w) => drawLed(ctx, w, g, m), tag: w => ledTag(w) }];
-      if (R) comps.push({ id: 'R', at: [g.PX, g.TOP], half: 46, dV: dR, R: st.rb ? Infinity : R, pr: pinch,
-        draw: (ctx, w) => w ? D.narrow(ctx, g.PX, g.TOP, half(R)) : D.resistor(ctx, g.PX, g.TOP), tag: w => rTag(w) });
+        { id: 'LED', at: [XL, g.TOP], half: 30, dV: cl ? V - dR : 0, pr: ledPart, ext: w => w ? 46 : 28 }];
+      if (R) comps.push({ id: 'R', at: [g.PX, g.TOP], half: 46, dV: dR, R: st.rb ? Infinity : R, pr: pinch });
       return [{ id: 'loop', pts, I, v0: V, comps, prof: R ? Sim.narrowProfile(dOn(pts, g.PX, g.TOP), half(R)) : null, pk: R }];
     }
     const vN = nodeV(V), [xr] = resAt(g);
     const res = { id: 'P', at: [xr, g.TOP], half: 46, dV: up() ? V - vN : vN, R: pLive() ? st.P : Infinity, pr: st.pon ? pull : null,
-      ext: 16, draw: (ctx, w) => { if (w && st.pon && st.P) D.narrow(ctx, xr, g.TOP, halfP(st.P)); drawPull(ctx, w, g); }, tag: st.pon ? w => pullTag(w) : null };
+      ext: 16 };
     const s = push(pushAt(g), up() ? vN : V - vN);
     const p1 = [[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [XN, g.TOP]];
     const p2 = [[XN, g.TOP], [g.X1, g.TOP], [g.X1, g.BOT], [g.PX + b.SRC, g.BOT]];
@@ -136,7 +133,7 @@
   const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
 
   const b = Sim.bench({
-    iFull: 30, v0: 5,
+    iFull: 30, v0: 5, nodes: false,
     head: 100,   // las etiquetas, arriba de la tapa del pulsador
     layout() { streams.clear(); },
     model(V) {
@@ -251,7 +248,6 @@
   const ledTag = w => [w ? 'rueda' : 'LED', w ? st.led.replace(/o$/, 'a') : st.led, st.broken, st.broken ? (w ? 'rota' : 'quemado') : ''];
   const SHORT = { 'tramo angosto': 'tramo', 'resistencia': 'R', 'sin estrechamiento': 'sin tramo', 'sin resistencia': 'sin R' };
   function labels(ctx, g, w) {
-    if (b.nodesOn()) return;
     const items = !st.step ? [[pushTag(w), XS, pushPart], [rTag(w), g.PX, pinch], [ledTag(w), XL, ledPart]]
       : [[pushTag(w), pushAt(g)[0], pushPart], ...(st.pon ? [[pullTag(w), resAt(g)[0], pull]] : [])];
     b.tagRow(ctx, g, g.TOP - (w ? 84 : 56), items
@@ -266,7 +262,7 @@
 
   // ---------- el pulsador: tocar su tapa lo aprieta; tocar su cuerpo abre su tarjeta ----------
   const pushPart = b.part({
-    pos: g => b.nodesOn() ? OFF : [pushAt(g)[0], g.TOP + 8],
+    pos: g => [pushAt(g)[0], g.TOP + 8],
     label: side => side === 'w' ? 'Válvula con resorte' : 'Pulsador',
     menu: Sim.pushMenu({ get: () => st.type, set: v => { st.type = v; } })
   });

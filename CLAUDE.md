@@ -125,12 +125,15 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
     rompe; reescribe `v` e `Iat` de cada tramo y el voltaje de los nodos con esa red, y da `Sim.holds`, los tramos puenteados
     donde las partículas se quedan quietas en `D.flow` y `Sim.water`). `b.iOut()` es lo que de verdad da la fuente; `b.flowI(m)`,
     la corriente con la que las páginas mueven las partículas de su vuelta (con un corto, la de la fuente).
-  - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto (también en la vista de nodos).
+  - `drawSel`: contorno de cualquier componente de `circuit()` con `pr` abierto, a lo ancho de su `ext` (también en la vista de nodos).
   - Osciloscopio en la mesa (`o.scope`, la página carga `osciloscopio.js` antes): `OSC` con `Sim.scopeUnit`; en la mesa en
     lugar del segundo multímetro (`g.OS`: corto, solo se lee, acomodo `DESKL`; en el celular es otro de `phoneDesk`, 'o') y de
     frente encima del panel (`os.front`, `.sim-ofront` esconde lo demás); tres puntas que se pegan al circuito con `snap` y
     cada cuadro `sample` guarda lo que marca cada canal contra el caimán. `b.scope` da su estado.
-  - Vista de nodos: `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado); la página
+  - Vista de nodos (Ver → Dibujo: Circuito · Nodos), solo en `como-medir` y `resistencia` (Ley de Ohm y nodos); las páginas que
+    van después en `Sim.ORDER` y usan el banco (`interruptor-led`, `serie-paralelo`, `potenciometro`, `botones`, `transistor` y
+    `capacitores`) dan `o.nodes: false`: sin la fila Dibujo y `b.nodesOn()` siempre false (`analyze` sigue para las puntas, los
+    cortos en A, `b.where()` y `b.measuring()`), y sus componentes de `circuit()` no traen `draw` ni `tag`. `analyze`, `morph`, `drawNodes` (`aimed`: el nodo al que va la punta que se arrastra, resaltado); la página
     puede dar su acomodo con `o.nodeLayout(nodes, comps, g)` (`p` y `out` de cada nodo, `mid`, `a1` y `tagUp` de cada componente; lo usa Ley de Ohm y nodos) y quitar la fila Dibujo de Ver
     con `o.nodeRow: false` (Ley de Ohm y nodos pone Circuito · Nodos flotando con `b.linkedChoice`); los nodos van del color de su voltaje
     (`nodeColor`) y en V y Ω las puntas solo se pegan a los nodos, por un lado sin cables (`nodeDir`). Inercia: `inertia` (empieza en 0: `value="0"` del `#inercia` de cada página). Regulación CV/CC de cada canal: `regulate`. Polaridad invertida (`st.rev`): `circuitList` sube todo −V y voltea el
@@ -158,7 +161,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   tarjeta (y su calor, ¼ W) y, desde el paso 2, dos contadores que se arrastran por la vuelta (su lectura va donde menos se corre). `resistencia` (Ley de Ohm y nodos, sin pasos: fusible, R1 y hasta tres resistencias de ¼ W en paralelo entre los mismos dos
   nodos, con lugares punteados para agregarlas; 0 Ω es un corto; Ver → Corrientes y Equivalente; `Sim.ohmNow` para probar). `potenciometro` (Potenciómetro, dos pasos: divisor de voltaje y
   resistencia variable con un LED): la pista de pie en `XP` partida en el cursor en dos componentes (`RA` de A al cursor y `RB`
-  del cursor a B, con su largo de verdad: en la vista de nodos son dos resistencias), la toma a `XT`; el agua con `Sim.stream`
+  del cursor a B, con su largo de verdad: para las puntas son dos resistencias), la toma a `XT`; el agua con `Sim.stream`
   (avanza por fase, así no se pierde al mover el cursor); su propio elemento para tocar y arrastrar el cursor; `Sim.potNow`
   para probar. `botones` (Botones, dos pasos: el pulsador NA o NC con un LED, y pull-down y pull-up): el pulsador es un
   componente con dos zonas, su tapa (mando, `b.pushKey`: un clic lo aprieta un momento y dejarlo apretado lo enclava, `st.press`) y su cuerpo (`b.part`, su tarjeta con
@@ -167,10 +170,9 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   punteado) la entrada flota (`st.fl`, al azar entre 0 y V); `Sim.btnNow` para probar. `transistor` (Transistor, dos pasos: botón en la base y
   potenciómetro en la base): el NPN 2N2222 en `XQ` (colector arriba, emisor abajo, base por la izquierda) con β = 100, Vbe 0,7 V y
   Vce 0,2 V saturado (`solve(V)`: corrientes, voltajes y estado; `model` da `branch` [Ic, Ib, Ibot] para la inercia); son dos
-  componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (un diodo
-  en la vista de nodos); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
-  abajo) salen del alto del circuito; `nodeLayout` propio y las puntas en A a los dos lados de un nodo (en la vista de nodos un
-  cable que acaba en un nodo se encoge hasta él); `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (sin dibujo
+  propio: separa el nodo de la base del emisor, para medir Vbe); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
+  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
