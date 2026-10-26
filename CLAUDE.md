@@ -143,9 +143,10 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
 - `index.html` (inicio): bloques que siguen el curso (conceptos · nodos y protoboard · armar y medir · señales), miniaturas SVG de cada circuito
   (`MINI`, piezas en `PIECE`) y «Seguir donde te quedaste» (lee `sim-last`). Sin descripciones.
 - Páginas (`simulaciones/*/index.html`): cada una da `model`, `circuit`, `drawW`, `drawE` al banco.
-  `voltaje-concepto`, `corriente-concepto` (una pila y una resistencia con contadores que se arrastran por la vuelta) y
+  `voltaje-concepto`, `corriente-concepto` y
   `resistencia-concepto` (una barra de carbón con largo y grosor en su tarjeta, y su calor) no usan el banco ni instrumentos. `voltaje-concepto` usa
-  `Sim.piezo` (la válvula del regreso y la tierra que se arrastra a un tubito o al regreso). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
+  `Sim.piezo` (la válvula del regreso y la tierra que se arrastra a un tubito o al regreso) y `corriente-concepto` también (R1 y R2 con
+  tarjeta y dos contadores que se arrastran por la vuelta; su lectura va donde menos se corre). `nodos` (R1 y hasta tres resistencias en paralelo entre los mismos dos nodos; lugares punteados para agregarlas; al final
   la resistencia equivalente) no usa el multímetro. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen

@@ -197,8 +197,8 @@ footer a { color: var(--water); }
   const MINI = {
     // la bomba, los tubitos en escalones (9, 6 y 0 psi), la válvula del regreso y la tierra
     'voltaje-concepto': () => piezo([9, 6, 0], '<circle class="pmp" cx="96" cy="80" r="4.5"/><path class="w" d="M96 75.5v-5M92.5 70.5h7M50 84v4M45 88h10M47 90.5h6M49 93h2"/>'),
-    // la pila a la izquierda y dos contadores (rayas verdes), antes y después de la resistencia
-    'corriente-concepto': () => circ(LOOP, [at('r', 80, 20), at('bat', 22, 50, 90)]) + '<path class="gate" d="M14 34h16M130 50h16"/>',
+    // los tubitos y dos contadores (rayas verdes), antes de los tramos y después
+    'corriente-concepto': () => piezo([9, 4.5, 0], '<path class="gate" d="M32 51v14M131 69h14"/>'),
     // la pila a la izquierda y la barra de carbón arriba: una corta y gruesa junto a una larga y delgada
     'resistencia-concepto': () => circ(LOOP, [at('bat', 22, 50, 90)]) + '<rect class="bg" x="44" y="12" width="72" height="16"/><rect class="w" x="46" y="16" width="20" height="8" rx="2"/><path class="w" d="M66 20h8"/><rect class="w" x="74" y="18" width="40" height="4" rx="1.5"/>',
     // R1 y, después del nodo de la barra, dos resistencias entre los mismos dos nodos

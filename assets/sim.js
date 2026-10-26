@@ -2044,7 +2044,7 @@
       const g = geo(), lo = scaleLo(), gv = ground() === 'g' ? 0 : st.lv[ground()];
       return [(vAlong(g, D.project(g.loop, x, y).d) - gv - lo) / (VMAX - lo), Math.abs(st.I.x) / IMAX];
     };
-    const syncColors = Sim.colorPicker({ w: p }, { top: true, as: side, spot: () => [p.W - 6, 2], ends: s => {
+    const syncColors = Sim.colorPicker({ w: p }, { top: true, as: side, spot: () => [p.x0 + p.W - 6, 2], ends: s => {
       const w = s === 'w', lo = scaleLo();
       return ({ v: ['lento', 'rápido'], p: [Sim.fmt(lo, 0) + unit(w), VMAX + unit(w)], q: ['0', IMAX + (w ? ' mL/s' : ' mA')] })[Sim.shownColorMode()];
     } });
