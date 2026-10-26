@@ -1217,7 +1217,6 @@
     ['potenciometro', 'Potenciómetro'],
     ['potenciometro-armado', 'Potenciómetro en la protoboard'],
     ['botones', 'Botones'],
-    ['botones-armado', 'Botones en la protoboard'],
     ['transistor', 'Transistor'],
     ['osciloscopio', 'LED y osciloscopio'],
     ['capacitores', 'Capacitores'],
