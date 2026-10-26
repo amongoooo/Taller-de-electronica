@@ -182,7 +182,7 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   Vce 0,2 V saturado (`solve(V)`: corrientes, voltajes y estado; `model` da `branch` [Ic, Ib, Ibot] para la inercia); son dos
   componentes, `CE` (su dibujo completo: en el agua la compuerta con su paleta, su resorte y el agua de adentro) y `BE` (sin dibujo
   propio: separa el nodo de la base del emisor, para medir Vbe); la altura de la base y del cable de la tierra del potenciómetro (`yQ`, `yG`, que baja en `XG` al cable de
-  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED y cable negro. `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `osciloscopio` (LED),
+  abajo) salen del alto del circuito; `Sim.qNow` para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: es `Sim.protoboard` libre (cables y resistencias). `interruptor-led-armado` (Interruptor y LED en la protoboard, después de Interruptor y LED) es el armado guiado: cable rojo, pulsador, 470 Ω, LED y cable negro. `potenciometro-armado` (Potenciómetro en la protoboard, después de Potenciómetro): potenciómetro en d5–d7, cable rojo a la tira 7, cable negro a la 5, 470 Ω del cursor por encima del canal, LED y cable puente de regreso a la tira 5. `botones-armado` (Botones en la protoboard, después de Botones): cable rojo, pulsador NA, pull-down de 10 kΩ de la tira de la entrada (la 5) al riel −, 470 Ω, LED y cable negro; sin el pull-down, la tira 5 flota con el pulsador suelto («sin conexión»). `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -274,7 +274,7 @@ Armado en protoboard (aprobado; con agua, una página aparte después de cada si
 - [x] Fase 1: la protoboard en `assets/protoboard.js` con el armado guiado y **Interruptor y LED en la protoboard**
   (`simulaciones/interruptor-led-armado/`).
 - [x] Fase 2: Potenciómetro en la protoboard (`simulaciones/potenciometro-armado/`).
-- [ ] Fase 3: Botones en la protoboard.
+- [x] Fase 3: Botones en la protoboard (`simulaciones/botones-armado/`).
 - [ ] Fase 4: Transistor en la protoboard.
 
 No hacen falta (no los propongas): la salida de 50 Ω del generador, la salida fija de 5 A y los modos serie y

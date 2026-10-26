@@ -118,18 +118,19 @@ footer a { color: var(--water); }
       <a class="card" href="simulaciones/potenciometro/"><span class="mini" data-p="potenciometro"></span><h3><span class="n">8</span>Potenciómetro</h3></a>
       <a class="card" href="simulaciones/potenciometro-armado/"><span class="mini" data-p="potenciometro-armado"></span><h3><span class="n">9</span>Potenciómetro en la protoboard</h3></a>
       <a class="card" href="simulaciones/botones/"><span class="mini" data-p="botones"></span><h3><span class="n">10</span>Botones</h3></a>
-      <a class="card" href="simulaciones/transistor/"><span class="mini" data-p="transistor"></span><h3><span class="n">11</span>Transistor</h3></a>
+      <a class="card" href="simulaciones/botones-armado/"><span class="mini" data-p="botones-armado"></span><h3><span class="n">11</span>Botones en la protoboard</h3></a>
+      <a class="card" href="simulaciones/transistor/"><span class="mini" data-p="transistor"></span><h3><span class="n">12</span>Transistor</h3></a>
     </div>
   </section>
 
   <section>
     <h2>Señales <span class="ins">·&nbsp;generador y osciloscopio</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">12</span>LED y osciloscopio</h3></a>
-      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">13</span>Capacitores</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">14</span>Carga y descarga RC</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">15</span>Diodo y media onda</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">16</span>Rectificador de onda completa</h3></a>
+      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">13</span>LED y osciloscopio</h3></a>
+      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">14</span>Capacitores</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">15</span>Carga y descarga RC</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">16</span>Diodo y media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">17</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -194,6 +195,9 @@ footer a { color: var(--water); }
       + '<path class="lead" d="M86 44h8"/><circle cx="90" cy="44" r="4.5" style="fill:#e5484d"/><path class="w neg" d="M94 44q18 20 0 40"/>';
     return h;
   };
+  // armado de Botones: el de Interruptor y LED con la resistencia de pull-down, de la tira de la entrada (la del pulsador) al −
+  const boardBtn = () => boardLED() + '<path class="lead" d="M54 60V84"/><rect class="body" x="51" y="64" width="6" height="12" rx="2.5"/>'
+    + '<path class="w" d="M51 67h6M51 70h6M51 73h6" style="stroke-width:1.4"/>';
   // armado de Potenciómetro: el potenciómetro con su perilla (el cuerpo arriba de sus patas), sus cables a los rieles, y del
   // cursor la resistencia que baja por el canal, el LED y el cable que regresa
   const boardPot = () => {
@@ -231,6 +235,7 @@ footer a { color: var(--water); }
       + '<path class="w" d="M122 50H133"/><circle class="bg" cx="136" cy="50" r="2.6"/><circle class="w" cx="136" cy="50" r="2.6"/>',
     'potenciometro-armado': boardPot,
     // el pull-down: pulsador, el nodo de la entrada (baja a su terminal) y la resistencia al −
+    'botones-armado': boardBtn,
     'botones': () => circ(LOOP, [at('pb', 46, 20), at('r', 104, 20), at('bat', 80, 80)], [[70, 20]])
       + '<path class="w" d="M70 20V47.4"/><circle class="bg" cx="70" cy="50" r="2.6"/><circle class="w" cx="70" cy="50" r="2.6"/>',
     // el transistor a la derecha (colector arriba, emisor abajo): el LED y su resistencia al colector, y el pulsador con
