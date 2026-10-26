@@ -116,17 +116,18 @@ footer a { color: var(--water); }
       <a class="card" href="simulaciones/serie-paralelo/"><span class="mini" data-p="serie-paralelo"></span><h3><span class="n">6</span>LEDs en serie y paralelo</h3></a>
       <a class="card" href="simulaciones/potenciometro/"><span class="mini" data-p="potenciometro"></span><h3><span class="n">7</span>Potenciómetro</h3></a>
       <a class="card" href="simulaciones/botones/"><span class="mini" data-p="botones"></span><h3><span class="n">8</span>Botones</h3></a>
+      <a class="card" href="simulaciones/transistor/"><span class="mini" data-p="transistor"></span><h3><span class="n">9</span>Transistor</h3></a>
     </div>
   </section>
 
   <section>
     <h2>Señales <span class="ins">·&nbsp;generador y osciloscopio</span></h2>
     <div class="grid">
-      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">9</span>LED y osciloscopio</h3></a>
-      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">10</span>Capacitores</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">11</span>Carga y descarga RC</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">12</span>Diodo y media onda</h3></a>
-      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">13</span>Rectificador de onda completa</h3></a>
+      <a class="card" href="simulaciones/osciloscopio/"><span class="mini" data-p="osciloscopio"></span><h3><span class="n">10</span>LED y osciloscopio</h3></a>
+      <a class="card" href="simulaciones/capacitores/"><span class="mini" data-p="capacitores"></span><h3><span class="n">11</span>Capacitores</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rc/"><span class="mini" data-p="osciloscopio-rc"></span><h3><span class="n">12</span>Carga y descarga RC</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-rectificador/"><span class="mini" data-p="osciloscopio-rectificador"></span><h3><span class="n">13</span>Diodo y media onda</h3></a>
+      <a class="card" href="simulaciones/osciloscopio-onda-completa/"><span class="mini" data-p="osciloscopio-onda-completa"></span><h3><span class="n">14</span>Rectificador de onda completa</h3></a>
     </div>
   </section>
 
@@ -207,6 +208,11 @@ footer a { color: var(--water); }
     // el pull-down: pulsador, el nodo de la entrada (baja a su terminal) y la resistencia al −
     'botones': () => circ(LOOP, [at('pb', 46, 20), at('r', 104, 20), at('bat', 80, 80)], [[70, 20]])
       + '<path class="w" d="M70 20V47.4"/><circle class="bg" cx="70" cy="50" r="2.6"/><circle class="w" cx="70" cy="50" r="2.6"/>',
+    // el transistor a la derecha (colector arriba, emisor abajo): el LED y su resistencia al colector, y el pulsador con
+    // la resistencia de la base desde el nodo de la izquierda
+    'transistor': () => circ('M22 50V20H138V41M138 59V80H22V50H124', [at('r', 58, 20), at('led', 102, 20), at('pb', 52, 50), at('r', 96, 50), at('bat', 80, 80)], [[22, 50]])
+      + '<circle class="bg" cx="135" cy="50" r="9.5"/><circle class="w" cx="135" cy="50" r="9.5"/>'
+      + '<path class="w" d="M124 50H131M131 44V56M131 47.5L138 43V41M131 52.5L138 57V59"/><path class="f" d="M138 57.2l-4.6-.6 1.6-2.6z"/>',
     'capacitores': () => circ(LOOP, [at('r', 62, 20), at('cp', 100, 20), at('bat', 80, 80)]),
     'osciloscopio': () => circ(LOOP, [at('r', 62, 20), at('led', 100, 20), at('gen', 80, 80)]),
     'osciloscopio-rc': () => circ(LOOP, [at('r', 62, 20), at('c', 100, 20), at('gen', 80, 80)]),
