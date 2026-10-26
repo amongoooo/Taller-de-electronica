@@ -98,7 +98,7 @@
       iR = out / R * 1000;
     } else {
       const Cf = st.Cap * 1e-6, v0 = st.vc;
-      on = ae - v0 > 2 * VF;
+      on = ae - v0 * Math.exp(-h / (R * Cf)) > 2 * VF;   // con lo que quedaría al final del paso (ver el de media onda)
       const vi = on ? (ae - 2 * VF) * R / (R + R2) : 0, tau = on ? Cf * R * R2 / (R + R2) : R * Cf;
       const x = Math.exp(-h / tau);
       out = vi + (v0 - vi) * x; st.vc = out;

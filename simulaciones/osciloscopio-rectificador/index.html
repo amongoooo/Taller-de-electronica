@@ -73,8 +73,10 @@
         return { I, i: { s: I, r: I }, v: { a: e, b: out, g: 0 }, VR: out, diodes: { D: [e - out, I] } };
       }
       // Con el capacitor en paralelo: si el diodo conduce, la salida sigue a e − 0,7 V (τ = C·(R ∥ RD), casi
-      // nada); si no, el capacitor se descarga por R (τ = R·C) y la salida baja poco a poco: el rizado.
-      const Cf = st.Cap * 1e-6, v0 = st.vc, on = s * (e - v0) > VF;
+      // nada); si no, el capacitor se descarga por R (τ = R·C) y la salida baja poco a poco: el rizado. El diodo
+      // conduce si, descargándose solo, el capacitor quedaría al final del paso abajo de e − 0,7 V: con un capacitor
+      // chico (τ mucho menor que el paso), decidirlo con el voltaje del principio lo prendía y apagaba en cada paso.
+      const Cf = st.Cap * 1e-6, v0 = st.vc, on = s * (e - v0 * Math.exp(-h / (R * Cf))) > VF;
       const vi = on ? (e - s * VF) * R / (R + RD) : 0, tau = on ? Cf * R * RD / (R + RD) : R * Cf;
       const x = Math.exp(-h / tau), v1 = vi + (v0 - vi) * x;
       st.vc = v1;
