@@ -1212,6 +1212,7 @@
     ['resistencia', 'Ley de Ohm y nodos'],
     ['protoboard', 'Protoboard'],
     ['interruptor-led', 'Interruptor y LED'],
+    ['interruptor-led-armado', 'Interruptor y LED en la protoboard'],
     ['serie-paralelo', 'LEDs en serie y paralelo'],
     ['potenciometro', 'Potenciómetro'],
     ['botones', 'Botones'],
