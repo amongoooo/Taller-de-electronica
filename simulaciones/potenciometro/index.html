@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Potenciómetro · Taller de Electrónica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@50..125,100..900&family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&display=swap">
+<link rel="stylesheet" href="../../assets/sim.css?v=20261026085843">
+<script>try{if(localStorage.getItem("sim-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
+</head>
+<body>
+<div class="sim-page">
+  <div class="sim-bar">
+    <a class="back" href="../../">← Simulaciones</a>
+    <h1>Potenciómetro</h1>
+    <div class="ctl">
+      <label for="inercia">Inercia</label>
+      <input type="range" id="inercia" min="0" max="3" step="0.1" value="0">
+      <output id="oInercia" for="inercia"></output>
+    </div>
+  </div>
+
+  <main class="sim-stage">
+    <div class="sim-panel" id="pw">
+      <span class="sim-tag w">Agua</span>
+      <canvas aria-label="Circuito de agua con un tramo angosto largo y una toma que se desliza por él"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+    <div class="sim-panel" id="pe">
+      <span class="sim-tag e">Electricidad</span>
+      <canvas aria-label="Circuito eléctrico con un potenciómetro de 10 kΩ"></canvas>
+      <div class="sim-layer"></div>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/sim.js?v=20261026085843"></script>
+<script src="../../assets/banco.js?v=20261026085843"></script>
+<script>
+(() => {
+  const { C, draw: D } = Sim;
+  // Potenciómetro de 10 kΩ lineal, el del taller: una pista de carbón de A (arriba) a B (abajo) y un cursor que se
+  // desliza por ella. Entre A y el cursor hay a · 10 kΩ y entre el cursor y B lo demás: siempre suman 10 kΩ. En el agua
+  // es un tramo angosto largo (de ancho parejo: su resistencia crece con el largo) con una toma que se desliza.
+  // Va de pie en la columna XP; la toma sale del cursor hacia la derecha, a la columna XT.
+  // Dos pasos, los que cambian el dibujo:
+  //   Divisor de voltaje: la fuente entre A y B, y la toma acaba en una terminal (sin carga). Por la pista pasan
+  //     V / 10 kΩ y en el cursor queda V · (cursor a B) / 10 kΩ; el multímetro en V entre la terminal y la tierra.
+  //   Resistencia variable: + → resistencia de protección → LED → A → cursor → tierra (B queda suelto). Con el cursor
+  //     hasta arriba el potenciómetro da 0 Ω y la corriente es la más grande: (V − Vf) / R; la resistencia de
+  //     protección es la que la limita (sin ella, el LED se quema). Con el cursor abajo, 10 kΩ más: casi no prende.
+  // Todo se calienta (Sim.heat): el LED aguanta Vf · 30 mA, la resistencia ¼ W y el potenciómetro ¼ W (lo que recibe
+  // el pedazo de pista por el que pasa la corriente, I²·R). Su pista quemada se abre en ese punto (crack, de 0 a 1):
+  // si el cursor queda del otro lado, el pedazo que se usa sigue sirviendo, como en uno de verdad.
+  const RP = 10000, HN = 5;                          // el potenciómetro y el medio ancho de su tramo angosto
+  const XP = 500, XT = 620, XR = 270, XL = 410;      // la pista, la toma, la resistencia y el LED
+  const END = 22;                                    // lo que sale cada pata de la pista (la entrada del tramo angosto)
+  const RMIN = 100, RMAX = 1000, HMIN = 3, HMAX = Sim.PIPE - 3, LN = Math.log(RMAX / RMIN);
+  const RVALUES = [0, ...Sim.series(RMIN, RMAX)];
+  const half = R => R ? HMAX - (HMAX - HMIN) * Math.log(R / RMIN) / LN : Sim.PIPE;
+  const fromHalf = h => h >= Sim.PIPE - 0.5 ? 0 : Sim.nearest(RVALUES, RMIN * Math.exp((HMAX - Math.max(HMIN, Math.min(HMAX, h))) / (HMAX - HMIN) * LN));
+  const ohm = Sim.ohm, OFF = [-999, -999];
+  const vf = () => Sim.led(st.led).vf;
+  const lh = Sim.heat({ ...Sim.HEAT.led, pMax: () => vf() * Sim.LED_IMAX / 1000 }), rh = Sim.heat(Sim.HEAT.res), ph = Sim.heat(Sim.HEAT.res);
+  const st = { step: 0, a: 0.5, R: 470, led: 'rojo', broken: false, rb: false, crack: null, burnT: 9, crackT: 9, ang: 0, om: 0,
+    span: [0.5, 0.5], low: false, high: false };
+  // la pista: abajo queda lugar para la pata B suelta (paso 2), lejos del cable de abajo
+  const yA = g => g.TOP + 44, yB = g => g.BOT - 64, yW = g => yA(g) + st.a * (yB(g) - yA(g));
+  const Ra = () => st.a * RP, Rb = () => RP - Ra();
+  // la pista está rota entre A y el cursor (o entre el cursor y B)
+  const cutA = () => st.crack != null && st.crack < st.a, cutB = () => st.crack != null && st.crack >= st.a;
+  const uniq = pts => pts.filter((p, i) => !i || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 0.01);
+  const dOn = (pts, x, y) => D.project(pts, x, y).d;
+
+  // Tramos del circuito (sin la fuente), con su corriente, sus componentes y el perfil del agua:
+  //   s1: del + por la izquierda y arriba hasta el cursor (con A–cursor, y en el paso 2 la resistencia y el LED)
+  //   s2: del cursor hacia B (en el paso 1 sigue a la tierra; en el 2 acaba en la pata B, suelta)
+  //   tap: la toma, del cursor a la terminal (paso 1) o a la tierra (paso 2)
+  function segs(g, m, V) {
+    const ya = yA(g), yb = yB(g), yw = yW(g), I = m.I, sx = g.PX + b.SRC;
+    const nodes = b.nodesOn();
+    const track = (id, y0, y1, R, dV, cut) => ({ id, at: [XP, (y0 + y1) / 2], half: (y1 - y0) / 2, dV, R: cut ? Infinity : R,
+      pr: nodes ? pot : null, ext: w => w ? Sim.PIPE + 6 : 16, draw: (ctx, w) => drawTrack(ctx, w, y0, y1),
+      tag: w => [id === 'RA' ? (w ? 'tramo de arriba' : 'pot. arriba') : (w ? 'tramo de abajo' : 'pot. abajo'), ohm(R), cut, cut ? (w ? 'reventado' : 'quemado') : ''] });
+    const p1 = uniq([[g.PX - b.SRC, g.BOT], [g.X0, g.BOT], [g.X0, g.TOP], [XP, g.TOP], [XP, yw]]);
+    const narrowAt = (pts, y0, y1) => Sim.narrowProfile(dOn(pts, XP, (y0 + y1) / 2), HN, (y1 - y0) / 2);
+    if (!st.step) {
+      // si la pista se quemó no pasa nada y todo el voltaje queda en el pedazo roto
+      const dA = cutA() ? V : cutB() ? 0 : I * Ra() / 1000, Vw = V - dA;
+      const p2 = uniq([[XP, yw], [XP, g.BOT], [sx, g.BOT]]);
+      return [
+        { id: 's1', pts: p1, I, v0: V, comps: [track('RA', ya, yw, Ra(), dA, cutA())], prof: narrowAt(p1, ya, yw) },
+        { id: 's2', pts: p2, I, v0: Vw, comps: [track('RB', yw, yb, Rb(), Vw, cutB())], prof: narrowAt(p2, yw, yb) },
+        { id: 'tap', pts: uniq([[XP, yw], [XT, yw], [XT, yb]]), I: 0, v0: Vw, comps: [] }
+      ];
+    }
+    // paso 2: si no pasa corriente, el voltaje queda en lo que está abierto (o en el LED, que no alcanza a prender)
+    const R = st.R, dR = st.rb ? V : I * R / 1000, dA = cutA() && !st.rb ? V : I * Ra() / 1000;
+    const comps = [
+      { id: 'LED', at: [XL, g.TOP], half: 30, dV: V - dR - dA, pr: ledPart, ext: w => w ? 46 : 28,
+        draw: (ctx, w) => drawLed(ctx, w, g, m), tag: w => ledTag(w) },
+      track('RA', ya, yw, Ra(), dA, cutA())
+    ];
+    if (R) comps.unshift({ id: 'R', at: [XR, g.TOP], half: 46, dV: dR, R: st.rb ? Infinity : R, pr: pinch,
+      draw: (ctx, w) => w ? D.narrow(ctx, XR, g.TOP, half(R)) : D.resistor(ctx, XR, g.TOP), tag: w => rTag(w) });
+    const p2 = uniq([[XP, yw], [XP, yb + END]]);
+    const prof = R ? Sim.profile(Sim.narrowProfile(dOn(p1, XR, g.TOP), half(R)), narrowAt(p1, ya, yw)) : narrowAt(p1, ya, yw);
+    return [
+      { id: 's1', pts: p1, I, v0: V, comps, prof },
+      { id: 's2', pts: p2, I: 0, v0: 0, comps: [track('RB', yw, yb, Rb(), 0, cutB())], prof: narrowAt(p2, yw, yb) },
+      { id: 'tap', pts: uniq([[XP, yw], [XT, yw], [XT, g.BOT], [sx, g.BOT]]), I, v0: 0, comps: [] }
+    ];
+  }
+
+  // El agua de cada tramo (Sim.stream: avanza con su fase, así no se pierde al mover el cursor); se arma de nuevo si
+  // el tramo cambia.
+  const streams = new Map(), phase = { w: {}, e: {} };
+  const streamOf = (g, s) => {
+    const key = JSON.stringify(s.pts) + st.R + st.step + st.a;
+    let w = streams.get(s.id);
+    if (!w || w.key !== key) { w = { key, sim: Sim.stream(s.pts, s.prof || (() => Sim.PIPE)) }; streams.set(s.id, w); }
+    return w.sim;
+  };
+  const K = 10, CAP = 40;   // rapidez de las partículas por mA, con un tope para que se vean
+  const rate = I => Math.sign(I) * Math.min(Math.abs(I), CAP) * K;
+
+  const b = Sim.bench({
+    iFull: 30, v0: 10,
+    head: 82,   // las etiquetas de la resistencia y de la rueda, arriba del cable
+    layout() { streams.clear(); },
+    model(V) {
+      if (!st.step) return { I: st.crack != null ? 0 : V / RP * 1000 };
+      if (st.broken || st.rb || cutA()) return { I: 0 };
+      // el LED solo deja pasar en su sentido y con más de Vf; 5 Ω de su resistencia interna (con todo en 0 Ω, lo que
+      // detiene la corriente es el límite de la fuente)
+      return { I: Math.max(0, V - vf()) / (st.R + Ra() + 5) * 1000 };
+    },
+    circuit: (g, m, V) => segs(g, m, V),
+    step(dt, m) {
+      const I = b.flowI(m) / 1000;
+      // calor: la pista con I²·R del pedazo que lleva la corriente, la resistencia con I²·R y el LED con Vf · I
+      const Rused = st.step ? Ra() : RP;
+      if (ph.step(st.crack != null ? 0 : I * I * Rused, dt) && st.crack == null) burnPot();
+      if (st.step) {
+        if (lh.step(st.broken ? 0 : vf() * Math.abs(I), dt) && !st.broken) { st.broken = true; b.halt(); b.refresh(); }
+        if (rh.step(st.rb || !st.R ? 0 : I * I * st.R, dt) && !st.rb && st.R) { st.rb = true; st.burnT = 0; b.halt(); b.refresh(); }
+      }
+      st.burnT += dt; st.crackT += dt;
+      st.om = st.broken || !st.step ? 0 : -m.I * Sim.WHEEL_RPM_PER_MA / 60 * 2 * Math.PI;
+      st.ang += st.om * dt;
+      for (const s of segs(b.ge, m, b.st.vo)) phase.e[s.id] = (phase.e[s.id] || 0) + rate(s.I) * dt;
+      for (const s of segs(b.gw, m, b.st.vo)) phase.w[s.id] = (phase.w[s.id] || 0) + rate(s.I) * dt;
+      seen(m);
+    },
+    drawW(ctx, g, m) {
+      const ss = segs(g, m, b.st.vo), yw = yW(g);
+      ss.forEach(s => D.pipe(ctx, s.pts));
+      if (st.step && st.R) D.narrow(ctx, XR, g.TOP, half(st.R));
+      drawTrack(ctx, true, yA(g), yB(g));
+      ss.forEach(s => streamOf(g, s).draw(ctx, phase.w[s.id] || 0, rate(s.I)));
+      if (st.step) {
+        if (st.R) D.burstPipe(ctx, XR, g.TOP, half(st.R), st.burnT, st.rb, rh.glow, '');
+        b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinch);
+        drawLed(ctx, true, g, m);
+      }
+      hurtTrack(ctx, g, true);
+      ss.filter(s => s.id === (st.step ? 's2' : 'tap')).forEach(s => plug(ctx, s.pts));   // el extremo cerrado
+      // la toma: un collar que abraza el tramo y se desliza, con su mango a la izquierda
+      D.line(ctx, [[XP - 22, yw], [XP - 34, yw]], 5, C.ink);
+      D.circle(ctx, XP - 36, yw, 5, C.metal, C.ink, 2);
+      D.roundRect(ctx, XP - 21, yw - 10, 42, 20, 6, C.metal, C.ink, 2.5);
+      D.roundRect(ctx, XP - 9, yw - 5, 18, 10, 4, C['water-soft']);
+      labels(ctx, g, true);
+    },
+    drawE(ctx, g, m) {
+      const ss = segs(g, m, b.st.vo), yw = yW(g);
+      ss.forEach(s => D.wire(ctx, s.pts));
+      ss.forEach(s => D.flow(ctx, s.pts, phase.e[s.id] || 0, C.charge, { gap: 30, r: 4.5 }));
+      if (!st.step) D.circle(ctx, XT, yB(g), 6, C.card, C.ink, 2.5);   // la terminal de la salida
+      else D.circle(ctx, XP, yB(g) + END, 6, C.card, C.ink, 2.5);       // la pata B, suelta
+      if (st.step) {
+        if (st.R) {
+          if (!st.rb) D.heatGlow(ctx, XR, g.TOP, rh.glow);
+          D.resistor(ctx, XR, g.TOP);
+          if (st.rb) D.burntResistor(ctx, XR, g.TOP, st.burnT, '');
+        }
+        b.grips(ctx, XR, g.TOP, half(st.R) + 5, pinch);
+        drawLed(ctx, false, g, m);
+      }
+      if (st.crack == null) D.heatGlow(ctx, XP, used(g), ph.glow);
+      drawTrack(ctx, false, yA(g), yB(g));
+      hurtTrack(ctx, g, false);
+      D.arrow(ctx, XP + 22, yw, Math.PI, 9, C.ink);   // el cursor
+      labels(ctx, g, false);
+    }
+  });
+
+  // La pista: en el agua un tramo angosto de pie (de y0 a y1, con su entrada de cada lado); en la electricidad una
+  // resistencia larga, con un diente cada 12.
+  function drawTrack(ctx, w, y0, y1) {
+    if (w) {
+      ctx.save(); ctx.translate(XP, (y0 + y1) / 2); ctx.rotate(Math.PI / 2);
+      D.narrow(ctx, 0, 0, HN, (y1 - y0) / 2);
+      ctx.restore();
+      return;
+    }
+    const L = y1 - y0;
+    ctx.fillStyle = C.card; ctx.fillRect(XP - 16, y0 - 4, 32, L + 8);
+    const n = Math.max(1, Math.round((L - 8) / 12)), s = (L - 8) / n, pts = [[XP, y0 - 4], [XP, y0 + 4]];
+    for (let k = 0; k < n; k++) pts.push([XP + (k % 2 ? 11 : -11), y0 + 4 + (k + 0.5) * s]);
+    pts.push([XP, y1 - 4], [XP, y1 + 4]);
+    if (L < 8) pts.splice(1, pts.length - 2);
+    D.line(ctx, pts, 3.5, C.ink, 'butt');
+  }
+  // Tapón del extremo cerrado de un tubo (la terminal de la toma o la pata B suelta), atravesado al final de pts.
+  function plug(ctx, pts) {
+    const [x1, y1] = pts[pts.length - 1], [x0, y0] = pts[pts.length - 2], a = Math.atan2(y1 - y0, x1 - x0);
+    ctx.save(); ctx.translate(x1, y1); ctx.rotate(a);
+    D.roundRect(ctx, -2, -Sim.PIPE - 7, 9, 2 * Sim.PIPE + 14, 3, C.ink);
+    ctx.restore();
+  }
+  // El centro del pedazo de pista por el que pasa la corriente (ahí se calienta).
+  const used = g => st.step ? (yA(g) + yW(g)) / 2 : (yA(g) + yB(g)) / 2;
+  // La pista quemada (en el agua, el tramo reventado) en su punto.
+  function hurtTrack(ctx, g, w) {
+    if (w) {
+      if (st.crack == null) D.burstPipe(ctx, XP, used(g), HN, 9, false, ph.glow, '');
+      else D.burstPipe(ctx, XP, yA(g) + st.crack * (yB(g) - yA(g)), HN, st.crackT, true, 0, '');
+    } else if (st.crack != null) D.burntResistor(ctx, XP, yA(g) + st.crack * (yB(g) - yA(g)), st.crackT, '');
+  }
+  function drawLed(ctx, w, g, m) {
+    if (!st.broken) D.heatGlow(ctx, XL, g.TOP, lh.glow, w ? 46 : 56);
+    if (w) D.wheel(ctx, XL, g.TOP, { angle: st.ang, omega: st.om, broken: st.broken, tint: `rgb(${Sim.led(st.led).rgb})`, tag: false });
+    else D.ledSymbol(ctx, XL, g.TOP, { I: Math.abs(m.I), broken: st.broken, rgb: Sim.led(st.led).rgb, tag: false });
+  }
+
+  // Etiquetas: la del potenciómetro a la izquierda de la pista y, a su derecha, lo que hay de A al cursor y del cursor
+  // a B (cada una junto a su pedazo, sin taparse con la toma; si su pedazo es muy corto, no va). En el paso 2, la
+  // resistencia y el LED en un renglón arriba del cable.
+  const rTag = w => st.R ? [w ? 'tramo angosto' : 'resistencia', ohm(st.R), st.rb, st.rb ? (w ? 'reventado' : 'quemada') : '']
+    : [w ? 'sin estrechamiento' : 'sin resistencia', '0 Ω', true];
+  const ledTag = w => [w ? 'rueda' : 'LED', w ? st.led.replace(/o$/, 'a') : st.led, st.broken, st.broken ? (w ? 'rota' : 'quemado') : ''];
+  const SHORT = { 'tramo angosto': 'tramo', 'resistencia': 'R', 'sin estrechamiento': 'sin tramo', 'sin resistencia': 'sin R' };
+  function labels(ctx, g, w) {
+    if (b.nodesOn()) return;
+    const ya = yA(g), yb = yB(g), yw = yW(g), mid = (ya + yb) / 2, burnt = st.crack != null;
+    const name = w ? 'tramo con toma' : 'potenciómetro', state = burnt ? (w ? 'reventado' : 'quemado') : '';
+    // la del potenciómetro, junto al pedazo más largo (así no la tapa el cursor)
+    const tw = D.tagWidth(ctx, name, ohm(RP), state), ty = st.a > 0.5 ? (ya + yw) / 2 : (yw + yb) / 2;
+    b.tag(ctx, pot, XP - (w ? 44 : 26) - tw, ty, name, ohm(RP), burnt, true, state);
+    const room = (Sim.px(16, ctx) * 1.3) / 2 + (w ? Sim.PIPE + 6 : 4) + 4;
+    const up = Math.max(g.TOP + room + (w ? Sim.PIPE : 0), Math.min((ya + yw) / 2, yw - room));
+    const dn = Math.min(g.BOT - room - (w ? Sim.PIPE : 0), Math.max((yw + yb) / 2, yw + room));
+    const x = XP + (w ? 26 : 22);
+    if (up <= yw - room + 0.5 && yw - ya > 2) b.tag(ctx, pot, x, up, '', ohm(Ra()), cutA(), true);
+    if (dn >= yw + room - 0.5 && yb - yw > 2) b.tag(ctx, pot, x, dn, '', ohm(Rb()), cutB(), true);
+    {
+      const a = Sim.fadeSel(pot, pot.open());
+      D.selectRot(ctx, XP, mid, Math.PI / 2, (yb - ya) / 2 + (w ? Sim.NARROW_IN : 4) + 8, (w ? Sim.PIPE + 6 : 16) + 6, a);
+    }
+    if (st.step) b.tagRow(ctx, g, g.TOP - (w ? 68 : 44), [[rTag(w), XR, pinch], [ledTag(w), XL, ledPart]]
+      .map(([t, x, pr]) => ({ x, pr, name: SHORT[t[0]] ? [t[0], SHORT[t[0]]] : t[0], value: t[1], danger: t[2], state: t[3] })));
+  }
+
+  // ---------- el potenciómetro: tocarlo abre su tarjeta; arrastrar mueve el cursor ----------
+  // El cursor va de 0 (A) a 1 (B) de 1 en 1 %; los múltiplos de 10 % jalan un poco (imán). Arrastrar empieza pasada la
+  // zona muerta y el cursor va a donde está el dedo; un toque sin arrastrar abre o cierra la tarjeta, con el cursor en un
+  // deslizador de A a B. La rueda del ratón y las flechas lo mueven de 5 en 5 %.
+  const setA = a => {
+    a = Math.max(0, Math.min(1, a));
+    const t = Math.round(a * 10) / 10;
+    st.a = Math.abs(a - t) < 0.012 ? t : Math.round(a * 100) / 100;
+  };
+  const renewPot = () => { st.crack = null; ph.reset(); st.crackT = 9; };
+  const potMenu = side => {
+    const w = side === 'w';
+    return {
+      title: w ? 'Tramo con toma' : 'Potenciómetro',
+      rows: [
+        { label: w ? 'Toma' : 'Cursor', range: [0, 100, 1], lo: 'A', hi: 'B', get: () => Math.round(st.a * 100), set: v => setA(v / 100) },
+        Sim.powerRow(ph, side, { broken: () => st.crack != null }),
+        { actions: [{ text: w ? 'Poner un tramo nuevo' : 'Poner un potenciómetro nuevo', hidden: () => st.crack == null, onClick: renewPot }] }
+      ]
+    };
+  };
+  const shownSide = () => Sim.view === 'w' ? 'w' : 'e';
+  const pot = { els: [] };
+  pot.open = () => pot.els.some(el => Sim.menu.isOpen(el));
+  ['w', 'e'].forEach(side => {
+    const el = document.createElement('div'), p = side === 'w' ? b.pw : b.pe;
+    pot.els.push(el);
+    el.className = 'sim-pinch'; el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-haspopup', 'dialog');
+    el.setAttribute('aria-label', side === 'w' ? 'Tramo con toma (arrastrar mueve la toma)' : 'Potenciómetro (arrastrar mueve el cursor)');
+    b.place(side, el, g => {
+      if (b.nodesOn()) return OFF;
+      el.style.width = 64 * p.scale + 'px'; el.style.height = (yB(g) - yA(g) + 40) * p.scale + 'px';
+      return [XP, (yA(g) + yB(g)) / 2];
+    });
+    const toY = e => (e.clientY - p.box.getBoundingClientRect().top - p.oy) / p.scale;
+    const geo = () => side === 'w' ? b.gw : b.ge;
+    let id = null, start = 0, moved = false;
+    el.addEventListener('pointerdown', e => {
+      if (id != null) return;
+      id = e.pointerId; el.setPointerCapture(id); start = e.clientY; moved = false; e.preventDefault();
+    });
+    el.addEventListener('pointermove', e => {
+      if (e.pointerId !== id) return;
+      if (!moved && Math.abs(e.clientY - start) <= Sim.DEAD.drag) return;
+      moved = true;
+      const g = geo();
+      setA((toY(e) - yA(g)) / (yB(g) - yA(g)));
+    });
+    const up = e => {
+      if (e.pointerId !== id) return;
+      id = null;
+      if (!moved && e.type === 'pointerup') Sim.menu.toggle(el, potMenu(side));
+    };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', e => { e.preventDefault(); setA(st.a + (e.deltaY < 0 ? -0.05 : 0.05)); }, { passive: false });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { Sim.menu.toggle(el, potMenu(side)); e.preventDefault(); return; }
+      const f = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key];
+      if (f) { setA(st.a + f * 0.05); e.preventDefault(); }
+    });
+    setInterval(() => el.setAttribute('aria-description', ohm(Ra()) + ' de A al cursor, ' + ohm(Rb()) + ' del cursor a B'), 500);
+  });
+  if (Sim.side) Sim.side.part({ anchor: () => pot.els[shownSide() === 'w' ? 0 : 1], menu: () => potMenu(shownSide()) });
+  function burnPot() {
+    // se rompe a la mitad del pedazo que lleva la corriente
+    st.crack = st.step ? st.a / 2 : 0.5; st.crackT = 0; b.halt(); b.refresh();
+  }
+
+  // ---------- paso 2: la resistencia de protección y el LED ----------
+  const renewR = () => { st.rb = false; rh.reset(); st.burnT = 9; };
+  const setR = R => { st.R = R; if (!R) renewR(); };
+  const pinch = b.pinch({
+    pos: g => st.step ? [XR, g.TOP] : OFF, get: () => st.R, half, fromHalf, set: setR,
+    label: side => side === 'w' ? 'Tramo angosto' : 'Resistencia de protección',
+    text: R => R ? ohm(R) : 'sin resistencia',
+    menu: Sim.resistorMenu({ values: RVALUES, get: () => st.R, set: setR, format: R => R ? ohm(R) : '0 Ω (sin resistencia)',
+      heat: rh, broken: () => st.rb,
+      actions: side => [{ text: side === 'w' ? 'Poner un tubo nuevo' : 'Poner una resistencia nueva', hidden: () => !st.rb, onClick: renewR }] })
+  });
+  const ledPart = b.part({
+    pos: g => st.step ? [XL, g.TOP] : OFF,
+    label: side => side === 'w' ? 'Rueda' : 'LED',
+    menu: Sim.ledMenu({
+      get: () => st.led, set: id => { st.led = id; }, heat: lh, broken: () => st.broken,
+      actions: side => [{ text: side === 'w' ? 'Poner una rueda nueva' : 'Poner un LED nuevo', hidden: () => !st.broken,
+        onClick: () => { st.broken = false; lh.reset(); } }]
+    })
+  });
+
+  // ---------- pasos ----------
+  // Cada paso pone su circuito y el multímetro: en el 1, en V entre la terminal del cursor y la tierra; en el 2, en A
+  // en el cable de abajo, entre la toma y la fuente (en serie). Se cumplen solos: el 1 al mover el cursor de un lado a
+  // otro (media pista) midiendo el voltaje del cursor; el 2 con el LED prendido con el cursor hasta arriba (la corriente
+  // más grande) y con el cursor de la mitad para abajo.
+  function seen(m) {
+    if (!st.step) return;
+    const on = !st.broken && m.I > 0.3;
+    if (on && st.a <= 0.05) st.low = true;
+    if (on && st.a >= 0.5) st.high = true;
+  }
+  const atWiper = () => {
+    const { comps, nodes, meters } = b.where(), ra = comps.find(c => c.c.id === 'RA'), gnd = nodes.find(n => n.ground), mt = meters.a;
+    if (!ra || !gnd || !mt || mt.dial !== 'V' || mt.value == null) return false;
+    const [p, q] = mt.nodes;
+    return (p === ra.B && q === gnd) || (p === gnd && q === ra.B);
+  };
+  setInterval(() => {
+    if (st.step || !atWiper()) return;
+    st.span = [Math.min(st.span[0], st.a), Math.max(st.span[1], st.a)];
+  }, 100);
+  const power = on => { if (b.st.on !== on) document.querySelector('#pe .sim-power').click(); };
+  b.start();
+  Sim.steps(['Divisor de voltaje', 'Resistencia variable'], k => {
+    st.step = k;
+    [pinch.els, ledPart.els].forEach(els => els.forEach(el => Sim.menu.close(el)));
+    streams.clear(); phase.w = {}; phase.e = {};
+    st.span = [st.a, st.a]; st.low = st.high = false;
+    b.showMeters({ a: true });
+    power(true);
+    const g = b.ge;
+    if (k === 0) { b.setDial('a', 'off'); b.setDial('a', 'V', [[XT, yB(g)], b.ground(g)]); }   // las partículas por presión
+    else b.setDial('a', 'A', [[600, g.BOT], [540, g.BOT]]);
+    b.halt(); b.refresh();
+  }, k => k ? st.low && st.high : st.span[1] - st.span[0] >= 0.5);
+  Sim.potNow = { st, setA };   // para probar
+})();
+</script>
+</body>
+</html>

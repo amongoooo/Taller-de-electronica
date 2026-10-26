@@ -151,7 +151,11 @@ Sin compilación: HTML, CSS y JS sueltos. Para probar en local: `python3 -m http
   `voltaje-concepto` (Voltaje, corriente y resistencia: los tres conceptos en tres pasos) no usa el banco ni instrumentos: usa
   `Sim.piezo` con la válvula del regreso, la tierra que se arrastra a un tubito o al regreso, R1 y R2 con largo y grosor en su
   tarjeta (y su calor, ¼ W) y, desde el paso 2, dos contadores que se arrastran por la vuelta (su lectura va donde menos se corre). `resistencia` (Ley de Ohm y nodos, sin pasos: fusible, R1 y hasta tres resistencias de ¼ W en paralelo entre los mismos dos
-  nodos, con lugares punteados para agregarlas; 0 Ω es un corto; Ver → Corrientes y Equivalente; `Sim.ohmNow` para probar). `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
+  nodos, con lugares punteados para agregarlas; 0 Ω es un corto; Ver → Corrientes y Equivalente; `Sim.ohmNow` para probar). `potenciometro` (Potenciómetro, dos pasos: divisor de voltaje y
+  resistencia variable con un LED): la pista de pie en `XP` partida en el cursor en dos componentes (`RA` de A al cursor y `RB`
+  del cursor a B, con su largo de verdad: en la vista de nodos son dos resistencias), la toma a `XT`; el agua con `Sim.stream`
+  (avanza por fase, así no se pierde al mover el cursor); su propio elemento para tocar y arrastrar el cursor; `Sim.potNow`
+  para probar. `capacitores` lleva el osciloscopio en la mesa (`scope`) en lugar de su gráfica. `protoboard` no usa el banco: tiene su propio dibujo, puntas, botones y tarjetas. `osciloscopio` (LED),
   `osciloscopio-rc` (la frecuencia frente a τ), `osciloscopio-rectificador` (Diodo y media onda: el diodo en directa e inversa y luego la media onda)
   y `osciloscopio-onda-completa` (puente de cuatro diodos) solo dan su circuito a `Sim.scope`; las que van por pasos ponen
   los valores del taller de cada paso con `apply` (lo que da `Sim.scope`: los mismos campos que `preset`, sin las puntas).
@@ -230,7 +234,7 @@ medir, Ley de Ohm y nodos, Protoboard, Interruptor y LED, LEDs en serie y parale
 
 Componentes de proyecto (aprobado; una página y un PR por cada una, con el banco, después de LEDs en serie y paralelo y en
 este orden, porque cada una usa la anterior):
-- [ ] **Potenciómetro** (10 kΩ lineal, el del taller): en agua, un tramo angosto largo con una toma que se desliza
+- [x] **Potenciómetro** (10 kΩ lineal, el del taller): en agua, un tramo angosto largo con una toma que se desliza
   (el cursor). Divisor de voltaje medido en el cursor; luego resistencia variable en serie con un LED y su resistencia de
   protección (brillo y corriente máxima).
 - [ ] **Botones**: pulsador normalmente abierto y cerrado (en agua, una válvula con resorte que se cierra sola al soltarla);
